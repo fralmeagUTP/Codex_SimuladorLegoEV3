@@ -1,19 +1,19 @@
-"""
-main_window.py — Ventana principal del Simulador EV3 Pybricks.
+﻿"""
+main_window.py â€” Ventana principal del Simulador EV3 Pybricks.
 
-Diseño de la ventana (layout):
-  ┌────────────────────────────────────────────────────────┐
-  │  Menú: Archivo | Ejemplos | Ayuda                      │
-  ├─────────────────────┬──────────────────────────────────┤
-  │  WorldCanvas        │ Panel derecho (PanedWindow):      │
-  │  (lienzo 2-D del   │   ┌─ BrickPanel (estado LED/LCD) ─┤
-  │   mundo)            │   └─ TelemetryPanel (motores…)   │
-  ├─────────────────────┴──────────────────────────────────┤
-  │  EditorPanel (editor Python + botones Run/Stop)        │
-  └────────────────────────────────────────────────────────┘
+DiseÃ±o de la ventana (layout):
+  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+  â”‚  MenÃº: Archivo | Ejemplos | Ayuda                      â”‚
+  â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+  â”‚  WorldCanvas        â”‚ Panel derecho (PanedWindow):      â”‚
+  â”‚  (lienzo 2-D del   â”‚   â”Œâ”€ BrickPanel (estado LED/LCD) â”€â”¤
+  â”‚   mundo)            â”‚   â””â”€ TelemetryPanel (motoresâ€¦)   â”‚
+  â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+  â”‚  EditorPanel (editor Python + botones Run/Stop)        â”‚
+  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 
 La ventana llama a `SimulationService` cada 20 ms
-(≈ 50 Hz) mediante `after(20, _tick)`.
+(â‰ˆ 50 Hz) mediante `after(20, _tick)`.
 
 Uso:
     from simulador_ev3.ui.main_window import EV3SimulatorApp
@@ -35,7 +35,7 @@ from simulador_ev3.ui.editor_panel  import EditorPanel
 from simulador_ev3.ui.brick_panel   import BrickPanel
 from simulador_ev3.ui.telemetry_panel import TelemetryPanel
 
-# Directorio de ejemplos (relativo a la raíz del proyecto)
+# Directorio de ejemplos (relativo a la raÃ­z del proyecto)
 _EXAMPLES_DIR = os.path.join(
     os.path.dirname(__file__), "..", "..", "Documentos", "Ejemplos"
 )
@@ -44,12 +44,12 @@ _WORLDS_DIR = os.path.join(
 )
 
 _SCENARIOS: list[tuple[str, str, str]] = [
-    ("Seguidor de línea", "01_linea_negra.json", "06_siguelineas_basico.py"),
-    ("Ultrasonido + obstáculos", "02_obstaculos_beacon.json", "05_esquiva_obstaculos.py"),
+    ("Seguidor de lÃ­nea", "01_linea_negra.json", "06_siguelineas_basico.py"),
+    ("Ultrasonido + obstÃ¡culos", "02_obstaculos_beacon.json", "05_esquiva_obstaculos.py"),
     ("Test pantalla/altavoz", "02_obstaculos_beacon.json", "12_pantalla_altavoz_test.py"),
 ]
 
-# Periodo del tick en ms (≈50 Hz)
+# Periodo del tick en ms (â‰ˆ50 Hz)
 _TICK_MS = 20
 
 
@@ -59,8 +59,8 @@ class EV3SimulatorApp(tk.Tk):
 
     Args:
         world_config:  SimEngineConfig con las dimensiones del mundo y
-                       posición inicial del robot.  Si None, se usan
-                       valores por defecto (mundo 2000 × 2000 mm).
+                       posiciÃ³n inicial del robot.  Si None, se usan
+                       valores por defecto (mundo 2000 Ã— 2000 mm).
     """
 
     def __init__(self, world_config: Optional[SimEngineConfig] = None) -> None:
@@ -70,7 +70,7 @@ class EV3SimulatorApp(tk.Tk):
         self.minsize(900, 600)
         self.configure(bg="#ECEFF1")
 
-        # Servicio de simulación (capa de aplicación)
+        # Servicio de simulaciÃ³n (capa de aplicaciÃ³n)
         self._service = SimulationService(config=world_config)
         self._service.set_snapshot_callback(self._on_snapshot)
         self._service.set_error_callback(self._on_error)
@@ -90,52 +90,52 @@ class EV3SimulatorApp(tk.Tk):
         self._resize_after_id: Optional[str] = None
         self._schedule_tick()
 
-        # Layout responsivo al cambiar tamaño de ventana
+        # Layout responsivo al cambiar tamaÃ±o de ventana
         self.bind("<Configure>", self._on_window_resize)
         self.after_idle(self._apply_responsive_layout)
 
-        # Al cerrar la ventana, detener la simulación
+        # Al cerrar la ventana, detener la simulaciÃ³n
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ------------------------------------------------------------------
-    # Construcción de la UI
+    # ConstrucciÃ³n de la UI
     # ------------------------------------------------------------------
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self)
         self.configure(menu=menubar)
 
-        # Menú Archivo
+        # MenÃº Archivo
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Nuevo script",    command=self._cmd_new)
         file_menu.add_separator()
         file_menu.add_command(label="Salir",           command=self._on_close)
         menubar.add_cascade(label="Archivo", menu=file_menu)
 
-        # Menú Ejemplos
+        # MenÃº Ejemplos
         examples_menu = tk.Menu(menubar, tearoff=0)
         self._populate_examples_menu(examples_menu)
         menubar.add_cascade(label="Ejemplos", menu=examples_menu)
 
-        # Menú Mundos
+        # MenÃº Mundos
         worlds_menu = tk.Menu(menubar, tearoff=0)
-        worlds_menu.add_command(label="Cargar mundo JSON…", command=self._cmd_load_world)
+        worlds_menu.add_command(label="Cargar mundo JSONâ€¦", command=self._cmd_load_world)
         worlds_menu.add_separator()
         self._populate_worlds_menu(worlds_menu)
         menubar.add_cascade(label="Mundos", menu=worlds_menu)
 
-        # Menú Escenarios (mundo + ejemplo)
+        # MenÃº Escenarios (mundo + ejemplo)
         scenario_menu = tk.Menu(menubar, tearoff=0)
         self._populate_scenarios_menu(scenario_menu)
         menubar.add_cascade(label="Escenarios", menu=scenario_menu)
 
-        # Menú Ayuda
+        # MenÃº Ayuda
         help_menu = tk.Menu(menubar, tearoff=0)
-        help_menu.add_command(label="Acerca de…", command=self._cmd_about)
+        help_menu.add_command(label="Acerca deâ€¦", command=self._cmd_about)
         menubar.add_cascade(label="Ayuda", menu=help_menu)
 
     def _populate_examples_menu(self, menu: tk.Menu) -> None:
-        """Añade un ítem por cada *.py en el directorio de ejemplos."""
+        """AÃ±ade un Ã­tem por cada *.py en el directorio de ejemplos."""
         examples = self._examples.list_examples()
         if not examples:
             menu.add_command(label="(No hay ejemplos)", state=tk.DISABLED)
@@ -176,29 +176,39 @@ class EV3SimulatorApp(tk.Tk):
             )
 
     def _build_layout(self) -> None:
-        """Construye el layout principal (PanedWindow horizontal + editor abajo)."""
-        # PanedWindow vertical: mundo+telemetría arriba, editor abajo
-        self._vpane = tk.PanedWindow(self, orient=tk.VERTICAL, sashwidth=6,
-                                     bg="#B0BEC5", sashrelief=tk.RAISED)
-        self._vpane.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        """Construye el layout principal: trabajo a la izquierda, estado a la derecha."""
+        self._root_hpane = tk.PanedWindow(
+            self,
+            orient=tk.HORIZONTAL,
+            sashwidth=6,
+            bg="#B0BEC5",
+            sashrelief=tk.RAISED,
+        )
+        self._root_hpane.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
 
-        # ── Parte superior: lienzo + panel derecho ──
+        # Columna izquierda: mundo arriba + editor abajo
+        left_frame = tk.Frame(self._root_hpane, bg="#ECEFF1")
+        self._root_hpane.add(left_frame, minsize=560, stretch="always")
+
+        self._vpane = tk.PanedWindow(
+            left_frame,
+            orient=tk.VERTICAL,
+            sashwidth=6,
+            bg="#B0BEC5",
+            sashrelief=tk.RAISED,
+        )
+        self._vpane.pack(fill=tk.BOTH, expand=True)
+
         top_frame = tk.Frame(self._vpane, bg="#ECEFF1")
         self._vpane.add(top_frame, minsize=350, stretch="always")
 
-        self._hpane = tk.PanedWindow(top_frame, orient=tk.HORIZONTAL, sashwidth=6,
-                                     bg="#B0BEC5", sashrelief=tk.RAISED)
-        self._hpane.pack(fill=tk.BOTH, expand=True)
-
-        # WorldCanvas (izquierda) — envuelta en un frame con barra de ayuda
         engine_cfg = self._service.engine._cfg
         ww = engine_cfg.world_width_mm
         wh = engine_cfg.world_height_mm
 
-        canvas_frame = tk.Frame(self._hpane, bg="#ECEFF1")
-        self._hpane.add(canvas_frame, minsize=300, stretch="always")
+        canvas_frame = tk.Frame(top_frame, bg="#ECEFF1")
+        canvas_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Barra informativa de colocación del robot
         self._placement_bar = tk.Label(
             canvas_frame,
             text="Haz clic en el mapa para colocar el robot antes de ejecutar",
@@ -209,29 +219,30 @@ class EV3SimulatorApp(tk.Tk):
 
         self._canvas = WorldCanvas(canvas_frame, world_w_mm=ww, world_h_mm=wh)
         self._canvas.pack(fill=tk.BOTH, expand=True)
-
         self._refresh_world_canvas()
-
-        # Activar modo de colocación (antes de correr código)
         self._activate_placement_mode()
 
-        # Panel derecho: BrickPanel + TelemetryPanel
-        self._right_pane = tk.PanedWindow(self._hpane, orient=tk.VERTICAL, sashwidth=4,
-                                          bg="#B0BEC5", sashrelief=tk.RAISED)
-        self._hpane.add(self._right_pane, minsize=240, stretch="always")
-
-        self._brick_panel     = BrickPanel(self._right_pane)
-        self._telemetry_panel = TelemetryPanel(self._right_pane)
-        self._right_pane.add(self._brick_panel,     minsize=160, stretch="always")
-        self._right_pane.add(self._telemetry_panel, minsize=200, stretch="always")
-
-        # ── Parte inferior: Editor ──
         self._editor = EditorPanel(
             self._vpane,
             on_run=self._cmd_run,
             on_stop=self._cmd_stop,
         )
         self._vpane.add(self._editor, minsize=180, stretch="always")
+
+        # Columna derecha: telemetria arriba + pantalla del robot abajo
+        self._right_pane = tk.PanedWindow(
+            self._root_hpane,
+            orient=tk.VERTICAL,
+            sashwidth=4,
+            bg="#B0BEC5",
+            sashrelief=tk.RAISED,
+        )
+        self._root_hpane.add(self._right_pane, minsize=300, stretch="never")
+
+        self._telemetry_panel = TelemetryPanel(self._right_pane)
+        self._brick_panel = BrickPanel(self._right_pane)
+        self._right_pane.add(self._telemetry_panel, minsize=260, stretch="always")
+        self._right_pane.add(self._brick_panel, minsize=180, stretch="always")
 
     def _on_window_resize(self, _event) -> None:
         """Aplica layout responsivo con debounce en cada resize de la ventana."""
@@ -240,11 +251,11 @@ class EV3SimulatorApp(tk.Tk):
         self._resize_after_id = self.after(60, self._apply_responsive_layout)
 
     # ------------------------------------------------------------------
-    # Modo de colocación del robot
+    # Modo de colocaciÃ³n del robot
     # ------------------------------------------------------------------
 
     def _activate_placement_mode(self) -> None:
-        """Habilita el clic en el canvas para fijar la posición inicial."""
+        """Habilita el clic en el canvas para fijar la posiciÃ³n inicial."""
         self._canvas.enable_placement_mode(
             callback=self._on_canvas_placement,
             hover_callback=self._on_canvas_hover,
@@ -257,7 +268,7 @@ class EV3SimulatorApp(tk.Tk):
         self._refresh_placement_bar()
 
     def _deactivate_placement_mode(self) -> None:
-        """Deshabilita el modo de colocación durante la simulación."""
+        """Deshabilita el modo de colocaciÃ³n durante la simulaciÃ³n."""
         self._canvas.disable_placement_mode()
         self._hover_robot_pos = None
         self._placement_bar.config(
@@ -320,25 +331,25 @@ class EV3SimulatorApp(tk.Tk):
 
         # Proporciones base
         top_h = max(320, int(height * 0.62))
-        right_w = max(320, int(width * 0.30))
-        right_x = max(280, width - right_w)
-        brick_h = max(140, int(top_h * 0.34))
+        right_w = max(360, int(width * 0.34))  # reduce ancho util del editor
+        right_x = max(520, width - right_w)
+        telemetry_h = max(280, int(height * 0.62))
 
+        try:
+            self._root_hpane.sash_place(0, right_x, 0)
+        except Exception:  # noqa: BLE001
+            pass
         try:
             self._vpane.sash_place(0, 0, top_h)
         except Exception:  # noqa: BLE001
             pass
         try:
-            self._hpane.sash_place(0, right_x, 0)
-        except Exception:  # noqa: BLE001
-            pass
-        try:
-            self._right_pane.sash_place(0, 0, brick_h)
+            self._right_pane.sash_place(0, 0, telemetry_h)
         except Exception:  # noqa: BLE001
             pass
 
     # ------------------------------------------------------------------
-    # Tick del engine vía Tkinter after()
+    # Tick del engine vÃ­a Tkinter after()
     # ------------------------------------------------------------------
 
     def _schedule_tick(self) -> None:
@@ -351,15 +362,15 @@ class EV3SimulatorApp(tk.Tk):
         el EngineThread no gestiona el loop, o simplemente es un hook
         para la UI cuando el loop corre en background).
         """
-        self._schedule_tick()   # reprogramar ANTES de cualquier excepción
+        self._schedule_tick()   # reprogramar ANTES de cualquier excepciÃ³n
 
     # ------------------------------------------------------------------
     # Callbacks del SimulationService
     # ------------------------------------------------------------------
 
     def _on_snapshot(self, dto) -> None:
-        """Recibe el SnapshotDTO desde el EngineThread — DEBE serializar a Tkinter."""
-        # after_idle garantiza que la actualización de widgets ocurre
+        """Recibe el SnapshotDTO desde el EngineThread â€” DEBE serializar a Tkinter."""
+        # after_idle garantiza que la actualizaciÃ³n de widgets ocurre
         # en el hilo de Tkinter (MainThread)
         self.after_idle(self._apply_snapshot, dto)
 
@@ -373,16 +384,16 @@ class EV3SimulatorApp(tk.Tk):
             pass
 
     def _on_error(self, payload: dict) -> None:
-        """Muestra el error del script en el editor y en un diálogo."""
+        """Muestra el error del script en el editor y en un diÃ¡logo."""
         msg = payload.get("error", "Error desconocido")
         self.after_idle(self._editor.set_status, f"Error: {msg}", "#B71C1C")
         self.after_idle(messagebox.showerror, "Error en script", msg)
 
     def _on_status(self, status: str) -> None:
         status_map = {
-            "started":      ("Ejecutando…",      "#1565C0"),
+            "started":      ("Ejecutandoâ€¦",      "#1565C0"),
             "paused":       ("Pausado",            "#F57F17"),
-            "resumed":      ("Ejecutando…",      "#1565C0"),
+            "resumed":      ("Ejecutandoâ€¦",      "#1565C0"),
             "stopped":      ("Detenido",           "#424242"),
             "error":        ("Error",              "#B71C1C"),
             "reset":        ("Listo",              "#212121"),
@@ -391,7 +402,7 @@ class EV3SimulatorApp(tk.Tk):
         msg, color = status_map.get(status, (status, "#212121"))
         self.after_idle(self._editor.set_status, msg, color)
 
-        # Re-habilitar modo de colocación al terminar la simulación
+        # Re-habilitar modo de colocaciÃ³n al terminar la simulaciÃ³n
         if status in ("stopped", "error", "reset"):
             self.after_idle(self._activate_placement_mode)
 
@@ -401,7 +412,7 @@ class EV3SimulatorApp(tk.Tk):
 
     def _cmd_run(self, source_code: str) -> None:
         """Llamado por EditorPanel cuando el usuario pulsa Ejecutar."""
-        # Deshabilitar modo de colocación durante la ejecución
+        # Deshabilitar modo de colocaciÃ³n durante la ejecuciÃ³n
         self._deactivate_placement_mode()
         self._canvas.reset()
         self._brick_panel.reset()
@@ -417,7 +428,7 @@ class EV3SimulatorApp(tk.Tk):
         """Nuevo script en blanco."""
         if self._service.is_running:
             if not messagebox.askyesno("Nuevo script",
-                                       "La simulación está corriendo. ¿Detener?"):
+                                       "La simulaciÃ³n estÃ¡ corriendo. Â¿Detener?"):
                 return
             self._service.stop()
         self._editor.set_code("# Nuevo script\n")
@@ -501,13 +512,13 @@ class EV3SimulatorApp(tk.Tk):
         messagebox.showinfo(
             "Acerca de",
             "Simulador EV3 Pybricks\n"
-            "Versión 1.0\n\n"
+            "VersiÃ³n 1.0\n\n"
             "Simulador de robots LEGO EV3 con API compatible Pybricks.\n"
             "Desarrollado con Python + Tkinter.",
         )
 
     def _on_close(self) -> None:
-        """Cierra la aplicación de forma limpia."""
+        """Cierra la aplicaciÃ³n de forma limpia."""
         if self._tick_id:
             self.after_cancel(self._tick_id)
         self._service.stop()
@@ -525,3 +536,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

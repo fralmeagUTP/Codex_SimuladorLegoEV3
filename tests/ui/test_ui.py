@@ -72,6 +72,7 @@ def _make_tk_mock():
         def create_rectangle(self, *a, **kw): return 1
         def create_line(self, *a, **kw): return 1
         def create_polygon(self, *a, **kw): return 1
+        def create_text(self, *a, **kw): return 1
         def create_window(self, *a, **kw): return 1
         def bbox(self, *a, **kw): return (0, 0, 400, 400)
         def itemconfigure(self, *a, **kw): return None
@@ -322,6 +323,7 @@ class TestBrickPanel:
     def test_update_screen_no_crash(self):
         bp = self.BrickPanel(mock.MagicMock())
         bp._update_screen("Hola mundo")
+        bp._update_screen({"lines": ["Linea 1", "Linea 2"], "width_px": 178, "height_px": 128})
 
     def test_update_speaker_no_crash(self):
         bp = self.BrickPanel(mock.MagicMock())

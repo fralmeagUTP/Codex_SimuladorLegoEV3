@@ -365,6 +365,11 @@ class TestEV3BrickAPI:
         cmd = next(c for c in items if c.cmd_type == CommandType.DISPLAY_TEXT)
         assert "42" in cmd.params["text"]
 
+    def test_screen_clear_enqueues_clear_command(self):
+        self.ev3.screen.clear()
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.SCREEN_CLEAR for c in items)
+
     def test_buttons_pressed_returns_list(self):
         result = self.ev3.buttons.pressed()
         assert isinstance(result, list)

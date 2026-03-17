@@ -29,7 +29,7 @@ Estructura del dict de salida:
 
     "brick": {
         "led":     str | None,   # "RED", "GREEN", "ORANGE", None
-        "screen":  str | None,   # última línea mostrada
+        "screen":  dict,         # metadata + lineas de pantalla
         "speaker": dict | None,  # {"freq": int, "duration_ms": int}
         "buttons": list          # botones presionados (normalmente [])
     }
@@ -171,7 +171,7 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
       "led":     {"is_on": bool, "color": str}
       "speaker": {"state": str, "frequency_hz": int,
                   "remaining_ms": int, "volume": int}
-      "screen":  {"lines": list[str]}
+      "screen":  {"lines": list[str], "width_px": int, ...}
       "buttons": (dict específico de ButtonsModel)
     """
     # LED ─────────────────────────────────────────────────────────────
@@ -185,13 +185,34 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
 
     # Pantalla ────────────────────────────────────────────────────────
     screen_raw = brick_dict.get("screen")
+    screen_out = {
+        "lines": [],
+        "width_px": 178,
+        "height_px": 128,
+        "width_mm": 36.0,
+        "height_mm": 24.0,
+        "diagonal_mm": 47.0,
+        "backlight_leds": 4,
+        "monochrome": True,
+    }
     if isinstance(screen_raw, dict):
-        lines = screen_raw.get("lines", [])
-        screen_str: str | None = "\n".join(str(ln) for ln in lines) or None
+        screen_out["lines"] = [str(ln) for ln in screen_raw.get("lines", [])]
+        for key in (
+            "width_px",
+            "height_px",
+            "width_mm",
+            "height_mm",
+            "diagonal_mm",
+            "backlight_leds",
+            "monochrome",
+        ):
+            if key in screen_raw:
+                screen_out[key] = screen_raw[key]
     elif isinstance(screen_raw, list):
-        screen_str = "\n".join(str(ln) for ln in screen_raw) or None
-    else:
-        screen_str = str(screen_raw) if screen_raw else None
+        screen_out["lines"] = [str(ln) for ln in screen_raw]
+    elif screen_raw:
+        text = str(screen_raw)
+        screen_out["lines"] = text.splitlines() or [text]
 
     # Altavoz ─────────────────────────────────────────────────────────
     speaker_raw = brick_dict.get("speaker")
@@ -217,7 +238,7 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
 
     return {
         "led":     led_str,
-        "screen":  screen_str,
+        "screen":  screen_out,
         "speaker": speaker_out,
         "buttons": buttons_out,
     }

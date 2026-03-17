@@ -101,6 +101,11 @@ class TestSimulationCommandCreation:
         assert cmd.params["text"] == "Hola"
         assert cmd.params["newline"] is True
 
+    def test_screen_clear_no_blocking(self):
+        cmd = SimulationCommand.screen_clear()
+        assert cmd.cmd_type == CommandType.SCREEN_CLEAR
+        assert cmd.blocking is False
+
 
 class TestSimulationCommandBlocking:
     def test_signal_done_sets_event(self):

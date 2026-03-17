@@ -10,7 +10,7 @@ Tipos de comando (15 total):
   DriveBase   : DB_DRIVE, DB_STOP, DB_STRAIGHT, DB_TURN, DB_SETTINGS
   LED         : LED_ON, LED_OFF
   Speaker     : PLAY_SOUND
-  Screen      : DISPLAY_TEXT
+  Screen      : DISPLAY_TEXT, SCREEN_CLEAR
 
 Los comandos 'bloqueantes' (blocking=True) incluyen un threading.Event que
 el SimulationEngine dispara al completarse, permitiendo que el hilo del
@@ -55,6 +55,7 @@ class CommandType(Enum):
 
     # Ladrillo EV3 — Pantalla
     DISPLAY_TEXT      = auto()   # screen.print(text)      — no bloqueante
+    SCREEN_CLEAR      = auto()   # screen.clear()          — no bloqueante
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +183,10 @@ class SimulationCommand:
         return cls(CommandType.DISPLAY_TEXT,
                    params={"text": text, "newline": newline},
                    blocking=False)
+
+    @classmethod
+    def screen_clear(cls) -> "SimulationCommand":
+        return cls(CommandType.SCREEN_CLEAR, blocking=False)
 
     def signal_done(self) -> None:
         """El Engine llama a este método cuando el comando bloqueante termina."""

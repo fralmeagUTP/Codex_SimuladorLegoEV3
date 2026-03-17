@@ -102,6 +102,14 @@ class TestDisplayCommands:
         lines = snap.brick["screen"]["lines"]
         assert any("Hola EV3" in line for line in lines)
 
+    def test_screen_clear_empties_snapshot_lines(self):
+        eng = make_engine()
+        eng.command_queue.put(SimulationCommand.display_text("Linea 1"))
+        eng.update()
+        eng.command_queue.put(SimulationCommand.screen_clear())
+        snap = eng.update()
+        assert snap.brick["screen"]["lines"] == []
+
 
 # ---------------------------------------------------------------------------
 # Comandos — Altavoz

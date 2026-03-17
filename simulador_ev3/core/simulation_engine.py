@@ -180,6 +180,7 @@ class SimulationEngine:
             CommandType.LED_OFF:         self._handle_led_off,
             CommandType.PLAY_SOUND:      self._handle_play_sound,
             CommandType.DISPLAY_TEXT:    self._handle_display_text,
+            CommandType.SCREEN_CLEAR:    self._handle_screen_clear,
         }
 
         # Comandos bloqueantes activos (esperando signal_done)
@@ -487,6 +488,9 @@ class SimulationEngine:
     def _handle_display_text(self, cmd: SimulationCommand) -> None:
         text = str(cmd.params.get("text", ""))
         self._brick.screen.cmd_print(text)
+
+    def _handle_screen_clear(self, cmd: SimulationCommand) -> None:
+        self._brick.screen.cmd_clear()
 
     # ------------------------------------------------------------------
     # Sensores

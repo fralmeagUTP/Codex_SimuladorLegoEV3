@@ -83,9 +83,8 @@ class _Screen:
         self._q.put(SimulationCommand.display_text(text))
 
     def clear(self) -> None:
-        """Limpia la pantalla (no implementado en la cola actual)."""
-        # Futura extensión: CMD_SCREEN_CLEAR
-        pass
+        """Limpia la pantalla."""
+        self._q.put(SimulationCommand.screen_clear())
 
 
 class _Buttons:

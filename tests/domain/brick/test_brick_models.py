@@ -8,7 +8,12 @@ import pytest
 from simulador_ev3.domain.brick.led_model import LedModel, LedColor
 from simulador_ev3.domain.brick.ev3brick_model import EV3BrickModel
 from simulador_ev3.domain.brick.buttons_model import ButtonsModel, Button
-from simulador_ev3.domain.brick.screen_buffer import ScreenBuffer, MAX_LINES
+from simulador_ev3.domain.brick.screen_buffer import (
+    MAX_LINES,
+    SCREEN_HEIGHT_PX,
+    SCREEN_WIDTH_PX,
+    ScreenBuffer,
+)
 
 
 # ------------------------------------------------------------------ #
@@ -110,6 +115,13 @@ class TestScreenBuffer:
         long_text = "A" * 100
         screen.cmd_print(long_text)
         assert len(screen.lines[0]) <= 22
+
+    def test_to_dict_contains_physical_spec_metadata(self) -> None:
+        screen = ScreenBuffer()
+        d = screen.to_dict()
+        assert d["width_px"] == SCREEN_WIDTH_PX
+        assert d["height_px"] == SCREEN_HEIGHT_PX
+        assert d["monochrome"] is True
 
 
 # ------------------------------------------------------------------ #

@@ -1,12 +1,12 @@
 """
-brick_panel.py — Panel de visualización del estado del EV3 Brick.
+brick_panel.py - Panel de visualizacion del estado del EV3 Brick.
 
 Muestra en tiempo real:
-  • LED de estado (color según SnapshotDTO.brick["led"]).
-  • Pantalla del EV3 (texto de la última llamada a screen.print()).
-  • Altavoz — indicador visual de sonido activo.
+  - LED de estado (color segun SnapshotDTO.brick["led"]).
+  - Pantalla EV3 simulada en formato 178x128 monocromo horizontal.
+  - Altavoz - indicador visual de sonido activo.
 
-Actualización: llamar a `update_from_dto(dto)` en cada tick.
+Actualizacion: llamar a update_from_dto(dto) en cada tick.
 """
 from __future__ import annotations
 
@@ -17,17 +17,27 @@ from simulador_ev3.application.snapshot_dto import SnapshotDTO
 
 # Paleta de colores LED
 _LED_COLORS: dict[str, str] = {
-    "RED":    "#F44336",
-    "GREEN":  "#4CAF50",
+    "RED": "#F44336",
+    "GREEN": "#4CAF50",
     "ORANGE": "#FF9800",
     "YELLOW": "#FFEB3B",
-    None:     "#BDBDBD",      # apagado
+    None: "#BDBDBD",  # apagado
 }
 
-_SCREEN_BG = "#1B2631"   # fondo oscuro tipo LCD
-_SCREEN_FG = "#A9DFBF"   # verde LCD
-_BRICK_BG  = "#263238"
-_LABEL_FG  = "#ECEFF1"
+# Paleta general del panel
+_BRICK_BG = "#263238"
+_LABEL_FG = "#ECEFF1"
+_DIVIDER = "#455A64"
+
+# Paleta de LCD EV3 simulado (monocromo)
+_LCD_FRAME = "#4F585F"
+_LCD_BG = "#E6ECD6"
+_LCD_FG = "#111111"
+_LCD_SCANLINE = "#D7DFCA"
+_LCD_LED_ON = "#F8F8EF"
+_LCD_LED_OFF = "#A4AA95"
+_LCD_CANVAS_W = 423  # +30% respecto a 325
+_LCD_CANVAS_H = 304  # +30% respecto a 234
 
 
 class BrickPanel(tk.Frame):
@@ -35,7 +45,7 @@ class BrickPanel(tk.Frame):
     Panel visual del EV3 Brick.
 
     Args:
-        parent:  Widget padre.
+        parent: Widget padre.
         **kwargs: Argumentos para tk.Frame.
     """
 
@@ -45,14 +55,15 @@ class BrickPanel(tk.Frame):
         kwargs.setdefault("pady", 8)
         super().__init__(parent, **kwargs)
 
+        self._screen_state = self._default_screen_state()
         self._build()
 
     # ------------------------------------------------------------------
-    # API pública
+    # API publica
     # ------------------------------------------------------------------
 
     def update_from_dto(self, dto: SnapshotDTO) -> None:
-        """Actualiza todos los subpaneles con el último snapshot."""
+        """Actualiza todos los subpaneles con el ultimo snapshot."""
         brick = dto.brick
         self._update_led(brick.get("led"))
         self._update_screen(brick.get("screen"))
@@ -65,53 +76,83 @@ class BrickPanel(tk.Frame):
         self._update_speaker(None)
 
     # ------------------------------------------------------------------
-    # Construcción
+    # Construccion
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        tk.Label(self, text="EV3 Brick", bg=_BRICK_BG, fg=_LABEL_FG,
-                 font=("Arial", 11, "bold")).pack(pady=(0, 6))
+        tk.Label(
+            self,
+            text="EV3 Brick",
+            bg=_BRICK_BG,
+            fg=_LABEL_FG,
+            font=("Arial", 11, "bold"),
+        ).pack(pady=(0, 6))
         self._build_led()
-        tk.Frame(self, height=1, bg="#455A64").pack(fill=tk.X, pady=6)
+        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=6)
         self._build_screen()
-        tk.Frame(self, height=1, bg="#455A64").pack(fill=tk.X, pady=6)
+        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=6)
         self._build_speaker()
 
     def _build_led(self) -> None:
         row = tk.Frame(self, bg=_BRICK_BG)
         row.pack(fill=tk.X)
-        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG,
-                 font=("Arial", 10)).pack(side=tk.LEFT)
-        self._led_canvas = tk.Canvas(row, width=24, height=24,
-                                     bg=_BRICK_BG, highlightthickness=0)
+        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Arial", 10)).pack(
+            side=tk.LEFT
+        )
+        self._led_canvas = tk.Canvas(
+            row,
+            width=24,
+            height=24,
+            bg=_BRICK_BG,
+            highlightthickness=0,
+        )
         self._led_canvas.pack(side=tk.LEFT, padx=6)
         self._led_oval = self._led_canvas.create_oval(
-            2, 2, 22, 22, fill=_LED_COLORS[None], outline="#FFFFFF"
+            2,
+            2,
+            22,
+            22,
+            fill=_LED_COLORS[None],
+            outline="#FFFFFF",
         )
-        self._led_label = tk.Label(row, text="—", bg=_BRICK_BG, fg=_LABEL_FG,
-                                   font=("Arial", 10))
+        self._led_label = tk.Label(row, text="-", bg=_BRICK_BG, fg=_LABEL_FG, font=("Arial", 10))
         self._led_label.pack(side=tk.LEFT)
 
     def _build_screen(self) -> None:
-        tk.Label(self, text="Pantalla:", bg=_BRICK_BG, fg=_LABEL_FG,
-                 font=("Arial", 10, "bold")).pack(anchor=tk.W)
-        self._screen_text = tk.Text(
-            self, height=5, width=22,
-            bg=_SCREEN_BG, fg=_SCREEN_FG,
-            font=("Courier New", 9),
-            state=tk.DISABLED,
-            relief=tk.SUNKEN,
-            bd=2,
+        tk.Label(
+            self,
+            text="Pantalla LCD EV3 (178x128):",
+            bg=_BRICK_BG,
+            fg=_LABEL_FG,
+            font=("Arial", 10, "bold"),
+        ).pack(anchor=tk.W)
+
+        self._screen_canvas = tk.Canvas(
+            self,
+            width=_LCD_CANVAS_W,
+            height=_LCD_CANVAS_H,
+            bg=_BRICK_BG,
+            highlightthickness=0,
+            bd=0,
+            relief=tk.FLAT,
         )
-        self._screen_text.pack(fill=tk.X, padx=2)
+        self._screen_canvas.pack(fill=tk.X, padx=2)
+        self._screen_canvas.bind("<Configure>", self._on_screen_resize)
+        self._render_screen()
 
     def _build_speaker(self) -> None:
         row = tk.Frame(self, bg=_BRICK_BG)
         row.pack(fill=tk.X)
-        tk.Label(row, text="🔔 Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG,
-                 font=("Arial", 10)).pack(side=tk.LEFT)
-        self._speaker_label = tk.Label(row, text="—", bg=_BRICK_BG, fg=_LABEL_FG,
-                                       font=("Arial", 10))
+        tk.Label(row, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Arial", 10)).pack(
+            side=tk.LEFT
+        )
+        self._speaker_label = tk.Label(
+            row,
+            text="-",
+            bg=_BRICK_BG,
+            fg=_LABEL_FG,
+            font=("Arial", 10),
+        )
         self._speaker_label.pack(side=tk.LEFT, padx=6)
 
     # ------------------------------------------------------------------
@@ -123,19 +164,114 @@ class BrickPanel(tk.Frame):
         self._led_canvas.itemconfigure(self._led_oval, fill=fill)
         self._led_label.configure(text=color_name or "Apagado")
 
-    def _update_screen(self, text: Optional[str]) -> None:
-        self._screen_text.configure(state=tk.NORMAL)
-        self._screen_text.delete("1.0", tk.END)
-        if text:
-            self._screen_text.insert("1.0", text)
-        self._screen_text.configure(state=tk.DISABLED)
+    def _update_screen(self, screen_data: Optional[dict | str]) -> None:
+        state = self._default_screen_state()
+        if isinstance(screen_data, dict):
+            state["lines"] = [str(ln) for ln in screen_data.get("lines", [])]
+            state["width_px"] = int(screen_data.get("width_px", state["width_px"]))
+            state["height_px"] = int(screen_data.get("height_px", state["height_px"]))
+            state["backlight_leds"] = int(
+                screen_data.get("backlight_leds", state["backlight_leds"])
+            )
+        elif isinstance(screen_data, str):
+            state["lines"] = screen_data.splitlines() or [screen_data]
+        elif screen_data:
+            text = str(screen_data)
+            state["lines"] = text.splitlines() or [text]
+
+        self._screen_state = state
+        self._render_screen()
 
     def _update_speaker(self, speaker_data: Optional[dict]) -> None:
         if speaker_data:
             freq = speaker_data.get("freq", "?")
-            dur  = speaker_data.get("duration_ms", "?")
-            vol  = speaker_data.get("volume", 50)
-            label = f"▶ {freq} Hz | {dur} ms | {vol}%"
+            dur = speaker_data.get("duration_ms", "?")
+            vol = speaker_data.get("volume", 50)
+            label = f"ON {freq} Hz | {dur} ms | {vol}%"
         else:
-            label = "—"
+            label = "-"
         self._speaker_label.configure(text=label)
+
+    # ------------------------------------------------------------------
+    # Render LCD
+    # ------------------------------------------------------------------
+
+    def _on_screen_resize(self, _event) -> None:
+        self._render_screen()
+
+    def _render_screen(self) -> None:
+        canvas = self._screen_canvas
+        canvas.delete("all")
+
+        cw = canvas.winfo_width() or _LCD_CANVAS_W
+        ch = canvas.winfo_height() or _LCD_CANVAS_H
+        if cw <= 4 or ch <= 4:
+            return
+
+        logical_w = max(1, int(self._screen_state["width_px"]))
+        logical_h = max(1, int(self._screen_state["height_px"]))
+        margin = 4.0
+        scale = min((cw - 2 * margin) / logical_w, (ch - 2 * margin) / logical_h)
+        if scale <= 0:
+            return
+
+        disp_w = logical_w * scale
+        disp_h = logical_h * scale
+        x0 = (cw - disp_w) / 2
+        y0 = (ch - disp_h) / 2
+        x1 = x0 + disp_w
+        y1 = y0 + disp_h
+
+        # Marco fisico del LCD
+        canvas.create_rectangle(x0 - 4, y0 - 4, x1 + 4, y1 + 4, fill=_LCD_FRAME, outline="")
+        canvas.create_rectangle(x0, y0, x1, y1, fill=_LCD_BG, outline="#A6AE98", width=1)
+
+        # Scanlines para dar sensacion de matriz monocromo
+        scan_step = max(2, int(round(scale * 2.5)))
+        y = int(y0)
+        while y <= int(y1):
+            canvas.create_line(x0, y, x1, y, fill=_LCD_SCANLINE)
+            y += scan_step
+
+        # Simula 4 LEDs blancos de retroiluminacion
+        leds = max(1, min(4, int(self._screen_state["backlight_leds"])))
+        led_r = max(2.0, scale * 1.2)
+        for i in range(leds):
+            cx = x0 + ((i + 1) * disp_w / (leds + 1))
+            cy = y0 + max(4.0, scale * 2.0)
+            canvas.create_oval(
+                cx - led_r,
+                cy - led_r,
+                cx + led_r,
+                cy + led_r,
+                fill=_LCD_LED_ON,
+                outline=_LCD_LED_OFF,
+            )
+
+        # Texto de la pantalla (hasta 8 lineas visibles), escalado al tamano real.
+        # Al derivar desde disp_h evitamos texto diminuto cuando el canvas crece.
+        line_step = max(10.0, disp_h / 8.3)
+        font_size = max(6, int(round(line_step * 0.41)))  # ~30% menor que 0.58
+        tx = x0 + max(6.0, scale * 4.0)
+        ty = y0 + max(10.0, line_step * 0.52)
+        for row_idx, line in enumerate(self._screen_state["lines"][:8]):
+            y_line = ty + row_idx * line_step
+            if y_line > y1 - 4:
+                break
+            canvas.create_text(
+                tx,
+                y_line,
+                anchor=tk.NW,
+                text=str(line),
+                fill=_LCD_FG,
+                font=("Courier New", font_size),
+            )
+
+    @staticmethod
+    def _default_screen_state() -> dict:
+        return {
+            "lines": [],
+            "width_px": 178,
+            "height_px": 128,
+            "backlight_leds": 4,
+        }
