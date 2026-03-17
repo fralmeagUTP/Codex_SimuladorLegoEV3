@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "world": {
+    "width_mm": 2000.0,
+    "height_mm": 2000.0,
+    "surface": {
+      "cell_size_mm": 50.0,
+      "default_color": "WHITE",
+      "cells": []
+    },
+    "obstacles": [
+      {
+        "name": "pared_central",
+        "vertices": [[900, 400], [1100, 400], [1100, 1400], [900, 1400]]
+      },
+      {
+        "name": "bloque_izquierdo",
+        "vertices": [[300, 900], [500, 900], [500, 1200], [300, 1200]]
+      }
+    ],
+    "beacons": [
+      {"name": "beacon_1", "x_mm": 1700.0, "y_mm": 300.0, "channel": 1}
+    ]
+  }
+}
