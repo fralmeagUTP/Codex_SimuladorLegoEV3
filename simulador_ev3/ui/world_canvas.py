@@ -16,19 +16,73 @@ y la configuración de la pista (WorldConfig, Fase 8).
 from __future__ import annotations
 
 import math
+import os
 import tkinter as tk
 from typing import Callable, Optional
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.domain.editor.world_editor_model import (
+    CELL_SIZE_MM,
+    GRID_SIZE_PX,
+    get_asset_spec,
+    normalize_asset_key,
+)
 
 
 # Colores del canvas
 _BG           = "#F0F0F0"
-_OBSTACLE     = "#222222"
+_OBSTACLE     = "#37474F"
+_OBSTACLE_OUTLINE = "#102027"
 _HEADING      = "#1565C0"     # flecha de dirección
 _TRAIL        = "#90CAF9"     # rastro opcional
 _GRID         = "#CCCCCC"
 _SURFACE_BLACK = "#1A1A1A"
+_SURFACE_WHITE = "#F5F5F5"
+_SURFACE_RED   = "#E53935"
+_SURFACE_GREEN = "#43A047"
+_SURFACE_BLUE  = "#1E88E5"
+_SURFACE_YELLOW = "#FDD835"
+_SURFACE_BROWN = "#8D6E63"
+_WALL_STYLE = {
+    "wall_64x64_a": ("#37474F", "#102027"),
+    "wall_64x64_b": ("#455A64", "#263238"),
+    "wall_64x64_c": ("#263238", "#11171A"),
+}
+_PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM
+
+_ROBOT_SPRITE_PATH = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "images",
+    "robot_ev3_32x32.png",
+)
+_ASSET_IMAGES_DIR = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "images",
+)
+_ASSET_IMAGE_OVERRIDES: dict[str, list[str]] = {
+    "line_64x64_cruz": ["line_64X64_Cruz.png"],
+    "line_64_64_hor": ["line_64_64_Hor.png"],
+    "line_64_64_ver": ["line_64_64_Ver.png"],
+    "line_64_64_infder": ["line_64_64_InfDer.png"],
+    "line_64_64_infizq": ["line_64_64_InfIzq.png"],
+    "line_64_64_supder": ["line_64_64_SupDer.png"],
+    "line_64_64_supizq": ["line_64_64_SupIzq.png"],
+    "floor_tile_256_c": ["floor_tile_256_c.jpg", "floor_tile_256_b.png"],
+}
+_ASSET_LAYER_ORDER = {
+    "floor": 0,
+    "zone": 1,
+    "line": 2,
+    "wall": 3,
+    "robot": 4,
+}
+_ROBOT_DRAW_W_PX = 32
+_ROBOT_DRAW_H_PX = 23
+_ROBOT_ROT_STEP_DEG = 2
+_COLOR_SENSOR_OFFSET_MM = 60.0
+_COLOR_SENSOR_MARKER_OUTLINE = "#FFB300"
 
 # Paleta robot tipo EV3 (aproximada)
 _ROBOT_BODY      = "#D9DDE3"
@@ -49,9 +103,9 @@ _ROBOT_PORT_RED = "#C62828"
 _DEFAULT_WORLD_W = 2000.0
 _DEFAULT_WORLD_H = 2000.0
 
-# Tamaño visual del robot (en mm del mundo antes de escalar)
-_ROBOT_W_MM = 175.0   # largo (eje X local)
-_ROBOT_H_MM = 140.0   # ancho (eje Y local)
+# Tamaño visual del robot (alineado con sprite 32x23 px)
+_ROBOT_W_MM = _ROBOT_DRAW_W_PX / _PX_PER_MM
+_ROBOT_H_MM = _ROBOT_DRAW_H_PX / _PX_PER_MM
 
 # Colores del modo de colocación
 _PLACEMENT_GHOST  = "#4FC3F7"   # contorno fantasma al mover el ratón
@@ -86,16 +140,27 @@ class WorldCanvas(tk.Canvas):
         self._world_w  = world_w_mm
         self._world_h  = world_h_mm
         self._show_trail = show_trail
+        self._px_per_mm = _PX_PER_MM
+        self._follow_robot = True
+        self._show_editor_robot_asset = True
 
         # Lista de posiciones (x_mm, y_mm) del rastro
         self._trail: list[tuple[float, float]] = []
         self._obstacles: list[dict] = []  # {x, y, w, h} en mm
         self._surface_cells: list[dict] = []  # {x_mm, y_mm, size_mm, color}
+        self._editor_placements: list[dict] = []
 
         # Handles de items del canvas (para actualizar en lugar de recrear)
         self._robot_items: list[int] = []
         self._obstacle_items: list[int] = []
         self._surface_items: list[int] = []
+        self._asset_items: list[int] = []
+        self._robot_sprite_base: Optional[tk.PhotoImage] = None
+        self._robot_sprite: Optional[tk.PhotoImage] = None
+        self._robot_sprite_rot_cache: dict[int, tk.PhotoImage] = {}
+        self._asset_image_lookup = self._build_asset_image_lookup()
+        self._asset_base_images: dict[str, tk.PhotoImage] = {}
+        self._asset_image_cache: dict[tuple[str, int, int, int], tk.PhotoImage] = {}
 
         # Estado del modo de colocación del robot
         self._placement_mode: bool = False
@@ -107,6 +172,8 @@ class WorldCanvas(tk.Canvas):
         self._placement_dragging: bool = False
 
         self.bind("<Configure>", self._on_resize)
+        self._update_scrollregion()
+        self._load_robot_sprite()
         self._draw_background()
 
     # ------------------------------------------------------------------
@@ -123,6 +190,7 @@ class WorldCanvas(tk.Canvas):
         rx = dto.robot["x_mm"]
         ry = dto.robot["y_mm"]
         th = dto.robot["theta_deg"]
+        color_sensor_reflection = self._extract_color_sensor_reflection(dto)
 
         # Rastro
         if self._show_trail:
@@ -133,7 +201,9 @@ class WorldCanvas(tk.Canvas):
                 self._draw_trail()
 
         # Dibujar robot
-        self._draw_robot(rx, ry, th, dto.colliding)
+        self._draw_robot(rx, ry, th, dto.colliding, color_sensor_reflection)
+        if self._follow_robot:
+            self._center_view_on_mm(rx, ry)
 
     def set_obstacles(self, obstacles: list[dict]) -> None:
         """
@@ -144,6 +214,20 @@ class WorldCanvas(tk.Canvas):
         self._obstacles = obstacles
         self._redraw_obstacles()
 
+    def set_world_size_mm(self, width_mm: float, height_mm: float) -> None:
+        self._world_w = max(100.0, float(width_mm))
+        self._world_h = max(100.0, float(height_mm))
+        self._update_scrollregion()
+        self._draw_background()
+        self._redraw_surface()
+        self._redraw_obstacles()
+        if self._show_trail:
+            self._draw_trail()
+        self._redraw_placement_marker()
+
+    def set_robot_follow_enabled(self, enabled: bool) -> None:
+        self._follow_robot = bool(enabled)
+
     def set_surface_cells(self, surface_cells: list[dict]) -> None:
         """
         Establece celdas de superficie a dibujar.
@@ -151,6 +235,24 @@ class WorldCanvas(tk.Canvas):
         """
         self._surface_cells = surface_cells
         self._redraw_surface()
+
+    def set_editor_placements(self, placements: list[dict]) -> None:
+        """
+        Establece placements del editor para render visual fiel con sprites.
+        Si la lista esta vacia, vuelve al render clasico por superficie/obstaculos.
+        """
+        self._editor_placements = list(placements)
+        self._redraw_surface()
+        self._redraw_obstacles()
+        self._redraw_editor_assets()
+
+    def set_editor_robot_visible(self, visible: bool) -> None:
+        """Muestra/oculta el sprite de robot proveniente del editor."""
+        new_value = bool(visible)
+        if self._show_editor_robot_asset == new_value:
+            return
+        self._show_editor_robot_asset = new_value
+        self._redraw_editor_assets()
 
     def clear_trail(self) -> None:
         """Borra el rastro del robot."""
@@ -164,9 +266,11 @@ class WorldCanvas(tk.Canvas):
         self._robot_items.clear()
         self._obstacle_items.clear()
         self._surface_items.clear()
+        self._update_scrollregion()
         self._draw_background()
         self._redraw_surface()
         self._redraw_obstacles()
+        self._redraw_editor_assets()
 
     # ------------------------------------------------------------------
     # Modo de colocación del robot (clic para elegir posición inicial)
@@ -334,7 +438,7 @@ class WorldCanvas(tk.Canvas):
                          fill="#BF360C", width=2, tags="placement_marker")
         self.create_line(px, py - ext, px, py + ext,
                          fill="#BF360C", width=2, tags="placement_marker")
-        fx, fy = self._rotate_point(px, py, hw * 0.70, 0.0, self._placement_theta_deg)
+        fx, fy = self._rotate_point(px, py, hw * 1.68, 0.0, self._placement_theta_deg)
         self.create_line(
             px, py, fx, fy,
             fill="#BF360C",
@@ -353,18 +457,18 @@ class WorldCanvas(tk.Canvas):
         return x_mm * sx, y_mm * sy
 
     def _get_transform(self) -> tuple[float, float]:
-        """Retorna (sx, sy) para ocupar todo el espacio disponible."""
-        cw = self.winfo_width() or 400
-        ch = self.winfo_height() or 400
-        sx = cw / self._world_w
-        sy = ch / self._world_h
-        return sx, sy
+        return self._px_per_mm, self._px_per_mm
+
+    def _get_origin(self) -> tuple[float, float]:
+        return 0.0, 0.0
 
     def _on_resize(self, _event) -> None:
         """Redibuja todas las capas al cambiar tamaño para evitar deformaciones."""
+        self._update_scrollregion()
         self._draw_background()
         self._redraw_surface()
         self._redraw_obstacles()
+        self._redraw_editor_assets()
         if self._show_trail:
             self._draw_trail()
         if self._placement_hover_pos is not None and self._placement_mode:
@@ -377,8 +481,10 @@ class WorldCanvas(tk.Canvas):
 
     def _event_to_world(self, event) -> tuple[float, float]:
         sx, sy = self._get_transform()
-        x_mm = event.x / sx
-        y_mm = event.y / sy
+        x_px = self.canvasx(event.x)
+        y_px = self.canvasy(event.y)
+        x_mm = x_px / sx
+        y_mm = y_px / sy
         x_mm = min(max(x_mm, 0.0), self._world_w)
         y_mm = min(max(y_mm, 0.0), self._world_h)
         return x_mm, y_mm
@@ -443,20 +549,22 @@ class WorldCanvas(tk.Canvas):
     def _draw_background(self) -> None:
         """Dibuja el fondo y la cuadrícula."""
         self.delete("bg")
-        cw = self.winfo_width() or 400
-        ch = self.winfo_height() or 400
-        self.create_rectangle(0, 0, cw, ch, fill=_BG, outline="", tags="bg")
+        world_w_px = self._world_w * self._px_per_mm
+        world_h_px = self._world_h * self._px_per_mm
+        self.create_rectangle(0, 0, world_w_px, world_h_px, fill=_BG, outline="", tags="bg")
+        x0, y0 = self._mm_to_px(0.0, 0.0)
+        x1, y1 = self._mm_to_px(self._world_w, self._world_h)
+        self.create_rectangle(x0, y0, x1, y1, fill="", outline="#B0BEC5", tags="bg")
 
-        # Cuadrícula cada 200 mm ocupando todo el canvas
-        step_mm = 200.0
+        step_mm = CELL_SIZE_MM
         steps_x = int(self._world_w / step_mm)
         steps_h = int(self._world_h / step_mm)
         for i in range(1, steps_x):
             px, _ = self._mm_to_px(i * step_mm, 0)
-            self.create_line(px, 0, px, ch, fill=_GRID, tags="bg")
+            self.create_line(px, y0, px, y1, fill=_GRID, tags="bg")
         for j in range(1, steps_h):
             _, py = self._mm_to_px(0, j * step_mm)
-            self.create_line(0, py, cw, py, fill=_GRID, tags="bg")
+            self.create_line(x0, py, x1, py, fill=_GRID, tags="bg")
 
     def _draw_trail(self) -> None:
         self.delete("trail")
@@ -465,6 +573,114 @@ class WorldCanvas(tk.Canvas):
             flat = [c for pt in trail_px for c in pt]
             self.create_line(*flat, fill=_TRAIL, width=2, tags="trail",
                              smooth=True)
+
+    def _load_robot_sprite(self) -> None:
+        """Carga el sprite del robot y lo ajusta a 32x23 px."""
+        try:
+            img = tk.PhotoImage(file=_ROBOT_SPRITE_PATH)
+        except Exception:  # noqa: BLE001
+            self._robot_sprite_base = None
+            self._robot_sprite = None
+            return
+        self._robot_sprite_base = img
+        self._robot_sprite = self._resize_photoimage(
+            img,
+            target_w=_ROBOT_DRAW_W_PX,
+            target_h=_ROBOT_DRAW_H_PX,
+        )
+        self._robot_sprite_rot_cache = {0: self._robot_sprite}
+
+    def _resize_photoimage(
+        self,
+        img: tk.PhotoImage,
+        target_w: int,
+        target_h: int,
+    ) -> tk.PhotoImage:
+        src_w_fn = getattr(img, "width", None)
+        src_h_fn = getattr(img, "height", None)
+        src_w = int(src_w_fn()) if callable(src_w_fn) else target_w
+        src_h = int(src_h_fn()) if callable(src_h_fn) else target_h
+        src_w = max(1, src_w)
+        src_h = max(1, src_h)
+        zoom_w = max(1, int(target_w))
+        zoom_h = max(1, int(target_h))
+        try:
+            return img.zoom(zoom_w, zoom_h).subsample(src_w, src_h)
+        except Exception:  # noqa: BLE001
+            return img
+
+    def _get_rotated_robot_sprite(self, theta_deg: float) -> Optional[tk.PhotoImage]:
+        if self._robot_sprite is None:
+            return None
+        bucket = int(round(float(theta_deg) / _ROBOT_ROT_STEP_DEG) * _ROBOT_ROT_STEP_DEG) % 360
+        cached = self._robot_sprite_rot_cache.get(bucket)
+        if cached is not None:
+            return cached
+        rotated = self._rotate_photoimage(self._robot_sprite, bucket)
+        self._robot_sprite_rot_cache[bucket] = rotated
+        return rotated
+
+    def _rotate_photoimage(self, src: tk.PhotoImage, angle_deg: int) -> tk.PhotoImage:
+        """Rota una PhotoImage con nearest-neighbor (fallback sin dependencias)."""
+        if angle_deg % 360 == 0:
+            return src
+
+        src_get = getattr(src, "get", None)
+        if not callable(src_get):
+            return src
+
+        src_w_fn = getattr(src, "width", None)
+        src_h_fn = getattr(src, "height", None)
+        src_w = int(src_w_fn()) if callable(src_w_fn) else _ROBOT_DRAW_W_PX
+        src_h = int(src_h_fn()) if callable(src_h_fn) else _ROBOT_DRAW_H_PX
+        src_w = max(1, src_w)
+        src_h = max(1, src_h)
+
+        theta = math.radians(angle_deg)
+        cos_t = math.cos(theta)
+        sin_t = math.sin(theta)
+        out_w = max(1, int(math.ceil(abs(src_w * cos_t) + abs(src_h * sin_t))))
+        out_h = max(1, int(math.ceil(abs(src_w * sin_t) + abs(src_h * cos_t))))
+
+        try:
+            dst = tk.PhotoImage(width=out_w, height=out_h)
+        except Exception:  # noqa: BLE001
+            return src
+
+        dst_put = getattr(dst, "put", None)
+        if not callable(dst_put):
+            return src
+
+        src_transparency_get = getattr(src, "transparency_get", None)
+        src_cx = (src_w - 1) / 2.0
+        src_cy = (src_h - 1) / 2.0
+        dst_cx = (out_w - 1) / 2.0
+        dst_cy = (out_h - 1) / 2.0
+
+        for y in range(out_h):
+            for x in range(out_w):
+                dx = x - dst_cx
+                dy = y - dst_cy
+                sx = dx * cos_t + dy * sin_t + src_cx
+                sy = -dx * sin_t + dy * cos_t + src_cy
+                ix = int(round(sx))
+                iy = int(round(sy))
+                if ix < 0 or iy < 0 or ix >= src_w or iy >= src_h:
+                    continue
+                if callable(src_transparency_get):
+                    try:
+                        if bool(src_transparency_get(ix, iy)):
+                            continue
+                    except Exception:  # noqa: BLE001
+                        pass
+                try:
+                    color = src_get(ix, iy)
+                    if isinstance(color, tuple) and len(color) >= 3:
+                        color = f"#{int(color[0]):02x}{int(color[1]):02x}{int(color[2]):02x}"
+                    dst_put(color, (x, y))
+                except Exception:  # noqa: BLE001
+                    continue
+        return dst
 
     def _clear_robot(self) -> None:
         for item in self._robot_items:
@@ -475,8 +691,19 @@ class WorldCanvas(tk.Canvas):
         self,
         x_mm: float, y_mm: float, theta_deg: float,
         colliding: bool,
+        color_sensor_reflection: Optional[float] = None,
     ) -> None:
-        """Dibuja un robot estilo EV3 (cuerpo, ruedas, sensor frontal)."""
+        if self._robot_sprite is not None:
+            self._draw_robot_sprite(
+                x_mm,
+                y_mm,
+                theta_deg,
+                colliding,
+                color_sensor_reflection=color_sensor_reflection,
+            )
+            return
+
+        # Fallback vectorial si el sprite no se pudo cargar.
         sx, sy = self._get_transform()
 
         hw = (_ROBOT_W_MM / 2) * sx
@@ -709,6 +936,12 @@ class WorldCanvas(tk.Canvas):
         fx, fy = rot(arrow_len, 0)
         arrow = self.create_line(cx, cy, fx, fy, fill=_HEADING, width=2,
                                  arrow=tk.LAST, arrowshape=(10, 12, 4))
+        sensor_marker = self._draw_color_sensor_marker(
+            x_mm,
+            y_mm,
+            theta_deg,
+            color_sensor_reflection,
+        )
 
         self._robot_items = [
             left_wheel,
@@ -728,11 +961,108 @@ class WorldCanvas(tk.Canvas):
             eye2,
             arrow,
         ]
+        if sensor_marker is not None:
+            self._robot_items.append(sensor_marker)
+
+    def _draw_robot_sprite(
+        self,
+        x_mm: float,
+        y_mm: float,
+        theta_deg: float,
+        colliding: bool,
+        color_sensor_reflection: Optional[float] = None,
+    ) -> None:
+        cx, cy = self._mm_to_px(x_mm, y_mm)
+        sprite_image = self._get_rotated_robot_sprite(theta_deg) or self._robot_sprite
+        sprite = self.create_image(cx, cy, image=sprite_image)
+
+        th_rad = math.radians(theta_deg)
+        arrow_len = max(_ROBOT_DRAW_W_PX, _ROBOT_DRAW_H_PX) * 0.95
+        fx = cx + math.cos(th_rad) * arrow_len
+        fy = cy + math.sin(th_rad) * arrow_len
+        heading = self.create_line(
+            cx,
+            cy,
+            fx,
+            fy,
+            fill=_ROBOT_COLLISION if colliding else _HEADING,
+            width=2,
+            arrow=tk.LAST,
+            arrowshape=(9, 10, 4),
+        )
+
+        items = [sprite, heading]
+        sensor_marker = self._draw_color_sensor_marker(
+            x_mm,
+            y_mm,
+            theta_deg,
+            color_sensor_reflection,
+        )
+        if sensor_marker is not None:
+            items.append(sensor_marker)
+        if colliding:
+            border = self.create_rectangle(
+                cx - _ROBOT_DRAW_W_PX / 2.0,
+                cy - _ROBOT_DRAW_H_PX / 2.0,
+                cx + _ROBOT_DRAW_W_PX / 2.0,
+                cy + _ROBOT_DRAW_H_PX / 2.0,
+                outline=_ROBOT_COLLISION,
+                width=2,
+            )
+            items.append(border)
+        self._robot_items = items
+
+    def _draw_color_sensor_marker(
+        self,
+        robot_x_mm: float,
+        robot_y_mm: float,
+        theta_deg: float,
+        reflection: Optional[float],
+    ) -> Optional[int]:
+        if reflection is None:
+            return None
+        theta_rad = math.radians(theta_deg)
+        sx_mm = robot_x_mm + _COLOR_SENSOR_OFFSET_MM * math.cos(theta_rad)
+        sy_mm = robot_y_mm + _COLOR_SENSOR_OFFSET_MM * math.sin(theta_rad)
+        sx_px, sy_px = self._mm_to_px(sx_mm, sy_mm)
+        color_fill = "#111111" if reflection < 50.0 else "#FAFAFA"
+        return self.create_oval(
+            sx_px - 4.0,
+            sy_px - 4.0,
+            sx_px + 4.0,
+            sy_px + 4.0,
+            fill=color_fill,
+            outline=_COLOR_SENSOR_MARKER_OUTLINE,
+            width=1,
+        )
+
+    @staticmethod
+    def _extract_color_sensor_reflection(dto: SnapshotDTO) -> Optional[float]:
+        sensors = getattr(dto, "sensors", [])
+        for sensor in sensors:
+            if not isinstance(sensor, dict):
+                continue
+            sensor_type = str(sensor.get("type", "")).lower()
+            if "colorsensor" not in sensor_type and "color_sensor" not in sensor_type:
+                continue
+            data = sensor.get("data")
+            if isinstance(data, dict):
+                reflection = data.get("reflectance")
+                if isinstance(reflection, (int, float)):
+                    return float(reflection)
+            value = sensor.get("value")
+            if isinstance(value, dict):
+                reflection = value.get("reflectance")
+                if isinstance(reflection, (int, float)):
+                    return float(reflection)
+        return None
 
     def _redraw_obstacles(self) -> None:
         for item in self._obstacle_items:
             self.delete(item)
         self._obstacle_items.clear()
+        if self._editor_placements:
+            return
 
         for obs in self._obstacles:
             x1, y1 = self._mm_to_px(obs["x_mm"], obs["y_mm"])
@@ -740,8 +1070,9 @@ class WorldCanvas(tk.Canvas):
                 obs["x_mm"] + obs["width_mm"],
                 obs["y_mm"] + obs["height_mm"],
             )
+            fill, outline = _obstacle_style_from_name(str(obs.get("name", "")))
             item = self.create_rectangle(
-                x1, y1, x2, y2, fill=_OBSTACLE, outline="#555555"
+                x1, y1, x2, y2, fill=fill, outline=outline
             )
             self._obstacle_items.append(item)
 
@@ -749,6 +1080,18 @@ class WorldCanvas(tk.Canvas):
         for item in self._surface_items:
             self.delete(item)
         self._surface_items.clear()
+        if self._editor_placements:
+            return
+
+        surface_fill = {
+            "BLACK": _SURFACE_BLACK,
+            "WHITE": _SURFACE_WHITE,
+            "RED": _SURFACE_RED,
+            "GREEN": _SURFACE_GREEN,
+            "BLUE": _SURFACE_BLUE,
+            "YELLOW": _SURFACE_YELLOW,
+            "BROWN": _SURFACE_BROWN,
+        }
 
         for cell in self._surface_cells:
             x_mm = cell["x_mm"]
@@ -756,16 +1099,187 @@ class WorldCanvas(tk.Canvas):
             size = cell.get("size_mm", 50.0)
             color_name = str(cell.get("color", "BLACK")).upper()
 
-            if color_name == "BLACK":
-                fill = _SURFACE_BLACK
-            else:
+            fill = surface_fill.get(color_name)
+            if fill is None:
                 continue
 
             x1, y1 = self._mm_to_px(x_mm, y_mm)
             x2, y2 = self._mm_to_px(x_mm + size, y_mm + size)
+            outline = ""
+            if color_name == "WHITE":
+                outline = "#E0E0E0"
             item = self.create_rectangle(
                 x1, y1, x2, y2,
                 fill=fill,
-                outline="",
+                outline=outline,
             )
             self._surface_items.append(item)
+
+    def _redraw_editor_assets(self) -> None:
+        for item in self._asset_items:
+            self.delete(item)
+        self._asset_items.clear()
+        if not self._editor_placements:
+            return
+
+        sorted_placements = sorted(
+            self._editor_placements,
+            key=self._editor_asset_sort_key,
+        )
+        for placement in sorted_placements:
+            asset_key = normalize_asset_key(str(placement.get("asset_key", "")))
+            spec = get_asset_spec(asset_key)
+            if spec is None:
+                continue
+            if spec.asset_type == "robot" and not self._show_editor_robot_asset:
+                continue
+
+            rotation = int(placement.get("rotation", 0))
+            width_cells = spec.width_cells
+            height_cells = spec.height_cells
+            if rotation % 180 == 90:
+                width_cells, height_cells = height_cells, width_cells
+
+            x_px = int(placement.get("x_px", placement.get("x", 0)))
+            y_px = int(placement.get("y_px", placement.get("y", 0)))
+            x_mm = x_px / GRID_SIZE_PX * CELL_SIZE_MM
+            y_mm = y_px / GRID_SIZE_PX * CELL_SIZE_MM
+            w_mm = width_cells * CELL_SIZE_MM
+            h_mm = height_cells * CELL_SIZE_MM
+            px0, py0 = self._mm_to_px(x_mm, y_mm)
+            px1, py1 = self._mm_to_px(x_mm + w_mm, y_mm + h_mm)
+
+            draw_w = max(1, int(round(px1 - px0)))
+            draw_h = max(1, int(round(py1 - py0)))
+            image = self._get_asset_image(asset_key, rotation, draw_w, draw_h)
+            if image is not None:
+                cx = (px0 + px1) / 2.0
+                cy = (py0 + py1) / 2.0
+                self._asset_items.append(self.create_image(cx, cy, image=image))
+                continue
+
+            if spec.asset_type == "floor":
+                self._asset_items.append(
+                    self.create_rectangle(px0, py0, px1, py1, fill="#D7CCC8", outline="#BCAAA4", width=1)
+                )
+            elif spec.asset_type == "zone":
+                fill = "#ECEFF1"
+                outline = "#B0BEC5"
+                if "red" in asset_key:
+                    fill, outline = "#EF5350", "#C62828"
+                elif "green" in asset_key:
+                    fill, outline = "#66BB6A", "#2E7D32"
+                self._asset_items.append(
+                    self.create_rectangle(px0, py0, px1, py1, fill=fill, outline=outline, width=2)
+                )
+            elif spec.asset_type in {"line", "wall"}:
+                fill, outline = ("#111111", "") if spec.asset_type == "line" else ("#37474F", "#102027")
+                self._asset_items.append(
+                    self.create_rectangle(px0, py0, px1, py1, fill=fill, outline=outline, width=1)
+                )
+
+    def _editor_asset_sort_key(self, placement: dict) -> tuple[int, int, int]:
+        asset_key = normalize_asset_key(str(placement.get("asset_key", "")))
+        spec = get_asset_spec(asset_key)
+        layer = spec.layer if spec is not None else "robot"
+        y_px = int(placement.get("y_px", placement.get("y", 0)))
+        x_px = int(placement.get("x_px", placement.get("x", 0)))
+        return (_ASSET_LAYER_ORDER.get(layer, 4), y_px, x_px)
+
+    def _build_asset_image_lookup(self) -> dict[str, str]:
+        lookup: dict[str, str] = {}
+        if not os.path.isdir(_ASSET_IMAGES_DIR):
+            return lookup
+        for name in os.listdir(_ASSET_IMAGES_DIR):
+            full_path = os.path.join(_ASSET_IMAGES_DIR, name)
+            lookup[name.lower()] = full_path
+        return lookup
+
+    def _resolve_asset_image_paths(self, asset_key: str) -> list[str]:
+        key = normalize_asset_key(asset_key)
+        candidates = list(_ASSET_IMAGE_OVERRIDES.get(key, []))
+        candidates.extend([f"{key}.png", f"{key}.jpg", f"{key}.jpeg"])
+        resolved: list[str] = []
+        for candidate in candidates:
+            hit = self._asset_image_lookup.get(candidate.lower())
+            if hit:
+                resolved.append(hit)
+        return resolved
+
+    def _load_asset_base_image(self, asset_key: str) -> Optional[tk.PhotoImage]:
+        key = normalize_asset_key(asset_key)
+        cached = self._asset_base_images.get(key)
+        if cached is not None:
+            return cached
+        for path in self._resolve_asset_image_paths(key):
+            try:
+                image = tk.PhotoImage(file=path)
+            except Exception:  # noqa: BLE001
+                continue
+            self._asset_base_images[key] = image
+            return image
+        return None
+
+    def _get_asset_image(
+        self,
+        asset_key: str,
+        rotation_deg: int,
+        target_w: int,
+        target_h: int,
+    ) -> Optional[tk.PhotoImage]:
+        key = normalize_asset_key(asset_key)
+        rot = int(round(int(rotation_deg) / 90.0) * 90) % 360
+        cache_key = (key, rot, int(target_w), int(target_h))
+        cached = self._asset_image_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        base = self._load_asset_base_image(key)
+        if base is None:
+            return None
+
+        out = self._resize_photoimage(base, target_w=max(1, target_w), target_h=max(1, target_h))
+        if rot % 360:
+            out = self._rotate_photoimage(out, rot)
+        self._asset_image_cache[cache_key] = out
+        return out
+
+    def _update_scrollregion(self) -> None:
+        world_w_px = int(round(self._world_w * self._px_per_mm))
+        world_h_px = int(round(self._world_h * self._px_per_mm))
+        self.configure(scrollregion=(0, 0, world_w_px, world_h_px))
+
+    def _center_view_on_mm(self, x_mm: float, y_mm: float) -> None:
+        world_w_px = max(1.0, self._world_w * self._px_per_mm)
+        world_h_px = max(1.0, self._world_h * self._px_per_mm)
+        view_w_px = max(1.0, float(self.winfo_width() or 1))
+        view_h_px = max(1.0, float(self.winfo_height() or 1))
+
+        center_x_px = x_mm * self._px_per_mm
+        center_y_px = y_mm * self._px_per_mm
+
+        max_left = max(0.0, world_w_px - view_w_px)
+        max_top = max(0.0, world_h_px - view_h_px)
+        left_px = min(max(0.0, center_x_px - view_w_px / 2.0), max_left)
+        top_px = min(max(0.0, center_y_px - view_h_px / 2.0), max_top)
+
+        x_fraction = 0.0 if world_w_px <= 0 else left_px / world_w_px
+        y_fraction = 0.0 if world_h_px <= 0 else top_px / world_h_px
+
+        x_move = getattr(self, "xview_moveto", None)
+        y_move = getattr(self, "yview_moveto", None)
+        if callable(x_move):
+            x_move(x_fraction)
+        if callable(y_move):
+            y_move(y_fraction)
+
+
+def _obstacle_style_from_name(name: str) -> tuple[str, str]:
+    if name.startswith("wall:"):
+        parts = name.split(":")
+        if len(parts) >= 2:
+            key = parts[1].strip().lower()
+            style = _WALL_STYLE.get(key)
+            if style:
+                return style
+    return _OBSTACLE, _OBSTACLE_OUTLINE

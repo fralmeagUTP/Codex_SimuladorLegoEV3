@@ -18,8 +18,10 @@ Responsabilidades:
 from __future__ import annotations
 
 import threading
+import math
 from pathlib import Path
 from typing import Callable, Optional
+import json
 
 from simulador_ev3.core.event_bus import (
     EVENT_RUNTIME_ERROR,
@@ -27,13 +29,22 @@ from simulador_ev3.core.event_bus import (
     EVENT_SIMULATION_STOPPED,
 )
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
+from simulador_ev3.domain.robot.robot_model import Pose
 from simulador_ev3.pybricks_api.factory import PybricksFactory
 from simulador_ev3.persistence.world_repository import WorldRepository
+from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
 from simulador_ev3.runtime.runtime_controller import ControllerState, RuntimeController
 from simulador_ev3.domain.world.world_model import WorldModel
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.domain.editor.world_editor_model import (
+    CELL_SIZE_MM,
+    GRID_SIZE_PX,
+    MAX_WORLD_MM,
+    MAX_WORLD_PIXELS,
+    get_asset_spec,
+)
 
 
 # Tipo de callback: recibe SnapshotDTO en cada tick
@@ -144,6 +155,12 @@ class SimulationService:
         self._config.robot_y0_mm = y_mm
         if theta_deg is not None:
             self._config.robot_theta0_deg = theta_deg
+        if self._engine is not None and not self.is_running:
+            try:
+                theta = math.radians(self._config.robot_theta0_deg)
+                self._engine.robot.reset_pose(Pose(x=float(x_mm), y=float(y_mm), theta=theta))
+            except Exception:  # noqa: BLE001
+                pass
 
     def load_world_file(self, path: str | Path) -> None:
         """
@@ -153,10 +170,65 @@ class SimulationService:
         """
         if self.is_running:
             self.stop(reason="world_change")
-        world = WorldRepository.load(path)
+        world, robot_start = self._load_world_with_editor_physics(path)
+        if world.width_mm > MAX_WORLD_MM or world.height_mm > MAX_WORLD_MM:
+            raise ValueError(
+                f"El mundo excede el maximo permitido ({MAX_WORLD_PIXELS} px por eje en visor/editor). "
+                f"Tamano recibido: {world.width_mm:.0f}x{world.height_mm:.0f} mm."
+            )
         self._loaded_world = world
         self._engine.set_world(world)
+        if robot_start is not None:
+            x_mm, y_mm, theta_deg = robot_start
+            self.set_robot_start(x_mm, y_mm, theta_deg)
         self._notify_status("world_loaded")
+
+    def _load_world_with_editor_physics(
+        self, path: str | Path
+    ) -> tuple[WorldModel, tuple[float, float, float] | None]:
+        src = Path(path)
+        try:
+            raw = json.loads(src.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and isinstance(raw.get("editor_spec"), dict):
+                svc = WorldEditorService()
+                svc.load_json(src)
+                robot_start = self._extract_robot_start_from_editor_spec(raw["editor_spec"])
+                return svc.to_world_model(), robot_start
+        except Exception:  # noqa: BLE001
+            pass
+        return WorldRepository.load(src), None
+
+    def _extract_robot_start_from_editor_spec(
+        self, editor_spec: dict
+    ) -> tuple[float, float, float] | None:
+        placements = editor_spec.get("placements")
+        if not isinstance(placements, list):
+            return None
+        grid_size_px = int(editor_spec.get("grid_size_px", GRID_SIZE_PX))
+        if grid_size_px <= 0:
+            grid_size_px = GRID_SIZE_PX
+        mm_per_px = CELL_SIZE_MM / float(grid_size_px)
+
+        for item in placements:
+            if not isinstance(item, dict):
+                continue
+            asset_key = str(item.get("asset_key", "")).strip()
+            spec = get_asset_spec(asset_key)
+            if spec is None or spec.asset_type != "robot":
+                continue
+
+            x_px = int(item.get("x_px", item.get("x", 0)))
+            y_px = int(item.get("y_px", item.get("y", 0)))
+            rotation = int(item.get("rotation", 0)) % 360
+            width_cells = spec.width_cells
+            height_cells = spec.height_cells
+            if rotation % 180 == 90:
+                width_cells, height_cells = height_cells, width_cells
+
+            x_mm = (x_px * mm_per_px) + ((width_cells * CELL_SIZE_MM) / 2.0)
+            y_mm = (y_px * mm_per_px) + ((height_cells * CELL_SIZE_MM) / 2.0)
+            return float(x_mm), float(y_mm), float(rotation)
+        return None
 
     # ------------------------------------------------------------------
     # Control del ciclo de vida

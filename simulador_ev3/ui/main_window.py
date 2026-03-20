@@ -22,13 +22,16 @@ Uso:
 """
 from __future__ import annotations
 
+import json
 import os
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox
 from typing import Optional
 
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.core.simulation_engine import SimEngineConfig
+from simulador_ev3.domain.editor.world_editor_model import MAX_WORLD_MM
 from simulador_ev3.examples.example_catalog import ExampleCatalog
 from simulador_ev3.ui.world_canvas   import WorldCanvas
 from simulador_ev3.ui.editor_panel  import EditorPanel
@@ -44,8 +47,8 @@ _WORLDS_DIR = os.path.join(
 )
 
 _SCENARIOS: list[tuple[str, str, str]] = [
-    ("Seguidor de lÃ­nea", "01_linea_negra.json", "06_siguelineas_basico.py"),
-    ("Ultrasonido + obstÃ¡culos", "02_obstaculos_beacon.json", "05_esquiva_obstaculos.py"),
+    ("Seguidor de línea", "01_linea_negra.json", "06_siguelineas_basico.py"),
+    ("Ultrasonido + obstáculos", "02_obstaculos_beacon.json", "05_esquiva_obstaculos.py"),
     ("Test pantalla/altavoz", "02_obstaculos_beacon.json", "12_pantalla_altavoz_test.py"),
 ]
 
@@ -71,7 +74,11 @@ class EV3SimulatorApp(tk.Tk):
         self.configure(bg="#ECEFF1")
 
         # Servicio de simulaciÃ³n (capa de aplicaciÃ³n)
-        self._service = SimulationService(config=world_config)
+        effective_cfg = world_config or SimEngineConfig(
+            world_width_mm=MAX_WORLD_MM,
+            world_height_mm=MAX_WORLD_MM,
+        )
+        self._service = SimulationService(config=effective_cfg)
         self._service.set_snapshot_callback(self._on_snapshot)
         self._service.set_error_callback(self._on_error)
         self._service.set_status_callback(self._on_status)
@@ -80,6 +87,8 @@ class EV3SimulatorApp(tk.Tk):
         # Pose inicial elegida por el usuario. None = usar config actual.
         self._pending_robot_pose: Optional[tuple[float, float, float]] = None
         self._hover_robot_pos: Optional[tuple[float, float]] = None
+        self._world_editor_window = None
+        self._editor_world_placements: list[dict] = []
 
         # Construir la interfaz
         self._build_menu()
@@ -107,10 +116,28 @@ class EV3SimulatorApp(tk.Tk):
 
         # MenÃº Archivo
         file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Nuevo script",    command=self._cmd_new)
+        file_menu.add_command(
+            label="Nuevo script",
+            accelerator="Ctrl+N",
+            command=self._cmd_new,
+        )
+        file_menu.add_command(
+            label="Abrir script...",
+            accelerator="Ctrl+O",
+            command=self._cmd_open_script,
+        )
+        file_menu.add_command(
+            label="Guardar script...",
+            accelerator="Ctrl+S",
+            command=self._cmd_save_script,
+        )
         file_menu.add_separator()
         file_menu.add_command(label="Salir",           command=self._on_close)
         menubar.add_cascade(label="Archivo", menu=file_menu)
+
+        self.bind("<Control-n>", self._evt_new_script)
+        self.bind("<Control-o>", self._evt_open_script)
+        self.bind("<Control-s>", self._evt_save_script)
 
         # MenÃº Ejemplos
         examples_menu = tk.Menu(menubar, tearoff=0)
@@ -119,7 +146,8 @@ class EV3SimulatorApp(tk.Tk):
 
         # MenÃº Mundos
         worlds_menu = tk.Menu(menubar, tearoff=0)
-        worlds_menu.add_command(label="Cargar mundo JSONâ€¦", command=self._cmd_load_world)
+        worlds_menu.add_command(label="Cargar mundo JSON...", command=self._cmd_load_world)
+        worlds_menu.add_command(label="Editor de mundos...", command=self._cmd_open_world_editor)
         worlds_menu.add_separator()
         self._populate_worlds_menu(worlds_menu)
         menubar.add_cascade(label="Mundos", menu=worlds_menu)
@@ -131,7 +159,7 @@ class EV3SimulatorApp(tk.Tk):
 
         # MenÃº Ayuda
         help_menu = tk.Menu(menubar, tearoff=0)
-        help_menu.add_command(label="Acerca deâ€¦", command=self._cmd_about)
+        help_menu.add_command(label="Acerca de...", command=self._cmd_about)
         menubar.add_cascade(label="Ayuda", menu=help_menu)
 
     def _populate_examples_menu(self, menu: tk.Menu) -> None:
@@ -217,8 +245,16 @@ class EV3SimulatorApp(tk.Tk):
         )
         self._placement_bar.pack(side=tk.TOP, fill=tk.X)
 
-        self._canvas = WorldCanvas(canvas_frame, world_w_mm=ww, world_h_mm=wh)
-        self._canvas.pack(fill=tk.BOTH, expand=True)
+        canvas_view = tk.Frame(canvas_frame, bg="#ECEFF1")
+        canvas_view.pack(fill=tk.BOTH, expand=True)
+
+        self._canvas = WorldCanvas(canvas_view, world_w_mm=ww, world_h_mm=wh)
+        y_scroll = tk.Scrollbar(canvas_view, orient=tk.VERTICAL, command=self._canvas.yview)
+        x_scroll = tk.Scrollbar(canvas_view, orient=tk.HORIZONTAL, command=self._canvas.xview)
+        self._canvas.configure(xscrollcommand=x_scroll.set, yscrollcommand=y_scroll.set)
+        y_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        x_scroll.pack(side=tk.BOTTOM, fill=tk.X)
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self._refresh_world_canvas()
         self._activate_placement_mode()
 
@@ -256,6 +292,7 @@ class EV3SimulatorApp(tk.Tk):
 
     def _activate_placement_mode(self) -> None:
         """Habilita el clic en el canvas para fijar la posiciÃ³n inicial."""
+        self._canvas.set_editor_robot_visible(True)
         self._canvas.enable_placement_mode(
             callback=self._on_canvas_placement,
             hover_callback=self._on_canvas_hover,
@@ -269,6 +306,7 @@ class EV3SimulatorApp(tk.Tk):
 
     def _deactivate_placement_mode(self) -> None:
         """Deshabilita el modo de colocaciÃ³n durante la simulaciÃ³n."""
+        self._canvas.set_editor_robot_visible(False)
         self._canvas.disable_placement_mode()
         self._hover_robot_pos = None
         self._placement_bar.config(
@@ -285,6 +323,7 @@ class EV3SimulatorApp(tk.Tk):
         """Callback: el usuario ajusto la pose inicial del robot."""
         self._pending_robot_pose = (x_mm, y_mm, theta_deg)
         self._service.set_robot_start(x_mm, y_mm, theta_deg)
+        self._canvas.set_editor_robot_visible(False)
         self._refresh_placement_bar()
 
     def _refresh_placement_bar(self) -> None:
@@ -378,7 +417,13 @@ class EV3SimulatorApp(tk.Tk):
         """Actualiza los widgets con el snapshot (ejecutado en MainThread)."""
         try:
             self._canvas.update_from_dto(dto)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
             self._brick_panel.update_from_dto(dto)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
             self._telemetry_panel.update_from_dto(dto)
         except Exception:  # noqa: BLE001
             pass
@@ -391,9 +436,9 @@ class EV3SimulatorApp(tk.Tk):
 
     def _on_status(self, status: str) -> None:
         status_map = {
-            "started":      ("Ejecutandoâ€¦",      "#1565C0"),
+            "started":      ("Ejecutando...",      "#1565C0"),
             "paused":       ("Pausado",            "#F57F17"),
-            "resumed":      ("Ejecutandoâ€¦",      "#1565C0"),
+            "resumed":      ("Ejecutando...",      "#1565C0"),
             "stopped":      ("Detenido",           "#424242"),
             "error":        ("Error",              "#B71C1C"),
             "reset":        ("Listo",              "#212121"),
@@ -424,11 +469,38 @@ class EV3SimulatorApp(tk.Tk):
         """Llamado por EditorPanel cuando el usuario pulsa Detener."""
         self._service.stop()
 
+    def _evt_new_script(self, _event=None) -> str:
+        self._cmd_new()
+        return "break"
+
+    def _evt_open_script(self, _event=None) -> str:
+        self._cmd_open_script()
+        return "break"
+
+    def _evt_save_script(self, _event=None) -> str:
+        self._cmd_save_script()
+        return "break"
+
+    def _cmd_open_script(self) -> None:
+        """Abre un script desde disco."""
+        if self._service.is_running:
+            if not messagebox.askyesno(
+                "Abrir script",
+                "La simulacion esta corriendo. ¿Detener y abrir otro script?",
+            ):
+                return
+            self._service.stop()
+        self._editor.open_script_dialog()
+
+    def _cmd_save_script(self) -> None:
+        """Guarda el script actual."""
+        self._editor.save_script_dialog()
+
     def _cmd_new(self) -> None:
         """Nuevo script en blanco."""
         if self._service.is_running:
             if not messagebox.askyesno("Nuevo script",
-                                       "La simulaciÃ³n estÃ¡ corriendo. Â¿Detener?"):
+                                       "La simulación está corriendo. ¿Detener?"):
                 return
             self._service.stop()
         self._editor.set_code("# Nuevo script\n")
@@ -451,10 +523,43 @@ class EV3SimulatorApp(tk.Tk):
         if path:
             self._load_world(path)
 
+    def _cmd_open_world_editor(self) -> None:
+        try:
+            if self._world_editor_window is not None:
+                if self._world_editor_window.winfo_exists():
+                    self._world_editor_window.lift()
+                    self._world_editor_window.focus_force()
+                    return
+        except Exception:  # noqa: BLE001
+            self._world_editor_window = None
+
+        try:
+            from simulador_ev3.ui.world_editor_window import WorldEditorWindow
+
+            self._world_editor_window = WorldEditorWindow(
+                self,
+                on_world_saved=self._on_editor_world_saved,
+            )
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Editor de mundos", str(exc))
+
+    def _on_editor_world_saved(self, path: str) -> None:
+        """Recarga en simulaciÃ³n el mundo guardado desde el editor."""
+        try:
+            self._service.load_world_file(path)
+            self._load_editor_visual_data(path)
+            self._refresh_world_canvas()
+            self._activate_placement_mode()
+            self._editor.set_status("Mundo aplicado desde editor", "#2E7D32")
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Editor de mundos", str(exc))
+
     def _load_world(self, path: str) -> None:
         try:
             self._service.load_world_file(path)
+            self._load_editor_visual_data(path)
             self._refresh_world_canvas()
+            self._activate_placement_mode()
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Error al cargar mundo", str(exc))
 
@@ -475,8 +580,10 @@ class EV3SimulatorApp(tk.Tk):
 
         try:
             self._service.load_world_file(world_path)
+            self._load_editor_visual_data(world_path)
             self._editor.load_file(example_path)
             self._refresh_world_canvas()
+            self._activate_placement_mode()
             self._editor.set_status(
                 f"Escenario cargado: {os.path.splitext(example_file)[0]}",
                 "#2E7D32",
@@ -486,6 +593,7 @@ class EV3SimulatorApp(tk.Tk):
 
     def _refresh_world_canvas(self) -> None:
         world = self._service.engine.world
+        self._canvas.set_world_size_mm(world.width_mm, world.height_mm)
         surface_cells = []
         cell_size = world.surface.cell_size_mm
         for (col, row), cell in world.surface._grid.items():
@@ -505,22 +613,60 @@ class EV3SimulatorApp(tk.Tk):
                 "y_mm": min_y,
                 "width_mm": max_x - min_x,
                 "height_mm": max_y - min_y,
+                "name": getattr(obstacle, "name", "obstacle"),
             })
         self._canvas.set_obstacles(obstacles)
+        self._canvas.set_editor_placements(self._editor_world_placements)
+
+    def _load_editor_visual_data(self, path: str) -> None:
+        self._editor_world_placements = []
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return
+        editor_spec = data.get("editor_spec")
+        if not isinstance(editor_spec, dict):
+            return
+        placements = editor_spec.get("placements")
+        if not isinstance(placements, list):
+            return
+
+        parsed: list[dict] = []
+        for item in placements:
+            if not isinstance(item, dict):
+                continue
+            asset_key = item.get("asset_key")
+            if not isinstance(asset_key, str) or not asset_key.strip():
+                continue
+            parsed.append(
+                {
+                    "asset_key": asset_key.strip(),
+                    "x_px": int(item.get("x_px", item.get("x", 0))),
+                    "y_px": int(item.get("y_px", item.get("y", 0))),
+                    "rotation": int(item.get("rotation", 0)),
+                }
+            )
+        self._editor_world_placements = parsed
 
     def _cmd_about(self) -> None:
         messagebox.showinfo(
             "Acerca de",
-            "Simulador EV3 Pybricks\n"
-            "VersiÃ³n 1.0\n\n"
-            "Simulador de robots LEGO EV3 con API compatible Pybricks.\n"
-            "Desarrollado con Python + Tkinter.",
+            "Simulador Lego mindstorms EV3 basado en la librería Pybricks\n"
+            "Versión 1.0\n\n"
+            "Desarrollado por: \n "
+            "\t\tFrancisco Alejandro Medina\n"
+            "\t\tJimmy Alexander Cortez\n",
         )
 
     def _on_close(self) -> None:
         """Cierra la aplicaciÃ³n de forma limpia."""
         if self._tick_id:
             self.after_cancel(self._tick_id)
+        if self._world_editor_window is not None:
+            try:
+                self._world_editor_window.destroy()
+            except Exception:  # noqa: BLE001
+                pass
         self._service.stop()
         self.destroy()
 
@@ -536,4 +682,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

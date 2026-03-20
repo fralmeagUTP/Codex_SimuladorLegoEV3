@@ -73,6 +73,7 @@ def _make_tk_mock():
         def create_line(self, *a, **kw): return 1
         def create_polygon(self, *a, **kw): return 1
         def create_text(self, *a, **kw): return 1
+        def create_image(self, *a, **kw): return 1
         def create_window(self, *a, **kw): return 1
         def bbox(self, *a, **kw): return (0, 0, 400, 400)
         def itemconfigure(self, *a, **kw): return None
@@ -85,6 +86,11 @@ def _make_tk_mock():
         def protocol(self, *a, **kw): return None
         def yview(self, *a, **kw): return None
         def xview(self, *a, **kw): return None
+        def yview_moveto(self, *a, **kw): return None
+        def xview_moveto(self, *a, **kw): return None
+        def canvasy(self, y): return y
+        def canvasx(self, x): return x
+        def find_overlapping(self, *a, **kw): return []
         def see(self, *a): return None
 
     class _StringVar:
@@ -103,6 +109,24 @@ def _make_tk_mock():
     class Frame(_Widget): pass
     class LabelFrame(_Widget): pass
     class Canvas(_Widget): pass
+    class PhotoImage:
+        def __init__(self, *a, **kw):
+            self._w = 32
+            self._h = 32
+        def width(self):
+            return self._w
+        def height(self):
+            return self._h
+        def zoom(self, zx=1, zy=1):
+            out = PhotoImage()
+            out._w = max(1, int(self._w * zx))
+            out._h = max(1, int(self._h * zy))
+            return out
+        def subsample(self, sx=1, sy=1):
+            out = PhotoImage()
+            out._w = max(1, int(self._w / max(1, sx)))
+            out._h = max(1, int(self._h / max(1, sy)))
+            return out
     class Text(_Widget): pass
     class Label(_Widget): pass
     class Button(_Widget): pass
@@ -120,6 +144,7 @@ def _make_tk_mock():
     tk.Frame      = Frame
     tk.LabelFrame = LabelFrame
     tk.Canvas     = Canvas
+    tk.PhotoImage = PhotoImage
     tk.Text       = Text
     tk.Label      = Label
     tk.Button     = Button
@@ -214,17 +239,39 @@ class TestWorldCanvas:
         wc.set_obstacles(obs)
         assert wc._obstacles == obs
 
+    def test_robot_sprite_is_scaled_to_32x23(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        assert wc._robot_sprite is not None
+        assert wc._robot_sprite.width() == 32
+        assert wc._robot_sprite.height() == 23
+
+    def test_update_from_dto_recenters_view(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        wc.xview_moveto = mock.Mock()
+        wc.yview_moveto = mock.Mock()
+        wc.update_from_dto(_snap())
+        assert wc.xview_moveto.called
+        assert wc.yview_moveto.called
+
+    def test_robot_sprite_rotation_is_requested_with_theta(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        wc._robot_sprite = object()
+        wc._get_rotated_robot_sprite = mock.Mock(return_value=wc._robot_sprite)
+        wc._draw_robot_sprite(500.0, 500.0, 42.0, False)
+        wc._get_rotated_robot_sprite.assert_called_once_with(42.0)
+
     def test_placement_click_calls_callback_with_theta(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
         received = []
         wc.enable_placement_mode(
             callback=lambda x_mm, y_mm, theta_deg: received.append((x_mm, y_mm, theta_deg))
         )
+        expected_x, expected_y = wc._event_to_world(types.SimpleNamespace(x=100, y=50))
 
         wc._on_placement_click(types.SimpleNamespace(x=100, y=50))
 
-        assert wc._placement_pos == pytest.approx((500.0, 250.0))
-        assert received[-1] == pytest.approx((500.0, 250.0, 0.0))
+        assert wc._placement_pos == pytest.approx((expected_x, expected_y))
+        assert received[-1] == pytest.approx((expected_x, expected_y, 0.0))
 
     def test_placement_drag_updates_theta(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
@@ -232,12 +279,13 @@ class TestWorldCanvas:
         wc.enable_placement_mode(
             callback=lambda x_mm, y_mm, theta_deg: received.append((x_mm, y_mm, theta_deg))
         )
+        expected_x, expected_y = wc._event_to_world(types.SimpleNamespace(x=100, y=100))
 
         wc._on_placement_click(types.SimpleNamespace(x=100, y=100))
         wc._on_placement_drag(types.SimpleNamespace(x=100, y=200))
 
         assert wc._placement_theta_deg == pytest.approx(90.0)
-        assert received[-1] == pytest.approx((500.0, 500.0, 90.0))
+        assert received[-1] == pytest.approx((expected_x, expected_y, 90.0))
 
     def test_placement_wheel_updates_theta(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
@@ -365,10 +413,100 @@ class TestTelemetryPanel:
         tp.update_from_dto(dto)
         assert tp._var_tick.get() == str(dto.tick)
 
+    def test_sensors_are_mapped_by_port(self):
+        tp = self.TelemetryPanel(mock.MagicMock())
+        tp._update_sensors([
+            {"port": "S3", "type": "ColorSensorModel", "value": 61.2}
+        ])
+        assert tp._sensor_vars["S3"]["type"].get() == "ColorSensorModel"
+        assert "61.2" in tp._sensor_vars["S3"]["value"].get()
+        assert tp._sensor_vars["S1"]["type"].get() == "-"
+
+    def test_motors_are_mapped_by_port(self):
+        tp = self.TelemetryPanel(mock.MagicMock())
+        tp._update_motors([
+            {"port": "B", "speed": 250.0, "angle": 42.5, "state": "RUNNING"}
+        ])
+        assert tp._motor_vars["B"]["state"].get() == "RUNNING"
+        assert tp._motor_vars["A"]["state"].get() == "-"
+
 
 # ===========================================================================
 # MainWindow (smoke test de importación y construcción)
 # ===========================================================================
+
+class TestWorldToolbar:
+    @pytest.fixture(autouse=True)
+    def imp(self):
+        from simulador_ev3.ui.world_toolbar import WorldToolbar
+        self.WorldToolbar = WorldToolbar
+
+    def _new_toolbar(self):
+        return self.WorldToolbar(
+            mock.MagicMock(),
+            on_tool_change=lambda _tool: None,
+            on_new=lambda: None,
+            on_open=lambda: None,
+            on_save=lambda: None,
+            on_save_as=lambda: None,
+            on_delete=lambda: None,
+            on_duplicate=lambda: None,
+            on_rotate=lambda: None,
+            on_apply_props=lambda: None,
+        )
+
+    def test_tool_icons_scaled_to_32x32(self):
+        tb = self._new_toolbar()
+        icon = tb._get_tool_icon("wall_64x64_a")
+        assert icon is not None
+        assert icon.width() == 32
+        assert icon.height() == 32
+
+    def test_icon_loader_uses_fallback_when_first_candidate_fails(self):
+        from simulador_ev3.ui import world_toolbar as wt
+
+        tb = self._new_toolbar()
+        tb._image_lookup = {
+            "floor_tile_256_c.jpg": "floor_tile_256_c.jpg",
+            "floor_tile_256_b.png": "floor_tile_256_b.png",
+        }
+
+        class _OkPhoto:
+            def __init__(self, *a, **kw):
+                self._w = 64
+                self._h = 64
+
+            def width(self):
+                return self._w
+
+            def height(self):
+                return self._h
+
+            def zoom(self, zx=1, zy=1):
+                out = _OkPhoto()
+                out._w = max(1, int(self._w * zx))
+                out._h = max(1, int(self._h * zy))
+                return out
+
+            def subsample(self, sx=1, sy=1):
+                out = _OkPhoto()
+                out._w = max(1, int(self._w / max(1, sx)))
+                out._h = max(1, int(self._h / max(1, sy)))
+                return out
+
+        def _photoimage_side_effect(*a, **kw):
+            file_path = str(kw.get("file", ""))
+            if file_path.endswith(".jpg"):
+                raise RuntimeError("unsupported format")
+            return _OkPhoto()
+
+        with mock.patch.object(wt.tk, "PhotoImage", side_effect=_photoimage_side_effect):
+            icon = tb._get_tool_icon("floor_tile_256_c")
+
+        assert icon is not None
+        assert icon.width() == 32
+        assert icon.height() == 32
+
 
 class TestMainWindow:
     @pytest.fixture(autouse=True)
@@ -404,6 +542,32 @@ class TestMainWindow:
         app._cmd_run("x = 1\n")
         app._cmd_stop()
         assert not app._service.is_running
+        app._on_close()
+
+    def test_cmd_open_script_delegates_to_editor(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        app._editor.open_script_dialog = mock.Mock()
+        app._cmd_open_script()
+
+        app._editor.open_script_dialog.assert_called_once()
+        app._on_close()
+
+    def test_cmd_save_script_delegates_to_editor(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        app._editor.save_script_dialog = mock.Mock()
+        app._cmd_save_script()
+
+        app._editor.save_script_dialog.assert_called_once()
         app._on_close()
 
     def test_apply_scenario_loads_world_and_example(self):

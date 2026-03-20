@@ -179,6 +179,19 @@ class TestDriveBaseCommands:
         # Con stop, posición no debería cambiar (o cambio mínimo por desaceleración)
         assert abs(snap_after.robot.x_mm - snap_before.robot.x_mm) < 10.0
 
+    def test_db_drive_updates_motor_telemetry_for_b_and_c(self):
+        eng = make_engine(robot_x0_mm=200, robot_y0_mm=200, robot_theta0_deg=0)
+        eng.command_queue.put(SimulationCommand.db_drive(speed=120, turn_rate=0))
+        snap = eng.update()
+
+        motor_b = next(m for m in snap.motors if m.port == "B")
+        motor_c = next(m for m in snap.motors if m.port == "C")
+
+        assert motor_b.state == "RUN"
+        assert motor_c.state == "RUN"
+        assert abs(motor_b.speed_dps) > 0.0
+        assert abs(motor_c.speed_dps) > 0.0
+
 
 # ---------------------------------------------------------------------------
 # Comandos — Motor individual

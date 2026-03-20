@@ -1,5 +1,6 @@
 """Tests para la Fase 6: Capa de Aplicación (SnapshotDTO + SimulationService)."""
 
+import json
 import sys
 import time
 import threading
@@ -331,3 +332,33 @@ class TestSimulationServiceWorlds:
         assert svc.engine.world.width_mm == pytest.approx(1700.0)
         assert svc.engine.world.height_mm == pytest.approx(1300.0)
         assert len(svc.engine.world.obstacles) == 1
+
+    def test_load_editor_world_sets_robot_start_pose(self, tmp_path: Path):
+        world_path = tmp_path / "world_editor_robot.json"
+        data = {
+            "editor_spec": {
+                "schema_version": 1,
+                "grid_size_px": 32,
+                "world_width_cells": 20,
+                "world_height_cells": 20,
+                "placements": [
+                    {
+                        "id": "robot_0001",
+                        "asset_key": "robot_ev3_32x32",
+                        "x": 64,
+                        "y": 96,
+                        "rotation": 90,
+                    }
+                ],
+            }
+        }
+        world_path.write_text(json.dumps(data), encoding="utf-8")
+
+        svc = SimulationService()
+        svc.load_world_file(world_path)
+
+        assert svc.engine.world.width_mm == pytest.approx(2000.0)
+        assert svc.engine.world.height_mm == pytest.approx(2000.0)
+        assert svc.engine._cfg.robot_x0_mm == pytest.approx(250.0)
+        assert svc.engine._cfg.robot_y0_mm == pytest.approx(350.0)
+        assert svc.engine._cfg.robot_theta0_deg == pytest.approx(90.0)

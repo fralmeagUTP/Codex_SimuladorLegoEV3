@@ -334,6 +334,7 @@ class SimulationEngine:
 
         # 3. Sincronización opcional tipo tanque desde motores A/C o B/C
         self._sync_tank_drive_from_motors()
+        self._sync_motors_from_drivebase(dt)
 
         # 4. Movimiento del robot
         prev_x = self._robot.pose.x
@@ -572,6 +573,34 @@ class SimulationEngine:
 
         self._drivebase.cmd_drive(linear_mm_s, turn_rate_deg_s)
         self._drivebase_source = "tank"
+
+    def _sync_motors_from_drivebase(self, dt: float) -> None:
+        """
+        Sincroniza la telemetria de motores cuando el movimiento viene de
+        comandos de DriveBase (drive/straight/turn).
+        """
+        if self._drivebase_source != "command":
+            return
+
+        left = self._motors.get("B")
+        right = self._motors.get("C")
+        if left is None or right is None:
+            return
+
+        if self._drivebase.state.name == "IDLE":
+            left._speed = 0.0
+            right._speed = 0.0
+            left.state = MotorState.IDLE
+            right.state = MotorState.IDLE
+            return
+
+        left_dps, right_dps = self._drivebase.wheel_speeds_deg_s()
+        left._speed = float(left_dps)
+        right._speed = float(right_dps)
+        left._angle += left._speed * dt
+        right._angle += right._speed * dt
+        left.state = MotorState.RUN
+        right.state = MotorState.RUN
 
     def _select_active_tank_pair(self) -> Optional[tuple[MotorModel, MotorModel]]:
         """Retorna el primer par activo de motores para conducción tipo tanque."""

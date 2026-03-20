@@ -316,3 +316,11 @@ class EditorPanel(tk.Frame):
             "\n".join(str(i) for i in range(1, num_lines + 1))
         )
         self._linenos.configure(state=tk.DISABLED)
+
+    def open_script_dialog(self) -> None:
+        """Public helper to open a script from file dialog."""
+        self._cmd_open()
+
+    def save_script_dialog(self) -> None:
+        """Public helper to save script with file dialog."""
+        self._cmd_save()
