@@ -294,6 +294,16 @@ def test_canvas_renderer_matches_tkinter_world_scale(tmp_path):
     assert "ROBOT_HEIGHT_MM = 23 / PX_PER_MM" in canvas_js
 
 
+def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
+    client = make_client(tmp_path)
+
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+
+    assert ".sim-brick-pane .brick-screen" in css
+    assert "width: min(178px, calc(100% - 24px));" in css
+    assert "aspect-ratio: 178 / 128;" in css
+
+
 def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
     client = make_client(tmp_path)
 
