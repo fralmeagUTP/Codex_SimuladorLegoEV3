@@ -498,7 +498,7 @@ dd {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(300px, 0.92fr);
+  grid-template-columns: minmax(220px, 0.68fr) minmax(360px, 1.32fr);
   gap: 10px;
   overflow: hidden;
 }
@@ -940,7 +940,7 @@ dd {
 }
 
 .sim-brick-pane .brick-screen {
-  width: min(178px, calc(100% - 24px));
+  width: min(260px, calc(100% - 24px));
   height: auto;
   min-height: 0;
   aspect-ratio: 178 / 128;
@@ -955,6 +955,12 @@ dd {
       #e5ecd8 18px
     );
   color: #111827;
+}
+
+@media (min-height: 940px) {
+  .sim-brick-pane .brick-screen {
+    width: min(356px, calc(100% - 24px));
+  }
 }
 
 .speaker-status {

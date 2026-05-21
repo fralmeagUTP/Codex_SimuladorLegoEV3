@@ -300,8 +300,11 @@ def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
     css = client.get("/static/css/app.css").get_data(as_text=True)
 
     assert ".sim-brick-pane .brick-screen" in css
-    assert "width: min(178px, calc(100% - 24px));" in css
+    assert "width: min(260px, calc(100% - 24px));" in css
+    assert "@media (min-height: 940px)" in css
+    assert "width: min(356px, calc(100% - 24px));" in css
     assert "aspect-ratio: 178 / 128;" in css
+    assert "grid-template-columns: minmax(220px, 0.68fr) minmax(360px, 1.32fr);" in css
 
 
 def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
