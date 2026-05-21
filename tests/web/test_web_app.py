@@ -304,7 +304,21 @@ def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
     assert "@media (min-height: 940px)" in css
     assert "width: min(356px, calc(100% - 24px));" in css
     assert "aspect-ratio: 178 / 128;" in css
-    assert "grid-template-columns: minmax(220px, 0.68fr) minmax(360px, 1.32fr);" in css
+    assert "grid-template-columns: minmax(430px, 1.18fr) minmax(300px, 0.82fr);" in css
+    assert "grid-template-columns: repeat(3, minmax(120px, 1fr));" in css
+
+
+def test_telemetry_panel_uses_three_readable_columns(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+
+    assert "<h3>Robot</h3>" in html
+    assert "<h3>Motores</h3>" in html
+    assert "<h3>Sensores</h3>" in html
+    assert "grid-template-columns: repeat(3, minmax(120px, 1fr));" in css
+    assert ".telemetry-section:last-child" in css
 
 
 def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
