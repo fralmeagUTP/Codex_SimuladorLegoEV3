@@ -631,17 +631,78 @@ dd {
   font-family: Segoe UI, Arial, sans-serif;
 }
 
-.sim-telemetry-pane #motors > div,
-.sim-telemetry-pane #sensors > div {
-  margin: 0;
-  padding: 5px 0;
-  border: 0;
-  border-bottom: 1px solid #eef2f6;
+.sim-telemetry-pane #motors,
+.sim-telemetry-pane #sensors {
+  display: grid;
+  gap: 7px;
+}
+
+.telemetry-card {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #e1e8f0;
+  border-radius: 4px;
   background: #fff;
   color: #1f2f46;
   font-size: 12px;
-  line-height: 1.25;
+}
+
+.telemetry-card-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: #0f3f75;
+  font-weight: 700;
+}
+
+.telemetry-state {
+  color: #0a7a39;
+  font-size: 11px;
+}
+
+.telemetry-mini-list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 8px;
+  margin: 0;
+}
+
+.telemetry-mini-list dt {
+  color: #607089;
+}
+
+.telemetry-mini-list dd {
+  color: #14253c;
+  text-align: right;
   overflow-wrap: anywhere;
+}
+
+.motor-card {
+  padding: 6px 8px;
+}
+
+.motor-metrics {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #14253c;
+  font-size: 12px;
+}
+
+.motor-metrics span {
+  white-space: nowrap;
+}
+
+.motor-metrics b {
+  color: #607089;
+  font-weight: 400;
+}
+
+.telemetry-empty {
+  margin: 0;
+  color: #68788f;
+  font-size: 12px;
 }
 
 .sim-code-pane {

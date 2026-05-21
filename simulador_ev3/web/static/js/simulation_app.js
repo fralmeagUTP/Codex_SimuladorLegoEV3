@@ -153,10 +153,80 @@
   }
 
   function escapeHtml(value) {
-    return value
+    return String(value ?? "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
+  }
+
+  function formatTelemetryNumber(value, digits = 2) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "--";
+    return Number.isInteger(number) ? String(number) : number.toFixed(digits);
+  }
+
+  function formatTelemetryValue(value) {
+    if (value === true) return "si";
+    if (value === false) return "no";
+    if (value === null || value === undefined) return "--";
+    if (typeof value === "number") return formatTelemetryNumber(value);
+    return escapeHtml(value);
+  }
+
+  function readableSensorKey(key) {
+    return {
+      distance_mm: "Distancia",
+      presence: "Presencia",
+      reflected: "Reflejado",
+      ambient: "Ambiente",
+      color: "Color",
+      angle: "Angulo",
+      speed: "Velocidad",
+    }[key] || key.replaceAll("_", " ");
+  }
+
+  function sensorUnit(key) {
+    return {
+      distance_mm: " mm",
+      angle: " deg",
+      speed: " dps",
+    }[key] || "";
+  }
+
+  function renderMotorTelemetry(motor) {
+    const state = escapeHtml(motor.state || "IDLE");
+    return `
+      <article class="telemetry-card motor-card">
+        <div class="telemetry-card-title">
+          <span>Motor ${escapeHtml(motor.port)}</span>
+          <span class="telemetry-state">${state}</span>
+        </div>
+        <div class="motor-metrics">
+          <span><b>Vel.</b> ${formatTelemetryNumber(motor.speed)} dps</span>
+          <span><b>Angulo</b> ${formatTelemetryNumber(motor.angle)} deg</span>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderSensorTelemetry(sensor) {
+    const value = sensor.value || {};
+    const entries = Object.entries(value).filter(([key]) => key !== "port");
+    const rows = entries.length
+      ? entries.map(([key, item]) => `
+          <dt>${escapeHtml(readableSensorKey(key))}</dt>
+          <dd>${formatTelemetryValue(item)}${sensorUnit(key)}</dd>
+        `).join("")
+      : "<dt>Valor</dt><dd>--</dd>";
+    return `
+      <article class="telemetry-card">
+        <div class="telemetry-card-title">
+          <span>${escapeHtml(sensor.port)}</span>
+          <span>${escapeHtml(sensor.type)}</span>
+        </div>
+        <dl class="telemetry-mini-list">${rows}</dl>
+      </article>
+    `;
   }
 
   function highlightCodeLine(line) {
@@ -555,19 +625,21 @@
     telemetry.innerHTML = `
       <dt>Tick</dt><dd>${snapshot.tick}</dd>
       <dt>Tiempo</dt><dd>${snapshot.sim_time_s}s</dd>
-      <dt>X</dt><dd>${robot.x_mm}</dd>
-      <dt>Y</dt><dd>${robot.y_mm}</dd>
-      <dt>Theta</dt><dd>${robot.theta_deg}</dd>
+      <dt>X</dt><dd>${formatTelemetryNumber(robot.x_mm)} mm</dd>
+      <dt>Y</dt><dd>${formatTelemetryNumber(robot.y_mm)} mm</dd>
+      <dt>Theta</dt><dd>${formatTelemetryNumber(robot.theta_deg)} deg</dd>
       <dt>Colision</dt><dd>${snapshot.colliding ? "si" : "no"}</dd>
     `;
     const motors = document.getElementById("motors");
-    motors.innerHTML = (snapshot.motors || [])
-      .map((m) => `<div>${m.port}: ${m.speed} dps, ${m.angle} deg, ${m.state}</div>`)
-      .join("");
+    const motorItems = snapshot.motors || [];
+    motors.innerHTML = motorItems.length
+      ? motorItems.map(renderMotorTelemetry).join("")
+      : '<p class="telemetry-empty">Sin motores</p>';
     const sensors = document.getElementById("sensors");
-    sensors.innerHTML = (snapshot.sensors || [])
-      .map((s) => `<div>${s.port}: ${s.type} = ${JSON.stringify(s.value)}</div>`)
-      .join("");
+    const sensorItems = snapshot.sensors || [];
+    sensors.innerHTML = sensorItems.length
+      ? sensorItems.map(renderSensorTelemetry).join("")
+      : '<p class="telemetry-empty">Sin sensores</p>';
   }
 
   function updateBrick(snapshot) {

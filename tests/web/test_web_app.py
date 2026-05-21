@@ -313,12 +313,17 @@ def test_telemetry_panel_uses_three_readable_columns(tmp_path):
 
     html = client.get("/").get_data(as_text=True)
     css = client.get("/static/css/app.css").get_data(as_text=True)
+    js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
 
     assert "<h3>Robot</h3>" in html
     assert "<h3>Motores</h3>" in html
     assert "<h3>Sensores</h3>" in html
     assert "grid-template-columns: repeat(3, minmax(120px, 1fr));" in css
     assert ".telemetry-section:last-child" in css
+    assert "renderMotorTelemetry" in js
+    assert "renderSensorTelemetry" in js
+    assert "readableSensorKey" in js
+    assert "JSON.stringify(s.value)" not in js
 
 
 def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
