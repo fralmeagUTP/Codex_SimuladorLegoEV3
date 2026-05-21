@@ -489,7 +489,7 @@ dd {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(240px, 0.72fr) minmax(300px, 1fr);
+  grid-template-rows: minmax(300px, 1fr) minmax(230px, 0.62fr);
   gap: 10px;
   overflow: hidden;
 }
@@ -654,11 +654,28 @@ dd {
   margin-bottom: 5px;
   color: #0f3f75;
   font-weight: 700;
+  min-width: 0;
+}
+
+.telemetry-card-title span {
+  min-width: 0;
 }
 
 .telemetry-state {
+  flex: 0 0 auto;
   color: #0a7a39;
   font-size: 11px;
+}
+
+.sensor-port {
+  flex: 0 0 auto;
+}
+
+.sensor-type {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .telemetry-mini-list {
@@ -998,18 +1015,27 @@ dd {
 }
 
 .brick-card h3 {
-  margin: 9px 12px 6px;
+  margin: 8px 12px 6px;
   color: #244977;
   font-size: 12px;
 }
 
-.led-row {
+.brick-status-row {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 10px 12px 7px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid #e3e9f1;
   font-size: 12px;
+}
+
+.led-row,
+.speaker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .led-row .led {
@@ -1022,7 +1048,7 @@ dd {
   height: auto;
   min-height: 0;
   aspect-ratio: 178 / 128;
-  margin: 0 12px;
+  margin: 0 auto;
   border: 1px solid #9fb1d0;
   border-radius: 4px;
   background:
@@ -1041,10 +1067,17 @@ dd {
   }
 }
 
+@media (max-height: 820px) {
+  .sim-brick-pane .brick-screen {
+    width: min(240px, calc(100% - 24px));
+  }
+}
+
 .speaker-status {
-  width: calc(100% - 24px);
-  margin: 0 12px 10px;
-  padding: 6px 10px;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   border: 0;
   background: transparent;
   color: #4f5d72;

@@ -303,6 +303,8 @@ def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
     assert "width: min(260px, calc(100% - 24px));" in css
     assert "@media (min-height: 940px)" in css
     assert "width: min(356px, calc(100% - 24px));" in css
+    assert "@media (max-height: 820px)" in css
+    assert "width: min(240px, calc(100% - 24px));" in css
     assert "aspect-ratio: 178 / 128;" in css
     assert "grid-template-columns: minmax(430px, 1.18fr) minmax(300px, 0.82fr);" in css
     assert "grid-template-columns: repeat(3, minmax(120px, 1fr));" in css

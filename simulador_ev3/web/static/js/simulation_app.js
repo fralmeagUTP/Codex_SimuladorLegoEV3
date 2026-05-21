@@ -221,8 +221,8 @@
     return `
       <article class="telemetry-card">
         <div class="telemetry-card-title">
-          <span>${escapeHtml(sensor.port)}</span>
-          <span>${escapeHtml(sensor.type)}</span>
+          <span class="sensor-port">${escapeHtml(sensor.port)}</span>
+          <span class="sensor-type" title="${escapeHtml(sensor.type)}">${escapeHtml(sensor.type)}</span>
         </div>
         <dl class="telemetry-mini-list">${rows}</dl>
       </article>
