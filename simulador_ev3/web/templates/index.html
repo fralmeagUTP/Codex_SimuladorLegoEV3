@@ -71,19 +71,27 @@
 
     <section class="sim-code-pane">
       <div class="sim-control-bar">
-        <button id="runBtn" class="run-button">Ejecutar</button>
-        <button id="stopBtn" class="stop-button">Detener</button>
-        <button id="debugRunBtn" class="debug-button">Depurar</button>
-        <button id="debugStepBtn" class="step-button">Paso</button>
-        <button id="debugContinueBtn" class="continue-button">Continuar</button>
-        <button id="pauseBtn">Pausar</button>
-        <button id="resumeBtn">Reanudar</button>
-        <button id="resetBtn">Reiniciar</button>
-        <select id="exampleSelect" aria-label="Ejemplos"></select>
-        <select id="worldSelect" aria-label="Mundos"></select>
-        <button id="loadWorldBtn">Cargar mundo</button>
-        <button id="placeRobotStartBtn">Ubicar robot</button>
-        <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
+        <div class="sim-control-group run-controls">
+          <button id="runBtn" class="run-button">Ejecutar</button>
+          <button id="stopBtn" class="stop-button">Detener</button>
+          <button id="pauseBtn">Pausar</button>
+          <button id="resumeBtn">Reanudar</button>
+          <button id="resetBtn">Reiniciar</button>
+        </div>
+        <div class="sim-control-group debug-controls">
+          <button id="debugRunBtn" class="debug-button">Depurar</button>
+          <button id="debugStepBtn" class="step-button">Paso</button>
+          <button id="debugContinueBtn" class="continue-button">Continuar</button>
+        </div>
+        <div class="sim-control-group load-controls">
+          <select id="exampleSelect" aria-label="Ejemplos"></select>
+          <select id="worldSelect" aria-label="Mundos"></select>
+          <button id="loadWorldBtn">Cargar mundo</button>
+        </div>
+        <div class="sim-control-group pose-controls">
+          <button id="placeRobotStartBtn">Ubicar robot</button>
+          <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
+        </div>
       </div>
       <div class="debug-panel">
         <label for="breakpointsInput">Breakpoints</label>

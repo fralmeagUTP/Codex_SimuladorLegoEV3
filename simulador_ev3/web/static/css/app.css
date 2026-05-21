@@ -400,11 +400,11 @@ dd {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 0.98fr);
-  grid-template-rows: 26px minmax(0, 1fr) minmax(250px, 0.88fr);
-  gap: 4px;
-  padding: 4px;
-  background: #d9e2e8;
+  grid-template-columns: minmax(660px, 1.55fr) minmax(340px, 0.85fr);
+  grid-template-rows: 26px minmax(0, 0.92fr) minmax(300px, 1.08fr);
+  gap: 6px;
+  padding: 6px;
+  background: #d8e1e8;
   overflow: hidden;
 }
 
@@ -433,33 +433,43 @@ dd {
 
 .sim-map-pane,
 .world-canvas-pane {
+  display: grid;
   overflow: auto;
+  padding: 10px;
+  background:
+    linear-gradient(135deg, rgba(148, 163, 184, 0.18) 25%, transparent 25%) 0 0 / 16px 16px,
+    linear-gradient(135deg, transparent 75%, rgba(148, 163, 184, 0.18) 75%) 0 0 / 16px 16px,
+    #edf3f7;
 }
 
 .sim-map-pane #worldCanvas,
 .world-canvas-pane #worldCanvas {
-  width: 100%;
-  height: 100%;
+  width: auto;
+  height: auto;
   min-height: 0;
   display: block;
+  border: 1px solid #9fb0bf;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
 }
 
 .sim-telemetry-pane {
   overflow: auto;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: #f4f7fa;
 }
 
 .telemetry-section {
-  padding-bottom: 10px;
+  padding: 0 0 10px;
   margin-bottom: 10px;
   border-bottom: 1px solid #c5ccd3;
 }
 
 .telemetry-section h2 {
   margin: 0 0 10px;
-  padding: 5px 6px;
-  background: #e8edf2;
+  padding: 7px 8px;
+  background: #e3eaf0;
+  border-left: 4px solid #44627e;
   font-size: 15px;
 }
 
@@ -493,12 +503,22 @@ dd {
 
 .sim-control-bar {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  padding: 4px 6px;
+  padding: 6px;
   border-bottom: 1px solid #263445;
-  background: #1f2937;
+  background: #182433;
+}
+
+.sim-control-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  padding: 3px;
+  border: 1px solid #344256;
+  background: #111827;
 }
 
 .sim-control-bar button,
@@ -514,7 +534,19 @@ dd {
 }
 
 .sim-control-bar select {
-  max-width: 170px;
+  width: 170px;
+}
+
+.sim-control-bar .load-controls {
+  flex: 1 1 380px;
+}
+
+.sim-control-bar .load-controls select {
+  flex: 1 1 150px;
+}
+
+.sim-control-bar .pose-controls {
+  margin-left: auto;
 }
 
 .sim-control-bar .theta-input {
@@ -552,6 +584,8 @@ dd {
 }
 
 .sim-code-pane .debug-panel {
+  position: relative;
+  z-index: 2;
   grid-template-columns: auto minmax(120px, 220px) 1fr;
   padding: 4px 6px;
   border: 0;
@@ -576,6 +610,7 @@ dd {
 
 .code-editor-shell {
   position: relative;
+  z-index: 4;
   min-height: 0;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
@@ -680,11 +715,11 @@ dd {
 
 .autocomplete-popup {
   position: absolute;
-  z-index: 30;
+  z-index: 100;
   left: 54px;
-  bottom: 14px;
+  top: 10px;
   width: 230px;
-  max-height: 172px;
+  max-height: min(172px, calc(100% - 20px));
   overflow: auto;
   border: 1px solid #3b82f6;
   background: #0f172a;
@@ -783,9 +818,9 @@ dd {
   min-height: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto minmax(0, auto);
-  gap: 3px;
-  padding: 5px;
-  background: #dfe6eb;
+  gap: 6px;
+  padding: 6px;
+  background: #d8e1e8;
 }
 
 .world-editor-toolbar,
@@ -794,6 +829,9 @@ dd {
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+  padding: 6px;
+  border: 1px solid #a8b5c0;
+  background: #edf3f7;
 }
 
 .world-editor-toolbar button,
@@ -809,7 +847,7 @@ dd {
 }
 
 .world-editor-toolbar select {
-  max-width: 210px;
+  width: min(240px, 100%);
 }
 
 .toolbar-separator {
@@ -824,16 +862,19 @@ dd {
   gap: 4px;
   align-items: center;
   flex-wrap: wrap;
+  flex: 1 1 520px;
 }
 
 .asset-tool {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: inline-grid;
   place-items: center;
   padding: 2px !important;
   font-size: 11px;
   font-weight: 600;
+  border-color: #8ea0b0 !important;
+  background: #fff !important;
 }
 
 .asset-tool img {
@@ -858,25 +899,28 @@ dd {
 .world-editor-main {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 5px;
+  grid-template-columns: minmax(660px, 1fr) 300px;
+  gap: 6px;
 }
 
 .properties-pane {
   overflow: auto;
-  padding: 8px;
-  background: #edf1f5;
+  padding: 10px;
+  background: #f4f7fa;
 }
 
 .properties-pane h2 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  padding: 7px 8px;
+  background: #e3eaf0;
+  border-left: 4px solid #44627e;
   font-size: 14px;
 }
 
 .properties-pane .selection-readout {
   border-radius: 0;
   background: transparent;
-  padding: 4px 0 10px;
+  padding: 2px 0 12px;
   font-weight: 600;
 }
 
@@ -916,7 +960,7 @@ dd {
   grid-column: 1 / -1;
   min-height: 28px;
   border: 1px solid #8a9bab;
-  background: #f8fafc;
+  background: #e8eff5;
   cursor: pointer;
 }
 
@@ -924,7 +968,7 @@ dd {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 5px 6px;
+  padding: 6px 8px;
   border: 1px solid #b7c3d0;
   background: #d7e1e7;
   font-size: 13px;

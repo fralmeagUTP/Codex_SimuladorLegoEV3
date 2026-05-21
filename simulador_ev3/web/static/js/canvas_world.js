@@ -42,6 +42,11 @@ window.EV3Canvas = (() => {
     const cssHeight = `${heightPx}px`;
     if (canvas.style.width !== cssWidth) canvas.style.width = cssWidth;
     if (canvas.style.height !== cssHeight) canvas.style.height = cssHeight;
+    const pane = canvas.parentElement;
+    if (pane) {
+      pane.style.justifyContent = widthPx <= pane.clientWidth ? "center" : "start";
+      pane.style.alignContent = heightPx <= pane.clientHeight ? "center" : "start";
+    }
   }
 
   function worldView(world) {
