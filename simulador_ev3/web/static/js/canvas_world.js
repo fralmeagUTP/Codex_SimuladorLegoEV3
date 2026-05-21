@@ -6,8 +6,8 @@ window.EV3Canvas = (() => {
   const GRID_SIZE_PX = 32;
   const PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM;
   const DEFAULT_WORLD_MM = 16000;
-  const ROBOT_WIDTH_MM = 70;
-  const ROBOT_HEIGHT_MM = 110;
+  const ROBOT_WIDTH_MM = 110;
+  const ROBOT_HEIGHT_MM = 70;
 
   const assetFiles = {
     robot_ev3_32x32: "robot_ev3_32x32.png",

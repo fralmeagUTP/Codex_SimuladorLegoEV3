@@ -242,8 +242,8 @@ class TestWorldCanvas:
     def test_robot_sprite_is_scaled_to_real_ev3_brick_size(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
         assert wc._robot_sprite is not None
-        assert wc._robot_sprite.width() == 22
-        assert wc._robot_sprite.height() == 35
+        assert wc._robot_sprite.width() == 35
+        assert wc._robot_sprite.height() == 22
 
     def test_update_from_dto_recenters_view(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)

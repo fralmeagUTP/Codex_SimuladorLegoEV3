@@ -78,8 +78,8 @@ _ASSET_LAYER_ORDER = {
     "wall": 3,
     "robot": 4,
 }
-_ROBOT_WIDTH_MM = 70.0
-_ROBOT_HEIGHT_MM = 110.0
+_ROBOT_WIDTH_MM = 110.0
+_ROBOT_HEIGHT_MM = 70.0
 _ROBOT_DRAW_W_PX = max(1, int(round(_ROBOT_WIDTH_MM * _PX_PER_MM)))
 _ROBOT_DRAW_H_PX = max(1, int(round(_ROBOT_HEIGHT_MM * _PX_PER_MM)))
 _ROBOT_ROT_STEP_DEG = 2
@@ -105,7 +105,7 @@ _ROBOT_PORT_RED = "#C62828"
 _DEFAULT_WORLD_W = 16000.0
 _DEFAULT_WORLD_H = 16000.0
 
-# Tamaño visual del robot: cerebro EV3 a escala real, 7 cm x 11 cm.
+# Tamaño visual del robot: cerebro EV3 a escala real, 11 cm x 7 cm.
 _ROBOT_W_MM = _ROBOT_WIDTH_MM
 _ROBOT_H_MM = _ROBOT_HEIGHT_MM
 

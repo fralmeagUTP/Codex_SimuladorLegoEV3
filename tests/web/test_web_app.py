@@ -291,8 +291,8 @@ def test_canvas_renderer_matches_tkinter_world_scale(tmp_path):
     assert "canvas.style.height = cssHeight" in canvas_js
     assert "devicePixelRatio" not in canvas_js
     assert "const DEFAULT_WORLD_MM = 16000" in canvas_js
-    assert "ROBOT_WIDTH_MM = 70" in canvas_js
-    assert "ROBOT_HEIGHT_MM = 110" in canvas_js
+    assert "ROBOT_WIDTH_MM = 110" in canvas_js
+    assert "ROBOT_HEIGHT_MM = 70" in canvas_js
     assert 'getAssetImage("robot_ev3_32x32")' in canvas_js
 
 
