@@ -8,6 +8,7 @@ para acceder al CommandQueue y al SimulationEngine.
 from __future__ import annotations
 
 import threading
+from contextvars import ContextVar
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,6 +23,10 @@ class PybricksContext:
     Solo existe una instancia activa durante la ejecución de un script.
     """
     _instance: Optional["PybricksContext"] = None
+    _current: ContextVar[Optional["PybricksContext"]] = ContextVar(
+        "pybricks_context",
+        default=None,
+    )
     _lock = threading.Lock()
 
     def __init__(
@@ -40,11 +45,15 @@ class PybricksContext:
 
     @classmethod
     def set_current(cls, ctx: "PybricksContext") -> None:
+        cls._current.set(ctx)
         with cls._lock:
             cls._instance = ctx
 
     @classmethod
     def get_current(cls) -> "PybricksContext":
+        current = cls._current.get()
+        if current is not None:
+            return current
         with cls._lock:
             if cls._instance is None:
                 raise RuntimeError(
@@ -55,5 +64,6 @@ class PybricksContext:
 
     @classmethod
     def clear(cls) -> None:
+        cls._current.set(None)
         with cls._lock:
             cls._instance = None

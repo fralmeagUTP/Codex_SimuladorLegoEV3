@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Crear mundos EV3{% endblock %}
+{% block body %}
+<main class="app-shell">
+  <header class="menu-bar">
+    <strong>Editor de Mundos EV3</strong>
+    <nav>
+      <a href="/">Simulacion</a>
+      <a href="/worlds">Mundos</a>
+      <a href="/help" target="_blank">Ayuda</a>
+    </nav>
+  </header>
+
+  <section class="world-editor-shell">
+    <section class="world-editor-toolbar">
+      <button id="newWorldBtn">Nuevo</button>
+      <button id="openWorldBtn">Abrir</button>
+      <button id="saveWorldBtn">Guardar</button>
+      <button id="exportWorldBtn">Guardar como</button>
+      <span class="toolbar-separator"></span>
+      <button id="moveAssetBtn">Select</button>
+      <button id="deleteAssetBtn">Delete</button>
+      <button id="rotateAssetBtn">Rotar</button>
+      <button id="duplicateAssetBtn">Duplicate</button>
+      <button id="validateWorldBtn">Validar</button>
+      <button id="applyWorldBtn">Aplicar</button>
+      <span class="toolbar-separator"></span>
+      <label for="assetSelect" class="visually-hidden">Asset</label>
+      <select id="assetSelect"></select>
+      <div id="assetPalette" class="asset-palette"></div>
+      <input id="importWorldInput" class="hidden" type="file" accept="application/json,.json">
+    </section>
+
+    <section class="world-size-bar">
+      <label for="worldWidthInput">World W (cells):</label>
+      <input id="worldWidthInput" type="number" min="1" max="160" value="20">
+      <label for="worldHeightInput">World H (cells):</label>
+      <input id="worldHeightInput" type="number" min="1" max="160" value="20">
+      <button id="applyWorldSizeBtn">Aplicar tamano</button>
+      <label for="robotThetaInput">Theta robot:</label>
+      <input id="robotThetaInput" type="number" value="0" step="15" min="0" max="359">
+      <button id="placeRobotStartBtn">Colocar robot</button>
+      <button id="clearRobotStartBtn">Limpiar marca</button>
+      <input id="saveWorldName" type="text" placeholder="nombre_mundo">
+      <a id="simulateSavedWorldLink" class="action-link hidden" href="/">Simular mundo guardado</a>
+    </section>
+
+    <section class="world-editor-main">
+      <section class="world-canvas-pane">
+        <canvas id="worldCanvas" width="1120" height="800"></canvas>
+      </section>
+      <aside class="properties-pane">
+        <h2>Propiedades</h2>
+        <div id="selectedAsset" class="selection-readout">Sin seleccion</div>
+        <dl id="assetProperties" class="asset-properties"></dl>
+        <form id="assetPropertiesForm" class="asset-properties-form hidden">
+          <label for="assetKeyInput">Asset</label>
+          <select id="assetKeyInput"></select>
+          <label for="assetXInput">X px</label>
+          <input id="assetXInput" type="number" step="32">
+          <label for="assetYInput">Y px</label>
+          <input id="assetYInput" type="number" step="32">
+          <label for="assetRotationInput">Rotacion</label>
+          <input id="assetRotationInput" type="number" step="90">
+          <button id="applyAssetPropertiesBtn" type="submit">Aplicar propiedades</button>
+        </form>
+        <h2>Pose inicial</h2>
+        <div id="robotStartReadout" class="selection-readout">Pose no fijada</div>
+      </aside>
+    </section>
+
+    <footer class="world-status-bar">
+      <span id="sessionStatus">iniciando</span>
+      <span id="cursorReadout">Cursor: --</span>
+      <span id="validationStatus">Validacion: --</span>
+    </footer>
+    <pre id="console" class="console world-console"></pre>
+  </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script src="{{ url_for('static', filename='js/canvas_world.js') }}"></script>
+<script src="{{ url_for('static', filename='js/world_editor_app.js') }}"></script>
+{% endblock %}

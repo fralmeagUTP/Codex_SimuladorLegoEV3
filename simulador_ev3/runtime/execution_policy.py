@@ -145,7 +145,11 @@ class ExecutionPolicy:
             # pybricks se permite exclusivamente si fue inyectado por la
             # fábrica virtual para esta sesión.
             if root == "pybricks" and "pybricks" in allowed_roots:
-                return _builtins.__import__(name, globals, locals, fromlist, level)
+                if pybricks_modules and name in pybricks_modules:
+                    if fromlist:
+                        return pybricks_modules[name]
+                    return pybricks_modules["pybricks"]
+                raise ImportError(f"Modulo Pybricks no inyectado: {name}")
 
             if self.is_module_blocked(name):
                 raise ImportError(f"Módulo bloqueado por la política: {name}")

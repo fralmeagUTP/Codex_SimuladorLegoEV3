@@ -87,6 +87,10 @@ class RuntimeController:
         # Código de usuario
         self._source_code: Optional[str]         = None
         self._pybricks_modules: dict             = {}
+        self._debug_mode: bool                   = False
+        self._debug_step_mode: bool              = False
+        self._debug_breakpoints: set[int]        = set()
+        self._debug_cb                           = None
 
         # Callback opcional que la UI puede registrar para recibir snapshots
         self._snapshot_cb = None
@@ -137,6 +141,31 @@ class RuntimeController:
         """
         self._snapshot_cb = callback
 
+    def set_debug_mode(self, enabled: bool) -> None:
+        """Activa/desactiva depuracion para la siguiente ejecucion."""
+        self._debug_mode = bool(enabled)
+
+    def set_debug_step_mode(self, enabled: bool) -> None:
+        """Activa/desactiva pausa automatica en cada linea."""
+        self._debug_step_mode = bool(enabled)
+
+    def set_debug_breakpoints(self, breakpoints: set[int]) -> None:
+        self._debug_breakpoints = {int(line) for line in breakpoints if int(line) > 0}
+        if self._sandbox is not None:
+            self._sandbox.set_debug_breakpoints(self._debug_breakpoints)
+
+    def set_debug_callback(self, callback) -> None:
+        """Registra callback para eventos de depuracion (linea ejecutada)."""
+        self._debug_cb = callback
+
+    def debug_continue(self) -> None:
+        if self._sandbox is not None:
+            self._sandbox.debug_continue()
+
+    def debug_step(self) -> None:
+        if self._sandbox is not None:
+            self._sandbox.debug_step()
+
     # ------------------------------------------------------------------
     # Control
     # ------------------------------------------------------------------
@@ -173,6 +202,10 @@ class RuntimeController:
                 event_bus=self._bus,
                 pybricks_modules=self._pybricks_modules,
                 on_finished=self._on_script_finished,
+                debug_enabled=self._debug_mode,
+                debug_step_mode=self._debug_step_mode,
+                debug_breakpoints=self._debug_breakpoints,
+                debug_callback=self._debug_cb,
             )
             self._last_sandbox = self._sandbox
 
@@ -237,6 +270,10 @@ class RuntimeController:
         self._pybricks_modules = {}
         self._sandbox = None
         self._last_sandbox = None
+        self._debug_mode = False
+        self._debug_step_mode = False
+        self._debug_breakpoints = set()
+        self._debug_cb = None
         self._stop_flag.clear()
         self._pause_flag.clear()
         self._state = ControllerState.IDLE

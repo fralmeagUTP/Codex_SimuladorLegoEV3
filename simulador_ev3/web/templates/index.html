@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Simulador EV3 Web{% endblock %}
+{% block body %}
+<main class="app-shell">
+  <header class="menu-bar">
+    <strong>Simulador EV3 Pybricks</strong>
+    <nav class="app-menu" aria-label="Menu principal">
+      <div class="menu-group">
+        <button type="button" class="menu-trigger" aria-haspopup="true">Archivo</button>
+        <div class="menu-dropdown">
+          <button type="button" id="newScriptMenuBtn">Nuevo script</button>
+          <button type="button" id="openScriptMenuBtn">Abrir script</button>
+          <button type="button" id="saveScriptMenuBtn">Guardar script</button>
+        </div>
+      </div>
+      <div class="menu-group">
+        <button type="button" class="menu-trigger" aria-haspopup="true">Ejemplos</button>
+        <div id="examplesMenu" class="menu-dropdown">
+          <span class="menu-empty">Cargando ejemplos</span>
+        </div>
+      </div>
+      <div class="menu-group">
+        <button type="button" class="menu-trigger" aria-haspopup="true">Mundos</button>
+        <div id="worldsMenu" class="menu-dropdown">
+          <a href="/worlds">Editor de mundos</a>
+          <span class="menu-empty">Cargando mundos</span>
+        </div>
+      </div>
+      <div class="menu-group">
+        <button type="button" class="menu-trigger" aria-haspopup="true">Escenarios</button>
+        <div id="scenariosMenu" class="menu-dropdown">
+          <button type="button" data-scenario="line">Seguidor de linea</button>
+          <button type="button" data-scenario="ultrasonic">Ultrasonido + obstaculos</button>
+          <button type="button" data-scenario="brick">Test pantalla/altavoz</button>
+        </div>
+      </div>
+      <div class="menu-group">
+        <button type="button" class="menu-trigger" aria-haspopup="true">Ayuda</button>
+        <div class="menu-dropdown">
+          <a href="/help" target="_blank">Manual de uso</a>
+          <button type="button" id="aboutMenuBtn">Acerca de</button>
+        </div>
+      </div>
+    </nav>
+    <input id="scriptFileInput" class="visually-hidden" type="file" accept=".py,text/x-python,text/plain">
+  </header>
+
+  <section class="sim-workspace">
+    <div class="sim-status-strip">
+      <span id="sessionStatus">iniciando</span>
+    </div>
+
+    <section class="sim-map-pane">
+      <canvas id="worldCanvas" width="980" height="620"></canvas>
+    </section>
+
+    <aside class="sim-telemetry-pane">
+      <section class="telemetry-section">
+        <h2>Robot</h2>
+        <dl id="telemetry"></dl>
+      </section>
+      <section class="telemetry-section motors-section">
+        <h2>Motores</h2>
+        <div id="motors"></div>
+      </section>
+      <section class="telemetry-section">
+        <h2>Sensores</h2>
+        <div id="sensors"></div>
+      </section>
+    </aside>
+
+    <section class="sim-code-pane">
+      <div class="sim-control-bar">
+        <button id="runBtn" class="run-button">Ejecutar</button>
+        <button id="stopBtn" class="stop-button">Detener</button>
+        <button id="debugRunBtn" class="debug-button">Depurar</button>
+        <button id="debugStepBtn" class="step-button">Paso</button>
+        <button id="debugContinueBtn" class="continue-button">Continuar</button>
+        <button id="pauseBtn">Pausar</button>
+        <button id="resumeBtn">Reanudar</button>
+        <button id="resetBtn">Reiniciar</button>
+        <select id="exampleSelect" aria-label="Ejemplos"></select>
+        <select id="worldSelect" aria-label="Mundos"></select>
+        <button id="loadWorldBtn">Cargar mundo</button>
+        <button id="placeRobotStartBtn">Ubicar robot</button>
+        <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
+      </div>
+      <div class="debug-panel">
+        <label for="breakpointsInput">Breakpoints</label>
+        <input id="breakpointsInput" type="text" inputmode="numeric" placeholder="2, 5, 8">
+        <div id="debugState" class="debug-state">sin eventos</div>
+        <div id="robotStartReadout" class="robot-start-readout">Pose inicial no fijada</div>
+      </div>
+      <div class="code-editor-shell">
+        <div id="editorGutter" class="editor-gutter" aria-label="Lineas y breakpoints"></div>
+        <pre id="syntaxHighlight" class="syntax-highlight" aria-hidden="true"></pre>
+        <textarea id="codeEditor" spellcheck="false">from pybricks.hubs import EV3Brick
+from pybricks.ev3devices import Motor
+from pybricks.parameters import Port
+from pybricks.tools import wait
+
+ev3 = EV3Brick()
+motor = Motor(Port.A)
+ev3.screen.print("EV3 Web")
+ev3.light.on()
+motor.run(360)
+wait(500)
+motor.stop()
+</textarea>
+        <div id="autocompletePopup" class="autocomplete-popup hidden" role="listbox"></div>
+      </div>
+      <pre id="console" class="console"></pre>
+    </section>
+
+    <aside class="sim-brick-pane">
+      <section class="brick-card">
+        <h2>EV3 Brick</h2>
+        <div class="led-row">LED: <span id="led" class="led"></span> <span id="ledText">Apagado</span></div>
+        <h3>Pantalla LCD EV3</h3>
+        <div id="screen" class="brick-screen"></div>
+        <h3>Altavoz</h3>
+        <div id="speaker" class="speaker-status">Inactivo</div>
+      </section>
+    </aside>
+  </section>
+</main>
+
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script src="{{ url_for('static', filename='js/canvas_world.js') }}"></script>
+<script src="{{ url_for('static', filename='js/simulation_app.js') }}"></script>
+{% endblock %}

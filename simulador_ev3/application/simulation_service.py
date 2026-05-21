@@ -53,6 +53,8 @@ SnapshotCallback = Callable[[SnapshotDTO], None]
 ErrorCallback    = Callable[[dict], None]
 # Tipo de callback de estado: recibe str ("started" | "stopped" | "error")
 StatusCallback   = Callable[[str], None]
+# Tipo de callback de depuracion: recibe dict {"line": int}
+DebugCallback    = Callable[[dict], None]
 
 
 class SimulationService:
@@ -98,10 +100,12 @@ class SimulationService:
         self._snapshot_cb: Optional[SnapshotCallback] = None
         self._error_cb:    Optional[ErrorCallback]    = None
         self._status_cb:   Optional[StatusCallback]   = None
+        self._debug_cb:    Optional[DebugCallback]    = None
 
         # Script actual
         self._source_code: Optional[str] = None
         self._loaded_world: Optional[WorldModel] = None
+        self._debug_breakpoints: set[int] = set()
 
         # Construir la infraestructura inicial
         self._rebuild()
@@ -120,6 +124,24 @@ class SimulationService:
 
     def set_status_callback(self, cb: StatusCallback) -> None:
         self._status_cb = cb
+
+    def set_debug_callback(self, cb: DebugCallback) -> None:
+        self._debug_cb = cb
+        if self._controller:
+            self._controller.set_debug_callback(self._on_debug_event)
+
+    def set_debug_breakpoints(self, breakpoints: set[int]) -> None:
+        self._debug_breakpoints = {int(line) for line in breakpoints if int(line) > 0}
+        if self._controller:
+            self._controller.set_debug_breakpoints(self._debug_breakpoints)
+
+    def debug_continue(self) -> None:
+        if self._controller:
+            self._controller.debug_continue()
+
+    def debug_step(self) -> None:
+        if self._controller:
+            self._controller.debug_step()
 
     # ------------------------------------------------------------------
     # API de script
@@ -234,7 +256,7 @@ class SimulationService:
     # Control del ciclo de vida
     # ------------------------------------------------------------------
 
-    def start(self) -> None:
+    def start(self, debug: bool = False, step_mode: bool = False) -> None:
         """
         Arranca la simulación.
 
@@ -258,6 +280,9 @@ class SimulationService:
         if self._source_code:
             self._controller.load_script(self._source_code)
 
+        self._controller.set_debug_mode(debug)
+        self._controller.set_debug_step_mode(step_mode if debug else False)
+        self._controller.set_debug_breakpoints(self._debug_breakpoints if debug else set())
         self._controller.start()
         self._notify_status("started")
 
@@ -364,8 +389,13 @@ class SimulationService:
         )
         # Registrar callbacks internos
         self._controller.set_snapshot_callback(self._on_snapshot)
+        self._controller.set_debug_callback(self._on_debug_event)
+        self._controller.set_debug_breakpoints(self._debug_breakpoints)
         self._engine.event_bus.subscribe(
             EVENT_RUNTIME_ERROR, self._on_runtime_error
+        )
+        self._engine.event_bus.subscribe(
+            EVENT_SIMULATION_STOPPED, self._on_simulation_stopped
         )
 
     def _on_snapshot(self, snapshot) -> None:
@@ -385,6 +415,20 @@ class SimulationService:
             except Exception:  # noqa: BLE001
                 pass
         self._notify_status("error")
+
+    def _on_simulation_stopped(self, event: str, payload: dict) -> None:
+        """Callback recibido cuando el controller detiene el engine internamente."""
+        reason = str((payload or {}).get("reason", ""))
+        if reason == "script_error":
+            return
+        self._notify_status("stopped")
+
+    def _on_debug_event(self, payload: dict) -> None:
+        if self._debug_cb:
+            try:
+                self._debug_cb(payload)
+            except Exception:  # noqa: BLE001
+                pass
 
     def _notify_status(self, status: str) -> None:
         if self._status_cb:

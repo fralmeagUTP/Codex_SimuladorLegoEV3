@@ -47,8 +47,7 @@ def clean_context():
 def setup_ctx(engine):
     """Crea y activa un PybricksContext para el engine dado."""
     stop_ev = threading.Event()
-    PybricksFactory.create(engine, stop_ev)
-    return stop_ev
+    return PybricksFactory.create(engine, stop_ev)
 
 
 # ===========================================================================
@@ -108,19 +107,23 @@ class TestPybricksContext:
 # ===========================================================================
 
 class TestPybricksFactory:
-    def test_create_registers_pybricks_in_sys_modules(self):
+    def test_create_does_not_register_pybricks_in_sys_modules(self):
         eng = make_engine()
-        setup_ctx(eng)
-        assert "pybricks" in sys.modules
-        assert "pybricks.hubs" in sys.modules
-        assert "pybricks.ev3devices" in sys.modules
-        assert "pybricks.parameters" in sys.modules
-        assert "pybricks.robotics" in sys.modules
-        assert "pybricks.tools" in sys.modules
+        PybricksFactory.cleanup()
+        mods = setup_ctx(eng)
+        assert "pybricks" in mods
+        assert "pybricks.hubs" in mods
+        assert "pybricks.ev3devices" in mods
+        assert "pybricks.parameters" in mods
+        assert "pybricks.robotics" in mods
+        assert "pybricks.tools" in mods
+        assert "pybricks" not in sys.modules
+        assert "pybricks.hubs" not in sys.modules
 
-    def test_cleanup_removes_from_sys_modules(self):
+    def test_cleanup_removes_legacy_pybricks_from_sys_modules(self):
         eng = make_engine()
-        setup_ctx(eng)
+        sys.modules["pybricks"] = object()  # type: ignore[assignment]
+        sys.modules["pybricks.hubs"] = object()  # type: ignore[assignment]
         PybricksFactory.cleanup()
         assert "pybricks" not in sys.modules
         assert "pybricks.hubs" not in sys.modules
@@ -244,6 +247,47 @@ class TestMotorAPI:
         m = self.Motor(Port.A)
         assert m.speed() == pytest.approx(0.0)
 
+    def test_motor_dc_enqueues_run_scaled_speed(self):
+        m = self.Motor(Port.A)
+        m.dc(50)
+        items = self.eng.command_queue.drain()
+        cmd = next(c for c in items if c.cmd_type == CommandType.MOTOR_RUN)
+        assert cmd.params["speed"] == pytest.approx(525.0)
+
+    def test_motor_run_target_maps_to_run_angle_delta(self):
+        m = self.Motor(Port.A)
+        self.eng._motors["A"]._angle = 30.0
+        m.run_target(speed=200, target_angle=80, wait=False)
+        items = self.eng.command_queue.drain()
+        cmd = next(c for c in items if c.cmd_type == CommandType.MOTOR_RUN_ANGLE)
+        assert cmd.params["angle_deg"] == pytest.approx(50.0)
+
+    def test_motor_done_true_when_idle(self):
+        m = self.Motor(Port.A)
+        assert m.done() is True
+
+    def test_motor_load_reads_power(self):
+        m = self.Motor(Port.A)
+        self.eng._motors["A"].cmd_run(300)
+        assert m.load() > 0
+
+    def test_motor_close_enqueues_stop(self):
+        m = self.Motor(Port.A)
+        m.close()
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.MOTOR_STOP for c in items)
+
+    def test_motor_track_target_enqueues_run_angle(self):
+        m = self.Motor(Port.A)
+        m.track_target(120)
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.MOTOR_RUN_ANGLE for c in items)
+
+    def test_motor_run_until_stalled_returns_float(self):
+        m = self.Motor(Port.A)
+        moved = m.run_until_stalled(200)
+        assert isinstance(moved, float)
+
 
 # ===========================================================================
 # ev3devices.py — Sensores
@@ -290,6 +334,23 @@ class TestSensorAPI:
         self.eng.update()
         assert 0 <= ir.distance() <= 100
 
+    def test_color_sensor_detectable_colors_filters_output(self):
+        from simulador_ev3.pybricks_api.ev3devices import ColorSensor
+
+        cs = ColorSensor(Port.S3)
+        cs.detectable_colors([Color.BLACK])
+        self.eng.update()
+        assert cs.color() in (Color.BLACK, Color.NONE)
+        assert isinstance(cs.hsv(), Color)
+
+    def test_infrared_sensor_reflection_and_count_exist(self):
+        from simulador_ev3.pybricks_api.ev3devices import InfraredSensor
+
+        ir = InfraredSensor(Port.S1)
+        self.eng.update()
+        assert isinstance(ir.reflection(), int)
+        assert ir.count() == 0
+
 
 # ===========================================================================
 # robotics.py — DriveBase
@@ -319,6 +380,24 @@ class TestDriveBaseAPI:
         self.db.settings(300, 300, 120, 120)
         items = self.eng.command_queue.drain()
         assert any(c.cmd_type == CommandType.DB_SETTINGS for c in items)
+
+    def test_brake_enqueues_stop_command(self):
+        self.db.brake()
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.DB_STOP for c in items)
+
+    def test_curve_enqueues_drive_command(self):
+        self.db.curve(radius=120, angle=30, wait=False)
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.DB_DRIVE for c in items)
+
+    def test_state_returns_4_tuple(self):
+        st = self.db.state()
+        assert isinstance(st, tuple)
+        assert len(st) == 4
+
+    def test_done_true_when_idle(self):
+        assert self.db.done() is True
 
     def test_wheel_diameter_updated_in_drivebase(self):
         # El DriveBase del engine debe tener el diámetro actualizado

@@ -22,9 +22,11 @@ from __future__ import annotations
 import sys
 import threading
 import traceback
+from collections import deque
 from typing import Callable, Optional
 
 from simulador_ev3.core.event_bus import EVENT_RUNTIME_ERROR, EventBus
+from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
 
 
@@ -76,12 +78,28 @@ class RuntimeSandbox:
         event_bus: Optional[EventBus]      = None,
         pybricks_modules: Optional[dict]   = None,
         on_finished: Optional[Callable[[], None]] = None,
+        debug_enabled: bool = False,
+        debug_step_mode: bool = False,
+        debug_breakpoints: Optional[set[int]] = None,
+        debug_callback: Optional[Callable[[dict], None]] = None,
     ) -> None:
         self._source       = source_code
         self._policy       = policy or ExecutionPolicy()
         self._bus          = event_bus or EventBus()
         self._pybricks     = pybricks_modules or {}
         self._on_finished  = on_finished
+        self._debug_enabled = bool(debug_enabled)
+        self._debug_step_mode = bool(debug_step_mode)
+        self._debug_callback = debug_callback
+        self._debug_lines = deque(maxlen=40)
+        self._debug_breakpoints = {
+            int(line) for line in (debug_breakpoints or set()) if int(line) > 0
+        }
+        self._debug_current_line: Optional[int] = None
+        self._debug_paused = False
+        self._debug_lock = threading.Lock()
+        self._debug_resume_event = threading.Event()
+        self._debug_resume_event.set()
 
         self._state        = SandboxState.IDLE
         self._error: Optional[str]      = None
@@ -149,8 +167,30 @@ class RuntimeSandbox:
         El script se detendrá en el próximo pybricks.tools.wait().
         """
         self._stop_event.set()
+        self._debug_resume_event.set()
         if self._state == SandboxState.RUNNING:
             self._state = SandboxState.STOPPED
+
+    def set_debug_breakpoints(self, breakpoints: set[int]) -> None:
+        with self._debug_lock:
+            self._debug_breakpoints = {
+                int(line) for line in breakpoints if int(line) > 0
+            }
+
+    def debug_continue(self) -> None:
+        with self._debug_lock:
+            self._debug_step_mode = False
+        self._debug_resume_event.set()
+
+    def debug_step(self) -> None:
+        with self._debug_lock:
+            self._debug_step_mode = True
+        self._debug_resume_event.set()
+
+    @property
+    def is_debug_paused(self) -> bool:
+        with self._debug_lock:
+            return self._debug_paused
 
     def join(self, timeout: Optional[float] = None) -> bool:
         """
@@ -172,6 +212,9 @@ class RuntimeSandbox:
     def _run(self) -> None:
         """Ejecutado dentro del ScriptThread."""
         ns = self._policy.build_namespace(self._pybricks)
+        pybricks_ctx = self._pybricks.get("__pybricks_context__")
+        if pybricks_ctx is not None:
+            PybricksContext.set_current(pybricks_ctx)
 
         # Inyectamos el stop_event en el namespace para que el módulo
         # pybricks.tools.wait() pueda consultarlo
@@ -179,6 +222,8 @@ class RuntimeSandbox:
 
         try:
             # Compilación separada para mejor traceback
+            if self._debug_enabled:
+                sys.settrace(self._trace_line_events)
             code = compile(self._source, "<script>", "exec")
             exec(code, ns)  # noqa: S102
 
@@ -193,18 +238,68 @@ class RuntimeSandbox:
                 self._state   = SandboxState.ERROR
             self._error = str(exc)
             self._tb    = traceback.format_exc()
+            payload = {"error": self._error, "traceback": self._tb}
+            if self._debug_enabled and self._debug_lines:
+                payload["debug_last_lines"] = list(self._debug_lines)
             self._bus.publish(
                 EVENT_RUNTIME_ERROR,
-                {"error": self._error, "traceback": self._tb},
+                payload,
             )
 
         finally:
+            if self._debug_enabled:
+                sys.settrace(None)
+            if pybricks_ctx is not None:
+                PybricksContext.clear()
             self._cancel_watchdog()
             if self._on_finished:
                 try:
                     self._on_finished()
                 except Exception:  # noqa: BLE001
                     pass
+
+    def _trace_line_events(self, frame, event, arg):
+        if event != "line":
+            return self._trace_line_events
+        if frame.f_code.co_filename != "<script>":
+            return self._trace_line_events
+
+        line_no = int(frame.f_lineno)
+        self._debug_lines.append(line_no)
+        pause_reason: Optional[str] = None
+        with self._debug_lock:
+            self._debug_current_line = line_no
+            if line_no in self._debug_breakpoints:
+                pause_reason = "breakpoint"
+            elif self._debug_step_mode:
+                pause_reason = "step"
+
+        if self._debug_callback:
+            try:
+                payload = {"type": "line", "line": line_no}
+                if pause_reason:
+                    payload["pause_reason"] = pause_reason
+                self._debug_callback(payload)
+            except Exception:  # noqa: BLE001
+                pass
+
+        if pause_reason:
+            with self._debug_lock:
+                self._debug_paused = True
+            self._debug_resume_event.clear()
+            if self._debug_callback:
+                try:
+                    self._debug_callback(
+                        {"type": "paused", "line": line_no, "reason": pause_reason}
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+            while not self._stop_event.is_set():
+                if self._debug_resume_event.wait(timeout=0.05):
+                    break
+            with self._debug_lock:
+                self._debug_paused = False
+        return self._trace_line_events
 
     def _on_timeout(self) -> None:
         """Watchdog: script excedió max_runtime_s."""

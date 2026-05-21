@@ -12,7 +12,6 @@ from simulador_ev3.runtime.execution_policy import ExecutionPolicy, SAFE_BUILTIN
 from simulador_ev3.runtime.runtime_sandbox import RuntimeSandbox, SandboxState
 from simulador_ev3.runtime.runtime_controller import RuntimeController, ControllerState
 
-
 # ===========================================================================
 # ExecutionPolicy
 # ===========================================================================
@@ -216,6 +215,51 @@ class TestSandboxExecution:
         assert any("tiempo" in e.get("error", "").lower() or
                    "máximo" in e.get("error", "").lower()
                    for e in errors), f"No se encontró error de timeout en {errors}"
+    
+    def test_debug_mode_emits_line_events_and_error_context(self):
+        bus = EventBus()
+        errors = []
+        debug_events = []
+        bus.subscribe(EVENT_RUNTIME_ERROR, lambda e, p: errors.append(p))
+
+        code = "x = 1\ny = 0\nz = x / y\n"
+        sb = RuntimeSandbox(
+            source_code=code,
+            policy=ExecutionPolicy(max_runtime_s=0),
+            event_bus=bus,
+            debug_enabled=True,
+            debug_callback=lambda payload: debug_events.append(payload),
+        )
+        sb.start()
+        sb.join(timeout=2.0)
+
+        assert sb.state == SandboxState.ERROR
+        assert len(debug_events) >= 1
+        assert all("line" in ev for ev in debug_events)
+        assert len(errors) == 1
+        assert "debug_last_lines" in errors[0]
+        assert len(errors[0]["debug_last_lines"]) >= 1
+
+    def test_debug_breakpoint_pauses_and_continue_resumes(self):
+        pauses = []
+        code = "a = 1\nb = 2\nc = 3\n"
+        sb = RuntimeSandbox(
+            source_code=code,
+            policy=ExecutionPolicy(max_runtime_s=0),
+            debug_enabled=True,
+            debug_breakpoints={2},
+            debug_callback=lambda payload: pauses.append(payload)
+            if payload.get("type") == "paused" else None,
+        )
+        sb.start()
+        time.sleep(0.2)
+        assert sb.is_debug_paused is True
+        assert any(p.get("line") == 2 for p in pauses)
+
+        sb.debug_continue()
+        done = sb.join(timeout=2.0)
+        assert done is True
+        assert sb.state == SandboxState.FINISHED
 
 
 # ===========================================================================

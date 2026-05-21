@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Ayuda - Simulador EV3 Web{% endblock %}
+{% block body %}
+<main class="help">
+  <h1>Ayuda del Simulador EV3 Web</h1>
+  <p class="help-lead">
+    La version web separa la simulacion del robot y la creacion de mundos en dos pantallas distintas.
+  </p>
+
+  <nav class="help-nav">
+    <a href="/">Simulacion</a>
+    <a href="/worlds">Crear mundos</a>
+  </nav>
+
+  <section class="help-section">
+    <h2>1. Simulacion del robot</h2>
+    <p>Ruta: <code>http://127.0.0.1:5050/</code></p>
+    <ul>
+      <li>Usa <strong>Archivo</strong> para crear, abrir o guardar scripts.</li>
+      <li>Selecciona ejemplos desde el menu <strong>Ejemplos</strong> o desde el selector inferior.</li>
+      <li>Carga mundos guardados desde <strong>Mundos</strong> o desde el selector inferior.</li>
+      <li>Usa <strong>Escenarios</strong> para cargar mundo y ejemplo en una sola accion.</li>
+      <li>Ejecuta, pausa, reanuda, detiene o reinicia la simulacion.</li>
+      <li>Haz clic en el margen del editor para activar breakpoints por linea.</li>
+      <li>El editor conserva indentacion al presionar Enter y completa pares como <code>()</code> y <code>[]</code>.</li>
+      <li>Usa <code>Ctrl+Space</code> para abrir autocompletado Pybricks contextual.</li>
+      <li>Usa <strong>Ubicar robot</strong> para fijar posicion inicial y angulo desde el canvas.</li>
+      <li>Observa canvas, telemetria, motores, sensores, LED, pantalla y altavoz EV3.</li>
+    </ul>
+  </section>
+
+  <section class="help-section">
+    <h2>2. Creacion de mundos</h2>
+    <p>Ruta: <code>http://127.0.0.1:5050/worlds</code></p>
+    <ul>
+      <li>Crea mundos con robot, muros, lineas, zonas y pisos.</li>
+      <li>Selecciona un asset y haz clic en el canvas para colocarlo.</li>
+      <li>Selecciona un asset colocado para mover, rotar, duplicar o eliminar.</li>
+      <li>Edita directamente asset, posicion y rotacion desde el panel de propiedades.</li>
+      <li>Define la pose inicial del robot con <strong>Colocar robot</strong>.</li>
+      <li>Valida y guarda el mundo como JSON.</li>
+    </ul>
+  </section>
+
+  <section class="help-section">
+    <h2>3. Flujo recomendado</h2>
+    <ol>
+      <li>Abre <code>/worlds</code>.</li>
+      <li>Crea el mundo y valida que no tenga errores.</li>
+      <li>Guarda el mundo con un nombre, por ejemplo <code>prueba_lineas</code>.</li>
+      <li>Usa el enlace <strong>Simular mundo guardado</strong>.</li>
+      <li>La simulacion abre <code>/?world=prueba_lineas.json</code> y carga el mundo automaticamente.</li>
+      <li>Ejecuta el script Pybricks desde la pagina de simulacion.</li>
+    </ol>
+  </section>
+
+  <section class="help-section">
+    <h2>4. Sesiones</h2>
+    <p>
+      Cada pestana crea una sesion independiente. El codigo, mundo cargado, estado de simulacion y eventos SSE
+      no se comparten entre sesiones.
+    </p>
+    <p>Si el servidor se reinicia, recarga la pestana para crear una sesion nueva.</p>
+  </section>
+
+  <section class="help-section">
+    <h2>5. Operacion local</h2>
+    <div class="help-grid">
+      <div>
+        <h3>Iniciar</h3>
+        <pre><code>.\scripts\start_web.cmd</code></pre>
+      </div>
+      <div>
+        <h3>Reiniciar</h3>
+        <pre><code>.\scripts\restart_web.cmd</code></pre>
+      </div>
+      <div>
+        <h3>Detener</h3>
+        <pre><code>.\scripts\stop_web.cmd</code></pre>
+      </div>
+      <div>
+        <h3>Verificar</h3>
+        <pre><code>.\scripts\smoke_web.cmd</code></pre>
+      </div>
+    </div>
+    <p>Para ejecucion con Waitress:</p>
+    <pre><code>.\scripts\start_web_waitress.cmd</code></pre>
+  </section>
+
+  <section class="help-section">
+    <h2>6. Problemas comunes</h2>
+    <dl class="help-dl">
+      <dt>No aparece el mundo guardado</dt>
+      <dd>Recarga la pagina de simulacion o vuelve a abrirla desde el enlace <code>/?world=...</code>.</dd>
+      <dt>La sesion expiro o desaparecio</dt>
+      <dd>Recarga la pestana. Las sesiones son temporales y viven en memoria.</dd>
+      <dt>El script no ejecuta</dt>
+      <dd>Revisa la consola de la pagina de simulacion; los errores del script no detienen otras sesiones.</dd>
+      <dt>PowerShell bloquea scripts</dt>
+      <dd>Usa los wrappers <code>.cmd</code>, por ejemplo <code>.\scripts\restart_web.cmd</code>.</dd>
+    </dl>
+  </section>
+</main>
+{% endblock %}

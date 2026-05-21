@@ -224,6 +224,19 @@ class TestSimulationServiceScript:
         assert "started" in statuses
         assert "stopped" in statuses
 
+    def test_status_callback_stopped_when_script_finishes(self):
+        statuses = []
+        svc = SimulationService(policy=ExecutionPolicy(max_runtime_s=2.0))
+        svc.set_status_callback(lambda s: statuses.append(s))
+        svc.load_script("from pybricks.tools import wait\nwait(100)\n")
+        svc.start()
+        for _ in range(30):
+            if "stopped" in statuses:
+                break
+            time.sleep(0.1)
+        assert "stopped" in statuses
+        assert not svc.is_running
+
     def test_tick_returns_dto_in_manual_mode(self):
         svc = SimulationService()
         svc.start()

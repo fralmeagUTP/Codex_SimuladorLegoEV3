@@ -7,9 +7,13 @@ el SimulationEngine señala la finalización vía threading.Event.
 """
 from __future__ import annotations
 
+import math
+import threading
+import time
+
 from simulador_ev3.core.command_queue import SimulationCommand
 from simulador_ev3.pybricks_api._context import PybricksContext
-from simulador_ev3.pybricks_api.parameters import Stop, STOP_TO_STOPMODE
+from simulador_ev3.pybricks_api.parameters import Stop
 # Motor se importa tardíamente para evitar importación circular
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -59,6 +63,10 @@ class DriveBase:
 
     def stop(self) -> None:
         """Detiene el DriveBase (coast)."""
+        self._queue.put(SimulationCommand.db_stop())
+
+    def brake(self) -> None:
+        """Frena el DriveBase (aproximado como stop inmediato)."""
         self._queue.put(SimulationCommand.db_stop())
 
     # ------------------------------------------------------------------
@@ -112,6 +120,46 @@ class DriveBase:
         else:
             self._queue.put(cmd)
 
+    def curve(
+        self,
+        radius: float,
+        angle: float,
+        then: Stop = Stop.HOLD,
+        wait: bool = True,
+    ) -> None:
+        """
+        Recorre un arco de radio `radius` y angulo `angle`.
+
+        Implementacion aproximada sobre `drive(speed, turn_rate)` con
+        duracion estimada.
+        """
+        if abs(angle) <= 1e-9:
+            return
+        if abs(radius) <= 1e-9:
+            self.turn(angle, then=then, wait=wait)
+            return
+
+        ctx = PybricksContext.get_current()
+        base_speed = max(1.0, abs(ctx.engine._drivebase.profile.straight_speed))
+        arc_mm = math.radians(float(angle)) * float(radius)
+        speed = math.copysign(base_speed, arc_mm)
+        turn_rate = math.degrees(speed / float(radius))
+        duration_s = abs(float(angle)) / max(abs(turn_rate), 1e-6)
+
+        self._queue.put(SimulationCommand.db_drive(speed, turn_rate))
+        if wait:
+            from simulador_ev3.pybricks_api.tools import wait as py_wait
+
+            py_wait(duration_s * 1000.0)
+            self._apply_stop_mode(then)
+            return
+
+        def _deferred_stop() -> None:
+            time.sleep(duration_s)
+            self._apply_stop_mode(then)
+
+        threading.Thread(target=_deferred_stop, daemon=True).start()
+
     # ------------------------------------------------------------------
     # Configuración
     # ------------------------------------------------------------------
@@ -130,6 +178,53 @@ class DriveBase:
                 turn_rate, turn_acceleration,
             )
         )
+
+    def done(self) -> bool:
+        """True si no hay maniobra acotada en progreso."""
+        from simulador_ev3.domain.robot.drivebase_model import DriveState
+
+        ctx = PybricksContext.get_current()
+        return ctx.engine._drivebase.state == DriveState.IDLE
+
+    def stalled(self) -> bool:
+        """Deteccion aproximada de estancamiento del drivebase."""
+        from simulador_ev3.domain.robot.drivebase_model import DriveState
+
+        ctx = PybricksContext.get_current()
+        db = ctx.engine._drivebase
+        if db.state == DriveState.IDLE:
+            return False
+        if getattr(ctx.engine, "_colliding", False):
+            return True
+        return abs(db.linear_speed) < 1e-3 and abs(db.angular_speed_deg) < 1e-3
+
+    def state(self) -> tuple[int, int, int, int]:
+        """
+        Estado cinemático aproximado:
+        (distance_mm, speed_mm_s, angle_deg, turn_rate_deg_s).
+        """
+        ctx = PybricksContext.get_current()
+        db = ctx.engine._drivebase
+        return (
+            int(round(self.distance())),
+            int(round(db.linear_speed)),
+            int(round(self.angle())),
+            int(round(db.angular_speed_deg)),
+        )
+
+    def use_gyro(self, enabled: bool = True) -> None:
+        """
+        Compatibilidad API.
+        La simulacion actual no aplica correccion con gyro en DriveBase.
+        """
+        _ = enabled
+
+    def _apply_stop_mode(self, then: Stop) -> None:
+        """Aplica modo de parada al terminar maniobras sinteticas."""
+        if then == Stop.BRAKE:
+            self.brake()
+            return
+        self.stop()
 
     # ------------------------------------------------------------------
     # Lecturas de odometría

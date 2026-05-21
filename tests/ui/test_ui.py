@@ -321,6 +321,24 @@ class TestEditorPanel:
         ep._cmd_run()
         assert len(received) == 1
 
+    def test_on_debug_callback_called(self):
+        received = []
+        ep = self.EditorPanel(mock.MagicMock(), on_debug=lambda c: received.append(c))
+        ep._cmd_debug()
+        assert len(received) == 1
+
+    def test_on_debug_step_callback_called(self):
+        received = []
+        ep = self.EditorPanel(mock.MagicMock(), on_debug_step=lambda: received.append("step"))
+        ep._cmd_debug_step()
+        assert received == ["step"]
+
+    def test_on_debug_continue_callback_called(self):
+        received = []
+        ep = self.EditorPanel(mock.MagicMock(), on_debug_continue=lambda: received.append("continue"))
+        ep._cmd_debug_continue()
+        assert received == ["continue"]
+
     def test_on_stop_callback_called(self):
         received = []
         ep = self.EditorPanel(mock.MagicMock(), on_stop=lambda: received.append(True))
@@ -339,6 +357,88 @@ class TestEditorPanel:
         ep.set_code("x = 1\n")
         result = ep.get_code()
         assert isinstance(result, str)
+
+    def test_set_code_refreshes_linenos(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        ep._update_linenos = mock.Mock()
+        ep.set_code("a = 1\nb = 2\n")
+        assert ep._update_linenos.call_count >= 1
+
+    def test_linenos_click_toggles_breakpoint_and_notifies(self):
+        received = []
+        ep = self.EditorPanel(
+            mock.MagicMock(),
+            on_breakpoints_changed=lambda bps: received.append(sorted(bps)),
+        )
+        ep._linenos.index = mock.Mock(return_value="3.0")
+        ep._update_linenos = mock.Mock()
+
+        ep._on_linenos_click(types.SimpleNamespace(y=20))
+
+        assert 3 in ep.get_breakpoints()
+        assert received[-1] == [3]
+
+
+    def test_autocomplete_candidates_include_pybricks_symbols(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        items = ep._autocomplete_candidates("Dri")
+        assert "DriveBase" in items
+
+    def test_autocomplete_candidates_include_python_keywords(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        items = ep._autocomplete_candidates("wh")
+        assert "while" in items
+
+    def test_autocomplete_candidates_include_port_context(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        items = ep._autocomplete_candidates("S", context_name="Port")
+        assert "S1" in items
+        assert "S4" in items
+
+    def test_current_completion_context_detects_dot_notation(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        ep._text.get = mock.Mock(return_value="from pybricks.parameters import Port\nPort.S")
+        obj, pref = ep._current_completion_context()
+        assert obj == "Port"
+        assert pref == "S"
+
+    def test_current_completion_context_resolves_variable_type(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        src = (
+            "from pybricks.ev3devices import Motor\n"
+            "from pybricks.parameters import Port\n"
+            "left_motor = Motor(Port.B)\n"
+            "left_motor."
+        )
+        ep._text.get = mock.Mock(return_value=src)
+        obj, pref = ep._current_completion_context()
+        assert obj == "Motor"
+        assert pref == ""
+
+    def test_current_completion_context_resolves_import_alias(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        src = (
+            "from pybricks.ev3devices import Motor as M\n"
+            "from pybricks.parameters import Port\n"
+            "left_motor = M(Port.B)\n"
+            "left_motor.r"
+        )
+        ep._text.get = mock.Mock(return_value=src)
+        obj, pref = ep._current_completion_context()
+        assert obj == "Motor"
+        assert pref == "r"
+
+    def test_current_completion_context_resolves_chained_attribute_type(self):
+        ep = self.EditorPanel(mock.MagicMock())
+        src = (
+            "from pybricks.hubs import EV3Brick\n"
+            "ev3 = EV3Brick()\n"
+            "ev3.screen."
+        )
+        ep._text.get = mock.Mock(return_value=src)
+        obj, pref = ep._current_completion_context()
+        assert obj == "Screen"
+        assert pref == ""
 
 
 # ===========================================================================
@@ -526,11 +626,15 @@ class TestMainWindow:
     def test_cmd_run_calls_service(self):
         from simulador_ev3.pybricks_api.factory import PybricksFactory
         from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.runtime.runtime_controller import ControllerState
         PybricksFactory.cleanup()
         PybricksContext.clear()
         app = self.EV3SimulatorApp()
         app._cmd_run("x = 1\n")
-        assert app._service.is_running
+        assert app._service.controller_state in (
+            ControllerState.RUNNING,
+            ControllerState.STOPPED,
+        )
         app._on_close()
 
     def test_cmd_stop_stops_service(self):
@@ -617,4 +721,130 @@ class TestMainWindow:
 
         set_robot_start.assert_called_once_with(320.0, 480.0, 35.0)
         assert app._pending_robot_pose == (320.0, 480.0, 35.0)
+        app._on_close()
+
+    def test_read_manual_text_returns_string(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        text = app._read_manual_text()
+
+        assert isinstance(text, str)
+        assert len(text) > 0
+        app._on_close()
+
+    def test_format_runtime_error_includes_script_line(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        payload = {
+            "error": "'DriveBase' object has no attribute 'screen'",
+            "traceback": (
+                "Traceback (most recent call last):\n"
+                "  File \"<script>\", line 12, in <module>\n"
+                "AttributeError: 'DriveBase' object has no attribute 'screen'\n"
+            ),
+        }
+        msg = app._format_runtime_error(payload)
+
+        assert "Linea 12" in msg
+        assert "DriveBase" in msg
+        app._on_close()
+
+    def test_format_runtime_error_includes_debug_last_lines(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        payload = {
+            "error": "division by zero",
+            "traceback": "",
+            "debug_last_lines": [4, 5, 6, 7],
+        }
+        msg = app._format_runtime_error(payload)
+
+        assert "Ultimas lineas ejecutadas" in msg
+        assert "4, 5, 6, 7" in msg
+        app._on_close()
+
+    def test_on_error_shows_line_in_dialog_when_traceback_has_script_line(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.ui import main_window as mw
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        payload = {
+            "error": "fallo",
+            "traceback": "File \"<script>\", line 7, in <module>\n",
+        }
+        with mock.patch.object(mw.messagebox, "showerror") as showerror:
+            app._on_error(payload)
+
+        showerror.assert_called_once()
+        _, shown_msg = showerror.call_args[0]
+        assert "Linea 7" in shown_msg
+        app._on_close()
+
+    def test_cmd_debug_calls_service_start_with_debug_true(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        with mock.patch.object(app._service, "start") as start:
+            app._cmd_debug("x = 1\n")
+
+        start.assert_called_once_with(debug=True, step_mode=False)
+        app._on_close()
+
+    def test_cmd_debug_step_starts_step_mode_when_stopped(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        with mock.patch.object(app._service, "start") as start:
+            app._cmd_debug_step()
+
+        start.assert_called_once_with(debug=True, step_mode=True)
+        app._on_close()
+
+    def test_cmd_debug_step_calls_service_step_when_running(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        with mock.patch.object(type(app._service), "is_running", new_callable=mock.PropertyMock, return_value=True), \
+             mock.patch.object(app._service, "debug_step") as debug_step:
+            app._cmd_debug_step()
+
+        debug_step.assert_called_once()
+        app._on_close()
+
+    def test_cmd_debug_continue_calls_service_when_running(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        with mock.patch.object(type(app._service), "is_running", new_callable=mock.PropertyMock, return_value=True), \
+             mock.patch.object(app._service, "debug_continue") as debug_continue:
+            app._cmd_debug_continue()
+
+        debug_continue.assert_called_once()
         app._on_close()

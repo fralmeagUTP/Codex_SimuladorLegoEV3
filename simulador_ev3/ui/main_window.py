@@ -24,9 +24,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
+from tkinter import scrolledtext
 from typing import Optional
 
 from simulador_ev3.application.simulation_service import SimulationService
@@ -44,6 +46,9 @@ _EXAMPLES_DIR = os.path.join(
 )
 _WORLDS_DIR = os.path.join(
     os.path.dirname(__file__), "..", "..", "Documentos", "Mundos"
+)
+_MANUAL_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "Documentos", "MANUAL_DE_USO.md"
 )
 
 _SCENARIOS: list[tuple[str, str, str]] = [
@@ -82,13 +87,16 @@ class EV3SimulatorApp(tk.Tk):
         self._service.set_snapshot_callback(self._on_snapshot)
         self._service.set_error_callback(self._on_error)
         self._service.set_status_callback(self._on_status)
+        self._service.set_debug_callback(self._on_debug_event)
         self._examples = ExampleCatalog(_EXAMPLES_DIR)
 
         # Pose inicial elegida por el usuario. None = usar config actual.
         self._pending_robot_pose: Optional[tuple[float, float, float]] = None
         self._hover_robot_pos: Optional[tuple[float, float]] = None
         self._world_editor_window = None
+        self._manual_window = None
         self._editor_world_placements: list[dict] = []
+        self._debug_active = False
 
         # Construir la interfaz
         self._build_menu()
@@ -159,6 +167,8 @@ class EV3SimulatorApp(tk.Tk):
 
         # MenÃº Ayuda
         help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(label="Manual de uso...", command=self._cmd_user_manual)
+        help_menu.add_separator()
         help_menu.add_command(label="Acerca de...", command=self._cmd_about)
         menubar.add_cascade(label="Ayuda", menu=help_menu)
 
@@ -261,6 +271,10 @@ class EV3SimulatorApp(tk.Tk):
         self._editor = EditorPanel(
             self._vpane,
             on_run=self._cmd_run,
+            on_debug=self._cmd_debug,
+            on_debug_step=self._cmd_debug_step,
+            on_debug_continue=self._cmd_debug_continue,
+            on_breakpoints_changed=self._on_breakpoints_changed,
             on_stop=self._cmd_stop,
         )
         self._vpane.add(self._editor, minsize=180, stretch="always")
@@ -430,9 +444,35 @@ class EV3SimulatorApp(tk.Tk):
 
     def _on_error(self, payload: dict) -> None:
         """Muestra el error del script en el editor y en un diÃ¡logo."""
-        msg = payload.get("error", "Error desconocido")
+        msg = self._format_runtime_error(payload)
         self.after_idle(self._editor.set_status, f"Error: {msg}", "#B71C1C")
         self.after_idle(messagebox.showerror, "Error en script", msg)
+
+    @staticmethod
+    def _extract_script_line(payload: dict) -> Optional[int]:
+        """Extrae la linea del usuario desde traceback (<script>) si existe."""
+        tb = str(payload.get("traceback", "") or "")
+        if not tb:
+            return None
+        match = re.search(r'File "<script>", line (\d+)', tb)
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except (TypeError, ValueError):
+            return None
+
+    def _format_runtime_error(self, payload: dict) -> str:
+        """Construye mensaje legible con linea cuando se conoce."""
+        base = str(payload.get("error", "Error desconocido"))
+        line_no = self._extract_script_line(payload)
+        debug_lines = payload.get("debug_last_lines")
+        if isinstance(debug_lines, list) and debug_lines:
+            last = ", ".join(str(int(n)) for n in debug_lines[-8:])
+            base = f"{base}\nUltimas lineas ejecutadas: {last}"
+        if line_no is None:
+            return base
+        return f"Linea {line_no}: {base}"
 
     def _on_status(self, status: str) -> None:
         status_map = {
@@ -449,7 +489,29 @@ class EV3SimulatorApp(tk.Tk):
 
         # Re-habilitar modo de colocaciÃ³n al terminar la simulaciÃ³n
         if status in ("stopped", "error", "reset"):
+            self._debug_active = False
             self.after_idle(self._activate_placement_mode)
+            self.after_idle(self._editor.clear_debug_line)
+
+    def _on_debug_event(self, payload: dict) -> None:
+        evt_type = str(payload.get("type", "line"))
+        line_no = payload.get("line")
+        if line_no is None:
+            return
+        try:
+            self.after_idle(self._editor.highlight_debug_line, int(line_no))
+        except Exception:  # noqa: BLE001
+            pass
+        if evt_type == "paused":
+            reason = str(payload.get("reason", "step"))
+            if reason == "breakpoint":
+                msg = f"Pausa en breakpoint (linea {int(line_no)})"
+            else:
+                msg = f"Pausa paso a paso (linea {int(line_no)})"
+            self.after_idle(self._editor.set_status, msg, "#8E24AA")
+
+    def _on_breakpoints_changed(self, breakpoints: set[int]) -> None:
+        self._service.set_debug_breakpoints(breakpoints)
 
     # ------------------------------------------------------------------
     # Comandos de la UI
@@ -458,12 +520,48 @@ class EV3SimulatorApp(tk.Tk):
     def _cmd_run(self, source_code: str) -> None:
         """Llamado por EditorPanel cuando el usuario pulsa Ejecutar."""
         # Deshabilitar modo de colocaciÃ³n durante la ejecuciÃ³n
+        self._debug_active = False
         self._deactivate_placement_mode()
+        self._editor.clear_debug_line()
         self._canvas.reset()
         self._brick_panel.reset()
         self._telemetry_panel.reset()
         self._service.load_script(source_code)
-        self._service.start()
+        self._service.start(debug=False, step_mode=False)
+
+    def _cmd_debug(self, source_code: str) -> None:
+        """Ejecuta el script en modo depuracion (traza de lineas)."""
+        self._debug_active = True
+        self._deactivate_placement_mode()
+        self._editor.clear_debug_line()
+        self._canvas.reset()
+        self._brick_panel.reset()
+        self._telemetry_panel.reset()
+        self._service.set_debug_breakpoints(self._editor.get_breakpoints())
+        self._service.load_script(source_code)
+        self._service.start(debug=True, step_mode=False)
+
+    def _cmd_debug_step(self) -> None:
+        """Ejecuta un paso de depuracion o inicia depuracion paso a paso."""
+        if self._service.is_running:
+            self._service.debug_step()
+            return
+        self._debug_active = True
+        source_code = self._editor.get_code()
+        self._deactivate_placement_mode()
+        self._editor.clear_debug_line()
+        self._canvas.reset()
+        self._brick_panel.reset()
+        self._telemetry_panel.reset()
+        self._service.set_debug_breakpoints(self._editor.get_breakpoints())
+        self._service.load_script(source_code)
+        self._service.start(debug=True, step_mode=True)
+
+    def _cmd_debug_continue(self) -> None:
+        """Continua ejecucion en modo depuracion hasta el proximo breakpoint."""
+        if not self._service.is_running:
+            return
+        self._service.debug_continue()
 
     def _cmd_stop(self) -> None:
         """Llamado por EditorPanel cuando el usuario pulsa Detener."""
@@ -658,10 +756,74 @@ class EV3SimulatorApp(tk.Tk):
             "\t\tJimmy Alexander Cortez\n",
         )
 
+    def _cmd_user_manual(self) -> None:
+        """Abre el manual de uso en una ventana con scroll."""
+        try:
+            if self._manual_window is not None and self._manual_window.winfo_exists():
+                self._manual_window.lift()
+                self._manual_window.focus_force()
+                return
+        except Exception:  # noqa: BLE001
+            self._manual_window = None
+
+        win = tk.Toplevel(self)
+        self._manual_window = win
+        win.title("Manual de uso")
+        win.geometry("920x680")
+        win.minsize(700, 500)
+        win.configure(bg="#ECEFF1")
+
+        header = tk.Label(
+            win,
+            text="Manual de uso - Simulador EV3 Pybricks",
+            bg="#ECEFF1",
+            fg="#0D47A1",
+            anchor="w",
+            font=("Segoe UI", 11, "bold"),
+            padx=10,
+            pady=8,
+        )
+        header.pack(side=tk.TOP, fill=tk.X)
+
+        txt = scrolledtext.ScrolledText(
+            win,
+            wrap=tk.WORD,
+            font=("Consolas", 10),
+            bg="#FAFAFA",
+            fg="#1F2933",
+            padx=10,
+            pady=8,
+        )
+        txt.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        txt.insert("1.0", self._read_manual_text())
+        txt.configure(state=tk.DISABLED)
+
+    def _read_manual_text(self) -> str:
+        """Lee el manual desde Documentos."""
+        path = Path(_MANUAL_PATH)
+        if not path.exists():
+            return (
+                "No se encontro el manual de uso.\n\n"
+                f"Ruta esperada:\n{path}"
+            )
+        try:
+            return path.read_text(encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001
+            return (
+                "No fue posible leer el manual de uso.\n\n"
+                f"Archivo: {path}\n"
+                f"Detalle: {exc}"
+            )
+
     def _on_close(self) -> None:
         """Cierra la aplicaciÃ³n de forma limpia."""
         if self._tick_id:
             self.after_cancel(self._tick_id)
+        if self._manual_window is not None:
+            try:
+                self._manual_window.destroy()
+            except Exception:  # noqa: BLE001
+                pass
         if self._world_editor_window is not None:
             try:
                 self._world_editor_window.destroy()

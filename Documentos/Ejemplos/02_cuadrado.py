@@ -15,17 +15,17 @@ def main():
         for j in range(4):
             # Mueve el motor los motores A y C 
             # a una velocidad rotacinal 500 grados por segundo
-            left_motor.run(500)
-            right_motor.run(500)  
+            left_motor.run(450)
+            right_motor.run(450)  
             # Espera 1000 milisegundos
-            wait(1000)
+            wait(2000)
             # Detiene los motores A
             left_motor.hold()
             # Mueve el motor C a una velocidad rotacional 
             # de -500 grados por segundo
-            right_motor.run(-500)
+            right_motor.run(-475)
             # Espera 1000 milisegundos
-            wait(1000)
+            wait(760)
     # Detiene los motores A y C
     left_motor.stop()
     right_motor.stop()
@@ -33,3 +33,4 @@ def main():
 
 if __name__ == "__main__":
    main()
+

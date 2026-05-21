@@ -107,18 +107,54 @@ Estado actualizado: 2026-03-16
 
 ## Fase 10 — Distribución y calidad continua (en curso)
 
-- ✅ Script de build release reproducible (PowerShell) para PyInstaller.
+- ✅ Script de build release reproducible (PowerShell) para PyInstaller, opcional si se distribuye ejecutable.
   - `scripts/build_release_windows.ps1`
 
-- ⏳ **Pendiente:**
-  - CI automatizada de tests (`pytest`) en Windows (GitHub Actions).
-  - Checklist de QA de release (funcional + rendimiento básico).
-  - Versionado y changelog por release (`v0.2.0+`).
+- ✅ Debug web basico Flask:
+  - Endpoints `breakpoints`, `step` y `continue`.
+  - Controles en `/` y eventos por SSE.
+  - Cobertura en `tests/web/test_web_app.py`.
+
+- ✅ Endurecimiento operativo web:
+  - Cleanup periodico de sesiones expiradas.
+  - Heartbeat SSE configurable por entorno.
+
+- ✅ CI automatizada de tests (`pytest`) en Windows (GitHub Actions).
+
+- ✅ Checklist de QA de release:
+  - `Documentos/CHECKLIST_QA_RELEASE.md`
+  - `Documentos/EVIDENCIA_QA_RELEASE_2026-05-20.md`
+  - `scripts/capture_web_evidence.py`
+
+- ✅ Versionado y changelog por release:
+  - `pyproject.toml` en `0.2.0`.
+  - `CHANGELOG.md`.
+
+- ✅ Aislamiento de Pybricks sin registro compartido en `sys.modules`.
+  - `PybricksContext` usa `ContextVar`.
+  - `PybricksFactory.create()` devuelve modulos virtuales para el import hook del sandbox.
+
+- ✅ Base de pruebas E2E con Playwright.
+  - `tests/e2e/test_web_playwright.py`.
+  - Cubre carga de `/`, ejecucion de script, `/worlds`, `/help` y dos perfiles de navegador independientes.
+  - Cubre menus web, escenarios, breakpoints visuales, ubicacion inicial del robot, editor avanzado, altavoz, propiedades y arrastre en editor de mundos.
+  - CI instala Chromium con `python -m playwright install chromium`.
+
+- ✅ Evidencia visual web automatizada.
+  - Capturas de `/` y `/worlds` en 1366x768 y 1570x900.
+  - Capturas de menus, editor con sintaxis/autocompletado, altavoz y propiedades de mundos.
+  - Capturas de dos perfiles independientes ejecutando scripts distintos.
+
+- ✅ Paridad web de funciones principales de Tkinter.
+  - Menus `Archivo`, `Ejemplos`, `Mundos`, `Escenarios` y `Ayuda`.
+  - Editor web con numeros de linea, breakpoints clicables, resaltado de sintaxis, auto-indentacion, pares automaticos y autocompletado Pybricks contextual.
+  - Ubicacion inicial del robot desde canvas con `theta_deg`.
+  - Panel EV3 Brick con LED, LCD y altavoz.
+  - Editor de mundos con propiedades editables y arrastre directo de assets.
 
 ## Funcionalidades sugeridas para siguientes iteraciones
 
-- ⬜ Rotar el robot con el ratón antes de ejecutar (ajuste de `theta_deg`
-  mediante arrastre o rueda del ratón tras fijar posición).
-- ⬜ Tooltip con coordenadas en tiempo real mientras se coloca el robot.
+- ⬜ Preview mas detallado al arrastrar assets del editor de mundos.
+- ⬜ Lista visual persistente de advertencias/errores de validacion del mundo.
 - ⬜ Múltiples robots en el mismo mundo.
 - ⬜ Exportar traza de simulación a CSV/JSON.
