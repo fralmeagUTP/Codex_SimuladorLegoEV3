@@ -9,6 +9,7 @@
   const consoleEl = document.getElementById("console");
   const exampleSelect = document.getElementById("exampleSelect");
   const worldSelect = document.getElementById("worldSelect");
+  const statusWorld = document.getElementById("statusWorld");
   const examplesMenu = document.getElementById("examplesMenu");
   const worldsMenu = document.getElementById("worldsMenu");
   const scriptFileInput = document.getElementById("scriptFileInput");
@@ -560,11 +561,11 @@
       <dt>Colision</dt><dd>${snapshot.colliding ? "si" : "no"}</dd>
     `;
     const motors = document.getElementById("motors");
-    motors.innerHTML = "<h3>Motores</h3>" + (snapshot.motors || [])
+    motors.innerHTML = (snapshot.motors || [])
       .map((m) => `<div>${m.port}: ${m.speed} dps, ${m.angle} deg, ${m.state}</div>`)
       .join("");
     const sensors = document.getElementById("sensors");
-    sensors.innerHTML = "<h3>Sensores</h3>" + (snapshot.sensors || [])
+    sensors.innerHTML = (snapshot.sensors || [])
       .map((s) => `<div>${s.port}: ${s.type} = ${JSON.stringify(s.value)}</div>`)
       .join("");
   }
@@ -689,6 +690,7 @@
       const data = await api.loadWorld(name);
       currentWorld = data.world;
       worldSelect.value = name;
+      if (statusWorld) statusWorld.textContent = name;
       robotStart = null;
       updateRobotStartReadout();
       log("");
@@ -775,6 +777,10 @@
     scriptFileInput.click();
   });
 
+  document.getElementById("openScriptMenuBtnTop")?.addEventListener("click", () => {
+    scriptFileInput.click();
+  });
+
   scriptFileInput.addEventListener("change", async () => {
     const [file] = scriptFileInput.files || [];
     if (!file) return;
@@ -793,6 +799,7 @@
   });
 
   document.getElementById("saveScriptMenuBtn").addEventListener("click", downloadScript);
+  document.getElementById("saveScriptMenuBtnTop")?.addEventListener("click", downloadScript);
 
   document.getElementById("aboutMenuBtn").addEventListener("click", () => {
     log("Simulador EV3 Web - migracion Flask del simulador Tkinter.");

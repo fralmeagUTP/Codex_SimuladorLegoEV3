@@ -3,7 +3,7 @@
 {% block body %}
 <main class="app-shell">
   <header class="menu-bar">
-    <strong>Simulador EV3 Pybricks</strong>
+    <strong class="app-brand"><span class="brand-mark">EV3</span>Simulador EV3 Pybricks</strong>
     <nav class="app-menu" aria-label="Menu principal">
       <div class="menu-group">
         <button type="button" class="menu-trigger" aria-haspopup="true">Archivo</button>
@@ -42,60 +42,93 @@
         </div>
       </div>
     </nav>
+    <div class="window-actions" aria-label="Acciones de aplicacion">
+      <button type="button" id="openScriptMenuBtnTop" title="Abrir script">Abrir</button>
+      <button type="button" id="saveScriptMenuBtnTop" title="Guardar script">Guardar</button>
+      <a href="/worlds" title="Editor de mundos">Mundos</a>
+      <a href="/help" title="Ayuda">Ayuda</a>
+    </div>
     <input id="scriptFileInput" class="visually-hidden" type="file" accept=".py,text/x-python,text/plain">
   </header>
 
   <section class="sim-workspace">
-    <div class="sim-status-strip">
-      <span id="sessionStatus">iniciando</span>
+    <div class="sim-control-bar">
+      <div class="sim-control-group run-controls">
+        <button id="runBtn" class="run-button">Ejecutar</button>
+        <button id="stopBtn" class="stop-button">Detener</button>
+        <button id="debugRunBtn" class="debug-button">Depurar</button>
+        <button id="debugStepBtn" class="step-button">Paso</button>
+        <button id="debugContinueBtn" class="continue-button">Continuar</button>
+        <button id="pauseBtn">Pausar</button>
+        <button id="resetBtn">Reiniciar</button>
+        <button id="resumeBtn">Reanudar</button>
+      </div>
+      <div class="sim-control-group load-controls">
+        <select id="exampleSelect" aria-label="Ejemplos"></select>
+        <select id="worldSelect" aria-label="Mundos"></select>
+        <button id="loadWorldBtn">Cargar mundo</button>
+      </div>
     </div>
 
-    <section class="sim-map-pane">
-      <canvas id="worldCanvas" width="980" height="620"></canvas>
-    </section>
+    <section class="sim-main-area">
+      <section class="sim-left-column">
+        <section class="sim-panel sim-map-panel">
+          <div class="sim-panel-header">
+            <h2>Entorno de simulacion</h2>
+            <div class="map-tools" aria-label="Herramientas del mapa">
+              <button type="button" title="Acercar">+</button>
+              <button type="button" title="Alejar">-</button>
+              <button type="button" title="Ajustar vista">[]</button>
+            </div>
+          </div>
+          <div class="sim-map-pane">
+            <canvas id="worldCanvas" width="980" height="620"></canvas>
+          </div>
+        </section>
 
-    <aside class="sim-telemetry-pane">
-      <section class="telemetry-section">
-        <h2>Robot</h2>
-        <dl id="telemetry"></dl>
-      </section>
-      <section class="telemetry-section motors-section">
-        <h2>Motores</h2>
-        <div id="motors"></div>
-      </section>
-      <section class="telemetry-section">
-        <h2>Sensores</h2>
-        <div id="sensors"></div>
-      </section>
-    </aside>
+        <section class="sim-bottom-panels">
+          <aside class="sim-panel sim-telemetry-pane">
+            <div class="sim-panel-header">
+              <h2>Telemetria</h2>
+            </div>
+            <section class="telemetry-section">
+              <dl id="telemetry"></dl>
+            </section>
+            <section class="telemetry-section motors-section">
+              <h3>Motores</h3>
+              <div id="motors"></div>
+            </section>
+            <section class="telemetry-section">
+              <h3>Sensores</h3>
+              <div id="sensors"></div>
+            </section>
+          </aside>
 
-    <section class="sim-code-pane">
-      <div class="sim-control-bar">
-        <div class="sim-control-group run-controls">
-          <button id="runBtn" class="run-button">Ejecutar</button>
-          <button id="stopBtn" class="stop-button">Detener</button>
-          <button id="pauseBtn">Pausar</button>
-          <button id="resumeBtn">Reanudar</button>
-          <button id="resetBtn">Reiniciar</button>
+          <aside class="sim-panel sim-brick-pane">
+            <section class="brick-card">
+              <h2>EV3 Brick</h2>
+              <div class="led-row">LED: <span id="led" class="led"></span> <span id="ledText">Apagado</span></div>
+              <h3>Pantalla LCD</h3>
+              <div id="screen" class="brick-screen"></div>
+              <h3>Altavoz</h3>
+              <div id="speaker" class="speaker-status">Inactivo</div>
+            </section>
+          </aside>
+        </section>
+      </section>
+
+      <section class="sim-panel sim-code-pane">
+        <div class="sim-panel-header code-header">
+          <h2>Editor de codigo</h2>
+          <select id="languageSelect" aria-label="Lenguaje">
+            <option>Python (Pybricks)</option>
+          </select>
         </div>
-        <div class="sim-control-group debug-controls">
-          <button id="debugRunBtn" class="debug-button">Depurar</button>
-          <button id="debugStepBtn" class="step-button">Paso</button>
-          <button id="debugContinueBtn" class="continue-button">Continuar</button>
-        </div>
-        <div class="sim-control-group load-controls">
-          <select id="exampleSelect" aria-label="Ejemplos"></select>
-          <select id="worldSelect" aria-label="Mundos"></select>
-          <button id="loadWorldBtn">Cargar mundo</button>
-        </div>
-        <div class="sim-control-group pose-controls">
-          <button id="placeRobotStartBtn">Ubicar robot</button>
-          <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
-        </div>
-      </div>
-      <div class="debug-panel">
+        <div class="debug-panel">
         <label for="breakpointsInput">Breakpoints</label>
         <input id="breakpointsInput" type="text" inputmode="numeric" placeholder="2, 5, 8">
+        <button id="placeRobotStartBtn" type="button">Ubicar robot</button>
+        <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
         <div id="debugState" class="debug-state">sin eventos</div>
         <div id="robotStartReadout" class="robot-start-readout">Pose inicial no fijada</div>
       </div>
@@ -118,18 +151,17 @@ motor.stop()
         <div id="autocompletePopup" class="autocomplete-popup hidden" role="listbox"></div>
       </div>
       <pre id="console" class="console"></pre>
+      </section>
     </section>
 
-    <aside class="sim-brick-pane">
-      <section class="brick-card">
-        <h2>EV3 Brick</h2>
-        <div class="led-row">LED: <span id="led" class="led"></span> <span id="ledText">Apagado</span></div>
-        <h3>Pantalla LCD EV3</h3>
-        <div id="screen" class="brick-screen"></div>
-        <h3>Altavoz</h3>
-        <div id="speaker" class="speaker-status">Inactivo</div>
-      </section>
-    </aside>
+    <footer class="sim-status-strip">
+      <span class="status-dot"></span>
+      <span>Estado: <span id="sessionStatus">iniciando</span></span>
+      <span>Mundo: <span id="statusWorld">Basico</span></span>
+      <span>Robot: EV3</span>
+      <span>Python (Pybricks)</span>
+      <span>UTF-8</span>
+    </footer>
   </section>
 </main>
 
