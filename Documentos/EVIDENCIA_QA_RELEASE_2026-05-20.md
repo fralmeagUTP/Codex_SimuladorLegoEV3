@@ -4,6 +4,10 @@
 
 Validacion del estado web/escritorio del simulador EV3 Pybricks para la fase de distribucion y calidad continua.
 
+Version validada: 1.3.0  
+Tag publicado: 1.3  
+Commit de release: `d29daed`
+
 ## Entorno
 
 - Sistema: Windows
@@ -16,7 +20,7 @@ Validacion del estado web/escritorio del simulador EV3 Pybricks para la fase de 
 
 | Bloque | Comando | Resultado |
 |---|---|---|
-| Web unit/integration | `.\.venv\Scripts\python.exe -m pytest tests\web` | 56 passed |
+| Web unit/integration | `.\.venv\Scripts\python.exe -m pytest tests\web` | 59 passed |
 | E2E browser | `.\.venv\Scripts\python.exe -m pytest tests\e2e` | 12 passed |
 | Application + runtime + Pybricks API | `.\.venv\Scripts\python.exe -m pytest tests\application tests\runtime tests\pybricks_api` | 150 passed |
 | Core + domain + persistence | `.\.venv\Scripts\python.exe -m pytest tests\core tests\domain tests\persistence` | 231 passed |
@@ -26,8 +30,9 @@ Validacion del estado web/escritorio del simulador EV3 Pybricks para la fase de 
 | Healthcheck servidor real | `Invoke-WebRequest http://127.0.0.1:5050/healthz` | HTTP 200 |
 | Build Windows | `powershell -ExecutionPolicy Bypass -File .\scripts\build_release_windows.ps1 -PythonExe .\.venv\Scripts\python.exe` | OK |
 | Artefactos build | `dist\SimuladorEV3\SimuladorEV3.exe` + `Documentos\Ejemplos` + `Documentos\Mundos` | OK |
+| Validacion final web + E2E + application | `.\.venv\Scripts\python.exe -m pytest tests\web tests\e2e tests\application` | 117 passed |
 
-Total verificado por bloques: 517 tests passed.
+Total verificado por bloques principales: 520 tests passed. La validacion final de 117 pruebas se ejecuta como bloque adicional solapado para confirmar la integracion web/E2E/application despues de las correcciones finales.
 
 Nota: `.\.venv\Scripts\python.exe -m pytest` se interrumpio por timeout local de 180 s antes de entregar salida consolidada. La validacion se completo ejecutando los bloques del checklist QA por separado.
 
@@ -70,10 +75,20 @@ Archivos:
 
 El script valida que los controles principales de `/` y `/worlds` esten visibles en los viewports pedidos, captura flujos nuevos del editor/menus/brick/editor de mundos, y captura dos perfiles independientes ejecutando scripts distintos.
 
+En version `1.3.0`, el script tambien valida que el canvas del mundo web mantenga el tamano Tkinter del mapa base: `640 x 640 px` para `2000 x 2000 mm`.
+
+## Correcciones validadas despues de la evidencia inicial
+
+- El mapa web conserva escala `32 px = 100 mm`.
+- Los assets web no se estiran y se colocan centrados como en Tkinter.
+- El arrastre de assets conserva offset.
+- Scripts que terminan naturalmente pasan a estado `stopped`, evitando apariencia de cuelgue.
+- Servidor reiniciado y healthcheck validado con `running_simulations: 0`.
+
 ## Pendientes manuales de release
 
 - Ninguno para la entrega web actual.
 
 ## Estado
 
-Automatizacion QA web/E2E integrada, evidencia visual generada y smoke web validado. La entrega tecnica queda lista para CI. El build Windows fue verificado, pero no es requisito de la entrega actual porque no se distribuira ejecutable por el momento.
+Automatizacion QA web/E2E integrada, evidencia visual generada, smoke web validado y version `1.3` publicada en GitHub. El build Windows fue verificado, pero no es requisito de la entrega actual porque no se distribuira ejecutable por el momento.

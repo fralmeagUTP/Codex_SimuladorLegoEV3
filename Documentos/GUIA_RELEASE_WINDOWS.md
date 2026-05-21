@@ -1,27 +1,33 @@
-# Guía de Release Windows (Fase 9)
+# Guia de Release Windows - Escritorio Tkinter
 
-Esta guía genera un `.exe` del simulador usando `PyInstaller`.
+Version documentada: 1.3.0  
+Fecha de actualizacion: 2026-05-20
 
-## 1) Preparar entorno
+Esta guia genera un `.exe` del simulador de escritorio usando `PyInstaller`.
 
-En PowerShell, desde la raíz del proyecto:
+Nota: esta guia aplica al ejecutable de escritorio. Para la version web Flask usar `Documentos/GUIA_WEB_FLASK_WINDOWS.md`.
+
+## 1. Preparar entorno
+
+En PowerShell, desde la raiz del proyecto:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
+python -m pip install -e .[dev]
 python -m pip install pyinstaller
 ```
 
-## 2) Generar ejecutable
+## 2. Generar ejecutable
 
-Opción recomendada (script reproducible):
+Opcion recomendada:
 
 ```powershell
-.\scripts\build_release_windows.ps1
+.\scripts\build_release_windows.ps1 -PythonExe .\.venv\Scripts\python.exe
 ```
 
-Opción manual:
+Opcion manual:
 
 ```powershell
 python -m PyInstaller --noconfirm --clean --name SimuladorEV3 --windowed --collect-submodules simulador_ev3 simulador_ev3\ui\main_window.py
@@ -29,37 +35,47 @@ python -m PyInstaller --noconfirm --clean --name SimuladorEV3 --windowed --colle
 
 Salida esperada:
 
-- Ejecutable: `dist\SimuladorEV3\SimuladorEV3.exe`
+- `dist\SimuladorEV3\SimuladorEV3.exe`
 
-## 3) Incluir recursos para distribución
+## 3. Incluir recursos para distribucion
 
-Copia junto al ejecutable estas carpetas:
+Copiar junto al ejecutable:
 
 - `Documentos\Ejemplos`
 - `Documentos\Mundos`
 
-Estructura recomendada de entrega:
+Estructura recomendada:
 
 - `SimuladorEV3\SimuladorEV3.exe`
 - `SimuladorEV3\Documentos\Ejemplos\...`
 - `SimuladorEV3\Documentos\Mundos\...`
 
-## 4) Smoke test manual de release
+## 4. Smoke test manual de release
 
 Con el `.exe` abierto:
 
-1. Ir a `Escenarios` → `Seguidor de línea` y ejecutar.
-2. Ir a `Escenarios` → `Ultrasonido + obstáculos` y ejecutar.
-3. Ir a `Escenarios` → `Test pantalla/altavoz` y ejecutar.
+1. Ir a `Escenarios` -> `Seguidor de linea` y ejecutar.
+2. Ir a `Escenarios` -> `Ultrasonido + obstaculos` y ejecutar.
+3. Ir a `Escenarios` -> `Test pantalla/altavoz` y ejecutar.
 
-Criterio de aceptación:
+Criterio de aceptacion:
 
 - La app no se cierra sola.
-- El robot se mueve en los 2 escenarios de movimiento.
+- El robot se mueve en los escenarios de movimiento.
 - El escenario de pantalla/altavoz muestra texto y dispara beeps.
 
-## 5) Problemas comunes
+## 5. Problemas comunes
 
-- Si Windows SmartScreen bloquea: seleccionar "Más información" y luego "Ejecutar de todas formas".
+- Si Windows SmartScreen bloquea: seleccionar `Mas informacion` y luego `Ejecutar de todas formas`.
 - Si falta audio: verificar volumen del sistema y dispositivo de salida.
-- Si no aparecen mundos/ejemplos: confirmar que `Documentos` esté junto al `.exe`.
+- Si no aparecen mundos/ejemplos: confirmar que `Documentos` este junto al `.exe`.
+
+## 6. Relacion con version web
+
+La version `1.3.0` publica tambien la aplicacion web Flask. No se requiere ejecutable para usar la web; basta con iniciar:
+
+```powershell
+.\scripts\start_web.cmd
+```
+
+La entrega actual puede validarse sin construir `.exe` si el objetivo es operar la version web.

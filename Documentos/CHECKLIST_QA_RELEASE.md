@@ -2,11 +2,15 @@
 
 Usar esta lista antes de publicar un build o entregar una version web/escritorio.
 
+Version vigente del checklist: 1.3.0  
+Fecha de actualizacion: 2026-05-20
+
 ## 1. Preparacion
 
 - Confirmar version en `pyproject.toml`.
 - Confirmar entrada nueva en `CHANGELOG.md`.
 - Confirmar que `ROADMAP.md` refleja el estado real.
+- Confirmar que `README.md` resume la version publicada y rutas principales.
 - Confirmar evidencia QA en `Documentos\EVIDENCIA_QA_RELEASE_YYYY-MM-DD.md`.
 - Crear entorno limpio con Python 3.11 o superior.
 - Instalar dependencias con `.\.venv\Scripts\python.exe -m pip install -e .[dev]`.
@@ -39,6 +43,7 @@ Usar esta lista antes de publicar un build o entregar una version web/escritorio
 - Cargar un escenario desde el menu `Escenarios`.
 - Cargar un mundo existente.
 - Ejecutar, pausar, reanudar y detener.
+- Ejecutar un script corto con `wait(100)` y confirmar que el estado final sea `stopped`.
 - Confirmar movimiento del robot en canvas.
 - Confirmar actualizacion de telemetria.
 - Confirmar LED, pantalla y speaker en panel EV3.
@@ -52,6 +57,7 @@ Usar esta lista antes de publicar un build o entregar una version web/escritorio
 - Cambiar tamano del mundo.
 - Colocar robot, muros, lineas y zonas.
 - Mover por boton y arrastrar directamente un asset.
+- Confirmar que el arrastre conserva el offset de seleccion, igual que Tkinter.
 - Editar propiedades de asset, posicion y rotacion desde el panel lateral.
 - Rotar, duplicar y eliminar un asset.
 - Validar mundo.
@@ -74,6 +80,9 @@ Usar esta lista antes de publicar un build o entregar una version web/escritorio
 - Generar evidencia visual con `.\.venv\Scripts\python.exe scripts\capture_web_evidence.py`.
 - Revisar `/` en 1366x768 y 1570x900.
 - Revisar `/worlds` en 1366x768 y 1570x900.
+- Confirmar paridad de mapa con Tkinter: mundo base `2000 x 2000 mm` debe renderizarse como `640 x 640 px`.
+- Confirmar que celdas, lineas, muros, zonas y pisos no estan estirados.
+- Confirmar que el panel usa scroll si el mapa no cabe completo.
 - Revisar captura de menu de ejemplos.
 - Revisar captura de editor con sintaxis y autocompletado.
 - Revisar captura de brick con altavoz.
@@ -90,3 +99,11 @@ Ejecutar solo si se va a distribuir un ejecutable:
 - Confirmar que el ejecutable inicia.
 - Confirmar que ejemplos y mundos se incluyen.
 - Revisar logs si falla audio o carga de assets.
+
+## 9. Publicacion GitHub
+
+- Confirmar `git status --short --branch` sin cambios de release pendientes.
+- Crear commit de release.
+- Crear tag anotado, por ejemplo `git tag -a 1.3 -m "Release 1.3"`.
+- Publicar con `git push origin main --tags`.
+- Verificar remoto con `git ls-remote origin refs/heads/main refs/tags/1.3`.

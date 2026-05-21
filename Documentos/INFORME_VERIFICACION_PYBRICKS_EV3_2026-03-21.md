@@ -2,6 +2,9 @@
 Fecha: 2026-03-21  
 Proyecto: Simulador EV3 Pybricks
 
+Actualizacion documental: 2026-05-20  
+Version vigente del proyecto: 1.3.0
+
 ## 1. Objetivo
 Verificar si el simulador puede ejecutar métodos de sensores, motores, luz, pantalla y sonido del robot LEGO EV3, usando como referencia:
 
@@ -115,3 +118,20 @@ La cobertura respecto al PDF adjunto es **parcial** en métodos avanzados de `Mo
 3. Completar `ColorSensor`: `hsv`, `detectable_colors`.
 4. Completar `InfraredSensor`: `count`, `reflection`.
 5. Definir si `speaker.say` debe seguir como texto simulado o integrar TTS real.
+
+## 8. Actualizacion 2026-05-20
+
+La version `1.3.0` mantiene la cobertura Pybricks principal y agrega validacion web sobre la ejecucion de scripts:
+
+- La ejecucion web usa sesiones independientes y contexto Pybricks aislado.
+- Los scripts que finalizan naturalmente propagan estado `stopped`.
+- Los controles web de debug usan breakpoints, step y continue sobre el runtime existente.
+- La suite `tests\pybricks_api` sigue siendo la referencia para compatibilidad de API virtual.
+
+Validacion integrada reciente:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\web tests\e2e tests\application
+```
+
+Resultado: `117 passed`.

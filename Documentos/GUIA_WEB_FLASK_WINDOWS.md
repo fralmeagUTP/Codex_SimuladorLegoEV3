@@ -2,6 +2,9 @@
 
 Esta guia describe como operar la version web del Simulador EV3.
 
+Version documentada: 1.3.0  
+Fecha de actualizacion: 2026-05-20
+
 ## 1. Requisitos
 
 - Python 3.11 o superior.
@@ -31,6 +34,14 @@ URL principal:
 ```text
 http://127.0.0.1:5050/
 ```
+
+Verificar salud del servidor:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5050/healthz
+```
+
+La respuesta debe incluir `status`, `active_sessions` y `running_simulations`.
 
 Rutas de usuario:
 
@@ -188,7 +199,19 @@ $env:EV3_WEB_ENABLE_SECURITY_HEADERS = "false"
 4. Ejecutar el script Pybricks desde `/`.
 5. Detener servidor con `.\scripts\stop_web.ps1`.
 
-## 12. Depuracion web
+## 12. Tamano del mapa y paridad con Tkinter
+
+La web conserva la escala del editor Tkinter:
+
+- `32 px = 100 mm`.
+- Mundo base `2000 x 2000 mm` = `640 x 640 px`.
+- El canvas web mide el tamano real del mundo; el panel hace scroll si no cabe completo.
+- La colocacion de muros, lineas, zonas y pisos se centra sobre la celda seleccionada igual que en Tkinter.
+- El arrastre mantiene el offset desde donde se tomo el asset.
+
+Esto evita mapas deformados o assets descuadrados.
+
+## 13. Depuracion web
 
 La pagina `/` incluye controles basicos de depuracion:
 
@@ -199,7 +222,18 @@ La pagina `/` incluye controles basicos de depuracion:
 
 Los eventos de depuracion se reciben por SSE y muestran la linea actual o el punto donde el script quedo pausado.
 
-## 13. Smoke test
+## 14. Estado de ejecucion
+
+Cuando un script termina naturalmente, la sesion debe cambiar a `stopped`. Esta conducta fue corregida en la version `1.3.0`.
+
+Si la aplicacion parece colgada:
+
+1. Revisar `http://127.0.0.1:5050/healthz`.
+2. Confirmar que `running_simulations` no crece indefinidamente.
+3. Ejecutar `.\scripts\restart_web.cmd` si quedo una sesion antigua.
+4. Validar con `.\scripts\smoke_web.cmd`.
+
+## 15. Smoke test
 
 Verificar estado:
 

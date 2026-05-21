@@ -1,5 +1,8 @@
 # Manual de Uso - Simulador EV3 Pybricks
 
+Version documentada: 1.3.0  
+Fecha de actualizacion: 2026-05-20
+
 ## 1. Objetivo
 
 Este programa permite:
@@ -49,8 +52,12 @@ Funciones:
 - Seleccionar mundos guardados desde `Documentos/Mundos`.
 - Ejecutar, pausar, reanudar, detener y reiniciar la simulacion.
 - Ver canvas, telemetria, motores, sensores, LED y pantalla EV3.
+- Usar depuracion con breakpoints, step y continue.
+- Ubicar robot desde el canvas y ajustar `theta`.
 
 La pagina de simulacion no incluye controles para crear o editar mundos.
+
+Nota: cuando un script finaliza naturalmente, la web debe pasar a estado `stopped`. Si queda en `running`, reiniciar servidor y validar con `.\scripts\smoke_web.cmd`.
 
 ### 2.3 Pagina de creacion de mundos
 
@@ -61,6 +68,8 @@ Funciones:
 - Crear un mundo nuevo.
 - Colocar robot, muros, lineas, zonas y pisos.
 - Mover, rotar, duplicar y eliminar assets.
+- Arrastrar assets directamente sobre el canvas.
+- Editar propiedades de asset desde el panel lateral.
 - Definir pose inicial del robot.
 - Validar el mundo.
 - Importar y exportar JSON.
@@ -86,7 +95,17 @@ Cada pestana crea una sesion web independiente con `session_id` y token interno.
 
 La version actual usa sesiones temporales en memoria. Si se reinicia el servidor, las pestanas abiertas deben recargarse para crear una sesion nueva.
 
-### 2.6 Detener el servidor web
+### 2.6 Tamano del mapa web
+
+El mapa web usa la misma escala que la aplicacion Tkinter:
+
+- `32 px = 100 mm`.
+- Mundo base `2000 x 2000 mm` = `640 x 640 px`.
+- Si el panel visible es menor que el mapa, se usa scroll dentro del panel.
+
+Esta regla mantiene proporciones y posiciones de objetos iguales entre escritorio y web.
+
+### 2.7 Detener el servidor web
 
 En PowerShell:
 
@@ -215,7 +234,10 @@ Los mundos se guardan en JSON y pueden incluir:
 - Si un script no ejecuta: revisar errores en la ventana de mensaje.
 - Si no ves cambios: confirmar que el mundo correcto esta cargado.
 - Si la telemetria no cambia: verificar puertos y creacion de dispositivos en el script.
+- Si la web parece colgada: revisar `http://127.0.0.1:5050/healthz`; debe responder HTTP 200 y mostrar `running_simulations`.
+- Si un script corto no termina: actualizar a version `1.3.0` o superior; esta version corrige la propagacion de estado `stopped`.
+- Si el mapa parece cortado: usar scroll dentro del panel; el canvas conserva el tamano real de Tkinter.
 
 ## 12. Version
 
-Manual actualizado para la rama actual del proyecto, incluyendo la version web Flask.
+Manual actualizado para la version `1.3.0`, publicada en GitHub con tag `1.3`.

@@ -7,8 +7,8 @@ Documento completado segun la plantilla SDD (Specification Driven Development).
 | Campo | Valor |
 |---|---|
 | Nombre del Proyecto | Migracion Web del Simulador LEGO EV3 Pybricks |
-| Version | 1.0 |
-| Fecha | 2026-05-18 |
+| Version | 1.4 |
+| Fecha | 2026-05-20 |
 | Autor(es) | Equipo del proyecto Simulador LEGO EV3 / Codex |
 | Stakeholders | Estudiantes, docentes, desarrolladores del simulador, usuarios de robotica educativa |
 | Descripcion General | Conversion del simulador EV3 de escritorio basado en `tkinter` a una aplicacion web con Flask, Python, HTML, CSS y JavaScript. |
@@ -27,6 +27,8 @@ Documento completado segun la plantilla SDD (Specification Driven Development).
 - Telemetria de robot, motores, sensores, brick, tiempo y colision.
 - Catalogo de ejemplos y mundos existentes.
 - API REST y streaming de snapshots.
+- Paridad visual de mapa con Tkinter usando escala `32 px = 100 mm`.
+- Estado de ejecucion consistente: scripts finalizados se reportan como `stopped`.
 
 ### Fuera del MVP inicial
 
@@ -35,6 +37,7 @@ Documento completado segun la plantilla SDD (Specification Driven Development).
 - Autenticacion completa por usuario.
 - Escalamiento distribuido con workers externos.
 - Empaquetado final de produccion.
+- Autenticacion de usuarios remotos y despliegue publico multiusuario.
 
 ## 2. Vision del Sistema
 
@@ -1085,6 +1088,7 @@ Restricciones:
 | 1.1 | 2026-05-18 | Version hibrida: plantilla formal + detalle tecnico de migracion. |
 | 1.2 | 2026-05-18 | Ampliacion de anexos tecnicos con especificaciones detalladas de backend, frontend, seguridad y pruebas. |
 | 1.3 | 2026-05-19 | Separacion de paginas web: simulacion en `/`, creacion de mundos en `/worlds`, e integracion `/?world=<archivo>.json`. |
+| 1.4 | 2026-05-20 | Actualizacion release 1.3.0: paridad de tamano de mapa con Tkinter, correccion de estado `stopped`, evidencia visual, pruebas web/E2E y publicacion en GitHub. |
 
 ## Anexo A - Especificacion de construccion de mundos
 
