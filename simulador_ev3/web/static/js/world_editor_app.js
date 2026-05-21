@@ -21,6 +21,7 @@
   const worldHeightInput = document.getElementById("worldHeightInput");
   const cursorReadout = document.getElementById("cursorReadout");
   const validationStatus = document.getElementById("validationStatus");
+  const DEFAULT_WORLD_CELLS = 160;
   let currentWorld = null;
   let editorWorld = null;
   let selectedPlacement = null;
@@ -108,17 +109,17 @@
   }
 
   async function createEditorWorld() {
-    const width = Number.parseInt(worldWidthInput?.value || "20", 10);
-    const height = Number.parseInt(worldHeightInput?.value || "20", 10);
-    const data = await api.createEditorWorld(width || 20, height || 20);
+    const width = Number.parseInt(worldWidthInput?.value || String(DEFAULT_WORLD_CELLS), 10);
+    const height = Number.parseInt(worldHeightInput?.value || String(DEFAULT_WORLD_CELLS), 10);
+    const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
     setEditorWorld(data.world);
     showValidation(data.validation);
   }
 
   function setEditorWorld(world) {
     editorWorld = world;
-    if (worldWidthInput) worldWidthInput.value = world.world_width_cells || 20;
-    if (worldHeightInput) worldHeightInput.value = world.world_height_cells || 20;
+    if (worldWidthInput) worldWidthInput.value = world.world_width_cells || DEFAULT_WORLD_CELLS;
+    if (worldHeightInput) worldHeightInput.value = world.world_height_cells || DEFAULT_WORLD_CELLS;
     currentWorld = editorWorldToRenderWorld(world);
     drawEditor();
   }
@@ -126,8 +127,8 @@
   function editorWorldToRenderWorld(world) {
     if (!world) return currentWorld;
     return {
-      width_mm: (world.world_width_cells || 20) * 100,
-      height_mm: (world.world_height_cells || 20) * 100,
+      width_mm: (world.world_width_cells || DEFAULT_WORLD_CELLS) * 100,
+      height_mm: (world.world_height_cells || DEFAULT_WORLD_CELLS) * 100,
       surface: { cell_size_mm: 100, default_color: "WHITE", cells: [] },
       obstacles: [],
       beacons: [],
@@ -141,6 +142,8 @@
       robotStart,
     });
   }
+
+  window.addEventListener("ev3-assets-loaded", drawEditor);
 
   function updateSelection(placement) {
     selectedPlacement = placement;
@@ -218,9 +221,9 @@
 
   document.getElementById("newWorldBtn").addEventListener("click", async () => {
     try {
-      const width = Number.parseInt(worldWidthInput.value || "20", 10);
-      const height = Number.parseInt(worldHeightInput.value || "20", 10);
-      const data = await api.createEditorWorld(width || 20, height || 20);
+      const width = Number.parseInt(worldWidthInput.value || String(DEFAULT_WORLD_CELLS), 10);
+      const height = Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10);
+      const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
       setEditorWorld(data.world);
       updateSelection(null);
       showValidation(data.validation);
@@ -232,8 +235,8 @@
   document.getElementById("applyWorldSizeBtn").addEventListener("click", async () => {
     try {
       const data = await api.createEditorWorld(
-        Number.parseInt(worldWidthInput.value || "20", 10),
-        Number.parseInt(worldHeightInput.value || "20", 10),
+        Number.parseInt(worldWidthInput.value || String(DEFAULT_WORLD_CELLS), 10),
+        Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10),
       );
       setEditorWorld(data.world);
       updateSelection(null);

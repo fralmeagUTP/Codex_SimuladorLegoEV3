@@ -5,8 +5,9 @@ window.EV3Canvas = (() => {
   const CELL_SIZE_MM = 100;
   const GRID_SIZE_PX = 32;
   const PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM;
-  const ROBOT_WIDTH_MM = 32 / PX_PER_MM;
-  const ROBOT_HEIGHT_MM = 23 / PX_PER_MM;
+  const DEFAULT_WORLD_MM = 16000;
+  const ROBOT_WIDTH_MM = 70;
+  const ROBOT_HEIGHT_MM = 110;
 
   const assetFiles = {
     robot_ev3_32x32: "robot_ev3_32x32.png",
@@ -51,8 +52,8 @@ window.EV3Canvas = (() => {
 
   function worldView(world) {
     return {
-      widthMm: world?.width_mm || 2000,
-      heightMm: world?.height_mm || 2000,
+      widthMm: world?.width_mm || DEFAULT_WORLD_MM,
+      heightMm: world?.height_mm || DEFAULT_WORLD_MM,
       scale: PX_PER_MM,
       offsetX: 0,
       offsetY: 0,
@@ -245,6 +246,19 @@ window.EV3Canvas = (() => {
     ctx.save();
     ctx.translate(pos.x, pos.y);
     ctx.rotate(theta);
+    const img = getAssetImage("robot_ev3_32x32");
+    if (img?.complete && img.naturalWidth > 0) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      if (colliding) {
+        ctx.strokeStyle = "#d62828";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+      }
+      ctx.restore();
+      return;
+    }
+
     ctx.fillStyle = "#f5f7fb";
     ctx.strokeStyle = colliding ? "#d62828" : "#20364f";
     ctx.lineWidth = 4;
@@ -312,6 +326,7 @@ window.EV3Canvas = (() => {
     if (!file) return null;
     if (imageCache.has(file)) return imageCache.get(file);
     const img = new Image();
+    img.onload = () => window.dispatchEvent(new CustomEvent("ev3-assets-loaded"));
     img.src = `/assets/images/${encodeURIComponent(file)}`;
     imageCache.set(file, img);
     return img;
@@ -351,8 +366,8 @@ window.EV3Canvas = (() => {
   function placementOriginForAsset(assetKey, point, world, rotation = 0) {
     const spec = world?.editor_spec || {};
     const gridSize = spec.grid_size_px || GRID_SIZE_PX;
-    const worldWidthPx = Math.round((world?.width_mm || 2000) / CELL_SIZE_MM * gridSize);
-    const worldHeightPx = Math.round((world?.height_mm || 2000) / CELL_SIZE_MM * gridSize);
+    const worldWidthPx = Math.round((world?.width_mm || DEFAULT_WORLD_MM) / CELL_SIZE_MM * gridSize);
+    const worldHeightPx = Math.round((world?.height_mm || DEFAULT_WORLD_MM) / CELL_SIZE_MM * gridSize);
     const size = assetSize(assetKey, rotation);
     const widthPx = size.w * gridSize;
     const heightPx = size.h * gridSize;
@@ -369,8 +384,8 @@ window.EV3Canvas = (() => {
   function placementMoveTarget(placement, point, world, offset = { x: 0, y: 0 }) {
     const spec = world?.editor_spec || {};
     const gridSize = spec.grid_size_px || GRID_SIZE_PX;
-    const worldWidthPx = Math.round((world?.width_mm || 2000) / CELL_SIZE_MM * gridSize);
-    const worldHeightPx = Math.round((world?.height_mm || 2000) / CELL_SIZE_MM * gridSize);
+    const worldWidthPx = Math.round((world?.width_mm || DEFAULT_WORLD_MM) / CELL_SIZE_MM * gridSize);
+    const worldHeightPx = Math.round((world?.height_mm || DEFAULT_WORLD_MM) / CELL_SIZE_MM * gridSize);
     const size = assetSize(placement?.asset_key, placement?.rotation || 0);
     const widthPx = size.w * gridSize;
     const heightPx = size.h * gridSize;

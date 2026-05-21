@@ -121,10 +121,11 @@ def assert_world_canvas_matches_tkinter_size(page) -> None:
             };
         }"""
     )
-    # Tkinter usa 32 px por cada 100 mm. El mundo base de 2000x2000 mm debe medir 640x640 px.
-    if metrics["canvasWidth"] != 640 or metrics["canvasHeight"] != 640:
+    # Tkinter usa 32 px por cada 100 mm. El mundo base de 16000x16000 mm debe medir 5120x5120 px.
+    expected_px = 5120
+    if metrics["canvasWidth"] != expected_px or metrics["canvasHeight"] != expected_px:
         raise AssertionError(f"worldCanvas no coincide con tamano Tkinter: {metrics}")
-    if metrics["attrWidth"] != 640 or metrics["attrHeight"] != 640:
+    if metrics["attrWidth"] != expected_px or metrics["attrHeight"] != expected_px:
         raise AssertionError(f"buffer del canvas no coincide con tamano Tkinter: {metrics}")
     if metrics["paneScrollWidth"] < metrics["canvasWidth"] or metrics["paneScrollHeight"] < metrics["canvasHeight"]:
         raise AssertionError(f"el panel no expone scroll del mapa completo: {metrics}")

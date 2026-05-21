@@ -78,8 +78,10 @@ _ASSET_LAYER_ORDER = {
     "wall": 3,
     "robot": 4,
 }
-_ROBOT_DRAW_W_PX = 32
-_ROBOT_DRAW_H_PX = 23
+_ROBOT_WIDTH_MM = 70.0
+_ROBOT_HEIGHT_MM = 110.0
+_ROBOT_DRAW_W_PX = max(1, int(round(_ROBOT_WIDTH_MM * _PX_PER_MM)))
+_ROBOT_DRAW_H_PX = max(1, int(round(_ROBOT_HEIGHT_MM * _PX_PER_MM)))
 _ROBOT_ROT_STEP_DEG = 2
 _COLOR_SENSOR_OFFSET_MM = 60.0
 _COLOR_SENSOR_MARKER_OUTLINE = "#FFB300"
@@ -99,13 +101,13 @@ _ROBOT_DPAD = "#AEB4BD"
 _ROBOT_STRIP = "#A7ADB6"
 _ROBOT_PORT_RED = "#C62828"
 
-# Tamaño por defecto del mundo (en mm, sincronizado con SimEngineConfig)
-_DEFAULT_WORLD_W = 2000.0
-_DEFAULT_WORLD_H = 2000.0
+# Tamaño por defecto del visor cuando no llega un mundo explicito: 16 m x 16 m.
+_DEFAULT_WORLD_W = 16000.0
+_DEFAULT_WORLD_H = 16000.0
 
-# Tamaño visual del robot (alineado con sprite 32x23 px)
-_ROBOT_W_MM = _ROBOT_DRAW_W_PX / _PX_PER_MM
-_ROBOT_H_MM = _ROBOT_DRAW_H_PX / _PX_PER_MM
+# Tamaño visual del robot: cerebro EV3 a escala real, 7 cm x 11 cm.
+_ROBOT_W_MM = _ROBOT_WIDTH_MM
+_ROBOT_H_MM = _ROBOT_HEIGHT_MM
 
 # Colores del modo de colocación
 _PLACEMENT_GHOST  = "#4FC3F7"   # contorno fantasma al mover el ratón

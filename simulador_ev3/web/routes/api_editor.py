@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify
 
+from simulador_ev3.domain.editor.world_editor_model import MAX_WORLD_CELLS
 from simulador_ev3.web.routes.helpers import json_body, require_session
 from simulador_ev3.web.services.simulation_session import asset_catalog_dict
 
@@ -28,8 +29,8 @@ def create_editor_world(session_id: str):
         return jsonify(require_session(session_id).load_editor_world(data))
     return jsonify(
         require_session(session_id).create_editor_world(
-            data.get("width_cells", 20),
-            data.get("height_cells", 20),
+            data.get("width_cells", MAX_WORLD_CELLS),
+            data.get("height_cells", MAX_WORLD_CELLS),
         )
     )
 

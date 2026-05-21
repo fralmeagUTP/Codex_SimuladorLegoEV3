@@ -554,6 +554,7 @@
       error: (payload) => log(`${payload.error || "Error"}\n${payload.traceback || ""}`),
       world: (payload) => {
         currentWorld = payload;
+        redrawCanvas();
       },
       connectionError: () => {
         if (stream) {
@@ -617,6 +618,8 @@
       robotStart: robotStartMode ? robotStartPreview : robotStart,
     });
   }
+
+  window.addEventListener("ev3-assets-loaded", redrawCanvas);
 
   function updateTelemetry(snapshot) {
     const telemetry = document.getElementById("telemetry");

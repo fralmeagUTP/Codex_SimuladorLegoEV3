@@ -12,10 +12,12 @@ from typing import Any
 
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.application.world_editor_service import WorldEditorService
+from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.domain.editor.world_editor_model import (
     ASSET_CATALOG,
     CELL_SIZE_MM,
     GRID_SIZE_PX,
+    MAX_WORLD_MM,
     get_asset_spec,
 )
 from simulador_ev3.persistence.world_repository import WorldRepository
@@ -48,6 +50,10 @@ class SimulationSession:
         self._loaded_world_name: str | None = None
         self._editor = WorldEditorService()
         self._service = SimulationService(
+            config=SimEngineConfig(
+                world_width_mm=MAX_WORLD_MM,
+                world_height_mm=MAX_WORLD_MM,
+            ),
             policy=ExecutionPolicy(max_runtime_s=max_runtime_s)
         )
         self._wire_callbacks()

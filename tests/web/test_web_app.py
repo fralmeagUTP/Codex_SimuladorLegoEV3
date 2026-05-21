@@ -290,8 +290,50 @@ def test_canvas_renderer_matches_tkinter_world_scale(tmp_path):
     assert "canvas.style.width = cssWidth" in canvas_js
     assert "canvas.style.height = cssHeight" in canvas_js
     assert "devicePixelRatio" not in canvas_js
-    assert "ROBOT_WIDTH_MM = 32 / PX_PER_MM" in canvas_js
-    assert "ROBOT_HEIGHT_MM = 23 / PX_PER_MM" in canvas_js
+    assert "const DEFAULT_WORLD_MM = 16000" in canvas_js
+    assert "ROBOT_WIDTH_MM = 70" in canvas_js
+    assert "ROBOT_HEIGHT_MM = 110" in canvas_js
+    assert 'getAssetImage("robot_ev3_32x32")' in canvas_js
+
+
+def test_world_editor_defaults_to_sixteen_meter_world(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+
+    res = client.post(
+        f"/api/sessions/{session['session_id']}/editor/world",
+        json={},
+        headers=headers,
+    )
+
+    assert res.status_code == 200
+    world = res.get_json()["world"]
+    assert world["world_width_cells"] == 160
+    assert world["world_height_cells"] == 160
+
+
+def test_web_simulation_session_defaults_to_sixteen_meter_world(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+
+    res = client.get(
+        f"/api/sessions/{session['session_id']}/stream",
+        headers=headers,
+        buffered=False,
+    )
+    stream_iter = iter(res.response)
+
+    try:
+        next(stream_iter)
+        next(stream_iter)
+        world_event = next(stream_iter).decode("utf-8")
+    finally:
+        res.close()
+
+    assert '"width_mm": 16000.0' in world_event
+    assert '"height_mm": 16000.0' in world_event
 
 
 def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
