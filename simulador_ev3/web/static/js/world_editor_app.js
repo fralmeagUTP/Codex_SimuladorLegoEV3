@@ -28,6 +28,7 @@
   let moveMode = false;
   let robotStartMode = false;
   let robotStart = null;
+  let placementPreview = null;
   let dragPlacement = null;
   let suppressNextClick = false;
 
@@ -139,6 +140,7 @@
   function drawEditor() {
     window.EV3Canvas.draw(canvas, null, currentWorld, {
       selectedPlacementId: selectedPlacement?.id || null,
+      placementPreview,
       robotStart,
     });
   }
@@ -252,6 +254,7 @@
 
   assetSelect.addEventListener("change", () => {
     syncAssetPalette();
+    placementPreview = null;
     updateSelection(null);
   });
 
@@ -262,6 +265,21 @@
     cursorReadout.textContent =
       `Cursor: (${Math.round(point.xMm)} mm, ${Math.round(point.yMm)} mm) | Snap: ` +
       `(${editorPoint.x}px, ${editorPoint.y}px) | Tool: ${assetSelect.value || "Select"}`;
+    const canPreviewPlacement =
+      assetSelect.value && !robotStartMode && !moveMode && !dragPlacement;
+    if (canPreviewPlacement) {
+      const origin = window.EV3Canvas.placementOriginForAsset(assetSelect.value, editorPoint, currentWorld, 0);
+      placementPreview = {
+        asset_key: assetSelect.value,
+        x: origin.x,
+        y: origin.y,
+        rotation: 0,
+      };
+      drawEditor();
+    } else if (placementPreview) {
+      placementPreview = null;
+      drawEditor();
+    }
     if (dragPlacement) {
       const dx = Math.abs(event.clientX - dragPlacement.startClientX);
       const dy = Math.abs(event.clientY - dragPlacement.startClientY);
@@ -277,6 +295,12 @@
           `Arrastrar ${dragPlacement.id}: (${dragPlacement.target.x}px, ${dragPlacement.target.y}px)`;
       }
     }
+  });
+
+  canvas.addEventListener("mouseleave", () => {
+    if (!placementPreview) return;
+    placementPreview = null;
+    drawEditor();
   });
 
   canvas.addEventListener("mousedown", (event) => {
@@ -322,6 +346,7 @@
       return;
     }
     if (robotStartMode) {
+      placementPreview = null;
       const point = window.EV3Canvas.canvasToWorld(canvas, event.clientX, event.clientY, currentWorld);
       const theta = Number(robotThetaInput.value || 0);
       try {
@@ -342,6 +367,7 @@
     }
     const clicked = window.EV3Canvas.findPlacementAt(canvas, event.clientX, event.clientY, currentWorld);
     if (moveMode && selectedPlacement) {
+      placementPreview = null;
       const point = window.EV3Canvas.canvasToEditor(canvas, event.clientX, event.clientY, currentWorld);
       const origin = window.EV3Canvas.placementOriginForAsset(
         selectedPlacement.asset_key,
@@ -361,10 +387,12 @@
       return;
     }
     if (clicked) {
+      placementPreview = null;
       updateSelection(clicked);
       return;
     }
     if (!assetSelect.value) {
+      placementPreview = null;
       updateSelection(null);
       return;
     }
@@ -377,6 +405,7 @@
         y: origin.y,
         rotation: 0,
       });
+      placementPreview = null;
       setEditorWorld(data.world);
       updateSelection(data.placement);
       showValidation(data.validation);

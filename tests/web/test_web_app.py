@@ -382,9 +382,14 @@ def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
     assert "worldWidthPx - widthPx" in canvas_js
     assert "worldHeightPx - heightPx" in canvas_js
     assert "function placementMoveTarget" in canvas_js
+    assert "function drawPlacementPreview" in canvas_js
+    assert 'ctx.setLineDash([2, 2])' in canvas_js
+    assert 'ctx.strokeStyle = "#006CFF"' in canvas_js
     assert "placementMoveTarget," in canvas_js
     assert "placementOriginForAsset(assetSelect.value" in editor_js
     assert "placementOriginForAsset(\n        selectedPlacement.asset_key" in editor_js
+    assert "placementPreview" in editor_js
+    assert "canPreviewPlacement" in editor_js
     assert "offset: { x: x0 - editorPoint.x, y: y0 - editorPoint.y }" in editor_js
     assert "placementMoveTarget(" in editor_js
 

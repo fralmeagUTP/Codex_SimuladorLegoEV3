@@ -92,6 +92,7 @@ window.EV3Canvas = (() => {
     drawGrid(ctx, view);
     drawSurface(ctx, world, view);
     drawEditorPlacements(ctx, world?.editor_spec, view, editorState.selectedPlacementId);
+    drawPlacementPreview(ctx, world?.editor_spec, view, editorState.placementPreview);
     drawObstacles(ctx, world, view);
 
     if (snapshot?.robot && snapshot.tick !== lastTick) {
@@ -201,6 +202,24 @@ window.EV3Canvas = (() => {
       ctx.strokeRect(pos.x, pos.y, canvasSize.w, canvasSize.h);
       ctx.restore();
     }
+  }
+
+  function drawPlacementPreview(ctx, spec, view, preview) {
+    if (!spec || !preview?.asset_key) return;
+    const gridSize = spec.grid_size_px || GRID_SIZE_PX;
+    const mmPerPx = CELL_SIZE_MM / gridSize;
+    const size = assetSize(preview.asset_key, preview.rotation || 0);
+    const xPx = preview.x ?? preview.x_px ?? 0;
+    const yPx = preview.y ?? preview.y_px ?? 0;
+    const pos = toCanvas(view, xPx * mmPerPx, yPx * mmPerPx);
+    const canvasSize = sizeToCanvas(view, size.w * CELL_SIZE_MM, size.h * CELL_SIZE_MM);
+
+    ctx.save();
+    ctx.setLineDash([2, 2]);
+    ctx.strokeStyle = "#006CFF";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(pos.x + 0.5, pos.y + 0.5, canvasSize.w - 1, canvasSize.h - 1);
+    ctx.restore();
   }
 
   function drawObstacles(ctx, world, view) {

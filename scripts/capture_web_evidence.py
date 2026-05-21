@@ -131,6 +131,29 @@ def assert_world_canvas_matches_tkinter_size(page) -> None:
         raise AssertionError(f"el panel no expone scroll del mapa completo: {metrics}")
 
 
+def assert_canvas_has_blue_preview(page) -> None:
+    metrics = page.locator("#worldCanvas").evaluate(
+        """(canvas) => {
+            const ctx = canvas.getContext("2d");
+            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            let bluePixels = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const a = data[i + 3];
+                if (a > 180 && r < 20 && g > 80 && g < 140 && b > 220) {
+                    bluePixels += 1;
+                    if (bluePixels >= 12) break;
+                }
+            }
+            return { bluePixels };
+        }"""
+    )
+    if metrics["bluePixels"] < 12:
+        raise AssertionError(f"no se detecto previsualizacion azul: {metrics}")
+
+
 def capture_layouts(browser, base_url: str) -> list[str]:
     files: list[str] = []
     viewports = [(1366, 768), (1570, 900)]
@@ -206,10 +229,18 @@ def capture_feature_flows(browser, base_url: str) -> list[str]:
 
         page.goto(f"{base_url}/worlds")
         expect(page.locator("#sessionStatus")).to_have_text("created")
-        page.locator("#assetSelect").select_option("wall_64x64_a")
+        page.locator("#assetSelect").select_option("floor_tile_256_a")
         box = page.locator("#worldCanvas").bounding_box()
         if box is None:
             raise AssertionError("worldCanvas no tiene bounding box")
+        page.mouse.move(box["x"] + 260, box["y"] + 230)
+        expect(page.locator("#cursorReadout")).to_contain_text("Tool: floor_tile_256_a")
+        assert_canvas_has_blue_preview(page)
+        target = OUTPUT_DIR / "mundos_previsualizacion_1366x768.png"
+        page.screenshot(path=str(target), full_page=True)
+        files.append(str(target.relative_to(ROOT)))
+
+        page.locator("#assetSelect").select_option("wall_64x64_a")
         page.mouse.click(box["x"] + 120, box["y"] + 120)
         expect(page.locator("#assetPropertiesForm")).to_be_visible()
         page.locator("#assetKeyInput").select_option("line_64_64_hor")
