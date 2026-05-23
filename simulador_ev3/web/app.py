@@ -38,6 +38,10 @@ def create_app(config: dict | None = None) -> Flask:
         app.extensions["session_cleanup_worker"] = cleanup_worker
     register_blueprints(app)
 
+    @app.context_processor
+    def _asset_version_context():
+        return {"asset_version": app.config.get("STATIC_ASSET_VERSION", "dev")}
+
     @app.after_request
     def _security_headers(response):
         if not app.config.get("ENABLE_SECURITY_HEADERS", True):
@@ -72,7 +76,7 @@ def main() -> None:
     app = create_app()
     host = os.environ.get("EV3_WEB_HOST", "127.0.0.1")
     port = int(os.environ.get("EV3_WEB_PORT", "5050"))
-    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
+    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=False)
 
 
 if __name__ == "__main__":

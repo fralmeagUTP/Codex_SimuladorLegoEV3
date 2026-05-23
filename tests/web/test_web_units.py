@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from io import BytesIO
 from datetime import timedelta
 
@@ -8,7 +9,7 @@ import pytest
 from simulador_ev3.web.app import create_app
 from simulador_ev3.web.errors import InvalidPayload, SessionNotFound
 from simulador_ev3.web.routes.helpers import safe_child
-from simulador_ev3.web.services.simulation_session import asset_catalog_dict
+from simulador_ev3.web.services.simulation_session import SimulationSession, asset_catalog_dict
 from simulador_ev3.web.session_manager import SessionManager, _hash_token, _utcnow
 
 
@@ -73,6 +74,32 @@ def test_asset_catalog_serializes_expected_metadata():
     assert assets["robot_ev3_32x32"]["type"] == "robot"
     assert assets["line_64_64_hor"]["connectors"] == ["E", "W"]
     assert assets["floor_tile_256_c"]["width_cells"] == 8
+
+
+def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path):
+    session = SimulationSession(
+        session_id="perf-session",
+        config={
+            "WORLDS_DIR": tmp_path / "worlds",
+            "EXAMPLES_DIR": tmp_path / "examples",
+            "SCRIPT_MAX_RUNTIME_S": 1.0,
+            "WEB_SNAPSHOT_MAX_HZ": 5.0,
+        },
+        max_runtime_s=1.0,
+    )
+
+    session.load_script("from pybricks.tools import wait\nwait(500)\n")
+    session.start()
+    try:
+        time.sleep(0.45)
+        events = session.events_since(0)
+        snapshot_events = [event for event in events if event["type"] == "snapshot"]
+        latest = session.snapshot_response()["snapshot"]
+    finally:
+        session.stop()
+
+    assert 1 <= len(snapshot_events) <= 4
+    assert latest["tick"] > snapshot_events[-1]["payload"]["tick"]
 
 
 def test_error_response_for_non_object_json_payload(tmp_path):

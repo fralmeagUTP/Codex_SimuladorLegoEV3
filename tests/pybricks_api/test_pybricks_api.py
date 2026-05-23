@@ -160,7 +160,8 @@ class TestWait:
         PybricksFactory.create(eng, stop)
         stop.set()   # ya señalado → wait debe retornar casi inmediatamente
         t0 = time.perf_counter()
-        wait(500)
+        with pytest.raises(SystemExit):
+            wait(500)
         elapsed_ms = (time.perf_counter() - t0) * 1000
         assert elapsed_ms < 100
 

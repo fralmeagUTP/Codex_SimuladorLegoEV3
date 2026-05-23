@@ -16,12 +16,12 @@
   const placeRobotStartBtn = document.getElementById("placeRobotStartBtn");
   const robotThetaInput = document.getElementById("robotThetaInput");
   const robotStartReadout = document.getElementById("robotStartReadout");
-  const simulateSavedWorldLink = document.getElementById("simulateSavedWorldLink");
+  const worldNameLabel = document.getElementById("worldNameLabel");
   const worldWidthInput = document.getElementById("worldWidthInput");
   const worldHeightInput = document.getElementById("worldHeightInput");
   const cursorReadout = document.getElementById("cursorReadout");
   const validationStatus = document.getElementById("validationStatus");
-  const DEFAULT_WORLD_CELLS = 160;
+  const DEFAULT_WORLD_CELLS = 40;
   let currentWorld = null;
   let editorWorld = null;
   let selectedPlacement = null;
@@ -221,12 +221,74 @@
     log(lines.join("\n"));
   }
 
+  function setWorldNameLabel(name) {
+    if (!worldNameLabel) return;
+    const text = String(name || "").trim();
+    worldNameLabel.textContent = text || "sin nombre";
+  }
+
+  function currentWorldName() {
+    if (!worldNameLabel) return "";
+    const value = (worldNameLabel.textContent || "").trim();
+    return value === "sin nombre" ? "" : value;
+  }
+
+  function stripJsonExtension(name) {
+    return String(name || "").replace(/\.json$/i, "");
+  }
+
+  async function downloadWorldAsFile() {
+    if (!editorWorld) return;
+    const baseName = currentWorldName() || "mundo_ev3_web";
+    const suggestedName = baseName.toLowerCase().endsWith(".json") ? baseName : `${baseName}.json`;
+    const worldJson = JSON.stringify(editorWorld, null, 2);
+
+    if (typeof window.showSaveFilePicker === "function") {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: "JSON",
+              accept: {
+                "application/json": [".json"],
+                "text/json": [".json"],
+              },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(worldJson);
+        await writable.close();
+        log(`Mundo exportado: ${handle.name || suggestedName}. Ubicacion: seleccionada en el dialogo del sistema.`);
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          log("Guardado cancelado.");
+          return;
+        }
+      }
+    }
+
+    const blob = new Blob([worldJson], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = suggestedName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    log(`Mundo descargado: ${suggestedName}. Ubicacion: Descargas del navegador.`);
+  }
+
   document.getElementById("newWorldBtn").addEventListener("click", async () => {
     try {
       const width = Number.parseInt(worldWidthInput.value || String(DEFAULT_WORLD_CELLS), 10);
       const height = Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10);
       const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
       setEditorWorld(data.world);
+      setWorldNameLabel("");
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {
@@ -241,6 +303,7 @@
         Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10),
       );
       setEditorWorld(data.world);
+      setWorldNameLabel("");
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {
@@ -510,24 +573,9 @@
     }
   });
 
-  document.getElementById("exportWorldBtn").addEventListener("click", () => {
-    if (!editorWorld) return;
-    const blob = new Blob([JSON.stringify(editorWorld, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "mundo_ev3_web.json";
-    link.click();
-    URL.revokeObjectURL(url);
-  });
-
-  document.getElementById("saveWorldBtn").addEventListener("click", async () => {
-    const name = document.getElementById("saveWorldName").value.trim();
+  document.getElementById("exportWorldBtn").addEventListener("click", async () => {
     try {
-      const result = await api.saveEditorWorld(name);
-      log(`Mundo guardado: ${result.name}`);
-      simulateSavedWorldLink.href = `/?world=${encodeURIComponent(result.name)}`;
-      simulateSavedWorldLink.classList.remove("hidden");
+      await downloadWorldAsFile();
     } catch (err) {
       log(err.message);
     }
@@ -541,6 +589,8 @@
       const world = JSON.parse(text);
       const data = await api.importEditorWorld(world);
       setEditorWorld(data.world);
+      const inferredName = stripJsonExtension(world?.name || world?.world_name || file.name);
+      setWorldNameLabel(inferredName);
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {

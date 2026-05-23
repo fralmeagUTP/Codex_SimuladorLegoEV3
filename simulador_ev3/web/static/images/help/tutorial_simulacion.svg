@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" role="img" aria-labelledby="title desc">
+  <title id="title">Tutorial simulacion</title>
+  <desc id="desc">Diagrama de la pantalla de simulacion con editor, controles y telemetria.</desc>
+  <rect width="900" height="520" fill="#edf5f3"/>
+  <rect x="24" y="24" width="852" height="56" rx="8" fill="#ffffff" stroke="#8fa9a2"/>
+  <rect x="42" y="38" width="88" height="28" rx="4" fill="#d9ebe5" stroke="#6f9e90"/>
+  <text x="86" y="57" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#18483a">Archivo</text>
+  <rect x="140" y="38" width="92" height="28" rx="4" fill="#d9ebe5" stroke="#6f9e90"/>
+  <text x="186" y="57" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#18483a">Ejemplos</text>
+  <rect x="242" y="38" width="84" height="28" rx="4" fill="#d9ebe5" stroke="#6f9e90"/>
+  <text x="284" y="57" text-anchor="middle" font-family="Segoe UI, Arial" font-size="14" fill="#18483a">Mundos</text>
+
+  <rect x="24" y="96" width="440" height="304" rx="8" fill="#ffffff" stroke="#99b4ad"/>
+  <text x="40" y="122" font-family="Segoe UI, Arial" font-size="14" fill="#27443f">Editor de codigo</text>
+  <rect x="42" y="138" width="404" height="240" fill="#101926"/>
+  <text x="56" y="164" font-family="Consolas, monospace" font-size="13" fill="#d1d7e2">from pybricks.hubs import EV3Brick</text>
+  <text x="56" y="186" font-family="Consolas, monospace" font-size="13" fill="#d1d7e2">ev3 = EV3Brick()</text>
+  <text x="56" y="208" font-family="Consolas, monospace" font-size="13" fill="#d1d7e2"># Ctrl+Space para ayuda</text>
+
+  <rect x="482" y="96" width="394" height="190" rx="8" fill="#ffffff" stroke="#99b4ad"/>
+  <text x="498" y="122" font-family="Segoe UI, Arial" font-size="14" fill="#27443f">Controles</text>
+  <rect x="498" y="140" width="74" height="30" rx="4" fill="#d6f0dc" stroke="#4e9a62"/>
+  <text x="535" y="160" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#164826">Ejecutar</text>
+  <rect x="580" y="140" width="74" height="30" rx="4" fill="#fef3d7" stroke="#c7a453"/>
+  <text x="617" y="160" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#5c4621">Pausar</text>
+  <rect x="662" y="140" width="74" height="30" rx="4" fill="#e7eef6" stroke="#8ca0b5"/>
+  <text x="699" y="160" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#2a3f54">Reanudar</text>
+  <rect x="744" y="140" width="74" height="30" rx="4" fill="#f6e4e4" stroke="#b57f7f"/>
+  <text x="781" y="160" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#5a2828">Detener</text>
+
+  <rect x="482" y="294" width="394" height="106" rx="8" fill="#ffffff" stroke="#99b4ad"/>
+  <text x="498" y="320" font-family="Segoe UI, Arial" font-size="14" fill="#27443f">Telemetria del robot</text>
+  <text x="498" y="344" font-family="Segoe UI, Arial" font-size="13" fill="#27443f">Motores: L 320 deg/s | R 320 deg/s</text>
+  <text x="498" y="366" font-family="Segoe UI, Arial" font-size="13" fill="#27443f">Sensores: color negro | distancia 34 cm</text>
+  <text x="498" y="388" font-family="Segoe UI, Arial" font-size="13" fill="#27443f">Estado: altavoz EV3 activo</text>
+
+  <rect x="24" y="414" width="852" height="82" rx="8" fill="#ffffff" stroke="#99b4ad"/>
+  <text x="40" y="442" font-family="Segoe UI, Arial" font-size="14" fill="#27443f">Resultado esperado: el script corre y ves cambios en canvas y telemetria.</text>
+  <text x="40" y="468" font-family="Segoe UI, Arial" font-size="13" fill="#355a53">Si falla: verifica mundo cargado, breakpoints y errores de script.</text>
+</svg>

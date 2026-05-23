@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" role="img" aria-labelledby="title desc">
+  <title id="title">Tutorial depuracion</title>
+  <desc id="desc">Diagrama de depuracion con breakpoints y ejecucion paso a paso.</desc>
+  <rect width="900" height="520" fill="#f4f2fa"/>
+  <rect x="24" y="24" width="852" height="470" rx="8" fill="#ffffff" stroke="#b2a8d1"/>
+
+  <rect x="44" y="56" width="470" height="350" fill="#0f1722"/>
+  <rect x="44" y="56" width="26" height="350" fill="#1a2534"/>
+  <circle cx="57" cy="102" r="6" fill="#e15757"/>
+  <circle cx="57" cy="152" r="6" fill="#e15757"/>
+  <text x="84" y="106" font-family="Consolas, monospace" font-size="13" fill="#d7deea">while True:</text>
+  <text x="84" y="132" font-family="Consolas, monospace" font-size="13" fill="#d7deea">    if sensor.color() == Color.BLACK:</text>
+  <text x="84" y="158" font-family="Consolas, monospace" font-size="13" fill="#d7deea">        motor.run(200)</text>
+  <text x="84" y="184" font-family="Consolas, monospace" font-size="13" fill="#d7deea">    else:</text>
+  <text x="84" y="210" font-family="Consolas, monospace" font-size="13" fill="#d7deea">        motor.stop()</text>
+
+  <rect x="536" y="56" width="320" height="190" rx="8" fill="#f8f5ff" stroke="#b2a8d1"/>
+  <text x="554" y="84" font-family="Segoe UI, Arial" font-size="14" fill="#3f335f">Panel debug</text>
+  <text x="554" y="110" font-family="Segoe UI, Arial" font-size="13" fill="#3f335f">Breakpoint linea 3</text>
+  <text x="554" y="134" font-family="Segoe UI, Arial" font-size="13" fill="#3f335f">Variables:</text>
+  <text x="572" y="158" font-family="Consolas, monospace" font-size="12" fill="#3f335f">color = BLACK</text>
+  <text x="572" y="178" font-family="Consolas, monospace" font-size="12" fill="#3f335f">speed = 200</text>
+
+  <rect x="536" y="264" width="320" height="142" rx="8" fill="#f8f5ff" stroke="#b2a8d1"/>
+  <text x="554" y="292" font-family="Segoe UI, Arial" font-size="14" fill="#3f335f">Acciones</text>
+  <rect x="554" y="308" width="80" height="30" rx="4" fill="#e8ddff" stroke="#8f77cc"/>
+  <text x="594" y="328" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#3f335f">Continuar</text>
+  <rect x="644" y="308" width="80" height="30" rx="4" fill="#e8ddff" stroke="#8f77cc"/>
+  <text x="684" y="328" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#3f335f">Paso</text>
+  <rect x="734" y="308" width="80" height="30" rx="4" fill="#e8ddff" stroke="#8f77cc"/>
+  <text x="774" y="328" text-anchor="middle" font-family="Segoe UI, Arial" font-size="13" fill="#3f335f">Reset</text>
+
+  <text x="554" y="362" font-family="Segoe UI, Arial" font-size="13" fill="#3f335f">Tip: Ctrl+Space para sugerencias API.</text>
+  <text x="554" y="384" font-family="Segoe UI, Arial" font-size="13" fill="#3f335f">Resultado: localizar errores de logica.</text>
+
+  <path d="M62 102 C170 44, 430 44, 536 98" fill="none" stroke="#8f77cc" stroke-width="3"/>
+  <polygon points="531,90 548,97 533,108" fill="#8f77cc"/>
+</svg>

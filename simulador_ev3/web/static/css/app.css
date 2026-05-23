@@ -248,8 +248,7 @@ dd {
 }
 
 .tool-row button,
-.save-row button,
-#loadWorldBtn {
+.save-row button {
   border: 1px solid #93a4b7;
   background: #f8fafc;
   color: #18212f;
@@ -417,39 +416,13 @@ dd {
   background: #f7fbff;
 }
 
-.window-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.window-actions button,
-.window-actions a {
-  min-width: 34px;
-  min-height: 30px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 4px 8px;
-  background: transparent;
-  color: #2a4775;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.window-actions button:hover,
-.window-actions a:hover {
-  border-color: #c7d4e7;
-  background: #eef4fb;
-}
-
 .sim-workspace {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) 36px;
-  gap: 10px;
-  padding: 8px 12px 0;
+  grid-template-rows: minmax(0, 1fr) 36px;
+  gap: 6px;
+  padding: 4px 12px 0;
   background: #f5f7fb;
   overflow: hidden;
 }
@@ -489,7 +462,7 @@ dd {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(300px, 1fr) minmax(230px, 0.62fr);
+  grid-template-rows: auto minmax(300px, 1fr) minmax(230px, 0.62fr);
   gap: 10px;
   overflow: hidden;
 }
@@ -528,6 +501,28 @@ dd {
   font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.panel-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.world-name-inline {
+  min-width: 0;
+  color: #35506f;
+  font-size: 12px;
+  font-family: Consolas, Menlo, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.world-name-inline span {
+  font-weight: 600;
+  color: #1f3a5a;
 }
 
 .map-tools {
@@ -724,17 +719,31 @@ dd {
 
 .sim-code-pane {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) minmax(42px, auto);
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   overflow: hidden;
   background: #fff;
 }
 
+.sim-code-pane .code-header {
+  min-height: 25px;
+  padding: 3px 10px;
+}
+
+.sim-code-pane .code-header h2 {
+  font-size: 12px;
+}
+
+.sim-code-pane .code-header select {
+  min-height: 28px;
+  padding: 2px 6px;
+}
+
 .sim-control-bar {
   display: flex;
-  gap: 10px;
+  gap: 14px;
   align-items: center;
-  justify-content: space-between;
-  flex-wrap: nowrap;
+  justify-content: flex-start;
+  flex-wrap: wrap;
   padding: 0;
   border: 0;
   background: transparent;
@@ -750,40 +759,44 @@ dd {
   background: transparent;
 }
 
-.sim-control-bar button,
-.sim-control-bar select {
-  min-height: 31px;
+.sim-control-bar label {
+  color: #314861;
+  font-size: 12px;
+}
+
+.sim-control-bar button {
+  min-height: 28px;
   border: 1px solid #c5d2e2;
   border-radius: 4px;
-  padding: 5px 12px;
+  padding: 4px 11px;
   background: #fff;
   color: #213858;
   cursor: pointer;
   font-size: 12px;
 }
 
-.sim-control-bar select {
-  width: 190px;
-}
-
-.sim-control-bar .load-controls {
-  margin-left: auto;
-  flex: 0 1 520px;
-  justify-content: flex-end;
-}
-
-.sim-control-bar .load-controls select {
-  flex: 1 1 180px;
-  max-width: 230px;
+.sim-control-bar button:disabled,
+.sim-code-pane .debug-panel button:disabled,
+.sim-code-pane .debug-panel input:disabled,
+.sim-control-bar .theta-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .sim-control-bar .theta-input {
   width: 64px;
-  min-height: 29px;
+  min-height: 27px;
   border: 1px solid #c5d2e2;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 3px 6px;
   font-size: 12px;
+}
+
+.sim-control-bar .robot-location-controls {
+  margin-left: 4px;
+  padding-left: 14px;
+  border-left: 1px solid #cfd9e6;
+  justify-content: flex-start;
 }
 
 .sim-control-bar .run-button {
@@ -815,8 +828,8 @@ dd {
 .sim-code-pane .debug-panel {
   position: relative;
   z-index: 2;
-  grid-template-columns: auto minmax(96px, 150px) auto 58px minmax(0, 1fr);
-  padding: 7px 10px;
+  grid-template-columns: auto auto auto auto minmax(96px, 150px) minmax(0, 1fr);
+  padding: 4px 10px;
   border: 0;
   border-bottom: 1px solid #e3e9f1;
   border-radius: 0;
@@ -832,26 +845,43 @@ dd {
 
 .sim-code-pane .debug-panel button,
 .sim-code-pane .debug-panel input {
-  min-height: 26px;
+  min-height: 24px;
   border: 1px solid #c6d3e2;
   border-radius: 4px;
   background: #fff;
   color: #203653;
-  padding: 4px 7px;
+  padding: 3px 7px;
   font-size: 12px;
 }
 
+.sim-code-pane .debug-panel .debug-button,
+.sim-code-pane .debug-panel .step-button,
+.sim-code-pane .debug-panel .continue-button {
+  min-width: 64px;
+}
+
 .robot-start-readout {
-  grid-column: 1 / -1;
+  max-width: 320px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid #d7e1ed;
+  border-radius: 4px;
+  background: #fbfdff;
   color: #8b5d00;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .code-editor-shell {
   position: relative;
   z-index: 4;
   min-height: 0;
+  min-height: 280px;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);
   overflow: hidden;
@@ -903,12 +933,12 @@ dd {
   border: 0;
   border-radius: 0;
   margin: 0;
-  padding: 12px;
+  padding: 12px 12px 72px;
   overflow: auto;
   font-family: Consolas, Menlo, monospace;
   font-size: 13px;
   line-height: 1.45;
-  white-space: pre-wrap;
+  white-space: pre;
   word-break: normal;
   overflow-wrap: normal;
   tab-size: 4;
@@ -987,13 +1017,38 @@ dd {
 }
 
 .sim-code-pane .console {
-  min-height: 42px;
-  max-height: 84px;
+  min-height: 0;
+  max-height: 56px;
   margin: 0;
   border-radius: 0;
   background: #f8fbff;
   color: #28425f;
   border-top: 1px solid #e3e9f1;
+  padding: 4px 10px;
+}
+
+.sim-code-pane .console:empty {
+  display: none;
+}
+
+.program-name-strip {
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 4px 10px;
+  border-top: 1px solid #e3e9f1;
+  background: #f4f8fc;
+  color: #385273;
+  font-size: 12px;
+  font-family: Consolas, Menlo, monospace;
+}
+
+.program-name-strip .program-current span,
+.program-name-strip .save-path-inline span {
+  font-weight: 600;
+  color: #1f3a5a;
 }
 
 .sim-brick-pane {
@@ -1164,8 +1219,19 @@ dd {
   width: 56px;
 }
 
-.world-size-bar #saveWorldName {
-  width: 170px;
+.world-name-readout {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  border: 1px solid #8a9bab;
+  background: #f8fafc;
+  padding: 4px 9px;
+  color: #111827;
+}
+
+.world-name-readout #worldNameLabel {
+  margin-left: 6px;
+  font-weight: 600;
 }
 
 .world-editor-main {
@@ -1310,6 +1376,60 @@ dd {
   margin-top: 0;
 }
 
+.help-tutorial-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.tutorial-card {
+  border: 1px solid #b8c7d6;
+  background: #f8fbff;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.tutorial-card h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.tutorial-figure {
+  margin: 0 0 10px;
+}
+
+.tutorial-figure img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid #c6d4e1;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.tutorial-steps {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.tutorial-result,
+.tutorial-fallback {
+  margin: 10px 0 0;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.tutorial-result {
+  background: #eaf6ed;
+  border-left: 3px solid #2f9d57;
+}
+
+.tutorial-fallback {
+  background: #fff4ea;
+  border-left: 3px solid #d17a20;
+}
+
 .help code {
   font-family: Consolas, Menlo, monospace;
 }
@@ -1343,6 +1463,10 @@ dd {
 }
 
 @media (max-width: 1000px) {
+  .help-tutorial-grid {
+    grid-template-columns: 1fr;
+  }
+
   .workspace {
     grid-template-columns: 1fr;
   }
@@ -1373,13 +1497,16 @@ dd {
     flex-direction: column;
   }
 
-  .sim-control-bar .load-controls {
+  .sim-control-bar .robot-location-controls {
     margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
     justify-content: flex-start;
   }
 
-  .window-actions {
-    display: none;
+  .robot-start-readout {
+    max-width: none;
+    flex: 1 1 220px;
   }
 
   .sim-status-strip {

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.3.1 - 2026-05-22
+
+- Mejorada la ayuda web con enfoque didactico, tutoriales guiados y recursos visuales integrados.
+- Adaptada la ayuda para despliegue en `http://nyquist.app/simuladorlego` con navegacion por menu sin rutas manuales.
+- Ajustado el editor de mundos: eliminada opcion `Guardar` y flujo centrado en `Guardar como` con selector nativo del sistema.
+- Reemplazado el campo editable de nombre de mundo por una etiqueta informativa al abrir/importar mundos.
+- Agregada documentacion de despliegue en cPanel, archivo `requirements.txt`, plantilla `wsgi` y checklist post-deploy.
+
 ## v1.3.0 - 2026-05-20
 
 - Publicada version web Flask con simulacion, editor de mundos, sesiones independientes y evidencia visual.

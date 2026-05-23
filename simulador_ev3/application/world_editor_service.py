@@ -18,6 +18,7 @@ from typing import Any, Optional
 from simulador_ev3.application.world_validation_engine import ValidationEngine, rotated_connectors
 from simulador_ev3.domain.editor.world_editor_model import (
     CELL_SIZE_MM,
+    DEFAULT_WORLD_MM,
     GRID_SIZE_PX,
     MAX_WORLD_MM,
     MAX_WORLD_PIXELS,
@@ -33,8 +34,8 @@ from simulador_ev3.domain.world.surface_model import SurfaceColor, SurfaceModel
 from simulador_ev3.domain.world.world_model import WorldModel
 from simulador_ev3.persistence.world_repository import WorldRepository
 
-_DEFAULT_WORLD_W = MAX_WORLD_MM
-_DEFAULT_WORLD_H = MAX_WORLD_MM
+_DEFAULT_WORLD_W = DEFAULT_WORLD_MM
+_DEFAULT_WORLD_H = DEFAULT_WORLD_MM
 _LINE_ASSET_SIZE_PX = 64.0
 _LINE_STROKE_PX = 8.0
 _LINE_TILE_WORLD_MM = 2.0 * CELL_SIZE_MM

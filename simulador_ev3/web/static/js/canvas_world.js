@@ -1,13 +1,21 @@
 window.EV3Canvas = (() => {
   const trail = [];
   let lastTick = -1;
+  const staticLayerCache = {
+    canvasWidth: 0,
+    canvasHeight: 0,
+    selectedPlacementId: null,
+    world: null,
+    layer: null,
+  };
   const imageCache = new Map();
   const CELL_SIZE_MM = 100;
   const GRID_SIZE_PX = 32;
   const PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM;
-  const DEFAULT_WORLD_MM = 16000;
+  const DEFAULT_WORLD_MM = 4000;
   const ROBOT_WIDTH_MM = 110;
   const ROBOT_HEIGHT_MM = 70;
+  const TRAIL_TELEPORT_THRESHOLD_MM = 150;
 
   const assetFiles = {
     robot_ev3_32x32: "robot_ev3_32x32.png",
@@ -31,8 +39,10 @@ window.EV3Canvas = (() => {
 
   function resize(canvas) {
     const rect = canvas.getBoundingClientRect();
-    canvas.width = Math.max(1, Math.floor(rect.width));
-    canvas.height = Math.max(1, Math.floor(rect.height));
+    const width = Math.max(1, Math.floor(rect.width));
+    const height = Math.max(1, Math.floor(rect.height));
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
   }
 
   function syncCanvasWorldSize(canvas, world) {
@@ -51,9 +61,11 @@ window.EV3Canvas = (() => {
   }
 
   function worldView(world) {
+    const widthMm = world?.width_mm || DEFAULT_WORLD_MM;
+    const heightMm = world?.height_mm || DEFAULT_WORLD_MM;
     return {
-      widthMm: world?.width_mm || DEFAULT_WORLD_MM,
-      heightMm: world?.height_mm || DEFAULT_WORLD_MM,
+      widthMm,
+      heightMm,
       scale: PX_PER_MM,
       offsetX: 0,
       offsetY: 0,
@@ -82,24 +94,14 @@ window.EV3Canvas = (() => {
     syncCanvasWorldSize(canvas, world);
     resize(canvas);
     const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     const view = worldView(world);
+    const baseLayer = staticWorldLayer(canvas, world, view, editorState.selectedPlacementId);
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    drawGrid(ctx, view);
-    drawSurface(ctx, world, view);
-    drawEditorPlacements(ctx, world?.editor_spec, view, editorState.selectedPlacementId);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(baseLayer, 0, 0);
     drawPlacementPreview(ctx, world?.editor_spec, view, editorState.placementPreview);
-    drawObstacles(ctx, world, view);
 
-    if (snapshot?.robot && snapshot.tick !== lastTick) {
-      trail.push({ x: snapshot.robot.x_mm, y: snapshot.robot.y_mm });
-      if (trail.length > 800) trail.shift();
-      lastTick = snapshot.tick;
-    }
+    updateTrail(snapshot?.robot, snapshot?.tick);
     drawTrail(ctx, trail, view);
     if (snapshot?.robot) {
       drawRobot(ctx, snapshot.robot, view, snapshot.colliding);
@@ -107,6 +109,70 @@ window.EV3Canvas = (() => {
     if (editorState.robotStart) {
       drawRobotStartMarker(ctx, editorState.robotStart, view);
     }
+  }
+
+  function resetTrail(robot = null) {
+    trail.length = 0;
+    lastTick = -1;
+    if (robot) {
+      trail.push({ x: robot.x_mm, y: robot.y_mm });
+    }
+  }
+
+  function updateTrail(robot, tick) {
+    if (!robot || tick === lastTick) return;
+    const point = { x: robot.x_mm, y: robot.y_mm };
+    const previous = trail.at(-1);
+    if (previous && distanceMm(previous, point) > TRAIL_TELEPORT_THRESHOLD_MM) {
+      resetTrail();
+    }
+    trail.push(point);
+    if (trail.length > 200) trail.shift();
+    lastTick = tick;
+  }
+
+  function distanceMm(a, b) {
+    const dx = (a.x || 0) - (b.x || 0);
+    const dy = (a.y || 0) - (b.y || 0);
+    return Math.hypot(dx, dy);
+  }
+
+  function staticWorldLayer(canvas, world, view, selectedPlacementId = null) {
+    const selectedId = selectedPlacementId || null;
+    const worldChanged = staticLayerCache.world !== world;
+    if (
+      staticLayerCache.layer &&
+      !worldChanged &&
+      staticLayerCache.canvasWidth === canvas.width &&
+      staticLayerCache.canvasHeight === canvas.height &&
+      staticLayerCache.selectedPlacementId === selectedId
+    ) {
+      return staticLayerCache.layer;
+    }
+
+    if (worldChanged) {
+      trail.length = 0;
+      lastTick = -1;
+    }
+
+    const layer = document.createElement("canvas");
+    layer.width = canvas.width;
+    layer.height = canvas.height;
+    const layerCtx = layer.getContext("2d");
+
+    layerCtx.fillStyle = "#ffffff";
+    layerCtx.fillRect(0, 0, layer.width, layer.height);
+    drawGrid(layerCtx, view);
+    drawSurface(layerCtx, world, view);
+    drawEditorPlacements(layerCtx, world?.editor_spec, view, selectedId);
+    drawObstacles(layerCtx, world, view);
+
+    staticLayerCache.canvasWidth = canvas.width;
+    staticLayerCache.canvasHeight = canvas.height;
+    staticLayerCache.selectedPlacementId = selectedId;
+    staticLayerCache.world = world;
+    staticLayerCache.layer = layer;
+    return layer;
   }
 
   function canvasToEditor(canvas, clientX, clientY, world) {
@@ -473,6 +539,7 @@ window.EV3Canvas = (() => {
 
   return {
     draw,
+    resetTrail,
     canvasToEditor,
     canvasToWorld,
     findPlacementAt,

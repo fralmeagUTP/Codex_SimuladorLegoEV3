@@ -22,10 +22,22 @@ if (-not (Test-Path "C:\tmp")) {
 $env:EV3_WEB_HOST = $HostAddress
 $env:EV3_WEB_PORT = "$Port"
 
+$pattern = "${HostAddress}:$Port"
+$listenPids = @(
+    netstat -ano |
+        Select-String $pattern |
+        Select-String "LISTENING" |
+        ForEach-Object { ($_ -split "\s+")[-1] } |
+        Sort-Object -Unique
+)
+if ($listenPids.Count -gt 0) {
+    throw "El puerto http://${HostAddress}:${Port}/ ya esta en uso por PID(s): $($listenPids -join ', '). Use restart_web.cmd o stop_web.cmd antes de iniciar."
+}
+
 if ($Foreground) {
     Push-Location $ProjectRoot
     try {
-        & $PythonExe -m simulador_ev3.web.app
+        & $PythonExe -m simulador_ev3.web.waitress_server
     }
     finally {
         Pop-Location
@@ -35,7 +47,7 @@ if ($Foreground) {
 
 Start-Process `
     -FilePath $PythonExe `
-    -ArgumentList "-m simulador_ev3.web.app" `
+    -ArgumentList "-m simulador_ev3.web.waitress_server" `
     -WorkingDirectory $ProjectRoot `
     -WindowStyle Hidden `
     -RedirectStandardOutput $OutLog `

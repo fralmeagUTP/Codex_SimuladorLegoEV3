@@ -23,6 +23,7 @@
         <button type="button" class="menu-trigger" aria-haspopup="true">Mundos</button>
         <div id="worldsMenu" class="menu-dropdown">
           <a href="/worlds">Editor de mundos</a>
+          <button type="button" id="loadWorldFromFileMenuBtn">Cargar mundo desde tu equipo</button>
           <span class="menu-empty">Cargando mundos</span>
         </div>
       </div>
@@ -42,39 +43,35 @@
         </div>
       </div>
     </nav>
-    <div class="window-actions" aria-label="Acciones de aplicacion">
-      <button type="button" id="openScriptMenuBtnTop" title="Abrir script">Abrir</button>
-      <button type="button" id="saveScriptMenuBtnTop" title="Guardar script">Guardar</button>
-      <a href="/worlds" title="Editor de mundos">Mundos</a>
-      <a href="/help" title="Ayuda">Ayuda</a>
-    </div>
     <input id="scriptFileInput" class="visually-hidden" type="file" accept=".py,text/x-python,text/plain">
+    <input id="worldFileInput" class="visually-hidden" type="file" accept=".json,application/json,text/plain">
   </header>
 
   <section class="sim-workspace">
-    <div class="sim-control-bar">
-      <div class="sim-control-group run-controls">
-        <button id="runBtn" class="run-button">Ejecutar</button>
-        <button id="stopBtn" class="stop-button">Detener</button>
-        <button id="debugRunBtn" class="debug-button">Depurar</button>
-        <button id="debugStepBtn" class="step-button">Paso</button>
-        <button id="debugContinueBtn" class="continue-button">Continuar</button>
-        <button id="pauseBtn">Pausar</button>
-        <button id="resetBtn">Reiniciar</button>
-        <button id="resumeBtn">Reanudar</button>
-      </div>
-      <div class="sim-control-group load-controls">
-        <select id="exampleSelect" aria-label="Ejemplos"></select>
-        <select id="worldSelect" aria-label="Mundos"></select>
-        <button id="loadWorldBtn">Cargar mundo</button>
-      </div>
-    </div>
-
     <section class="sim-main-area">
       <section class="sim-left-column">
+        <div class="sim-control-bar">
+          <div class="sim-control-group run-controls">
+            <button id="runBtn" class="run-button">Ejecutar</button>
+            <button id="pauseBtn">Pausar</button>
+            <button id="resumeBtn">Reanudar</button>
+            <button id="stopBtn" class="stop-button">Finalizar</button>
+            <button id="resetBtn">Resetear</button>
+          </div>
+          <div class="sim-control-group robot-location-controls" aria-label="Ubicacion inicial del robot">
+            <button id="placeRobotStartBtn" type="button">Ubicar robot</button>
+            <label for="robotThetaInput">Theta</label>
+            <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
+            <div id="robotStartReadout" class="robot-start-readout">Pose inicial no fijada</div>
+          </div>
+        </div>
+
         <section class="sim-panel sim-map-panel">
           <div class="sim-panel-header">
-            <h2>Entorno de simulacion</h2>
+            <div class="panel-title-row">
+              <h2>Entorno de simulacion</h2>
+              <span class="world-name-inline">Mundo actual: <span id="statusWorld">Basico</span></span>
+            </div>
             <div class="map-tools" aria-label="Herramientas del mapa">
               <button type="button" title="Acercar">+</button>
               <button type="button" title="Alejar">-</button>
@@ -127,12 +124,12 @@
           </select>
         </div>
         <div class="debug-panel">
+        <button id="debugRunBtn" class="debug-button">Depurar</button>
+        <button id="debugStepBtn" class="step-button">Paso</button>
+        <button id="debugContinueBtn" class="continue-button">Continuar</button>
         <label for="breakpointsInput">Breakpoints</label>
         <input id="breakpointsInput" type="text" inputmode="numeric" placeholder="2, 5, 8">
-        <button id="placeRobotStartBtn" type="button">Ubicar robot</button>
-        <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
         <div id="debugState" class="debug-state">sin eventos</div>
-        <div id="robotStartReadout" class="robot-start-readout">Pose inicial no fijada</div>
       </div>
       <div class="code-editor-shell">
         <div id="editorGutter" class="editor-gutter" aria-label="Lineas y breakpoints"></div>
@@ -152,6 +149,10 @@ motor.stop()
 </textarea>
         <div id="autocompletePopup" class="autocomplete-popup hidden" role="listbox"></div>
       </div>
+      <div class="program-name-strip">
+        <span class="program-current">Programa actual: <span id="statusProgram">editor_actual.py</span></span>
+        <span class="save-path-inline">Ruta guardado: <span id="statusSavePath">sin guardar</span></span>
+      </div>
       <pre id="console" class="console"></pre>
       </section>
     </section>
@@ -159,7 +160,6 @@ motor.stop()
     <footer class="sim-status-strip">
       <span class="status-dot"></span>
       <span>Estado: <span id="sessionStatus">iniciando</span></span>
-      <span>Mundo: <span id="statusWorld">Basico</span></span>
       <span>Robot: EV3</span>
       <span>Python (Pybricks)</span>
       <span>UTF-8</span>
@@ -167,7 +167,7 @@ motor.stop()
   </section>
 </main>
 
-<script src="{{ url_for('static', filename='js/api.js') }}"></script>
-<script src="{{ url_for('static', filename='js/canvas_world.js') }}"></script>
-<script src="{{ url_for('static', filename='js/simulation_app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/api.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/canvas_world.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/simulation_app.js', v=asset_version) }}"></script>
 {% endblock %}

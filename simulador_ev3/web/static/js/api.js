@@ -22,16 +22,50 @@ window.EV3Api = (() => {
     return data;
   }
 
-  async function createSession() {
-    const data = await request("/api/sessions", { method: "POST", body: "{}" });
+  async function createSession(options = {}) {
+    const data = await request("/api/sessions", {
+      method: "POST",
+      body: JSON.stringify({ reuse: Boolean(options.reuse) }),
+    });
     sessionId = data.session_id;
     ownerToken = data.owner_token;
     return data;
   }
 
+  async function closeSession() {
+    if (!sessionId) return null;
+    const closedSessionId = sessionId;
+    try {
+      return await request(`/api/sessions/${closedSessionId}`, {
+        method: "DELETE",
+        body: "{}",
+      });
+    } finally {
+      if (sessionId === closedSessionId) {
+        sessionId = null;
+        ownerToken = null;
+      }
+    }
+  }
+
+  function closeSessionOnUnload() {
+    if (!sessionId) return;
+    fetch(`/api/sessions/${sessionId}`, {
+      method: "DELETE",
+      headers: Object.assign(
+        { "Content-Type": "application/json" },
+        ownerToken ? { "X-Session-Token": ownerToken } : {},
+      ),
+      body: "{}",
+      keepalive: true,
+    }).catch(() => {});
+  }
+
   return {
     get sessionId() { return sessionId; },
     createSession,
+    closeSession,
+    closeSessionOnUnload,
     openSnapshotStream: (handlers = {}) => {
       if (!sessionId) throw new Error("No hay sesion activa.");
       const source = new EventSource(`/api/sessions/${sessionId}/stream`);
@@ -81,6 +115,14 @@ window.EV3Api = (() => {
       method: "POST",
       body: JSON.stringify({ name }),
     }),
+    uploadWorld: (file) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return request(`/api/sessions/${sessionId}/world/upload`, {
+        method: "POST",
+        body: formData,
+      });
+    },
     setRobotStart: (payload) => request(`/api/sessions/${sessionId}/robot/start`, {
       method: "POST",
       body: JSON.stringify(payload),

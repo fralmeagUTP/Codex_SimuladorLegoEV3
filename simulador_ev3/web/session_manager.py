@@ -45,9 +45,11 @@ class SessionManager:
         self._script_max_runtime_s = float(config.get("SCRIPT_MAX_RUNTIME_S", 30.0))
         self._config = config
 
-    def create_session(self) -> tuple[str, str]:
+    def create_session(self, *, evict_inactive: bool = False) -> tuple[str, str]:
         with self._lock:
             self.cleanup_expired()
+            if evict_inactive and len(self._sessions) >= self._max_active:
+                self._evict_oldest_inactive_locked()
             if len(self._sessions) >= self._max_active:
                 raise CapacityExceeded("Se alcanzo el limite de sesiones activas.")
 
@@ -129,6 +131,17 @@ class SessionManager:
 
     def _is_expired(self, record: SessionRecord) -> bool:
         return _utcnow() - record.last_seen_at > self._idle_timeout
+
+    def _evict_oldest_inactive_locked(self) -> None:
+        candidates = [
+            record for record in self._sessions.values()
+            if record.session.status != "running"
+        ]
+        if not candidates:
+            return
+        oldest = min(candidates, key=lambda record: record.last_seen_at)
+        self._sessions.pop(oldest.session_id, None)
+        oldest.session.close()
 
 
 class SessionCleanupWorker:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 
-from flask import Blueprint, Response, current_app, jsonify, make_response, stream_with_context
+from flask import Blueprint, Response, current_app, jsonify, make_response, request, stream_with_context
 
 from simulador_ev3.web.errors import CapacityExceeded, InvalidPayload
 from simulador_ev3.web.routes.helpers import get_manager, json_body, require_session, request_token
@@ -17,24 +17,59 @@ bp = Blueprint("api_simulation", __name__, url_prefix="/api")
 @bp.post("/sessions")
 def create_session():
     manager = get_manager()
-    session_id, owner_token = manager.create_session()
+    data = json_body()
+    if data.get("reuse", False):
+        session_id = request.cookies.get("ev3_session_id")
+        owner_token = request_token()
+        if session_id and owner_token:
+            try:
+                session = manager.get_session(session_id, owner_token)
+                response = _session_response(
+                    session_id=session_id,
+                    owner_token=owner_token,
+                    status=session.status,
+                )
+                return response, 200
+            except Exception:  # noqa: BLE001
+                pass
+
+    session_id, owner_token = manager.create_session(evict_inactive=True)
+    return (
+        _session_response(
+            session_id=session_id,
+            owner_token=owner_token,
+            status="created",
+        ),
+        201,
+    )
+
+
+def _session_response(*, session_id: str, owner_token: str, status: str):
     response = make_response(
         jsonify(
             {
                 "session_id": session_id,
                 "owner_token": owner_token,
-                "status": "created",
+                "status": status,
             }
         )
     )
+    cookie_secure = bool(current_app.config.get("SESSION_COOKIE_SECURE", False))
     response.set_cookie(
         "ev3_owner_token",
         owner_token,
         httponly=True,
         samesite="Lax",
-        secure=bool(current_app.config.get("SESSION_COOKIE_SECURE", False)),
+        secure=cookie_secure,
     )
-    return response, 201
+    response.set_cookie(
+        "ev3_session_id",
+        session_id,
+        httponly=True,
+        samesite="Lax",
+        secure=cookie_secure,
+    )
+    return response
 
 
 @bp.delete("/sessions/<session_id>")

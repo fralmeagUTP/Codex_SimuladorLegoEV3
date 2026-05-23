@@ -20,6 +20,8 @@ SUPPORTED_ROTATIONS = (0, 90, 180, 270)
 MAX_WORLD_PIXELS = 5120
 MAX_WORLD_CELLS = MAX_WORLD_PIXELS // GRID_SIZE_PX
 MAX_WORLD_MM = MAX_WORLD_CELLS * CELL_SIZE_MM
+DEFAULT_WORLD_MM = 4000.0
+DEFAULT_WORLD_CELLS = int(DEFAULT_WORLD_MM / CELL_SIZE_MM)
 
 
 @dataclass(frozen=True)
@@ -229,8 +231,8 @@ class EditorWorldModel:
     """Formal world model for editor operations and persistence."""
 
     grid_size_px: int = GRID_SIZE_PX
-    world_width_cells: int = 20
-    world_height_cells: int = 20
+    world_width_cells: int = DEFAULT_WORLD_CELLS
+    world_height_cells: int = DEFAULT_WORLD_CELLS
     schema_version: int = SCHEMA_VERSION
     placements: list[Placement] = field(default_factory=list)
 
@@ -270,8 +272,8 @@ class EditorWorldModel:
                     placements.append(Placement.from_dict(item))
         return EditorWorldModel(
             grid_size_px=int(data.get("grid_size_px", GRID_SIZE_PX)),
-            world_width_cells=int(data.get("world_width_cells", 20)),
-            world_height_cells=int(data.get("world_height_cells", 20)),
+            world_width_cells=int(data.get("world_width_cells", DEFAULT_WORLD_CELLS)),
+            world_height_cells=int(data.get("world_height_cells", DEFAULT_WORLD_CELLS)),
             schema_version=int(data.get("schema_version", SCHEMA_VERSION)),
             placements=placements,
         )

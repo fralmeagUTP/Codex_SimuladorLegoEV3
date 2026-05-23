@@ -6,6 +6,7 @@ import json
 import re
 import tempfile
 import threading
+import time
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,8 @@ from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.domain.editor.world_editor_model import (
     ASSET_CATALOG,
     CELL_SIZE_MM,
+    DEFAULT_WORLD_CELLS,
+    DEFAULT_WORLD_MM,
     GRID_SIZE_PX,
     MAX_WORLD_MM,
     get_asset_spec,
@@ -45,14 +48,17 @@ class SimulationSession:
         self._latest_snapshot: dict[str, Any] | None = None
         self._latest_error: dict[str, Any] | None = None
         self._latest_debug: dict[str, Any] | None = None
+        self._last_snapshot_event_at = 0.0
+        snapshot_hz = float(self._config.get("WEB_SNAPSHOT_MAX_HZ", 12.0))
+        self._snapshot_event_interval_s = 0.0 if snapshot_hz <= 0 else 1.0 / snapshot_hz
         self._debug_breakpoints: set[int] = set()
         self._status = "created"
         self._loaded_world_name: str | None = None
         self._editor = WorldEditorService()
         self._service = SimulationService(
             config=SimEngineConfig(
-                world_width_mm=MAX_WORLD_MM,
-                world_height_mm=MAX_WORLD_MM,
+                world_width_mm=DEFAULT_WORLD_MM,
+                world_height_mm=DEFAULT_WORLD_MM,
             ),
             policy=ExecutionPolicy(max_runtime_s=max_runtime_s)
         )
@@ -134,15 +140,17 @@ class SimulationSession:
     def debug_continue(self) -> dict[str, Any]:
         with self._lock:
             self._service.debug_continue()
-            payload = {"status": self._status, "action": "continue"}
-            self._push_event("debug", {"type": "command", **payload})
+            payload = {"type": "command", "status": self._status, "action": "continue"}
+            self._latest_debug = payload
+            self._push_event("debug", payload)
             return payload
 
     def debug_step(self) -> dict[str, Any]:
         with self._lock:
             self._service.debug_step()
-            payload = {"status": self._status, "action": "step"}
-            self._push_event("debug", {"type": "command", **payload})
+            payload = {"type": "command", "status": self._status, "action": "step"}
+            self._latest_debug = payload
+            self._push_event("debug", payload)
             return payload
 
     def set_robot_start(
@@ -153,6 +161,7 @@ class SimulationSession:
     ) -> dict[str, Any]:
         with self._lock:
             self._service.set_robot_start(float(x_mm), float(y_mm), theta_deg)
+            self._latest_snapshot = None
             return self.summary()
 
     def load_world_name(self, name: str) -> dict[str, Any]:
@@ -163,6 +172,7 @@ class SimulationSession:
             raise InvalidPayload("Mundo no encontrado.")
         with self._lock:
             self._service.load_world_file(path)
+            self._sync_editor_from_world_file(path)
             self._loaded_world_name = name
             self._status = "ready" if self._status == "created" else self._status
             self._push_event("world", self.current_world())
@@ -184,9 +194,18 @@ class SimulationSession:
             tmp_path = Path(fh.name)
         with self._lock:
             self._service.load_world_file(tmp_path)
+            self._sync_editor_from_world_file(tmp_path)
             self._loaded_world_name = None
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
+
+    def _sync_editor_from_world_file(self, path: Path) -> None:
+        """Keep editor_spec aligned with the currently loaded simulation world file."""
+        try:
+            self._editor.load_json(path)
+        except Exception:  # noqa: BLE001
+            # Some legacy worlds have no editor metadata; keep current editor state.
+            pass
 
     def snapshot_response(self) -> dict[str, Any]:
         with self._lock:
@@ -203,7 +222,11 @@ class SimulationSession:
                 "debug": self._latest_debug,
             }
 
-    def create_editor_world(self, width_cells: int = 20, height_cells: int = 20) -> dict[str, Any]:
+    def create_editor_world(
+        self,
+        width_cells: int = DEFAULT_WORLD_CELLS,
+        height_cells: int = DEFAULT_WORLD_CELLS,
+    ) -> dict[str, Any]:
         with self._lock:
             try:
                 self._editor.reset_formal_world(int(width_cells), int(height_cells))
@@ -402,7 +425,10 @@ class SimulationSession:
         data = dto.to_dict()
         with self._lock:
             self._latest_snapshot = data
-            self._push_event("snapshot", data)
+            now = time.monotonic()
+            if now - self._last_snapshot_event_at >= self._snapshot_event_interval_s:
+                self._last_snapshot_event_at = now
+                self._push_event("snapshot", data)
 
     def _on_error(self, payload: dict[str, Any]) -> None:
         with self._lock:

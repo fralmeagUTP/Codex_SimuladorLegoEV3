@@ -40,6 +40,7 @@ from simulador_ev3.domain.world.world_model import WorldModel
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.domain.editor.world_editor_model import (
     CELL_SIZE_MM,
+    DEFAULT_WORLD_CELLS,
     GRID_SIZE_PX,
     MAX_WORLD_MM,
     MAX_WORLD_PIXELS,
@@ -211,14 +212,46 @@ class SimulationService:
         src = Path(path)
         try:
             raw = json.loads(src.read_text(encoding="utf-8"))
-            if isinstance(raw, dict) and isinstance(raw.get("editor_spec"), dict):
-                svc = WorldEditorService()
-                svc.load_json(src)
-                robot_start = self._extract_robot_start_from_editor_spec(raw["editor_spec"])
-                return svc.to_world_model(), robot_start
+            if isinstance(raw, dict):
+                if isinstance(raw.get("editor_spec"), dict):
+                    svc = WorldEditorService()
+                    svc.load_json(src)
+                    self._normalize_loaded_world_size_for_simulation(svc)
+                    robot_start = self._extract_robot_start_from_editor_spec(raw["editor_spec"])
+                    return svc.to_world_model(), robot_start
+
+                if all(key in raw for key in ("schema_version", "world_width_cells", "world_height_cells", "placements")):
+                    svc = WorldEditorService()
+                    svc._formal_world = svc.load(json.dumps(raw, ensure_ascii=False))
+                    self._normalize_loaded_world_size_for_simulation(svc)
+                    robot_start = self._extract_robot_start_from_editor_spec(raw)
+                    return svc.to_world_model(), robot_start
+
+                if isinstance(raw.get("editor_objects"), dict):
+                    svc = WorldEditorService()
+                    svc.from_editor_dict(raw["editor_objects"])
+                    self._normalize_loaded_world_size_for_simulation(svc)
+                    return svc.to_world_model(), None
+
+                if all(key in raw for key in ("world", "walls", "lines", "zones")):
+                    svc = WorldEditorService()
+                    svc.from_editor_dict(raw)
+                    self._normalize_loaded_world_size_for_simulation(svc)
+                    return svc.to_world_model(), None
         except Exception:  # noqa: BLE001
             pass
         return WorldRepository.load(src), None
+
+    def _normalize_loaded_world_size_for_simulation(self, svc: WorldEditorService) -> None:
+        """Use the current default simulation size for legacy oversized editor worlds."""
+
+        world = svc.current_formal_world()
+        if (
+            world.world_width_cells > DEFAULT_WORLD_CELLS
+            or world.world_height_cells > DEFAULT_WORLD_CELLS
+        ):
+            world.world_width_cells = DEFAULT_WORLD_CELLS
+            world.world_height_cells = DEFAULT_WORLD_CELLS
 
     def _extract_robot_start_from_editor_spec(
         self, editor_spec: dict

@@ -1,14 +1,13 @@
 # Simulador EV3 Pybricks
 
-Version actual: 1.3.0
+Version actual: 1.3.1
 
 Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyecto incluye aplicacion de escritorio Tkinter y aplicacion web Flask para ejecutar scripts, editar mundos 2D y visualizar telemetria del robot.
 
 ## Estado del repositorio
 
 - Rama publicada: `main`
-- Release/tag publicado: `1.3`
-- Commit de release: `d29daed`
+- Version objetivo en GitHub: `1.3.1`
 - Interfaz web: incluida desde la version `1.3.0`
 - Interfaz escritorio Tkinter: mantenida
 

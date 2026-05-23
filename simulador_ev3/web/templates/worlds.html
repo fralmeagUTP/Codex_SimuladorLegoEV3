@@ -15,7 +15,6 @@
     <section class="world-editor-toolbar">
       <button id="newWorldBtn">Nuevo</button>
       <button id="openWorldBtn">Abrir</button>
-      <button id="saveWorldBtn">Guardar</button>
       <button id="exportWorldBtn">Guardar como</button>
       <span class="toolbar-separator"></span>
       <button id="moveAssetBtn">Seleccionar</button>
@@ -26,22 +25,22 @@
       <button id="applyWorldBtn">Aplicar</button>
       <span class="toolbar-separator"></span>
       <label for="assetSelect" class="visually-hidden">Asset</label>
-      <select id="assetSelect"></select>
+      <select id="assetSelect" class="hidden" aria-hidden="true"></select>
       <div id="assetPalette" class="asset-palette"></div>
       <input id="importWorldInput" class="hidden" type="file" accept="application/json,.json">
     </section>
 
     <section class="world-size-bar">
       <label for="worldWidthInput">Ancho (celdas):</label>
-      <input id="worldWidthInput" type="number" min="1" max="160" value="160">
+      <input id="worldWidthInput" type="number" min="1" max="160" value="40">
       <label for="worldHeightInput">Alto (celdas):</label>
-      <input id="worldHeightInput" type="number" min="1" max="160" value="160">
+      <input id="worldHeightInput" type="number" min="1" max="160" value="40">
       <button id="applyWorldSizeBtn">Aplicar tamano</button>
       <label for="robotThetaInput">Theta robot:</label>
       <input id="robotThetaInput" type="number" value="0" step="15" min="0" max="359">
       <button id="placeRobotStartBtn">Colocar robot</button>
       <button id="clearRobotStartBtn">Limpiar marca</button>
-      <input id="saveWorldName" type="text" placeholder="nombre_mundo">
+      <span class="world-name-readout">Mundo: <span id="worldNameLabel">sin nombre</span></span>
       <a id="simulateSavedWorldLink" class="action-link hidden" href="/">Simular mundo guardado</a>
     </section>
 
@@ -78,7 +77,7 @@
   </section>
 </main>
 
-<script src="{{ url_for('static', filename='js/api.js') }}"></script>
-<script src="{{ url_for('static', filename='js/canvas_world.js') }}"></script>
-<script src="{{ url_for('static', filename='js/world_editor_app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/api.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/canvas_world.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/world_editor_app.js', v=asset_version) }}"></script>
 {% endblock %}

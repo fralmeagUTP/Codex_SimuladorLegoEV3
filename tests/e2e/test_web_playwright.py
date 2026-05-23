@@ -118,6 +118,53 @@ def test_simulation_page_runs_default_script(page, live_web_app, expect):
     expect(page.locator("#telemetry")).to_contain_text("Tick", timeout=5000)
 
 
+def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    expect(page.locator("#runBtn")).to_be_enabled()
+    expect(page.locator("#debugRunBtn")).to_be_enabled()
+    expect(page.locator("#debugStepBtn")).to_be_enabled()
+    expect(page.locator("#pauseBtn")).to_be_disabled()
+    expect(page.locator("#resumeBtn")).to_be_disabled()
+    expect(page.locator("#stopBtn")).to_be_disabled()
+    expect(page.locator("#resetBtn")).to_be_disabled()
+    expect(page.locator("#placeRobotStartBtn")).to_be_enabled()
+
+    page.locator("#codeEditor").fill(
+        "from pybricks.tools import wait\n"
+        "while True:\n"
+        "    wait(100)\n"
+    )
+    page.locator("#runBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("running", timeout=5000)
+    expect(page.locator("#runBtn")).to_be_disabled()
+    expect(page.locator("#debugRunBtn")).to_be_disabled()
+    expect(page.locator("#pauseBtn")).to_be_enabled()
+    expect(page.locator("#resumeBtn")).to_be_disabled()
+    expect(page.locator("#stopBtn")).to_be_enabled()
+    expect(page.locator("#placeRobotStartBtn")).to_be_disabled()
+
+    page.locator("#pauseBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("paused", timeout=5000)
+    expect(page.locator("#pauseBtn")).to_be_disabled()
+    expect(page.locator("#resumeBtn")).to_be_enabled()
+    expect(page.locator("#debugContinueBtn")).to_be_enabled()
+    expect(page.locator("#debugStepBtn")).to_be_enabled()
+
+    page.locator("#resumeBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text("running", timeout=5000)
+
+    page.locator("#stopBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text("stopped", timeout=5000)
+    expect(page.locator("#runBtn")).to_be_enabled()
+    expect(page.locator("#pauseBtn")).to_be_disabled()
+    expect(page.locator("#resumeBtn")).to_be_disabled()
+    expect(page.locator("#resetBtn")).to_be_enabled()
+    expect(page.locator("#placeRobotStartBtn")).to_be_enabled()
+
+
 def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
 
@@ -129,12 +176,12 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
     expect(page.locator("#worldsMenu")).to_contain_text("menu_world.json")
     page.locator(".menu-trigger", has_text="Mundos").hover()
     page.locator("#worldsMenu button", has_text="menu_world.json").click()
-    expect(page.locator("#worldSelect")).to_have_value("menu_world.json")
+    expect(page.locator("#statusWorld")).to_have_text("menu_world.json")
 
     page.locator(".menu-trigger", has_text="Escenarios").hover()
     page.locator("#scenariosMenu button[data-scenario='line']").click()
     expect(page.locator("#codeEditor")).to_have_value(re.compile("linea"), timeout=5000)
-    expect(page.locator("#worldSelect")).to_have_value("01_linea_negra.json")
+    expect(page.locator("#statusWorld")).to_have_text("01_linea_negra.json")
     expect(page.locator("#console")).to_contain_text("Escenario cargado: Seguidor de linea")
 
     page.locator(".menu-trigger", has_text="Ayuda").hover()
@@ -160,6 +207,42 @@ def test_simulation_gutter_breakpoints_and_robot_start(page, live_web_app, expec
     expect(page.locator("#console")).to_contain_text("Pose inicial actualizada.")
 
 
+def test_debug_breakpoint_pause_enables_debug_controls(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    page.locator("#codeEditor").fill(
+        "from pybricks.tools import wait\n"
+        "x = 1\n"
+        "wait(2000)\n"
+        "x = 2\n"
+    )
+    page.locator("#breakpointsInput").fill("3")
+    page.locator("#debugRunBtn").click()
+
+    expect(page.locator("#debugState")).to_contain_text("pausado en linea 3", timeout=5000)
+    expect(page.locator(".gutter-line.current-debug-line")).to_have_attribute("data-line", "3")
+    expect(page.locator("#debugContinueBtn")).to_be_enabled()
+    expect(page.locator("#debugStepBtn")).to_be_enabled()
+    expect(page.locator("#pauseBtn")).to_be_disabled()
+
+    page.locator("#debugContinueBtn").click()
+    expect(page.locator("#debugState")).to_contain_text("debug continue")
+
+
+def test_loading_new_example_clears_stale_breakpoints(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    page.locator(".gutter-line[data-line='12']").click()
+    expect(page.locator("#breakpointsInput")).to_have_value("12")
+
+    page.locator(".menu-trigger", has_text="Ejemplos").hover()
+    page.locator("#examplesMenu button", has_text="menu_example.py").click()
+
+    expect(page.locator("#codeEditor")).to_have_value(re.compile("menu"))
+    expect(page.locator("#breakpointsInput")).to_have_value("")
+    expect(page.locator(".gutter-line.has-breakpoint")).to_have_count(0)
+
+
 def test_simulation_editor_auto_pairs_and_indents(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
 
@@ -172,6 +255,66 @@ def test_simulation_editor_auto_pairs_and_indents(page, live_web_app, expect):
 
     expect(editor).to_have_value(re.compile(r"if True:\n    ev3\.screen\.print\(\)"))
     expect(page.locator("#editorGutter .gutter-line")).to_have_count(2)
+
+
+def test_simulation_editor_tabs_indent_and_outdent_without_losing_focus(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    editor = page.locator("#codeEditor")
+    editor.fill("if True:\nprint('x')\n")
+    page.evaluate(
+        """
+        () => {
+          const editor = document.getElementById("codeEditor");
+          const start = editor.value.indexOf("print");
+          editor.focus();
+          editor.setSelectionRange(start, start);
+        }
+        """
+    )
+
+    editor.press("Tab")
+    expect(editor).to_have_value("if True:\n    print('x')\n")
+    assert page.evaluate("document.activeElement.id") == "codeEditor"
+
+    editor.press("Shift+Tab")
+    expect(editor).to_have_value("if True:\nprint('x')\n")
+    assert page.evaluate("document.activeElement.id") == "codeEditor"
+
+    editor.fill("a = 1\nb = 2\n")
+    page.evaluate(
+        """
+        () => {
+          const editor = document.getElementById("codeEditor");
+          editor.focus();
+          editor.setSelectionRange(0, editor.value.length);
+        }
+        """
+    )
+    editor.press("Tab")
+    expect(editor).to_have_value("    a = 1\n    b = 2\n")
+    editor.press("Shift+Tab")
+    expect(editor).to_have_value("a = 1\nb = 2\n")
+
+
+def test_simulation_editor_wraps_selected_text_with_pairs(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    editor = page.locator("#codeEditor")
+    editor.fill("ev3.screen.print")
+    page.evaluate(
+        """
+        () => {
+          const editor = document.getElementById("codeEditor");
+          editor.focus();
+          editor.setSelectionRange(0, editor.value.length);
+        }
+        """
+    )
+    editor.press("(")
+
+    expect(editor).to_have_value("(ev3.screen.print)")
+    assert page.evaluate("document.activeElement.id") == "codeEditor"
 
 
 def test_simulation_editor_autocomplete_pybricks_context(page, live_web_app, expect):
@@ -193,6 +336,21 @@ def test_simulation_editor_autocomplete_pybricks_context(page, live_web_app, exp
     expect(editor).to_have_value(re.compile(r"ev3\.screen\.print$"))
 
 
+def test_simulation_editor_autocomplete_accepts_tab_without_leaving_editor(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    editor = page.locator("#codeEditor")
+    editor.fill("from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.")
+    editor.press("Control+Space")
+
+    expect(page.locator("#autocompletePopup")).to_be_visible()
+    editor.press("Tab")
+
+    expect(editor).to_have_value(re.compile(r"ev3\.screen$"))
+    expect(page.locator("#autocompletePopup")).to_be_hidden()
+    assert page.evaluate("document.activeElement.id") == "codeEditor"
+
+
 def test_simulation_editor_highlights_python_syntax(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
 
@@ -206,6 +364,90 @@ def test_simulation_editor_highlights_python_syntax(page, live_web_app, expect):
     expect(page.locator("#syntaxHighlight .syntax-builtin", has_text="EV3Brick").first).to_be_visible()
     expect(page.locator("#syntaxHighlight .syntax-string", has_text="'hola'")).to_be_visible()
     expect(page.locator("#syntaxHighlight .syntax-comment", has_text="# comentario")).to_be_visible()
+
+
+def test_simulation_editor_scroll_synchronizes_highlight_and_gutter(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    long_line = "valor = '" + ("x" * 220) + "'"
+    page.locator("#codeEditor").fill("\n".join([f"linea_{index} = {index}" for index in range(40)]) + f"\n{long_line}")
+    page.evaluate(
+        """
+        () => {
+          const editor = document.getElementById("codeEditor");
+          editor.scrollTop = 180;
+          editor.scrollLeft = 260;
+          editor.dispatchEvent(new Event("scroll"));
+        }
+        """
+    )
+
+    sync = page.evaluate(
+        """
+        () => {
+          const editor = document.getElementById("codeEditor");
+          const highlight = document.getElementById("syntaxHighlight");
+          const gutter = document.getElementById("editorGutter");
+          return {
+            editorTop: editor.scrollTop,
+            editorLeft: editor.scrollLeft,
+            highlightTop: highlight.scrollTop,
+            highlightLeft: highlight.scrollLeft,
+            gutterTop: gutter.scrollTop,
+            canScrollHorizontal: editor.scrollWidth > editor.clientWidth,
+          };
+        }
+        """
+    )
+
+    assert sync["canScrollHorizontal"]
+    assert sync["highlightTop"] == sync["editorTop"]
+    assert sync["highlightLeft"] == sync["editorLeft"]
+    assert sync["gutterTop"] == sync["editorTop"]
+
+
+def test_simulation_editor_last_line_can_be_clicked_at_line_end(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    lines = [f"linea_{index} = {index}" for index in range(1, 60)]
+    last_line = "wait(20)  # Iteracion de Control 50Hz"
+    source = "\n".join(lines + [last_line])
+    editor = page.locator("#codeEditor")
+    editor.fill(source)
+    editor.evaluate("(node) => { node.scrollTop = node.scrollHeight; }")
+
+    position = page.evaluate(
+        """
+        () => {
+          const editor = document.getElementById("codeEditor");
+          const style = window.getComputedStyle(editor);
+          const lineHeight = Number.parseFloat(style.lineHeight);
+          const paddingTop = Number.parseFloat(style.paddingTop);
+          const paddingLeft = Number.parseFloat(style.paddingLeft);
+          const paddingBottom = Number.parseFloat(style.paddingBottom);
+          const lines = editor.value.split("\\n");
+          const context = document.createElement("canvas").getContext("2d");
+          context.font = `${style.fontSize} ${style.fontFamily}`;
+          const textWidth = context.measureText(lines.at(-1)).width;
+          const lineTop = paddingTop + (lines.length - 1) * lineHeight - editor.scrollTop;
+          const rect = editor.getBoundingClientRect();
+          return {
+            x: rect.left + paddingLeft + textWidth + 4,
+            y: rect.top + lineTop + lineHeight / 2,
+            freeBottom: editor.clientHeight - (lineTop + lineHeight),
+            paddingBottom,
+          };
+        }
+        """
+    )
+
+    assert position["paddingBottom"] >= 60
+    assert position["freeBottom"] >= 40
+    page.mouse.click(position["x"], position["y"])
+
+    assert page.evaluate("document.activeElement.id") == "codeEditor"
+    assert page.evaluate("document.getElementById('codeEditor').selectionStart") == len(source)
+    assert page.evaluate("document.getElementById('codeEditor').selectionEnd") == len(source)
 
 
 def test_simulation_brick_panel_shows_speaker_state(page, live_web_app, expect):
@@ -239,11 +481,10 @@ def test_world_editor_builds_valid_world_and_exposes_simulation_link(page, live_
     expect(page.locator("#selectedAsset")).to_contain_text("robot_ev3_32x32", timeout=5000)
     expect(page.locator("#validationStatus")).to_contain_text("Validacion", timeout=5000)
 
-    page.locator("#saveWorldName").fill("e2e_world")
-    page.locator("#saveWorldBtn").click()
+    page.locator("#exportWorldBtn").click()
 
-    expect(page.locator("#console")).to_contain_text("Mundo guardado: e2e_world.json")
-    expect(page.locator("#simulateSavedWorldLink")).to_be_visible()
+    expect(page.locator("#console")).to_contain_text("Mundo")
+    expect(page.locator("#console")).to_contain_text(".json")
 
 
 def test_world_editor_updates_selected_asset_properties(page, live_web_app, expect):

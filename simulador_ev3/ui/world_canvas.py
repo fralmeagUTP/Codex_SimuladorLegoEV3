@@ -101,9 +101,9 @@ _ROBOT_DPAD = "#AEB4BD"
 _ROBOT_STRIP = "#A7ADB6"
 _ROBOT_PORT_RED = "#C62828"
 
-# Tamaño por defecto del visor cuando no llega un mundo explicito: 16 m x 16 m.
-_DEFAULT_WORLD_W = 16000.0
-_DEFAULT_WORLD_H = 16000.0
+# Tamano por defecto del visor cuando no llega un mundo explicito: 4 m x 4 m.
+_DEFAULT_WORLD_W = 4000.0
+_DEFAULT_WORLD_H = 4000.0
 
 # Tamaño visual del robot: cerebro EV3 a escala real, 11 cm x 7 cm.
 _ROBOT_W_MM = _ROBOT_WIDTH_MM

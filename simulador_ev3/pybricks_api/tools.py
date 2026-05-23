@@ -28,9 +28,14 @@ def wait(time_ms: float) -> None:
     remaining_s = max(0.0, float(time_ms)) / 1000.0
     interval    = 0.01   # 10 ms
 
-    while remaining_s > 0 and not ctx.stop_event.is_set():
+    if ctx.stop_event.is_set():
+        raise SystemExit
+
+    while remaining_s > 0:
         sleep_s      = min(remaining_s, interval)
         _time.sleep(sleep_s)
+        if ctx.stop_event.is_set():
+            raise SystemExit
         remaining_s -= sleep_s
 
 

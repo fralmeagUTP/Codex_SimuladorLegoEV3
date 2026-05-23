@@ -33,7 +33,7 @@ from typing import Optional
 
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.core.simulation_engine import SimEngineConfig
-from simulador_ev3.domain.editor.world_editor_model import MAX_WORLD_MM
+from simulador_ev3.domain.editor.world_editor_model import DEFAULT_WORLD_MM
 from simulador_ev3.examples.example_catalog import ExampleCatalog
 from simulador_ev3.ui.world_canvas   import WorldCanvas
 from simulador_ev3.ui.editor_panel  import EditorPanel
@@ -80,8 +80,8 @@ class EV3SimulatorApp(tk.Tk):
 
         # Servicio de simulaciÃ³n (capa de aplicaciÃ³n)
         effective_cfg = world_config or SimEngineConfig(
-            world_width_mm=MAX_WORLD_MM,
-            world_height_mm=MAX_WORLD_MM,
+            world_width_mm=DEFAULT_WORLD_MM,
+            world_height_mm=DEFAULT_WORLD_MM,
         )
         self._service = SimulationService(config=effective_cfg)
         self._service.set_snapshot_callback(self._on_snapshot)

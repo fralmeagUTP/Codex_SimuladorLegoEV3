@@ -7,17 +7,37 @@
   const autocompletePopup = document.getElementById("autocompletePopup");
   const statusEl = document.getElementById("sessionStatus");
   const consoleEl = document.getElementById("console");
-  const exampleSelect = document.getElementById("exampleSelect");
-  const worldSelect = document.getElementById("worldSelect");
   const statusWorld = document.getElementById("statusWorld");
+  let statusProgram = document.getElementById("statusProgram");
+  const statusSavePath = document.getElementById("statusSavePath");
   const examplesMenu = document.getElementById("examplesMenu");
   const worldsMenu = document.getElementById("worldsMenu");
   const scriptFileInput = document.getElementById("scriptFileInput");
+  const worldFileInput = document.getElementById("worldFileInput");
   const placeRobotStartBtn = document.getElementById("placeRobotStartBtn");
   const robotThetaInput = document.getElementById("robotThetaInput");
   const robotStartReadout = document.getElementById("robotStartReadout");
   const breakpointsInput = document.getElementById("breakpointsInput");
   const debugState = document.getElementById("debugState");
+  const runBtn = document.getElementById("runBtn");
+  const stopBtn = document.getElementById("stopBtn");
+  const pauseBtn = document.getElementById("pauseBtn");
+  const resumeBtn = document.getElementById("resumeBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const debugRunBtn = document.getElementById("debugRunBtn");
+  const debugStepBtn = document.getElementById("debugStepBtn");
+  const debugContinueBtn = document.getElementById("debugContinueBtn");
+
+  if (!statusProgram) {
+    const editorShell = document.querySelector(".code-editor-shell");
+    const strip = document.createElement("div");
+    strip.className = "program-name-strip";
+    strip.innerHTML = 'Programa actual: <span id="statusProgram">editor_actual.py</span>';
+    if (editorShell?.parentElement) {
+      editorShell.parentElement.insertBefore(strip, consoleEl || null);
+      statusProgram = strip.querySelector("#statusProgram");
+    }
+  }
   const defaultScript = codeEditor.value;
   const scenarios = {
     line: {
@@ -85,24 +105,77 @@
   let currentStatus = "created";
   let gutterBreakpoints = new Set();
   let currentDebugLine = null;
+  let debugPaused = false;
   let robotStartMode = false;
   let robotStart = null;
   let robotStartPreview = null;
+  let showRobotStartMarker = false;
   let latestSnapshot = null;
   let timer = null;
   let stream = null;
   let usingPollingFallback = false;
   let recoveringSession = false;
+  let recoveryFailures = 0;
   let autocompleteItems = [];
   let autocompleteSelected = 0;
+  let loadedWorldNames = new Set();
+  let currentScriptName = "editor_actual.py";
 
   function log(message) {
     consoleEl.textContent = message || "";
   }
 
+  function setScriptName(name) {
+    if (!name) return;
+    currentScriptName = name;
+    if (statusProgram) statusProgram.textContent = currentScriptName;
+  }
+
+  function setSavePath(text) {
+    if (statusSavePath) statusSavePath.textContent = text || "sin guardar";
+  }
+
   function setStatus(status) {
     currentStatus = status || currentStatus;
     statusEl.textContent = status;
+    if (["created", "ready", "stopped", "error"].includes(currentStatus)) {
+      debugPaused = false;
+    }
+    updateControlStates();
+  }
+
+  function updateControlStates() {
+    const status = currentStatus || "created";
+    const isRunning = status === "running";
+    const isPaused = status === "paused";
+    const isBusy = isRunning || isPaused;
+    const canStart = ["created", "ready", "stopped", "error"].includes(status);
+
+    runBtn.disabled = !canStart;
+    debugRunBtn.disabled = !canStart;
+    debugStepBtn.disabled = !(canStart || isPaused || debugPaused);
+    debugContinueBtn.disabled = !(isPaused || debugPaused);
+    pauseBtn.disabled = !isRunning || debugPaused;
+    resumeBtn.disabled = !isPaused;
+    stopBtn.disabled = !isBusy;
+    resetBtn.disabled = status === "created";
+    placeRobotStartBtn.disabled = isBusy;
+    robotThetaInput.disabled = isBusy;
+    breakpointsInput.disabled = isRunning;
+  }
+
+  function clearDebugState() {
+    debugPaused = false;
+    currentDebugLine = null;
+    setDebugState("");
+    renderEditorGutter();
+    updateControlStates();
+  }
+
+  function clearBreakpoints() {
+    gutterBreakpoints.clear();
+    updateBreakpointsInput();
+    renderEditorGutter();
   }
 
   function setDebugState(message) {
@@ -142,10 +215,16 @@
   function handleDebug(payload) {
     const message = formatDebugEvent(payload);
     if (message) setDebugState(message);
+    if (payload?.type === "paused") {
+      debugPaused = true;
+    } else if (payload?.type === "command") {
+      debugPaused = false;
+    }
     if (payload?.line) {
       currentDebugLine = payload.line;
       renderEditorGutter();
     }
+    updateControlStates();
   }
 
   function lineCount() {
@@ -429,6 +508,80 @@
     return true;
   }
 
+  function handleEditorTab(event) {
+    if (event.key !== "Tab" || event.ctrlKey || event.altKey || event.metaKey) return false;
+    event.preventDefault();
+    hideAutocomplete();
+    if (event.shiftKey) {
+      unindentSelection();
+    } else {
+      indentSelection();
+    }
+    renderEditorGutter();
+    updateSyntaxHighlight();
+    return true;
+  }
+
+  function selectedLineRange() {
+    const value = codeEditor.value;
+    const start = codeEditor.selectionStart;
+    const end = codeEditor.selectionEnd;
+    const lineStart = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    let lineEnd = end;
+    if (end > start && value[end - 1] === "\n") {
+      lineEnd = end - 1;
+    }
+    const nextNewline = value.indexOf("\n", lineEnd);
+    return {
+      start,
+      end,
+      lineStart,
+      lineEnd: nextNewline === -1 ? value.length : nextNewline,
+    };
+  }
+
+  function indentSelection() {
+    const value = codeEditor.value;
+    const range = selectedLineRange();
+    if (range.start === range.end) {
+      codeEditor.setRangeText("    ", range.start, range.end, "end");
+      return;
+    }
+    const block = value.slice(range.lineStart, range.lineEnd);
+    const indented = block.split("\n").map((line) => `    ${line}`).join("\n");
+    codeEditor.setRangeText(indented, range.lineStart, range.lineEnd, "select");
+    codeEditor.selectionStart = range.start + 4;
+    codeEditor.selectionEnd = range.end + (indented.length - block.length);
+  }
+
+  function unindentSelection() {
+    const value = codeEditor.value;
+    const range = selectedLineRange();
+    if (range.start === range.end) {
+      const lineStart = range.lineStart;
+      const cursor = range.start;
+      const beforeCursor = value.slice(lineStart, cursor);
+      const removable = beforeCursor.match(/ {1,4}$/)?.[0].length || 0;
+      if (!removable) return;
+      codeEditor.setRangeText("", cursor - removable, cursor, "end");
+      return;
+    }
+    const block = value.slice(range.lineStart, range.lineEnd);
+    let removedBeforeSelection = 0;
+    let totalRemoved = 0;
+    let cursor = range.lineStart;
+    const unindented = block.split("\n").map((line) => {
+      const remove = line.startsWith("    ") ? 4 : (line.match(/^ {1,3}/)?.[0].length || 0);
+      if (cursor < range.start) removedBeforeSelection += remove;
+      totalRemoved += remove;
+      cursor += line.length + 1;
+      return line.slice(remove);
+    }).join("\n");
+    codeEditor.setRangeText(unindented, range.lineStart, range.lineEnd, "select");
+    codeEditor.selectionStart = Math.max(range.lineStart, range.start - removedBeforeSelection);
+    codeEditor.selectionEnd = Math.max(codeEditor.selectionStart, range.end - totalRemoved);
+  }
+
   function handleAutocompleteKeys(event) {
     if ((event.ctrlKey || event.metaKey) && event.code === "Space") {
       event.preventDefault();
@@ -460,7 +613,7 @@
   }
 
   async function init() {
-    const session = await api.createSession();
+    const session = await api.createSession({ reuse: true });
     setStatus(session.status);
     await loadExamples();
     await loadWorlds();
@@ -470,13 +623,8 @@
 
   async function loadExamples() {
     const data = await api.listExamples();
-    exampleSelect.innerHTML = "<option value=''>Seleccionar ejemplo</option>";
     examplesMenu.innerHTML = "";
     for (const item of data.examples) {
-      const option = document.createElement("option");
-      option.value = item.name;
-      option.textContent = item.name;
-      exampleSelect.appendChild(option);
       examplesMenu.appendChild(menuButton(item.name, () => loadExampleByName(item.name)));
     }
     if (!data.examples.length) {
@@ -486,13 +634,13 @@
 
   async function loadWorlds() {
     const data = await api.listWorlds();
-    worldSelect.innerHTML = "<option value=''>Seleccionar mundo</option>";
+    loadedWorldNames = new Set(data.worlds.map((item) => item.name));
     worldsMenu.innerHTML = '<a href="/worlds">Editor de mundos</a>';
+    worldsMenu.appendChild(menuButton("Cargar mundo desde tu equipo", () => {
+      if (worldFileInput) worldFileInput.value = "";
+      worldFileInput?.click();
+    }));
     for (const item of data.worlds) {
-      const option = document.createElement("option");
-      option.value = item.name;
-      option.textContent = item.name;
-      worldSelect.appendChild(option);
       worldsMenu.appendChild(menuButton(item.name, () => loadWorldByName(item.name)));
     }
     if (!data.worlds.length) {
@@ -515,13 +663,11 @@
     const params = new URLSearchParams(window.location.search);
     const worldName = params.get("world");
     if (!worldName) return;
-    const option = Array.from(worldSelect.options).find((item) => item.value === worldName);
-    if (!option) {
+    if (!loadedWorldNames.has(worldName)) {
       log(`Mundo no encontrado: ${worldName}`);
       return;
     }
-    worldSelect.value = worldName;
-    await loadSelectedWorld();
+    await loadWorldByName(worldName);
   }
 
   async function refreshSnapshot() {
@@ -531,6 +677,9 @@
       setStatus(data.status);
       if (data.error) {
         log(`${data.error.error || "Error"}\n${data.error.traceback || ""}`);
+      }
+      if (data.debug) {
+        handleDebug(data.debug);
       }
       renderSnapshot(data.snapshot);
     } catch (err) {
@@ -543,33 +692,13 @@
   }
 
   function startSnapshotStream() {
-    if (stream || !window.EventSource) {
-      startPollingFallback();
-      return;
-    }
-    stream = api.openSnapshotStream({
-      snapshot: renderSnapshot,
-      status: (payload) => setStatus(payload.status || ""),
-      debug: handleDebug,
-      error: (payload) => log(`${payload.error || "Error"}\n${payload.traceback || ""}`),
-      world: (payload) => {
-        currentWorld = payload;
-        redrawCanvas();
-      },
-      connectionError: () => {
-        if (stream) {
-          stream.close();
-          stream = null;
-        }
-        startPollingFallback();
-      },
-    });
+    startPollingFallback();
   }
 
   function startPollingFallback() {
     if (usingPollingFallback) return;
     usingPollingFallback = true;
-    timer = setInterval(refreshSnapshot, 120);
+    timer = setInterval(refreshSnapshot, 250);
     refreshSnapshot();
   }
 
@@ -595,12 +724,18 @@
     try {
       stopLiveUpdates();
       const session = await api.createSession();
+      recoveryFailures = 0;
       setStatus(session.status);
       currentWorld = null;
       startSnapshotStream();
       log("Sesion recreada.");
     } catch (err) {
       log(err.message);
+      recoveryFailures += 1;
+      if (err?.status === 429 || recoveryFailures >= 3) {
+        stopLiveUpdates();
+        setStatus("error");
+      }
     } finally {
       recoveringSession = false;
     }
@@ -615,7 +750,7 @@
 
   function redrawCanvas() {
     window.EV3Canvas.draw(canvas, latestSnapshot, currentWorld, {
-      robotStart: robotStartMode ? robotStartPreview : robotStart,
+      robotStart: robotStartMode ? robotStartPreview : (showRobotStartMarker ? robotStart : null),
     });
   }
 
@@ -670,10 +805,11 @@
     }
   }
 
-  document.getElementById("runBtn").addEventListener("click", async () => {
+  runBtn.addEventListener("click", async () => {
     try {
       await api.loadScript(codeEditor.value);
       const result = await api.start();
+      hideRobotStartMarker();
       setStatus(result.status);
       log("");
     } catch (err) {
@@ -681,69 +817,75 @@
     }
   });
 
-  document.getElementById("debugRunBtn").addEventListener("click", async () => {
+  debugRunBtn.addEventListener("click", async () => {
     try {
       await api.loadScript(codeEditor.value);
       const result = await api.setBreakpoints(parseBreakpoints());
       setDebugState(`breakpoints: ${result.breakpoints.join(", ") || "ninguno"}`);
       setStatus((await api.start({ debug: true })).status);
+      hideRobotStartMarker();
       log("");
     } catch (err) {
       log(err.message);
     }
   });
 
-  document.getElementById("debugStepBtn").addEventListener("click", async () => {
+  debugStepBtn.addEventListener("click", async () => {
     try {
       if (!["running", "paused"].includes(currentStatus)) {
         await api.loadScript(codeEditor.value);
         await api.setBreakpoints(parseBreakpoints());
         setStatus((await api.start({ debug: true, step_mode: true })).status);
+        hideRobotStartMarker();
       } else {
-        await api.debugStep();
+        handleDebug(await api.debugStep());
       }
     } catch (err) {
       log(err.message);
     }
   });
 
-  document.getElementById("debugContinueBtn").addEventListener("click", async () => {
+  debugContinueBtn.addEventListener("click", async () => {
     try {
-      await api.debugContinue();
+      handleDebug(await api.debugContinue());
     } catch (err) {
       log(err.message);
     }
   });
 
-  document.getElementById("pauseBtn").addEventListener("click", async () => {
+  pauseBtn.addEventListener("click", async () => {
     try { setStatus((await api.pause()).status); } catch (err) { log(err.message); }
   });
-  document.getElementById("resumeBtn").addEventListener("click", async () => {
+  resumeBtn.addEventListener("click", async () => {
     try { setStatus((await api.resume()).status); } catch (err) { log(err.message); }
   });
-  document.getElementById("stopBtn").addEventListener("click", async () => {
+  stopBtn.addEventListener("click", async () => {
     try { setStatus((await api.stop()).status); } catch (err) { log(err.message); }
   });
-  document.getElementById("resetBtn").addEventListener("click", async () => {
+  resetBtn.addEventListener("click", async () => {
     try {
-      setStatus((await api.reset()).status);
-      setDebugState("");
+      const result = await api.reset();
+      window.EV3Canvas.resetTrail();
+      latestSnapshot = null;
+      robotStart = null;
+      robotStartPreview = null;
+      showRobotStartMarker = false;
+      clearBreakpoints();
+      clearDebugState();
+      setStatus(result.status);
+      updateRobotStartReadout();
+      redrawCanvas();
     } catch (err) { log(err.message); }
-  });
-
-  exampleSelect.addEventListener("change", async () => {
-    if (!exampleSelect.value) return;
-    await loadExampleByName(exampleSelect.value);
   });
 
   async function loadExampleByName(name) {
     try {
       const data = await api.getExample(name);
       codeEditor.value = data.source;
-      exampleSelect.value = name;
-      currentDebugLine = null;
+      setScriptName(name);
+      clearBreakpoints();
+      clearDebugState();
       hideAutocomplete();
-      renderEditorGutter();
       updateSyntaxHighlight();
       log("");
     } catch (err) {
@@ -751,22 +893,13 @@
     }
   }
 
-  document.getElementById("loadWorldBtn").addEventListener("click", async () => {
-    await loadSelectedWorld();
-  });
-
-  async function loadSelectedWorld() {
-    if (!worldSelect.value) return;
-    await loadWorldByName(worldSelect.value);
-  }
-
   async function loadWorldByName(name) {
     try {
       const data = await api.loadWorld(name);
       currentWorld = data.world;
-      worldSelect.value = name;
       if (statusWorld) statusWorld.textContent = name;
       robotStart = null;
+      showRobotStartMarker = false;
       updateRobotStartReadout();
       log("");
     } catch (err) {
@@ -777,12 +910,21 @@
   function setRobotStartMode(enabled) {
     robotStartMode = enabled;
     placeRobotStartBtn.classList.toggle("tool-active", enabled);
+    if (enabled) showRobotStartMarker = true;
     if (enabled) {
       robotStartReadout.textContent = "Haz clic en el canvas para fijar la pose.";
       return;
     }
     robotStartPreview = null;
     updateRobotStartReadout();
+  }
+
+  function hideRobotStartMarker() {
+    robotStartMode = false;
+    robotStartPreview = null;
+    showRobotStartMarker = false;
+    placeRobotStartBtn.classList.remove("tool-active");
+    redrawCanvas();
   }
 
   function updateRobotStartReadout(point = null) {
@@ -803,6 +945,8 @@
       await api.setRobotStart(pose);
       robotStart = pose;
       robotStartPreview = null;
+      showRobotStartMarker = true;
+      window.EV3Canvas.resetTrail(pose);
       updateRobotStartReadout();
       setRobotStartMode(false);
       log("Pose inicial actualizada.");
@@ -824,35 +968,64 @@
     }
   }
 
-  function downloadScript() {
+  async function downloadScript() {
+    const suggestedName = (currentScriptName && currentScriptName.endsWith(".py"))
+      ? currentScriptName
+      : "ev3_script.py";
+
+    if (typeof window.showSaveFilePicker === "function") {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: "Python",
+              accept: {
+                "text/x-python": [".py"],
+                "text/plain": [".py"],
+              },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(codeEditor.value);
+        await writable.close();
+        setScriptName(handle.name || suggestedName);
+        setSavePath(handle.name || suggestedName);
+        log(`Script guardado: ${handle.name || suggestedName}. Ubicacion: seleccionada en el dialogo del sistema.`);
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          log("Guardado cancelado.");
+          return;
+        }
+      }
+    }
+
     const blob = new Blob([codeEditor.value], { type: "text/x-python;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "ev3_script.py";
+    link.download = suggestedName;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+    setSavePath("Descargas (navegador)");
+    log(`Script descargado: ${suggestedName}. Ubicacion: Descargas del navegador.`);
   }
 
   document.getElementById("newScriptMenuBtn").addEventListener("click", () => {
     codeEditor.value = defaultScript;
-    gutterBreakpoints.clear();
-    currentDebugLine = null;
+    setScriptName("editor_actual.py");
+    clearBreakpoints();
+    clearDebugState();
     hideAutocomplete();
-    updateBreakpointsInput();
-    renderEditorGutter();
     updateSyntaxHighlight();
-    setDebugState("");
     log("Nuevo script creado.");
   });
 
   document.getElementById("openScriptMenuBtn").addEventListener("click", () => {
-    scriptFileInput.click();
-  });
-
-  document.getElementById("openScriptMenuBtnTop")?.addEventListener("click", () => {
     scriptFileInput.click();
   });
 
@@ -861,9 +1034,10 @@
     if (!file) return;
     try {
       codeEditor.value = await file.text();
-      currentDebugLine = null;
+      setScriptName(file.name);
+      clearBreakpoints();
+      clearDebugState();
       hideAutocomplete();
-      renderEditorGutter();
       updateSyntaxHighlight();
       log(`Script cargado: ${file.name}`);
     } catch (err) {
@@ -873,8 +1047,29 @@
     }
   });
 
-  document.getElementById("saveScriptMenuBtn").addEventListener("click", downloadScript);
-  document.getElementById("saveScriptMenuBtnTop")?.addEventListener("click", downloadScript);
+  document.getElementById("saveScriptMenuBtn").addEventListener("click", () => {
+    void downloadScript();
+  });
+
+  worldFileInput?.addEventListener("change", async () => {
+    const [file] = worldFileInput.files || [];
+    if (!file) return;
+    try {
+      const data = await api.uploadWorld(file);
+      currentWorld = data.world || currentWorld;
+      if (statusWorld) statusWorld.textContent = data.loaded_world || file.name;
+      robotStart = null;
+      showRobotStartMarker = false;
+      updateRobotStartReadout();
+      await refreshSnapshot();
+      redrawCanvas();
+      log(`Mundo cargado: ${data.loaded_world || file.name}`);
+    } catch (err) {
+      log(err.message);
+    } finally {
+      worldFileInput.value = "";
+    }
+  });
 
   document.getElementById("aboutMenuBtn").addEventListener("click", () => {
     log("Simulador EV3 Web - migracion Flask del simulador Tkinter.");
@@ -939,7 +1134,7 @@
     updateSyntaxHighlight();
   });
   codeEditor.addEventListener("keydown", (event) => {
-    handleAutocompleteKeys(event) || handleEditorEnter(event) || handleEditorPairs(event);
+    handleAutocompleteKeys(event) || handleEditorTab(event) || handleEditorEnter(event) || handleEditorPairs(event);
   });
   codeEditor.addEventListener("keyup", (event) => {
     if (event.key === ".") showAutocomplete(true);
@@ -962,9 +1157,11 @@
 
   renderEditorGutter();
   updateSyntaxHighlight();
+  updateControlStates();
 
   window.addEventListener("beforeunload", () => {
     stopLiveUpdates();
+    api.closeSessionOnUnload();
   });
 
   try {
