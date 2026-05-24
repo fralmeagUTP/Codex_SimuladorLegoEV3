@@ -1,7 +1,8 @@
-(async () => {
+﻿(async () => {
   const api = window.EV3Api;
   const canvas = document.getElementById("worldCanvas");
   const codeEditor = document.getElementById("codeEditor");
+  const codeEditorShell = codeEditor?.closest(".code-editor-shell");
   const editorGutter = document.getElementById("editorGutter");
   const syntaxHighlight = document.getElementById("syntaxHighlight");
   const autocompletePopup = document.getElementById("autocompletePopup");
@@ -18,15 +19,33 @@
   const robotThetaInput = document.getElementById("robotThetaInput");
   const robotStartReadout = document.getElementById("robotStartReadout");
   const breakpointsInput = document.getElementById("breakpointsInput");
+  const watchesInput = document.getElementById("watchesInput");
   const debugState = document.getElementById("debugState");
+  const debugWatchesPanel = document.getElementById("debugWatchesPanel");
+  const debugWatchesBody = document.getElementById("debugWatchesBody");
+  const debugWatchesEmpty = document.getElementById("debugWatchesEmpty");
   const runBtn = document.getElementById("runBtn");
   const stopBtn = document.getElementById("stopBtn");
   const pauseBtn = document.getElementById("pauseBtn");
   const resumeBtn = document.getElementById("resumeBtn");
-  const resetBtn = document.getElementById("resetBtn");
   const debugRunBtn = document.getElementById("debugRunBtn");
   const debugStepBtn = document.getElementById("debugStepBtn");
   const debugContinueBtn = document.getElementById("debugContinueBtn");
+  const mapZoomInBtn = document.getElementById("mapZoomInBtn");
+  const mapZoomOutBtn = document.getElementById("mapZoomOutBtn");
+  const mapZoomResetBtn = document.getElementById("mapZoomResetBtn");
+  const aboutMenuBtn = document.getElementById("aboutMenuBtn");
+  const aboutDialog = document.getElementById("aboutDialog");
+  const aboutDialogBackdrop = document.getElementById("aboutDialogBackdrop");
+  const aboutDialogText = document.getElementById("aboutDialogText");
+  const aboutDialogCloseBtn = document.getElementById("aboutDialogCloseBtn");
+  const aboutDialogOkBtn = document.getElementById("aboutDialogOkBtn");
+  const ABOUT_MESSAGE =
+    "Simulador Lego mindstorms EV3 basado en la libreria Pybricks\n"
+    + "Version 1.0\n\n"
+    + "Desarrollado por:\n"
+    + "\t\tFrancisco Alejandro Medina\n"
+    + "\t\tJimmy Alexander Cortez\n";
 
   if (!statusProgram) {
     const editorShell = document.querySelector(".code-editor-shell");
@@ -43,17 +62,32 @@
     line: {
       label: "Seguidor de linea",
       world: "01_linea_negra.json",
-      example: "06_siguelineas_basico.py",
+      example: "11_siguelineas_basico.py",
     },
     ultrasonic: {
       label: "Ultrasonido + obstaculos",
       world: "02_obstaculos_beacon.json",
-      example: "05_esquiva_obstaculos.py",
+      example: "15_esquiva_obstaculos.py",
     },
     brick: {
       label: "Test pantalla/altavoz",
       world: "02_obstaculos_beacon.json",
-      example: "12_pantalla_altavoz_test.py",
+      example: "02_intro_pantalla_altavoz.py",
+    },
+    gyro: {
+      label: "Gyro: correccion de rumbo",
+      world: "03_gyro_rumbo.json",
+      example: "17_gyro_correccion_rumbo.py",
+    },
+    beacon: {
+      label: "IR beacon: seguimiento",
+      world: "04_beacon_ir.json",
+      example: "18_infrarrojo_beacon_seguidor.py",
+    },
+    curve: {
+      label: "DriveBase curva y estado",
+      world: "05_curvas_estado.json",
+      example: "21_drivebase_curva_estado.py",
     },
   };
   const autocompleteWords = [
@@ -104,8 +138,11 @@
   let currentWorld = null;
   let currentStatus = "created";
   let gutterBreakpoints = new Set();
+  let watchExpressions = [];
   let currentDebugLine = null;
   let debugPaused = false;
+  let currentDebugState = null;
+  let currentDebugContext = null;
   let robotStartMode = false;
   let robotStart = null;
   let robotStartPreview = null;
@@ -113,16 +150,118 @@
   let latestSnapshot = null;
   let timer = null;
   let stream = null;
+  let streamBootstrapTimeout = null;
   let usingPollingFallback = false;
   let recoveringSession = false;
+  let autoResetInProgress = false;
+  let suppressStoppedAutoReset = false;
   let recoveryFailures = 0;
   let autocompleteItems = [];
   let autocompleteSelected = 0;
   let loadedWorldNames = new Set();
   let currentScriptName = "editor_actual.py";
+  let executionMenuLocked = false;
+  const STREAM_BOOTSTRAP_TIMEOUT_MS = 2500;
+  const MAX_SPEAKER_DURATION_MS = 3000;
+  let audioContext = null;
+  let audioUnlocked = false;
+  let lastSpeakerSignature = "";
+  const MENU_LOCK_MESSAGE = "Opciones de menu bloqueadas durante la ejecucion. Usa 'Detener y reiniciar' para habilitarlas.";
+
+  function ensureAudioContext() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!audioContext) {
+      audioContext = new Ctx();
+    }
+    if (audioUnlocked && audioContext.state === "suspended") {
+      audioContext.resume().catch(() => {});
+    }
+    return audioContext;
+  }
+
+  function unlockAudioContext() {
+    audioUnlocked = true;
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+  }
+
+  function bindAudioUnlockGesture() {
+    const unlock = () => {
+      unlockAudioContext();
+      window.removeEventListener("pointerdown", unlock, true);
+      window.removeEventListener("keydown", unlock, true);
+    };
+    window.addEventListener("pointerdown", unlock, true);
+    window.addEventListener("keydown", unlock, true);
+  }
+
+  function speakerSignature(speaker) {
+    if (!speaker) return "";
+    const freq = Math.round(Number(speaker.freq || 0));
+    const duration = Math.round(Number(speaker.duration_ms || 0));
+    const volume = Math.round(Number(speaker.volume ?? 50));
+    const stamp = speaker.started_at_ms ?? speaker.started_at ?? speaker.timestamp_ms ?? speaker.tick ?? "";
+    return `${freq}|${duration}|${volume}|${stamp}`;
+  }
+
+  function playSpeakerTone(speaker) {
+    const ctx = ensureAudioContext();
+    if (!ctx || !audioUnlocked) return;
+
+    const freq = Number(speaker?.freq);
+    if (!Number.isFinite(freq) || freq <= 0) return;
+
+    const rawDuration = Number(speaker?.duration_ms);
+    const durationMs = Math.max(
+      10,
+      Math.min(MAX_SPEAKER_DURATION_MS, Number.isFinite(rawDuration) ? rawDuration : 120),
+    );
+    const rawVolume = Number(speaker?.volume);
+    const volume = Number.isFinite(rawVolume) ? rawVolume : 50;
+    const gainTarget = Math.max(0, Math.min(1, volume / 100)) * 0.2;
+
+    const now = ctx.currentTime;
+    const stopAt = now + durationMs / 1000;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    oscillator.type = "square";
+    oscillator.frequency.setValueAtTime(freq, now);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, gainTarget), now + 0.005);
+    gain.gain.setValueAtTime(Math.max(0.0001, gainTarget), Math.max(now + 0.005, stopAt - 0.02));
+    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start(now);
+    oscillator.stop(stopAt + 0.01);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+  }
 
   function log(message) {
     consoleEl.textContent = message || "";
+  }
+
+  function closeAboutDialog() {
+    aboutDialog?.classList.add("hidden");
+    aboutDialogBackdrop?.classList.add("hidden");
+  }
+
+  function openAboutDialog() {
+    if (aboutDialogText) {
+      aboutDialogText.textContent = ABOUT_MESSAGE;
+    }
+    aboutDialog?.classList.remove("hidden");
+    aboutDialogBackdrop?.classList.remove("hidden");
   }
 
   function setScriptName(name) {
@@ -138,37 +277,131 @@
   function setStatus(status) {
     currentStatus = status || currentStatus;
     statusEl.textContent = status;
-    if (["created", "ready", "stopped", "error"].includes(currentStatus)) {
+    const resetDebugVisuals = ["created", "ready", "stopped", "error"].includes(currentStatus);
+    if (["running", "paused", "stopped"].includes(currentStatus)) {
+      executionMenuLocked = true;
+    }
+    if (currentStatus === "created") {
+      executionMenuLocked = false;
+    }
+    if (resetDebugVisuals) {
       debugPaused = false;
+      currentDebugState = null;
+      currentDebugContext = null;
+      currentDebugLine = null;
+      renderEditorGutter();
+      renderDebugWatches();
+    }
+    if (currentStatus === "running") {
+      suppressStoppedAutoReset = false;
+    }
+    if (currentStatus === "stopped" && !autoResetInProgress && !suppressStoppedAutoReset) {
+      void performStopAndReset({ automatic: true });
     }
     updateControlStates();
   }
 
+  function setMenuActionState(element, disabled) {
+    if (!element) return;
+    if ("disabled" in element) {
+      element.disabled = disabled;
+    }
+    if (disabled) {
+      element.setAttribute("aria-disabled", "true");
+      element.classList.add("is-disabled");
+      if (element.tagName === "A") {
+        element.dataset.prevTabIndex = element.getAttribute("tabindex") ?? "";
+        element.setAttribute("tabindex", "-1");
+      }
+    } else {
+      element.removeAttribute("aria-disabled");
+      element.classList.remove("is-disabled");
+      if (element.tagName === "A" && "prevTabIndex" in element.dataset) {
+        const prev = element.dataset.prevTabIndex;
+        if (prev) {
+          element.setAttribute("tabindex", prev);
+        } else {
+          element.removeAttribute("tabindex");
+        }
+        delete element.dataset.prevTabIndex;
+      }
+    }
+  }
+
+  function updateMenuLockState() {
+    const locked = executionMenuLocked;
+    setMenuActionState(document.getElementById("newScriptMenuBtn"), locked);
+    setMenuActionState(document.getElementById("openScriptMenuBtn"), locked);
+    setMenuActionState(document.getElementById("saveScriptMenuBtn"), locked);
+    for (const button of document.querySelectorAll("#examplesMenu button, #worldsMenu button, #scenariosMenu button")) {
+      setMenuActionState(button, locked);
+    }
+    for (const anchor of document.querySelectorAll("#worldsMenu a")) {
+      setMenuActionState(anchor, locked);
+    }
+  }
+
+  function guardMenuAction() {
+    if (!executionMenuLocked) return false;
+    log(MENU_LOCK_MESSAGE);
+    return true;
+  }
+
   function updateControlStates() {
+    if (autoResetInProgress) {
+      runBtn.disabled = true;
+      debugRunBtn.disabled = true;
+      debugStepBtn.disabled = true;
+      debugContinueBtn.disabled = true;
+      pauseBtn.disabled = true;
+      resumeBtn.disabled = true;
+      stopBtn.disabled = true;
+      placeRobotStartBtn.disabled = true;
+      robotThetaInput.disabled = true;
+      breakpointsInput.disabled = true;
+      if (watchesInput) watchesInput.disabled = true;
+      updateMenuLockState();
+      return;
+    }
+
     const status = currentStatus || "created";
     const isRunning = status === "running";
     const isPaused = status === "paused";
     const isBusy = isRunning || isPaused;
     const canStart = ["created", "ready", "stopped", "error"].includes(status);
+    const canonicalState = currentDebugState?.debug_state || "";
+    const isCanonicalPaused = canonicalState.startsWith("paused_");
+    const isEffectivelyPaused = isPaused || isCanonicalPaused || debugPaused;
+    const canContinue = typeof currentDebugState?.can_continue === "boolean"
+      ? currentDebugState.can_continue
+      : isEffectivelyPaused;
+    const canStep = typeof currentDebugState?.can_step === "boolean"
+      ? currentDebugState.can_step
+      : isEffectivelyPaused;
 
     runBtn.disabled = !canStart;
     debugRunBtn.disabled = !canStart;
-    debugStepBtn.disabled = !(canStart || isPaused || debugPaused);
-    debugContinueBtn.disabled = !(isPaused || debugPaused);
-    pauseBtn.disabled = !isRunning || debugPaused;
-    resumeBtn.disabled = !isPaused;
-    stopBtn.disabled = !isBusy;
-    resetBtn.disabled = status === "created";
+    debugStepBtn.disabled = !(canStart || canStep);
+    debugContinueBtn.disabled = !canContinue;
+    pauseBtn.disabled = !isRunning || isCanonicalPaused || debugPaused;
+    resumeBtn.disabled = !isEffectivelyPaused;
+    stopBtn.disabled = status === "created";
     placeRobotStartBtn.disabled = isBusy;
     robotThetaInput.disabled = isBusy;
-    breakpointsInput.disabled = isRunning;
+    const canEditDebugConfig = !(isRunning && !(debugPaused || isCanonicalPaused));
+    breakpointsInput.disabled = !canEditDebugConfig;
+    if (watchesInput) watchesInput.disabled = !canEditDebugConfig;
+    updateMenuLockState();
   }
 
   function clearDebugState() {
     debugPaused = false;
+    currentDebugState = null;
+    currentDebugContext = null;
     currentDebugLine = null;
     setDebugState("");
     renderEditorGutter();
+    renderDebugWatches();
     updateControlStates();
   }
 
@@ -192,16 +425,155 @@
     return parsed;
   }
 
+  function updateWatchesInput() {
+    if (!watchesInput) return;
+    watchesInput.value = watchExpressions.join(", ");
+  }
+
+  function parseWatches() {
+    const raw = watchesInput?.value || "";
+    const unique = new Set();
+    const parsed = raw
+      .split(/[,\n;]+/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0 && item.length <= 200)
+      .filter((item) => {
+        if (unique.has(item)) return false;
+        unique.add(item);
+        return true;
+      })
+      .slice(0, 20);
+    watchExpressions = parsed;
+    updateWatchesInput();
+    renderDebugWatches();
+    return parsed;
+  }
+
+  async function applyWatchesToSession() {
+    const parsed = parseWatches();
+    try {
+      const result = await api.setWatches(parsed);
+      watchExpressions = Array.isArray(result?.watches) ? result.watches : parsed;
+      updateWatchesInput();
+      renderDebugWatches();
+      return watchExpressions;
+    } catch (err) {
+      const unsupported = err?.status === 404 || err?.status === 405 || err?.code === "NOT_FOUND";
+      if (!unsupported) throw err;
+      // Compatibilidad con backends antiguos sin endpoint /debug/watches.
+      watchExpressions = parsed;
+      updateWatchesInput();
+      renderDebugWatches();
+      return watchExpressions;
+    }
+  }
+
+  function formatDebugValue(value) {
+    if (value === null || value === undefined) return "--";
+    if (typeof value === "string") return escapeHtml(value);
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    try {
+      return escapeHtml(JSON.stringify(value));
+    } catch {
+      return escapeHtml(String(value));
+    }
+  }
+
+  function renderDebugWatches() {
+    if (!debugWatchesPanel || !debugWatchesBody || !debugWatchesEmpty) return;
+    const configured = Array.isArray(watchExpressions) ? watchExpressions : [];
+    const evaluated = Array.isArray(currentDebugContext?.watches) ? currentDebugContext.watches : [];
+    const showPanel = configured.length > 0 || evaluated.length > 0;
+    debugWatchesPanel.classList.toggle("hidden", !showPanel);
+    if (!showPanel) {
+      debugWatchesBody.innerHTML = "";
+      return;
+    }
+
+    if (!evaluated.length) {
+      debugWatchesBody.innerHTML = "";
+      debugWatchesEmpty.classList.remove("hidden");
+      return;
+    }
+
+    const watchedByExpr = new Map();
+    for (const item of evaluated) {
+      const expr = String(item?.expr ?? "").trim();
+      if (!expr) continue;
+      watchedByExpr.set(expr, item);
+    }
+
+    const rows = [];
+    for (const expr of configured) {
+      const item = watchedByExpr.get(expr) || { expr, value: null, error: "pendiente" };
+      rows.push(item);
+      watchedByExpr.delete(expr);
+    }
+    for (const extra of watchedByExpr.values()) {
+      rows.push(extra);
+    }
+
+    debugWatchesBody.innerHTML = rows.map((item) => {
+      const expr = escapeHtml(String(item?.expr ?? ""));
+      const error = item?.error ? escapeHtml(String(item.error)) : "";
+      const value = formatDebugValue(item?.value);
+      const rowClass = error ? "debug-watch-row-error" : "";
+      return `<tr class="${rowClass}"><td>${expr}</td><td>${value}</td><td>${error}</td></tr>`;
+    }).join("");
+    debugWatchesEmpty.classList.add("hidden");
+  }
+
+  function handleDebugContext(payload) {
+    if (!payload || typeof payload !== "object") return;
+    currentDebugContext = payload;
+    if (Number.isInteger(payload.line) && payload.line > 0) {
+      currentDebugLine = payload.line;
+      renderEditorGutter();
+    }
+    renderDebugWatches();
+  }
+
   function formatDebugEvent(payload) {
-    if (!payload || !payload.type) return "";
+    if (!payload) return "";
+    if (payload.type === "breakpoints") {
+      return `breakpoints: ${(payload.breakpoints || []).join(", ") || "ninguno"}`;
+    }
+    if (payload.type === "watches") {
+      return `watches: ${(payload.watches || []).join(" | ") || "ninguno"}`;
+    }
+    if (payload.debug_state) {
+      if (payload.debug_state === "paused_breakpoint") {
+        return `pausado en linea ${payload.line} (breakpoint)`;
+      }
+      if (payload.debug_state === "paused_step") {
+        return `pausado en linea ${payload.line} (step)`;
+      }
+      if (payload.debug_state === "paused_manual") {
+        return "pausa manual";
+      }
+      if (payload.debug_state === "idle") {
+        return "";
+      }
+      if (payload.debug_state === "running" && payload.type === "command") {
+        return `debug ${payload.action || "continue"}`;
+      }
+      if (payload.debug_state === "running" && payload.line) {
+        return `linea ${payload.line}`;
+      }
+      if (payload.debug_state === "error") {
+        return "debug error";
+      }
+      if (payload.debug_state === "stopped") {
+        return "debug detenido";
+      }
+      return `debug ${payload.debug_state}`;
+    }
+    if (!payload.type) return "";
     if (payload.type === "paused") {
       return `pausado en linea ${payload.line} (${payload.reason || "debug"})`;
     }
     if (payload.type === "line" && payload.pause_reason) {
       return `linea ${payload.line}: ${payload.pause_reason}`;
-    }
-    if (payload.type === "breakpoints") {
-      return `breakpoints: ${(payload.breakpoints || []).join(", ") || "ninguno"}`;
     }
     if (payload.type === "command") {
       return `debug ${payload.action}`;
@@ -215,20 +587,57 @@
   function handleDebug(payload) {
     const message = formatDebugEvent(payload);
     if (message) setDebugState(message);
-    if (payload?.type === "paused") {
+    if (payload?.debug_state) {
+      currentDebugState = payload;
+      debugPaused = String(payload.debug_state).startsWith("paused_");
+      if (!debugPaused) currentDebugContext = null;
+      if (Array.isArray(payload.watches)) {
+        watchExpressions = payload.watches
+          .map((item) => String(item ?? "").trim())
+          .filter((item) => item.length > 0);
+        updateWatchesInput();
+      }
+    } else if (payload?.type === "paused") {
       debugPaused = true;
+      currentDebugState = { debug_state: "paused_step", can_continue: true, can_step: true, ...payload };
     } else if (payload?.type === "command") {
       debugPaused = false;
+      currentDebugContext = null;
+      currentDebugState = { debug_state: "running", can_continue: false, can_step: false, ...payload };
     }
     if (payload?.line) {
       currentDebugLine = payload.line;
       renderEditorGutter();
+    } else if (payload?.debug_state && !String(payload.debug_state).startsWith("paused_")) {
+      currentDebugLine = null;
+      renderEditorGutter();
     }
+    renderDebugWatches();
     updateControlStates();
   }
 
   function lineCount() {
     return Math.max(1, codeEditor.value.split("\n").length);
+  }
+
+  function parseCssPixelValue(value) {
+    const parsed = Number.parseFloat(value || "");
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function syncEditorMetrics() {
+    if (!codeEditorShell || !codeEditor) return;
+    const style = window.getComputedStyle(codeEditor);
+    const fontSizePx = parseCssPixelValue(style.fontSize) || 13;
+    const resolvedLineHeightPx = parseCssPixelValue(style.lineHeight) || (fontSizePx * 1.45);
+    codeEditorShell.style.setProperty("--editor-font-family", style.fontFamily || "Consolas, Menlo, monospace");
+    codeEditorShell.style.setProperty("--editor-font-size", `${fontSizePx}px`);
+    codeEditorShell.style.setProperty("--editor-line-height-px", `${resolvedLineHeightPx}px`);
+    codeEditorShell.style.setProperty("--editor-line-height", String(resolvedLineHeightPx / fontSizePx));
+    codeEditorShell.style.setProperty("--editor-pad-top", style.paddingTop || "12px");
+    codeEditorShell.style.setProperty("--editor-pad-right", style.paddingRight || "12px");
+    codeEditorShell.style.setProperty("--editor-pad-bottom", style.paddingBottom || "72px");
+    codeEditorShell.style.setProperty("--editor-pad-left", style.paddingLeft || "12px");
   }
 
   function escapeHtml(value) {
@@ -242,6 +651,18 @@
     const number = Number(value);
     if (!Number.isFinite(number)) return "--";
     return Number.isInteger(number) ? String(number) : number.toFixed(digits);
+  }
+
+  function mmToCm(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return null;
+    return number / 10;
+  }
+
+  function formatDistanceCm(value, digits = 1) {
+    const cm = mmToCm(value);
+    if (cm === null) return "--";
+    return formatTelemetryNumber(cm, digits);
   }
 
   function formatTelemetryValue(value) {
@@ -266,14 +687,26 @@
 
   function sensorUnit(key) {
     return {
-      distance_mm: " mm",
-      angle: " deg",
-      speed: " dps",
+      distance_mm: " cm",
+      angle: " Â°",
+      speed: " Â°/s",
     }[key] || "";
+  }
+
+  function formatSensorTelemetryValue(key, value) {
+    if (key === "distance_mm") return formatDistanceCm(value, 1);
+    return formatTelemetryValue(value);
   }
 
   function renderMotorTelemetry(motor) {
     const state = escapeHtml(motor.state || "IDLE");
+    const angle = Number(motor.angle);
+    const normalizedAngle = Number.isFinite(angle)
+      ? ((angle % 360) + 360) % 360
+      : null;
+    const normalizedText = normalizedAngle === null
+      ? "--"
+      : `${formatTelemetryNumber(normalizedAngle)} Â°`;
     return `
       <article class="telemetry-card motor-card">
         <div class="telemetry-card-title">
@@ -281,8 +714,9 @@
           <span class="telemetry-state">${state}</span>
         </div>
         <div class="motor-metrics">
-          <span><b>Vel.</b> ${formatTelemetryNumber(motor.speed)} dps</span>
-          <span><b>Angulo</b> ${formatTelemetryNumber(motor.angle)} deg</span>
+          <span><b>Vel.</b> ${formatTelemetryNumber(motor.speed)} Â°/s</span>
+          <span><b>Angulo</b> ${formatTelemetryNumber(motor.angle)} Â°</span>
+          <span><b>Angulo 0-360</b> ${normalizedText}</span>
         </div>
       </article>
     `;
@@ -294,7 +728,7 @@
     const rows = entries.length
       ? entries.map(([key, item]) => `
           <dt>${escapeHtml(readableSensorKey(key))}</dt>
-          <dd>${formatTelemetryValue(item)}${sensorUnit(key)}</dd>
+          <dd>${formatSensorTelemetryValue(key, item)}${sensorUnit(key)}</dd>
         `).join("")
       : "<dt>Valor</dt><dd>--</dd>";
     return `
@@ -328,12 +762,25 @@
   }
 
   function updateSyntaxHighlight() {
-    syntaxHighlight.innerHTML = codeEditor.value
-      .split("\n")
-      .map(highlightCodeLine)
-      .join("\n");
+    const lines = codeEditor.value.split("\n");
+    syntaxHighlight.innerHTML = lines
+      .map((line, index) => {
+        const lineNo = index + 1;
+        const content = line.length ? highlightCodeLine(line) : "&nbsp;";
+        return `<span class="syntax-line" data-line="${lineNo}">${content}</span>`;
+      })
+      .join("");
+    syncCurrentDebugLineHighlight();
     syntaxHighlight.scrollTop = codeEditor.scrollTop;
     syntaxHighlight.scrollLeft = codeEditor.scrollLeft;
+  }
+
+  function syncCurrentDebugLineHighlight() {
+    const previous = syntaxHighlight.querySelector(".syntax-line.current-debug-line");
+    if (previous) previous.classList.remove("current-debug-line");
+    if (!Number.isInteger(currentDebugLine) || currentDebugLine <= 0) return;
+    const target = syntaxHighlight.querySelector(`.syntax-line[data-line="${currentDebugLine}"]`);
+    if (target) target.classList.add("current-debug-line");
   }
 
   function updateBreakpointsInput() {
@@ -356,6 +803,7 @@
     editorGutter.innerHTML = "";
     editorGutter.appendChild(fragment);
     editorGutter.scrollTop = codeEditor.scrollTop;
+    syncCurrentDebugLineHighlight();
   }
 
   function toggleBreakpoint(line) {
@@ -427,6 +875,91 @@
     });
   }
 
+  function caretPixelPosition() {
+    const mirror = document.createElement("div");
+    const style = window.getComputedStyle(codeEditor);
+    const props = [
+      "boxSizing",
+      "width",
+      "height",
+      "overflowX",
+      "overflowY",
+      "borderTopWidth",
+      "borderRightWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "paddingTop",
+      "paddingRight",
+      "paddingBottom",
+      "paddingLeft",
+      "fontStyle",
+      "fontVariant",
+      "fontWeight",
+      "fontStretch",
+      "fontSize",
+      "fontFamily",
+      "lineHeight",
+      "letterSpacing",
+      "textTransform",
+      "textIndent",
+      "textAlign",
+      "whiteSpace",
+      "wordBreak",
+      "overflowWrap",
+      "tabSize",
+    ];
+    mirror.style.position = "absolute";
+    mirror.style.visibility = "hidden";
+    mirror.style.pointerEvents = "none";
+    mirror.style.whiteSpace = "pre-wrap";
+    mirror.style.wordBreak = "normal";
+    mirror.style.overflowWrap = "normal";
+    mirror.style.top = "0";
+    mirror.style.left = "0";
+    for (const prop of props) {
+      mirror.style[prop] = style[prop];
+    }
+    mirror.style.width = `${codeEditor.clientWidth}px`;
+
+    const before = codeEditor.value.slice(0, codeEditor.selectionStart);
+    mirror.textContent = before;
+    const marker = document.createElement("span");
+    marker.textContent = "\u200b";
+    mirror.appendChild(marker);
+    codeEditorShell.appendChild(mirror);
+
+    const left = marker.offsetLeft;
+    const top = marker.offsetTop;
+    mirror.remove();
+    return { left, top };
+  }
+
+  function placeAutocompletePopup() {
+    if (!isAutocompleteVisible() || !codeEditorShell) return;
+    const caret = caretPixelPosition();
+    const shellRect = codeEditorShell.getBoundingClientRect();
+    const editorRect = codeEditor.getBoundingClientRect();
+    const popupRect = autocompletePopup.getBoundingClientRect();
+    const lineHeight = parseCssPixelValue(window.getComputedStyle(codeEditor).lineHeight) || 20;
+
+    let left = (editorRect.left - shellRect.left) + caret.left - codeEditor.scrollLeft;
+    let top = (editorRect.top - shellRect.top) + caret.top - codeEditor.scrollTop + lineHeight;
+
+    const maxLeft = Math.max(8, codeEditorShell.clientWidth - Math.max(autocompletePopup.offsetWidth, popupRect.width) - 8);
+    left = Math.max(52, Math.min(left, maxLeft));
+
+    const desiredHeight = Math.max(120, Math.min(220, autocompletePopup.scrollHeight));
+    const belowSpace = codeEditorShell.clientHeight - top - 8;
+    if (belowSpace < 90) {
+      top = top - desiredHeight - lineHeight;
+    }
+    const maxTop = Math.max(8, codeEditorShell.clientHeight - desiredHeight - 8);
+    top = Math.max(8, Math.min(top, maxTop));
+
+    autocompletePopup.style.left = `${Math.round(left)}px`;
+    autocompletePopup.style.top = `${Math.round(top)}px`;
+  }
+
   function showAutocomplete(force = false) {
     const context = autocompleteContext();
     const items = autocompleteCandidates(context.prefix, context.contextName);
@@ -439,6 +972,7 @@
     autocompletePopup.dataset.replaceFrom = String(context.replaceFrom);
     renderAutocomplete(items);
     autocompletePopup.classList.remove("hidden");
+    placeAutocompletePopup();
     return true;
   }
 
@@ -456,6 +990,7 @@
     if (!autocompleteItems.length) return;
     autocompleteSelected = (autocompleteSelected + delta + autocompleteItems.length) % autocompleteItems.length;
     renderAutocomplete(autocompleteItems);
+    placeAutocompletePopup();
   }
 
   function applyAutocomplete(index = autocompleteSelected) {
@@ -466,6 +1001,7 @@
     codeEditor.setRangeText(value, replaceFrom, replaceTo, "end");
     hideAutocomplete();
     renderEditorGutter();
+    updateSyntaxHighlight();
     codeEditor.focus();
   }
 
@@ -552,6 +1088,7 @@
     codeEditor.setRangeText(indented, range.lineStart, range.lineEnd, "select");
     codeEditor.selectionStart = range.start + 4;
     codeEditor.selectionEnd = range.end + (indented.length - block.length);
+    placeAutocompletePopup();
   }
 
   function unindentSelection() {
@@ -564,6 +1101,7 @@
       const removable = beforeCursor.match(/ {1,4}$/)?.[0].length || 0;
       if (!removable) return;
       codeEditor.setRangeText("", cursor - removable, cursor, "end");
+      placeAutocompletePopup();
       return;
     }
     const block = value.slice(range.lineStart, range.lineEnd);
@@ -580,6 +1118,7 @@
     codeEditor.setRangeText(unindented, range.lineStart, range.lineEnd, "select");
     codeEditor.selectionStart = Math.max(range.lineStart, range.start - removedBeforeSelection);
     codeEditor.selectionEnd = Math.max(codeEditor.selectionStart, range.end - totalRemoved);
+    placeAutocompletePopup();
   }
 
   function handleAutocompleteKeys(event) {
@@ -613,12 +1152,29 @@
   }
 
   async function init() {
-    const session = await api.createSession({ reuse: true });
+    // En hosting, reutilizar sesion al cargar puede provocar carreras con
+    // closeSessionOnUnload de una pestana previa; usamos sesion nueva.
+    const session = await api.createSession();
     setStatus(session.status);
-    await loadExamples();
-    await loadWorlds();
-    await loadWorldFromUrl();
+
+    // Priorizar que la simulacion quede operativa de inmediato.
     startSnapshotStream();
+    void refreshSnapshot();
+
+    // Cargar menus en paralelo para no bloquear la interaccion principal.
+    void loadExamples().catch((err) => {
+      examplesMenu.innerHTML = '<span class="menu-empty">No se pudieron cargar ejemplos</span>';
+      log(`Error cargando ejemplos: ${err.message}`);
+    });
+    void (async () => {
+      try {
+        await loadWorlds();
+        await loadWorldFromUrl();
+      } catch (err) {
+        worldsMenu.innerHTML = `<a href="${api.resolvePath("/worlds")}">Editor de mundos</a><span class="menu-empty">No se pudieron cargar mundos</span>`;
+        log(`Error cargando mundos: ${err.message}`);
+      }
+    })();
   }
 
   async function loadExamples() {
@@ -635,7 +1191,10 @@
   async function loadWorlds() {
     const data = await api.listWorlds();
     loadedWorldNames = new Set(data.worlds.map((item) => item.name));
-    worldsMenu.innerHTML = '<a href="/worlds">Editor de mundos</a>';
+    worldsMenu.innerHTML = `<a href="${api.resolvePath("/worlds")}">Editor de mundos</a>`;
+    worldsMenu.appendChild(menuButton("Mundo en blanco (sin mapa)", () => {
+      void loadBlankWorld();
+    }));
     worldsMenu.appendChild(menuButton("Cargar mundo desde tu equipo", () => {
       if (worldFileInput) worldFileInput.value = "";
       worldFileInput?.click();
@@ -655,7 +1214,10 @@
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = label;
-    button.addEventListener("click", action);
+    button.addEventListener("click", () => {
+      if (guardMenuAction()) return;
+      action();
+    });
     return button;
   }
 
@@ -681,6 +1243,9 @@
       if (data.debug) {
         handleDebug(data.debug);
       }
+      if (data.debug_context) {
+        handleDebugContext(data.debug_context);
+      }
       renderSnapshot(data.snapshot);
     } catch (err) {
       if (isSessionLost(err)) {
@@ -691,18 +1256,91 @@
     }
   }
 
+  function clearStreamBootstrapTimeout() {
+    if (streamBootstrapTimeout) {
+      clearTimeout(streamBootstrapTimeout);
+      streamBootstrapTimeout = null;
+    }
+  }
+
   function startSnapshotStream() {
-    startPollingFallback();
+    stopLiveUpdates();
+    let hasInitialEvent = false;
+    try {
+      stream = api.openSnapshotStream({
+        snapshot: (payload) => {
+          hasInitialEvent = true;
+          clearStreamBootstrapTimeout();
+          renderSnapshot(payload);
+        },
+        status: (payload) => {
+          hasInitialEvent = true;
+          clearStreamBootstrapTimeout();
+          if (payload?.status) setStatus(payload.status);
+        },
+        debug: (payload) => {
+          hasInitialEvent = true;
+          clearStreamBootstrapTimeout();
+          handleDebug(payload);
+        },
+        debugState: (payload) => {
+          hasInitialEvent = true;
+          clearStreamBootstrapTimeout();
+          handleDebug(payload);
+        },
+        debugContext: (payload) => {
+          handleDebugContext(payload);
+          hasInitialEvent = true;
+          clearStreamBootstrapTimeout();
+        },
+        world: (payload) => {
+          hasInitialEvent = true;
+          clearStreamBootstrapTimeout();
+          currentWorld = payload || currentWorld;
+          redrawCanvas();
+        },
+        error: (payload) => {
+          const message = payload?.error?.message || payload?.message;
+          if (message) log(message);
+        },
+        connectionError: () => {
+          clearStreamBootstrapTimeout();
+          if (usingPollingFallback) return;
+          if (stream) {
+            stream.close();
+            stream = null;
+          }
+          startPollingFallback();
+        },
+      });
+      streamBootstrapTimeout = setTimeout(() => {
+        if (hasInitialEvent || usingPollingFallback) return;
+        if (stream) {
+          stream.close();
+          stream = null;
+        }
+        startPollingFallback();
+      }, STREAM_BOOTSTRAP_TIMEOUT_MS);
+    } catch (err) {
+      log(err.message);
+      startPollingFallback();
+    }
   }
 
   function startPollingFallback() {
     if (usingPollingFallback) return;
+    clearStreamBootstrapTimeout();
+    if (stream) {
+      stream.close();
+      stream = null;
+    }
     usingPollingFallback = true;
     timer = setInterval(refreshSnapshot, 250);
     refreshSnapshot();
   }
 
   function stopLiveUpdates() {
+    clearStreamBootstrapTimeout();
     if (timer) {
       clearInterval(timer);
       timer = null;
@@ -750,8 +1388,21 @@
 
   function redrawCanvas() {
     window.EV3Canvas.draw(canvas, latestSnapshot, currentWorld, {
+      hidePlacedRobots: true,
       robotStart: robotStartMode ? robotStartPreview : (showRobotStartMarker ? robotStart : null),
     });
+  }
+
+  function applyMapZoom(action) {
+    if (!window.EV3Canvas || !canvas) return;
+    if (action === "in") {
+      window.EV3Canvas.zoomIn(canvas);
+    } else if (action === "out") {
+      window.EV3Canvas.zoomOut(canvas);
+    } else {
+      window.EV3Canvas.fitToView(canvas, currentWorld);
+    }
+    redrawCanvas();
   }
 
   window.addEventListener("ev3-assets-loaded", redrawCanvas);
@@ -763,9 +1414,9 @@
     telemetry.innerHTML = `
       <dt>Tick</dt><dd>${snapshot.tick}</dd>
       <dt>Tiempo</dt><dd>${snapshot.sim_time_s}s</dd>
-      <dt>X</dt><dd>${formatTelemetryNumber(robot.x_mm)} mm</dd>
-      <dt>Y</dt><dd>${formatTelemetryNumber(robot.y_mm)} mm</dd>
-      <dt>Theta</dt><dd>${formatTelemetryNumber(robot.theta_deg)} deg</dd>
+      <dt>X</dt><dd>${formatDistanceCm(robot.x_mm, 1)} cm</dd>
+      <dt>Y</dt><dd>${formatDistanceCm(robot.y_mm, 1)} cm</dd>
+      <dt>Theta</dt><dd>${formatTelemetryNumber(robot.theta_deg)} Â°</dd>
       <dt>Colision</dt><dd>${snapshot.colliding ? "si" : "no"}</dd>
     `;
     const motors = document.getElementById("motors");
@@ -800,16 +1451,25 @@
       speakerEl.textContent =
         `${speaker.freq || 0} Hz, ${Math.round(speaker.duration_ms || 0)} ms, ` +
         `vol ${speaker.volume ?? 50}`;
+      const signature = speakerSignature(speaker);
+      if (signature && signature !== lastSpeakerSignature) {
+        playSpeakerTone(speaker);
+      }
+      lastSpeakerSignature = signature;
     } else {
       speakerEl.textContent = "Inactivo";
+      lastSpeakerSignature = "";
     }
   }
 
   runBtn.addEventListener("click", async () => {
+    unlockAudioContext();
     try {
+      clearDebugState();
       await api.loadScript(codeEditor.value);
       const result = await api.start();
       hideRobotStartMarker();
+      executionMenuLocked = true;
       setStatus(result.status);
       log("");
     } catch (err) {
@@ -818,11 +1478,15 @@
   });
 
   debugRunBtn.addEventListener("click", async () => {
+    unlockAudioContext();
     try {
+      clearDebugState();
       await api.loadScript(codeEditor.value);
       const result = await api.setBreakpoints(parseBreakpoints());
+      await applyWatchesToSession();
       setDebugState(`breakpoints: ${result.breakpoints.join(", ") || "ninguno"}`);
       setStatus((await api.start({ debug: true })).status);
+      executionMenuLocked = true;
       hideRobotStartMarker();
       log("");
     } catch (err) {
@@ -831,11 +1495,15 @@
   });
 
   debugStepBtn.addEventListener("click", async () => {
+    unlockAudioContext();
     try {
       if (!["running", "paused"].includes(currentStatus)) {
+        clearDebugState();
         await api.loadScript(codeEditor.value);
         await api.setBreakpoints(parseBreakpoints());
+        await applyWatchesToSession();
         setStatus((await api.start({ debug: true, step_mode: true })).status);
+        executionMenuLocked = true;
         hideRobotStartMarker();
       } else {
         handleDebug(await api.debugStep());
@@ -859,10 +1527,14 @@
   resumeBtn.addEventListener("click", async () => {
     try { setStatus((await api.resume()).status); } catch (err) { log(err.message); }
   });
-  stopBtn.addEventListener("click", async () => {
-    try { setStatus((await api.stop()).status); } catch (err) { log(err.message); }
-  });
-  resetBtn.addEventListener("click", async () => {
+  async function performStopAndReset(options = {}) {
+    if (autoResetInProgress) return;
+    autoResetInProgress = true;
+    suppressStoppedAutoReset = true;
+    if (options.automatic && statusEl) {
+      statusEl.textContent = "reiniciando";
+    }
+    updateControlStates();
     try {
       const result = await api.reset();
       window.EV3Canvas.resetTrail();
@@ -872,13 +1544,27 @@
       showRobotStartMarker = false;
       clearBreakpoints();
       clearDebugState();
+      executionMenuLocked = false;
       setStatus(result.status);
       updateRobotStartReadout();
       redrawCanvas();
-    } catch (err) { log(err.message); }
+      if (options.automatic) {
+        log("Ejecucion finalizada. Simulacion reiniciada.");
+      }
+    } catch (err) {
+      log(err.message);
+    } finally {
+      autoResetInProgress = false;
+      updateControlStates();
+    }
+  }
+
+  stopBtn.addEventListener("click", async () => {
+    await performStopAndReset({ automatic: false });
   });
 
   async function loadExampleByName(name) {
+    if (guardMenuAction()) return;
     try {
       const data = await api.getExample(name);
       codeEditor.value = data.source;
@@ -894,6 +1580,7 @@
   }
 
   async function loadWorldByName(name) {
+    if (guardMenuAction()) return;
     try {
       const data = await api.loadWorld(name);
       currentWorld = data.world;
@@ -902,6 +1589,23 @@
       showRobotStartMarker = false;
       updateRobotStartReadout();
       log("");
+    } catch (err) {
+      log(err.message);
+    }
+  }
+
+  async function loadBlankWorld() {
+    if (guardMenuAction()) return;
+    try {
+      const data = await api.loadBlankWorld({ width_cells: 40, height_cells: 40 });
+      currentWorld = data.world || currentWorld;
+      if (statusWorld) statusWorld.textContent = "Mundo en blanco";
+      robotStart = null;
+      showRobotStartMarker = false;
+      updateRobotStartReadout();
+      await refreshSnapshot();
+      redrawCanvas();
+      log("Mundo en blanco cargado.");
     } catch (err) {
       log(err.message);
     }
@@ -934,8 +1638,8 @@
       return;
     }
     robotStartReadout.textContent =
-      `X ${pose.x_mm.toFixed(1)} mm, Y ${pose.y_mm.toFixed(1)} mm, ` +
-      `theta ${pose.theta_deg.toFixed(0)} deg`;
+      `X ${formatDistanceCm(pose.x_mm, 1)} cm, Y ${formatDistanceCm(pose.y_mm, 1)} cm, ` +
+      `theta ${pose.theta_deg.toFixed(0)} Â°`;
   }
 
   async function applyRobotStart(point) {
@@ -957,6 +1661,7 @@
   }
 
   async function loadScenario(key) {
+    if (guardMenuAction()) return;
     const scenario = scenarios[key];
     if (!scenario) return;
     try {
@@ -969,6 +1674,7 @@
   }
 
   async function downloadScript() {
+    if (guardMenuAction()) return;
     const suggestedName = (currentScriptName && currentScriptName.endsWith(".py"))
       ? currentScriptName
       : "ev3_script.py";
@@ -1015,7 +1721,8 @@
     log(`Script descargado: ${suggestedName}. Ubicacion: Descargas del navegador.`);
   }
 
-  document.getElementById("newScriptMenuBtn").addEventListener("click", () => {
+  function createNewScript() {
+    if (guardMenuAction()) return;
     codeEditor.value = defaultScript;
     setScriptName("editor_actual.py");
     clearBreakpoints();
@@ -1023,11 +1730,38 @@
     hideAutocomplete();
     updateSyntaxHighlight();
     log("Nuevo script creado.");
-  });
+  }
 
-  document.getElementById("openScriptMenuBtn").addEventListener("click", () => {
+  function openScriptFromDevice() {
+    if (guardMenuAction()) return;
     scriptFileInput.click();
-  });
+  }
+
+  function handleGlobalShortcuts(event) {
+    if (event.defaultPrevented || event.isComposing) return;
+    const isCmdOrCtrl = event.ctrlKey || event.metaKey;
+    if (!isCmdOrCtrl || event.altKey) return;
+
+    const key = String(event.key || "").toLowerCase();
+    if (key === "n") {
+      event.preventDefault();
+      createNewScript();
+      return;
+    }
+    if (key === "o") {
+      event.preventDefault();
+      openScriptFromDevice();
+      return;
+    }
+    if (key === "s") {
+      event.preventDefault();
+      void downloadScript();
+    }
+  }
+
+  document.getElementById("newScriptMenuBtn").addEventListener("click", createNewScript);
+
+  document.getElementById("openScriptMenuBtn").addEventListener("click", openScriptFromDevice);
 
   scriptFileInput.addEventListener("change", async () => {
     const [file] = scriptFileInput.files || [];
@@ -1052,6 +1786,10 @@
   });
 
   worldFileInput?.addEventListener("change", async () => {
+    if (guardMenuAction()) {
+      worldFileInput.value = "";
+      return;
+    }
     const [file] = worldFileInput.files || [];
     if (!file) return;
     try {
@@ -1071,13 +1809,32 @@
     }
   });
 
-  document.getElementById("aboutMenuBtn").addEventListener("click", () => {
+  aboutMenuBtn?.addEventListener("click", () => {
+    openAboutDialog();
     log("Simulador EV3 Web - migracion Flask del simulador Tkinter.");
+  });
+
+  aboutDialogCloseBtn?.addEventListener("click", closeAboutDialog);
+  aboutDialogOkBtn?.addEventListener("click", closeAboutDialog);
+  aboutDialogBackdrop?.addEventListener("click", closeAboutDialog);
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && aboutDialog && !aboutDialog.classList.contains("hidden")) {
+      closeAboutDialog();
+    }
   });
 
   document.getElementById("scenariosMenu").addEventListener("click", async (event) => {
     const key = event.target?.dataset?.scenario;
     if (key) await loadScenario(key);
+  });
+
+  worldsMenu?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!target || target.tagName !== "A") return;
+    if (!executionMenuLocked) return;
+    event.preventDefault();
+    log(MENU_LOCK_MESSAGE);
   });
 
   placeRobotStartBtn.addEventListener("click", () => {
@@ -1094,6 +1851,18 @@
     } catch (err) {
       log(err.message);
     }
+  });
+
+  mapZoomInBtn?.addEventListener("click", () => {
+    applyMapZoom("in");
+  });
+
+  mapZoomOutBtn?.addEventListener("click", () => {
+    applyMapZoom("out");
+  });
+
+  mapZoomResetBtn?.addEventListener("click", () => {
+    applyMapZoom("reset");
   });
 
   canvas.addEventListener("mousemove", (event) => {
@@ -1130,13 +1899,16 @@
   }, { passive: false });
 
   codeEditor.addEventListener("input", () => {
+    syncEditorMetrics();
     renderEditorGutter();
     updateSyntaxHighlight();
+    placeAutocompletePopup();
   });
   codeEditor.addEventListener("keydown", (event) => {
     handleAutocompleteKeys(event) || handleEditorTab(event) || handleEditorEnter(event) || handleEditorPairs(event);
   });
   codeEditor.addEventListener("keyup", (event) => {
+    placeAutocompletePopup();
     if (event.key === ".") showAutocomplete(true);
   });
   codeEditor.addEventListener("blur", () => {
@@ -1146,23 +1918,52 @@
     editorGutter.scrollTop = codeEditor.scrollTop;
     syntaxHighlight.scrollTop = codeEditor.scrollTop;
     syntaxHighlight.scrollLeft = codeEditor.scrollLeft;
+    placeAutocompletePopup();
   });
 
   breakpointsInput.addEventListener("change", parseBreakpoints);
+  watchesInput?.addEventListener("change", async () => {
+    try {
+      await applyWatchesToSession();
+      setDebugState(`watches: ${watchExpressions.join(" | ") || "ninguno"}`);
+    } catch (err) {
+      log(err.message);
+    }
+  });
 
   editorGutter.addEventListener("click", (event) => {
+    if (breakpointsInput?.disabled) return;
     const line = Number.parseInt(event.target?.dataset?.line || "", 10);
     if (Number.isInteger(line) && line > 0) toggleBreakpoint(line);
   });
 
+  syncEditorMetrics();
   renderEditorGutter();
   updateSyntaxHighlight();
   updateControlStates();
+  bindAudioUnlockGesture();
+  window.addEventListener("resize", syncEditorMetrics);
+  window.addEventListener("resize", renderEditorGutter);
+  window.addEventListener("resize", placeAutocompletePopup);
+  window.addEventListener("load", () => {
+    syncEditorMetrics();
+    renderEditorGutter();
+    placeAutocompletePopup();
+  });
+  if (document.fonts?.addEventListener) {
+    document.fonts.addEventListener("loadingdone", () => {
+      syncEditorMetrics();
+      renderEditorGutter();
+      placeAutocompletePopup();
+    });
+  }
 
   window.addEventListener("beforeunload", () => {
     stopLiveUpdates();
     api.closeSessionOnUnload();
   });
+
+  window.addEventListener("keydown", handleGlobalShortcuts, true);
 
   try {
     await init();

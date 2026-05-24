@@ -1,8 +1,8 @@
 {
   "version": 1,
   "world": {
-    "width_mm": 16000.0,
-    "height_mm": 16000.0,
+    "width_mm": 4000.0,
+    "height_mm": 4000.0,
     "surface": {
       "cell_size_mm": 12.5,
       "default_color": "WHITE",
@@ -6968,19 +6968,19 @@
         "name": "wall:wall_64x64_b:wall_0023",
         "vertices": [
           [
-            4500.0,
+            4000.0,
             700.0
           ],
           [
-            4700.0,
+            4000.0,
             700.0
           ],
           [
-            4700.0,
+            4000.0,
             900.0
           ],
           [
-            4500.0,
+            4000.0,
             900.0
           ]
         ]
@@ -7914,8 +7914,8 @@
   },
   "editor_objects": {
     "world": {
-      "width_mm": 16000.0,
-      "height_mm": 16000.0
+      "width_mm": 4000.0,
+      "height_mm": 4000.0
     },
     "walls": [
       {
@@ -8101,7 +8101,7 @@
       {
         "id": "wall_0023",
         "type": "wall",
-        "x_mm": 4500.0,
+        "x_mm": 3800.0,
         "y_mm": 700.0,
         "width_mm": 200.0,
         "height_mm": 200.0,

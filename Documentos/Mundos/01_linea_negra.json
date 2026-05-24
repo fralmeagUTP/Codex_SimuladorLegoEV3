@@ -51,5 +51,23 @@
     },
     "obstacles": [],
     "beacons": []
+  },
+  "editor_spec": {
+    "schema_version": 1,
+    "grid_size_px": 32,
+    "world_width_cells": 20,
+    "world_height_cells": 20,
+    "placements": [
+      {"id": "line_0001", "asset_key": "line_64_64_hor", "x": 0, "y": 64, "rotation": 0},
+      {"id": "line_0002", "asset_key": "line_64_64_hor", "x": 64, "y": 64, "rotation": 0},
+      {"id": "line_0003", "asset_key": "line_64_64_hor", "x": 128, "y": 64, "rotation": 0},
+      {"id": "line_0004", "asset_key": "line_64_64_hor", "x": 192, "y": 64, "rotation": 0},
+      {"id": "line_0005", "asset_key": "line_64_64_hor", "x": 256, "y": 64, "rotation": 0},
+      {"id": "line_0006", "asset_key": "line_64_64_hor", "x": 320, "y": 64, "rotation": 0},
+      {"id": "line_0007", "asset_key": "line_64_64_hor", "x": 384, "y": 64, "rotation": 0},
+      {"id": "line_0008", "asset_key": "line_64_64_hor", "x": 448, "y": 64, "rotation": 0},
+      {"id": "line_0009", "asset_key": "line_64_64_hor", "x": 512, "y": 64, "rotation": 0},
+      {"id": "line_0010", "asset_key": "line_64_64_hor", "x": 576, "y": 64, "rotation": 0}
+    ]
   }
 }

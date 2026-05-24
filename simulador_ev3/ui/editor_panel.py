@@ -232,14 +232,32 @@ class EditorPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build_toolbar(self) -> None:
-        bar = tk.Frame(self, bg="#1E2530", padx=4, pady=4)
+        bar = tk.Frame(self, bg="#FFFFFF", padx=6, pady=4)
         bar.pack(side=tk.TOP, fill=tk.X)
+        bar.configure(highlightthickness=1, highlightbackground="#D4DDE8")
 
-        btn_style = {"relief": tk.FLAT, "padx": 10, "pady": 3, "cursor": "hand2"}
+        title = tk.Label(
+            bar,
+            text="Editor de codigo",
+            bg="#FFFFFF",
+            fg="#1D2D44",
+            font=("Segoe UI", 10, "bold"),
+        )
+        title.pack(side=tk.LEFT, padx=(2, 8))
+
+        btn_style = {
+            "relief": tk.FLAT,
+            "padx": 10,
+            "pady": 3,
+            "cursor": "hand2",
+            "font": ("Segoe UI", 9),
+            "bd": 1,
+            "highlightthickness": 0,
+        }
 
         btn_run = tk.Button(
             bar, text="▶  Ejecutar",
-            bg="#4CAF50", fg="white",
+            bg="#294C7C", fg="white",
             command=self._cmd_run,
             **btn_style,
         )
@@ -247,7 +265,7 @@ class EditorPanel(tk.Frame):
 
         btn_stop = tk.Button(
             bar, text="■  Detener",
-            bg="#F44336", fg="white",
+            bg="#FFFFFF", fg="#213858",
             command=self._cmd_stop,
             **btn_style,
         )
@@ -255,7 +273,7 @@ class EditorPanel(tk.Frame):
 
         btn_debug = tk.Button(
             bar, text="🐞 Depurar",
-            bg="#FF9800", fg="white",
+            bg="#FFFFFF", fg="#213858",
             command=self._cmd_debug,
             **btn_style,
         )
@@ -263,7 +281,7 @@ class EditorPanel(tk.Frame):
 
         btn_step = tk.Button(
             bar, text="Paso",
-            bg="#8E24AA", fg="white",
+            bg="#FFFFFF", fg="#213858",
             command=self._cmd_debug_step,
             **btn_style,
         )
@@ -271,17 +289,17 @@ class EditorPanel(tk.Frame):
 
         btn_continue = tk.Button(
             bar, text="Continuar",
-            bg="#00897B", fg="white",
+            bg="#FFFFFF", fg="#213858",
             command=self._cmd_debug_continue,
             **btn_style,
         )
         btn_continue.pack(side=tk.LEFT, padx=2)
 
-        tk.Frame(bar, width=20, bg="#1E2530").pack(side=tk.LEFT)
+        tk.Frame(bar, width=20, bg="#FFFFFF").pack(side=tk.LEFT)
 
         btn_open = tk.Button(
             bar, text="📂 Abrir…",
-            bg="#2196F3", fg="white",
+            bg="#FFFFFF", fg="#213858",
             command=self._cmd_open,
             **btn_style,
         )
@@ -289,7 +307,7 @@ class EditorPanel(tk.Frame):
 
         btn_save = tk.Button(
             bar, text="💾 Guardar…",
-            bg="#607D8B", fg="white",
+            bg="#FFFFFF", fg="#213858",
             command=self._cmd_save,
             **btn_style,
         )
@@ -299,20 +317,21 @@ class EditorPanel(tk.Frame):
         self._status_var = tk.StringVar(value="Listo")
         self._status_lbl = tk.Label(
             bar, textvariable=self._status_var,
-            bg="#1E2530", fg="#C9D1D9", anchor=tk.W,
+            bg="#FFFFFF", fg="#385273", anchor=tk.W,
+            font=("Consolas", 9),
         )
         self._status_lbl.pack(side=tk.RIGHT, padx=8)
 
     def _build_editor(self) -> None:
-        frame = tk.Frame(self, bg="#0D1117")
+        frame = tk.Frame(self, bg="#FFFFFF")
         frame.pack(fill=tk.BOTH, expand=True)
 
         # Numeración de líneas
         self._linenos = tk.Text(
             frame, width=6, padx=4, takefocus=0,
             border=0, state=tk.DISABLED,
-            bg="#0D1117", fg="#6E7681",
-            font=("Courier New", 11),
+            bg="#F8FAFC", fg="#74849A",
+            font=("Consolas", 10),
         )
         self._linenos.pack(side=tk.LEFT, fill=tk.Y)
 
@@ -323,10 +342,10 @@ class EditorPanel(tk.Frame):
         # Editor principal
         self._text = tk.Text(
             frame, undo=True, wrap=tk.NONE,
-            font=("Courier New", 11),
-            bg="#0D1117", fg="#E6EDF3",
-            insertbackground="#58A6FF",
-            selectbackground="#264F78",
+            font=("Consolas", 10),
+            bg="#FFFFFF", fg="#172033",
+            insertbackground="#1B3557",
+            selectbackground="#D7E8FA",
             yscrollcommand=self._on_text_vertical_scroll,
         )
         self._text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)

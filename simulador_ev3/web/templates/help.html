@@ -17,8 +17,8 @@
   </section>
 
   <nav class="help-nav">
-    <a href="/">Simulacion</a>
-    <a href="/worlds">Crear mundos</a>
+    <a href="{{ url_for('pages.index') }}">Simulacion</a>
+    <a href="{{ url_for('pages.worlds_page') }}">Crear mundos</a>
   </nav>
 
   <section class="help-section">
@@ -91,6 +91,7 @@
   <section class="help-section">
     <h2>2. Simulacion del robot (pantalla principal)</h2>
     <p>Acceso: desde el menu <strong>Simulacion</strong> dentro de la app.</p>
+    <p><strong>Unidades:</strong> las distancias visibles en telemetria y readouts (X, Y y sensores de distancia) se muestran en <strong>centimetros (cm)</strong>.</p>
     <h3>Que puedes hacer aqui</h3>
     <ul>
       <li>Crear, abrir y guardar scripts desde el menu <strong>Archivo</strong>.</li>
@@ -114,6 +115,7 @@
   <section class="help-section">
     <h2>3. Creacion de mundos (editor)</h2>
     <p>Acceso: desde el menu <strong>Mundos</strong> dentro de la app.</p>
+    <p><strong>Unidades:</strong> el readout de cursor y la pose inicial del robot se muestran en <strong>cm</strong> para mantener consistencia con la simulacion.</p>
     <h3>Paso a paso para construir un mundo</h3>
     <ol>
       <li>Define el tamano en celdas y pulsa <strong>Aplicar tamano</strong>.</li>

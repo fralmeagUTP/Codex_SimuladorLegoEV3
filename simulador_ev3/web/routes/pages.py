@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, jsonify, render_template, send_from_directory
+from pathlib import Path
 
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    redirect,
+    render_template,
+    send_from_directory,
+    url_for,
+)
+
+from simulador_ev3.shared.paths import resolve_image_assets_dir
 from simulador_ev3.web.errors import InvalidPayload
 
 
@@ -31,10 +42,24 @@ def healthz():
     return jsonify({"status": "ok", **manager.stats()})
 
 
-@bp.get("/assets/images/<name>")
+@bp.get("/assets/<name>")
 def image_asset(name: str):
     if not name or any(part in name for part in ("..", "/", "\\")):
         raise InvalidPayload("Nombre de imagen invalido.")
     if not name.lower().endswith((".png", ".jpg", ".jpeg")):
         raise InvalidPayload("Formato de imagen no permitido.")
-    return send_from_directory(current_app.config["IMAGE_ASSETS_DIR"], name)
+
+    configured_dir = Path(current_app.config["IMAGE_ASSETS_DIR"])
+    if (configured_dir / name).is_file():
+        return send_from_directory(configured_dir, name)
+
+    fallback_dir = resolve_image_assets_dir()
+    if fallback_dir != configured_dir and (fallback_dir / name).is_file():
+        return send_from_directory(fallback_dir, name)
+
+    return send_from_directory(configured_dir, name)
+
+
+@bp.get("/assets/images/<name>")
+def image_asset_legacy(name: str):
+    return redirect(url_for("pages.image_asset", name=name), code=308)

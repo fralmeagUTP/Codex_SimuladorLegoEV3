@@ -23,7 +23,6 @@ Uso:
 from __future__ import annotations
 
 import json
-import os
 import re
 import tkinter as tk
 from pathlib import Path
@@ -35,26 +34,28 @@ from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.domain.editor.world_editor_model import DEFAULT_WORLD_MM
 from simulador_ev3.examples.example_catalog import ExampleCatalog
+from simulador_ev3.shared.paths import (
+    resolve_examples_dir,
+    resolve_manual_path,
+    resolve_worlds_dir,
+)
 from simulador_ev3.ui.world_canvas   import WorldCanvas
 from simulador_ev3.ui.editor_panel  import EditorPanel
 from simulador_ev3.ui.brick_panel   import BrickPanel
 from simulador_ev3.ui.telemetry_panel import TelemetryPanel
 
-# Directorio de ejemplos (relativo a la raÃ­z del proyecto)
-_EXAMPLES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "Documentos", "Ejemplos"
-)
-_WORLDS_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "Documentos", "Mundos"
-)
-_MANUAL_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "Documentos", "MANUAL_DE_USO.md"
-)
+# Rutas canónicas compartidas (con fallback legacy).
+_EXAMPLES_DIR = resolve_examples_dir()
+_WORLDS_DIR = resolve_worlds_dir()
+_MANUAL_PATH = resolve_manual_path()
 
 _SCENARIOS: list[tuple[str, str, str]] = [
-    ("Seguidor de línea", "01_linea_negra.json", "06_siguelineas_basico.py"),
-    ("Ultrasonido + obstáculos", "02_obstaculos_beacon.json", "05_esquiva_obstaculos.py"),
-    ("Test pantalla/altavoz", "02_obstaculos_beacon.json", "12_pantalla_altavoz_test.py"),
+    ("Seguidor de línea", "01_linea_negra.json", "11_siguelineas_basico.py"),
+    ("Ultrasonido + obstáculos", "02_obstaculos_beacon.json", "15_esquiva_obstaculos.py"),
+    ("Test pantalla/altavoz", "02_obstaculos_beacon.json", "02_intro_pantalla_altavoz.py"),
+    ("Gyro: corrección de rumbo", "03_gyro_rumbo.json", "17_gyro_correccion_rumbo.py"),
+    ("IR beacon: seguimiento", "04_beacon_ir.json", "18_infrarrojo_beacon_seguidor.py"),
+    ("DriveBase curva y estado", "05_curvas_estado.json", "21_drivebase_curva_estado.py"),
 ]
 
 # Periodo del tick en ms (â‰ˆ50 Hz)
@@ -97,6 +98,8 @@ class EV3SimulatorApp(tk.Tk):
         self._manual_window = None
         self._editor_world_placements: list[dict] = []
         self._debug_active = False
+        self._execution_menu_locked = False
+        self._lockable_menu_indices: tuple[int, ...] = ()
 
         # Construir la interfaz
         self._build_menu()
@@ -120,6 +123,7 @@ class EV3SimulatorApp(tk.Tk):
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self)
+        self._menubar = menubar
         self.configure(menu=menubar)
 
         # MenÃº Archivo
@@ -154,6 +158,8 @@ class EV3SimulatorApp(tk.Tk):
 
         # MenÃº Mundos
         worlds_menu = tk.Menu(menubar, tearoff=0)
+        worlds_menu.add_command(label="Mundo en blanco (sin mapa)", command=self._cmd_load_blank_world)
+        worlds_menu.add_separator()
         worlds_menu.add_command(label="Cargar mundo JSON...", command=self._cmd_load_world)
         worlds_menu.add_command(label="Editor de mundos...", command=self._cmd_open_world_editor)
         worlds_menu.add_separator()
@@ -172,6 +178,37 @@ class EV3SimulatorApp(tk.Tk):
         help_menu.add_command(label="Acerca de...", command=self._cmd_about)
         menubar.add_cascade(label="Ayuda", menu=help_menu)
 
+        self._lockable_menu_indices = (0, 1, 2, 3)
+        self._update_menu_lock_state()
+
+    def _update_menu_lock_state(self) -> None:
+        """Deshabilita menus de trabajo durante una ejecucion activa."""
+        state = tk.DISABLED if self._execution_menu_locked else tk.NORMAL
+        menu = getattr(self, "_menubar", None)
+        if menu is None:
+            return
+        entryconfigure = getattr(menu, "entryconfigure", None)
+        if not callable(entryconfigure):
+            return
+        for idx in self._lockable_menu_indices:
+            try:
+                entryconfigure(idx, state=state)
+            except Exception:  # noqa: BLE001
+                continue
+
+    def _set_execution_menu_locked(self, locked: bool) -> None:
+        self._execution_menu_locked = bool(locked)
+        self._update_menu_lock_state()
+
+    def _guard_menu_locked(self) -> bool:
+        if not self._execution_menu_locked:
+            return False
+        messagebox.showinfo(
+            "Ejecucion en curso",
+            "Opciones de menu bloqueadas durante la ejecucion. Usa Resetear para habilitarlas.",
+        )
+        return True
+
     def _populate_examples_menu(self, menu: tk.Menu) -> None:
         """AÃ±ade un Ã­tem por cada *.py en el directorio de ejemplos."""
         examples = self._examples.list_examples()
@@ -185,21 +222,18 @@ class EV3SimulatorApp(tk.Tk):
             )
 
     def _populate_worlds_menu(self, menu: tk.Menu) -> None:
-        if not os.path.isdir(_WORLDS_DIR):
+        if not _WORLDS_DIR.is_dir():
             menu.add_command(label="(No hay mundos)", state=tk.DISABLED)
             return
-        files = sorted(
-            f for f in os.listdir(_WORLDS_DIR)
-            if f.lower().endswith(".json")
-        )
+        files = sorted(path.name for path in _WORLDS_DIR.glob("*.json"))
         if not files:
             menu.add_command(label="(No hay mundos)", state=tk.DISABLED)
             return
         for file_name in files:
-            path = os.path.join(_WORLDS_DIR, file_name)
+            path = _WORLDS_DIR / file_name
             menu.add_command(
                 label=file_name,
-                command=lambda p=path: self._load_world(p),
+                command=lambda p=str(path): self._load_world(p),
             )
 
     def _populate_scenarios_menu(self, menu: tk.Menu) -> None:
@@ -214,7 +248,7 @@ class EV3SimulatorApp(tk.Tk):
             )
 
     def _build_layout(self) -> None:
-        """Construye el layout principal: trabajo a la izquierda, estado a la derecha."""
+        """Construye layout espejo de la web: simulacion izquierda, editor derecha."""
         self._root_hpane = tk.PanedWindow(
             self,
             orient=tk.HORIZONTAL,
@@ -222,29 +256,67 @@ class EV3SimulatorApp(tk.Tk):
             bg="#B0BEC5",
             sashrelief=tk.RAISED,
         )
-        self._root_hpane.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        self._root_hpane.pack(fill=tk.BOTH, expand=True, padx=12, pady=(4, 0))
 
-        # Columna izquierda: mundo arriba + editor abajo
+        # Columna izquierda: barra de control + mapa + telemetria/brick
         left_frame = tk.Frame(self._root_hpane, bg="#ECEFF1")
-        self._root_hpane.add(left_frame, minsize=560, stretch="always")
+        self._root_hpane.add(left_frame, minsize=700, stretch="always")
 
-        self._vpane = tk.PanedWindow(
-            left_frame,
-            orient=tk.VERTICAL,
-            sashwidth=6,
-            bg="#B0BEC5",
-            sashrelief=tk.RAISED,
+        self._build_sim_control_bar(left_frame)
+
+        map_frame = tk.Frame(left_frame, bg="#ECEFF1")
+        map_frame.pack(fill=tk.BOTH, expand=True)
+
+        map_header = tk.Frame(
+            map_frame,
+            bg="#FFFFFF",
+            bd=1,
+            relief=tk.FLAT,
+            highlightthickness=1,
+            highlightbackground="#D4DDE8",
         )
-        self._vpane.pack(fill=tk.BOTH, expand=True)
-
-        top_frame = tk.Frame(self._vpane, bg="#ECEFF1")
-        self._vpane.add(top_frame, minsize=350, stretch="always")
+        map_header.pack(fill=tk.X, pady=(0, 1))
+        tk.Label(
+            map_header,
+            text="Entorno de simulacion",
+            bg="#FFFFFF",
+            fg="#1D2D44",
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side=tk.LEFT, padx=10, pady=6)
+        self._world_name_var = tk.StringVar(value="Mundo actual: Basico")
+        tk.Label(
+            map_header,
+            textvariable=self._world_name_var,
+            bg="#FFFFFF",
+            fg="#35506F",
+            font=("Consolas", 9),
+        ).pack(side=tk.LEFT, padx=(0, 8), pady=6)
+        map_tools = tk.Frame(map_header, bg="#FFFFFF")
+        map_tools.pack(side=tk.RIGHT, padx=(0, 8), pady=4)
+        tk.Button(
+            map_tools,
+            text="+",
+            width=3,
+            command=self._cmd_map_zoom_in,
+        ).pack(side=tk.LEFT, padx=2)
+        tk.Button(
+            map_tools,
+            text="-",
+            width=3,
+            command=self._cmd_map_zoom_out,
+        ).pack(side=tk.LEFT, padx=2)
+        tk.Button(
+            map_tools,
+            text="[]",
+            width=3,
+            command=self._cmd_map_zoom_reset,
+        ).pack(side=tk.LEFT, padx=2)
 
         engine_cfg = self._service.engine._cfg
         ww = engine_cfg.world_width_mm
         wh = engine_cfg.world_height_mm
 
-        canvas_frame = tk.Frame(top_frame, bg="#ECEFF1")
+        canvas_frame = tk.Frame(map_frame, bg="#ECEFF1")
         canvas_frame.pack(fill=tk.BOTH, expand=True)
 
         self._placement_bar = tk.Label(
@@ -268,8 +340,24 @@ class EV3SimulatorApp(tk.Tk):
         self._refresh_world_canvas()
         self._activate_placement_mode()
 
+        # Fila inferior: telemetria y brick como en la web
+        self._bottom_pane = tk.PanedWindow(
+            left_frame,
+            orient=tk.HORIZONTAL,
+            sashwidth=4,
+            bg="#B0BEC5",
+            sashrelief=tk.RAISED,
+        )
+        self._bottom_pane.pack(fill=tk.BOTH, padx=2, pady=(8, 0))
+
+        self._telemetry_panel = TelemetryPanel(self._bottom_pane)
+        self._brick_panel = BrickPanel(self._bottom_pane)
+        self._bottom_pane.add(self._telemetry_panel, minsize=360, stretch="always")
+        self._bottom_pane.add(self._brick_panel, minsize=320, stretch="always")
+
+        # Columna derecha: editor de codigo
         self._editor = EditorPanel(
-            self._vpane,
+            self._root_hpane,
             on_run=self._cmd_run,
             on_debug=self._cmd_debug,
             on_debug_step=self._cmd_debug_step,
@@ -277,22 +365,66 @@ class EV3SimulatorApp(tk.Tk):
             on_breakpoints_changed=self._on_breakpoints_changed,
             on_stop=self._cmd_stop,
         )
-        self._vpane.add(self._editor, minsize=180, stretch="always")
+        self._root_hpane.add(self._editor, minsize=420, stretch="always")
 
-        # Columna derecha: telemetria arriba + pantalla del robot abajo
-        self._right_pane = tk.PanedWindow(
-            self._root_hpane,
-            orient=tk.VERTICAL,
-            sashwidth=4,
-            bg="#B0BEC5",
-            sashrelief=tk.RAISED,
+        self._status_strip = tk.Frame(self, bg="#F8FBFF", height=30)
+        self._status_strip.pack(fill=tk.X, padx=12, pady=(6, 0))
+        self._status_text_var = tk.StringVar(value="Estado: Listo")
+        tk.Label(
+            self._status_strip,
+            textvariable=self._status_text_var,
+            bg="#F8FBFF",
+            fg="#324968",
+            font=("Segoe UI", 9),
+        ).pack(side=tk.LEFT, padx=8)
+        tk.Label(
+            self._status_strip,
+            text="Robot: EV3",
+            bg="#F8FBFF",
+            fg="#324968",
+            font=("Segoe UI", 9),
+        ).pack(side=tk.LEFT, padx=18)
+        tk.Label(
+            self._status_strip,
+            text="Python (Pybricks)",
+            bg="#F8FBFF",
+            fg="#324968",
+            font=("Segoe UI", 9),
+        ).pack(side=tk.LEFT, padx=18)
+
+    def _build_sim_control_bar(self, parent: tk.Widget) -> None:
+        """Barra superior estilo web para controles de simulacion."""
+        bar = tk.Frame(parent, bg="#ECEFF1", padx=4, pady=4)
+        bar.pack(fill=tk.X)
+
+        run_group = tk.Frame(bar, bg="#ECEFF1")
+        run_group.pack(side=tk.LEFT, anchor="w")
+
+        tk.Button(run_group, text="Ejecutar", command=self._cmd_run_from_editor).pack(side=tk.LEFT, padx=2)
+        tk.Button(run_group, text="Pausar", command=self._cmd_pause).pack(side=tk.LEFT, padx=2)
+        tk.Button(run_group, text="Reanudar", command=self._cmd_resume).pack(side=tk.LEFT, padx=2)
+        tk.Button(run_group, text="Finalizar", command=self._cmd_stop).pack(side=tk.LEFT, padx=2)
+        tk.Button(run_group, text="Resetear", command=self._cmd_reset).pack(side=tk.LEFT, padx=2)
+
+        pose_group = tk.Frame(bar, bg="#ECEFF1")
+        pose_group.pack(side=tk.RIGHT, anchor="e")
+        tk.Button(
+            pose_group,
+            text="Ubicar robot",
+            command=self._activate_placement_mode,
+        ).pack(side=tk.LEFT, padx=(8, 4))
+        tk.Label(pose_group, text="Theta", bg="#ECEFF1").pack(side=tk.LEFT)
+        self._theta_var = tk.StringVar(value="0")
+        self._theta_label = tk.Label(
+            pose_group,
+            textvariable=self._theta_var,
+            width=5,
+            bg="#FFFFFF",
+            relief="solid",
+            bd=1,
+            anchor="e",
         )
-        self._root_hpane.add(self._right_pane, minsize=300, stretch="never")
-
-        self._telemetry_panel = TelemetryPanel(self._right_pane)
-        self._brick_panel = BrickPanel(self._right_pane)
-        self._right_pane.add(self._telemetry_panel, minsize=260, stretch="always")
-        self._right_pane.add(self._brick_panel, minsize=180, stretch="always")
+        self._theta_label.pack(side=tk.LEFT, padx=(4, 0))
 
     def _on_window_resize(self, _event) -> None:
         """Aplica layout responsivo con debounce en cada resize de la ventana."""
@@ -312,7 +444,12 @@ class EV3SimulatorApp(tk.Tk):
             hover_callback=self._on_canvas_hover,
         )
         cfg = self._service.engine._cfg
-        x0, y0, theta0 = cfg.robot_x0_mm, cfg.robot_y0_mm, cfg.robot_theta0_deg
+        x0, y0 = cfg.robot_x0_mm, cfg.robot_y0_mm
+        theta0 = cfg.robot_theta0_deg
+        try:
+            theta0 = float(self._theta_var.get().strip())
+        except (AttributeError, ValueError):
+            pass
         self._pending_robot_pose = (x0, y0, theta0)
         self._hover_robot_pos = None
         self._canvas.draw_placement_marker(x0, y0, theta0)
@@ -338,6 +475,7 @@ class EV3SimulatorApp(tk.Tk):
         self._pending_robot_pose = (x_mm, y_mm, theta_deg)
         self._service.set_robot_start(x_mm, y_mm, theta_deg)
         self._canvas.set_editor_robot_visible(False)
+        self._theta_var.set(f"{theta_deg:.0f}")
         self._refresh_placement_bar()
 
     def _refresh_placement_bar(self) -> None:
@@ -348,7 +486,7 @@ class EV3SimulatorApp(tk.Tk):
         hover = self._hover_robot_pos
         cursor_text = ""
         if hover is not None:
-            cursor_text = f" | Cursor: ({hover[0]:.0f} mm, {hover[1]:.0f} mm)"
+            cursor_text = f" | Cursor: ({hover[0] / 10.0:.1f} cm, {hover[1] / 10.0:.1f} cm)"
 
         if pose is None:
             self._placement_bar.config(
@@ -365,8 +503,8 @@ class EV3SimulatorApp(tk.Tk):
         x_mm, y_mm, theta_deg = pose
         self._placement_bar.config(
             text=(
-                f"Robot inicial: ({x_mm:.0f} mm, {y_mm:.0f} mm), "
-                f"theta {theta_deg:.0f} deg. "
+                f"Robot inicial: ({x_mm / 10.0:.1f} cm, {y_mm / 10.0:.1f} cm), "
+                f"theta {theta_deg:.0f} °. "
                 "Clic para mover, arrastra o rueda para orientar, Ejecutar para iniciar."
                 f"{cursor_text}"
             ),
@@ -382,22 +520,17 @@ class EV3SimulatorApp(tk.Tk):
         if width <= 1 or height <= 1:
             return
 
-        # Proporciones base
-        top_h = max(320, int(height * 0.62))
-        right_w = max(360, int(width * 0.34))  # reduce ancho util del editor
-        right_x = max(520, width - right_w)
-        telemetry_h = max(280, int(height * 0.62))
+        # Proporciones base en espejo web: simulacion izquierda + editor derecha
+        editor_w = max(420, int(width * 0.35))
+        editor_x = max(640, width - editor_w)
+        telemetry_w = max(360, int((editor_x - 24) * 0.52))
 
         try:
-            self._root_hpane.sash_place(0, right_x, 0)
+            self._root_hpane.sash_place(0, editor_x, 0)
         except Exception:  # noqa: BLE001
             pass
         try:
-            self._vpane.sash_place(0, 0, top_h)
-        except Exception:  # noqa: BLE001
-            pass
-        try:
-            self._right_pane.sash_place(0, 0, telemetry_h)
+            self._bottom_pane.sash_place(0, telemetry_w, 0)
         except Exception:  # noqa: BLE001
             pass
 
@@ -486,6 +619,12 @@ class EV3SimulatorApp(tk.Tk):
         }
         msg, color = status_map.get(status, (status, "#212121"))
         self.after_idle(self._editor.set_status, msg, color)
+        self.after_idle(self._status_text_var.set, f"Estado: {msg}")
+
+        if status in ("started", "paused", "resumed", "stopped"):
+            self.after_idle(self._set_execution_menu_locked, True)
+        elif status == "reset":
+            self.after_idle(self._set_execution_menu_locked, False)
 
         # Re-habilitar modo de colocaciÃ³n al terminar la simulaciÃ³n
         if status in ("stopped", "error", "reset"):
@@ -494,24 +633,60 @@ class EV3SimulatorApp(tk.Tk):
             self.after_idle(self._editor.clear_debug_line)
 
     def _on_debug_event(self, payload: dict) -> None:
-        evt_type = str(payload.get("type", "line"))
+        debug_state = str(payload.get("debug_state", "") or "")
         line_no = payload.get("line")
-        if line_no is None:
+        if line_no is not None:
+            try:
+                self.after_idle(self._editor.highlight_debug_line, int(line_no))
+            except Exception:  # noqa: BLE001
+                pass
+
+        if debug_state == "paused_breakpoint" and line_no is not None:
+            self.after_idle(self._editor.set_status, f"Pausa en breakpoint (linea {int(line_no)})", "#8E24AA")
             return
-        try:
-            self.after_idle(self._editor.highlight_debug_line, int(line_no))
-        except Exception:  # noqa: BLE001
-            pass
-        if evt_type == "paused":
+        if debug_state == "paused_step" and line_no is not None:
+            self.after_idle(self._editor.set_status, f"Pausa paso a paso (linea {int(line_no)})", "#8E24AA")
+            return
+        if debug_state == "paused_manual":
+            self.after_idle(self._editor.set_status, "Pausa manual", "#8E24AA")
+            return
+
+        evt_type = str(payload.get("type", "line"))
+        if evt_type == "paused" and line_no is not None:
             reason = str(payload.get("reason", "step"))
             if reason == "breakpoint":
-                msg = f"Pausa en breakpoint (linea {int(line_no)})"
+                self.after_idle(self._editor.set_status, f"Pausa en breakpoint (linea {int(line_no)})", "#8E24AA")
             else:
-                msg = f"Pausa paso a paso (linea {int(line_no)})"
-            self.after_idle(self._editor.set_status, msg, "#8E24AA")
+                self.after_idle(self._editor.set_status, f"Pausa paso a paso (linea {int(line_no)})", "#8E24AA")
 
     def _on_breakpoints_changed(self, breakpoints: set[int]) -> None:
         self._service.set_debug_breakpoints(breakpoints)
+
+    def _cmd_run_from_editor(self) -> None:
+        self._cmd_run(self._editor.get_code())
+
+    def _cmd_pause(self) -> None:
+        self._service.pause()
+
+    def _cmd_resume(self) -> None:
+        self._service.resume()
+
+    def _cmd_map_zoom_in(self) -> None:
+        self._canvas.zoom_in()
+
+    def _cmd_map_zoom_out(self) -> None:
+        self._canvas.zoom_out()
+
+    def _cmd_map_zoom_reset(self) -> None:
+        self._canvas.fit_to_view()
+
+    def _cmd_reset(self) -> None:
+        self._service.reset()
+        self._set_execution_menu_locked(False)
+        self._canvas.reset()
+        self._brick_panel.reset()
+        self._telemetry_panel.reset()
+        self._activate_placement_mode()
 
     # ------------------------------------------------------------------
     # Comandos de la UI
@@ -528,6 +703,7 @@ class EV3SimulatorApp(tk.Tk):
         self._telemetry_panel.reset()
         self._service.load_script(source_code)
         self._service.start(debug=False, step_mode=False)
+        self._set_execution_menu_locked(True)
 
     def _cmd_debug(self, source_code: str) -> None:
         """Ejecuta el script en modo depuracion (traza de lineas)."""
@@ -540,6 +716,7 @@ class EV3SimulatorApp(tk.Tk):
         self._service.set_debug_breakpoints(self._editor.get_breakpoints())
         self._service.load_script(source_code)
         self._service.start(debug=True, step_mode=False)
+        self._set_execution_menu_locked(True)
 
     def _cmd_debug_step(self) -> None:
         """Ejecuta un paso de depuracion o inicia depuracion paso a paso."""
@@ -556,6 +733,7 @@ class EV3SimulatorApp(tk.Tk):
         self._service.set_debug_breakpoints(self._editor.get_breakpoints())
         self._service.load_script(source_code)
         self._service.start(debug=True, step_mode=True)
+        self._set_execution_menu_locked(True)
 
     def _cmd_debug_continue(self) -> None:
         """Continua ejecucion en modo depuracion hasta el proximo breakpoint."""
@@ -581,6 +759,8 @@ class EV3SimulatorApp(tk.Tk):
 
     def _cmd_open_script(self) -> None:
         """Abre un script desde disco."""
+        if self._guard_menu_locked():
+            return
         if self._service.is_running:
             if not messagebox.askyesno(
                 "Abrir script",
@@ -592,10 +772,14 @@ class EV3SimulatorApp(tk.Tk):
 
     def _cmd_save_script(self) -> None:
         """Guarda el script actual."""
+        if self._guard_menu_locked():
+            return
         self._editor.save_script_dialog()
 
     def _cmd_new(self) -> None:
         """Nuevo script en blanco."""
+        if self._guard_menu_locked():
+            return
         if self._service.is_running:
             if not messagebox.askyesno("Nuevo script",
                                        "La simulación está corriendo. ¿Detener?"):
@@ -605,6 +789,8 @@ class EV3SimulatorApp(tk.Tk):
 
     def _load_example(self, path: str) -> None:
         """Carga un script de ejemplo en el editor."""
+        if self._guard_menu_locked():
+            return
         if self._service.is_running:
             self._service.stop()
         try:
@@ -613,15 +799,19 @@ class EV3SimulatorApp(tk.Tk):
             messagebox.showerror("Error al cargar ejemplo", str(exc))
 
     def _cmd_load_world(self) -> None:
+        if self._guard_menu_locked():
+            return
         path = filedialog.askopenfilename(
             title="Cargar mundo JSON",
-            initialdir=_WORLDS_DIR,
+            initialdir=str(_WORLDS_DIR),
             filetypes=[("JSON", "*.json"), ("Todos", "*.*")],
         )
         if path:
             self._load_world(path)
 
     def _cmd_open_world_editor(self) -> None:
+        if self._guard_menu_locked():
+            return
         try:
             if self._world_editor_window is not None:
                 if self._world_editor_window.winfo_exists():
@@ -661,29 +851,43 @@ class EV3SimulatorApp(tk.Tk):
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Error al cargar mundo", str(exc))
 
+    def _cmd_load_blank_world(self) -> None:
+        if self._guard_menu_locked():
+            return
+        try:
+            self._service.load_blank_world()
+            self._editor_world_placements = []
+            self._refresh_world_canvas()
+            self._activate_placement_mode()
+            self._editor.set_status("Mundo en blanco cargado", "#2E7D32")
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Error al cargar mundo", str(exc))
+
     def _apply_scenario(self, world_file: str, example_file: str) -> None:
         """Carga un mundo preset y un ejemplo asociado en un solo paso."""
-        world_path = os.path.join(_WORLDS_DIR, world_file)
-        example_path = os.path.join(_EXAMPLES_DIR, example_file)
+        if self._guard_menu_locked():
+            return
+        world_path = _WORLDS_DIR / world_file
+        example_path = _EXAMPLES_DIR / example_file
 
         if self._service.is_running:
             self._service.stop(reason="scenario_change")
 
-        if not os.path.exists(world_path):
+        if not world_path.exists():
             messagebox.showerror("Escenario", f"No existe el mundo: {world_file}")
             return
-        if not os.path.exists(example_path):
+        if not example_path.exists():
             messagebox.showerror("Escenario", f"No existe el ejemplo: {example_file}")
             return
 
         try:
-            self._service.load_world_file(world_path)
-            self._load_editor_visual_data(world_path)
-            self._editor.load_file(example_path)
+            self._service.load_world_file(str(world_path))
+            self._load_editor_visual_data(str(world_path))
+            self._editor.load_file(str(example_path))
             self._refresh_world_canvas()
             self._activate_placement_mode()
             self._editor.set_status(
-                f"Escenario cargado: {os.path.splitext(example_file)[0]}",
+                f"Escenario cargado: {Path(example_file).stem}",
                 "#2E7D32",
             )
         except Exception as exc:  # noqa: BLE001
@@ -691,6 +895,8 @@ class EV3SimulatorApp(tk.Tk):
 
     def _refresh_world_canvas(self) -> None:
         world = self._service.engine.world
+        world_name = getattr(world, "name", "Basico")
+        self._world_name_var.set(f"Mundo actual: {world_name}")
         self._canvas.set_world_size_mm(world.width_mm, world.height_mm)
         surface_cells = []
         cell_size = world.surface.cell_size_mm
@@ -799,7 +1005,7 @@ class EV3SimulatorApp(tk.Tk):
         txt.configure(state=tk.DISABLED)
 
     def _read_manual_text(self) -> str:
-        """Lee el manual desde Documentos."""
+        """Lee el manual desde la ruta compartida de documentacion."""
         path = Path(_MANUAL_PATH)
         if not path.exists():
             return (
@@ -844,3 +1050,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

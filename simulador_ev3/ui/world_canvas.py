@@ -27,6 +27,8 @@ from simulador_ev3.domain.editor.world_editor_model import (
     get_asset_spec,
     normalize_asset_key,
 )
+from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
 
 # Colores del canvas
@@ -50,16 +52,14 @@ _WALL_STYLE = {
 }
 _PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM
 
+_IMAGE_ASSETS_DIR = resolve_image_assets_dir()
+
 _ROBOT_SPRITE_PATH = os.path.join(
-    os.path.dirname(__file__),
-    "..",
-    "images",
+    str(_IMAGE_ASSETS_DIR),
     "robot_ev3_32x32.png",
 )
 _ASSET_IMAGES_DIR = os.path.join(
-    os.path.dirname(__file__),
-    "..",
-    "images",
+    str(_IMAGE_ASSETS_DIR),
 )
 _ASSET_IMAGE_OVERRIDES: dict[str, list[str]] = {
     "line_64x64_cruz": ["line_64X64_Cruz.png"],
@@ -109,9 +109,15 @@ _DEFAULT_WORLD_H = 4000.0
 _ROBOT_W_MM = _ROBOT_WIDTH_MM
 _ROBOT_H_MM = _ROBOT_HEIGHT_MM
 
+_MIN_ZOOM_FACTOR = 0.5
+_MAX_ZOOM_FACTOR = 3.0
+_ZOOM_STEP = 0.15
+_FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
+
 # Colores del modo de colocación
 _PLACEMENT_GHOST  = "#4FC3F7"   # contorno fantasma al mover el ratón
 _PLACEMENT_MARKER = "#FF6F00"   # marcador de posición seleccionada
+_FOLLOW_EDGE_MARGIN_RATIO = 0.45
 
 
 class WorldCanvas(tk.Canvas):
@@ -142,9 +148,12 @@ class WorldCanvas(tk.Canvas):
         self._world_w  = world_w_mm
         self._world_h  = world_h_mm
         self._show_trail = show_trail
+        self._zoom_factor = 1.0
         self._px_per_mm = _PX_PER_MM
         self._follow_robot = True
         self._show_editor_robot_asset = True
+        self._follow_pad_x_px = 0.0
+        self._follow_pad_y_px = 0.0
 
         # Lista de posiciones (x_mm, y_mm) del rastro
         self._trail: list[tuple[float, float]] = []
@@ -229,6 +238,34 @@ class WorldCanvas(tk.Canvas):
 
     def set_robot_follow_enabled(self, enabled: bool) -> None:
         self._follow_robot = bool(enabled)
+
+    def zoom_in(self) -> float:
+        return self._set_zoom_factor(self._zoom_factor + _ZOOM_STEP)
+
+    def zoom_out(self) -> float:
+        return self._set_zoom_factor(self._zoom_factor - _ZOOM_STEP)
+
+    def reset_zoom(self) -> float:
+        return self._set_zoom_factor(1.0)
+
+    def fit_to_view(self) -> float:
+        view_w_px = max(1.0, float(self.winfo_width() or 1))
+        view_h_px = max(1.0, float(self.winfo_height() or 1))
+        if view_w_px <= 1.0 or view_h_px <= 1.0:
+            return self._zoom_factor
+
+        world_w_mm = max(1.0, float(self._world_w))
+        world_h_mm = max(1.0, float(self._world_h))
+        usable_w_px = max(1.0, view_w_px * (1.0 - 2.0 * _FIT_PADDING_RATIO))
+        usable_h_px = max(1.0, view_h_px * (1.0 - 2.0 * _FIT_PADDING_RATIO))
+        zoom_x = usable_w_px / (world_w_mm * _PX_PER_MM)
+        zoom_y = usable_h_px / (world_h_mm * _PX_PER_MM)
+        applied = self._set_zoom_factor(min(zoom_x, zoom_y))
+        self._center_view_on_mm(world_w_mm / 2.0, world_h_mm / 2.0)
+        return applied
+
+    def get_zoom_factor(self) -> float:
+        return self._zoom_factor
 
     def set_surface_cells(self, surface_cells: list[dict]) -> None:
         """
@@ -585,12 +622,19 @@ class WorldCanvas(tk.Canvas):
             self._robot_sprite = None
             return
         self._robot_sprite_base = img
+        target_w, target_h = self._robot_draw_size_px()
         self._robot_sprite = self._resize_photoimage(
             img,
-            target_w=_ROBOT_DRAW_W_PX,
-            target_h=_ROBOT_DRAW_H_PX,
+            target_w=target_w,
+            target_h=target_h,
         )
         self._robot_sprite_rot_cache = {0: self._robot_sprite}
+
+    def _robot_draw_size_px(self) -> tuple[int, int]:
+        return (
+            max(1, int(round(_ROBOT_WIDTH_MM * self._px_per_mm))),
+            max(1, int(round(_ROBOT_HEIGHT_MM * self._px_per_mm))),
+        )
 
     def _resize_photoimage(
         self,
@@ -976,10 +1020,11 @@ class WorldCanvas(tk.Canvas):
     ) -> None:
         cx, cy = self._mm_to_px(x_mm, y_mm)
         sprite_image = self._get_rotated_robot_sprite(theta_deg) or self._robot_sprite
+        draw_w_px, draw_h_px = self._robot_draw_size_px()
         sprite = self.create_image(cx, cy, image=sprite_image)
 
         th_rad = math.radians(theta_deg)
-        arrow_len = max(_ROBOT_DRAW_W_PX, _ROBOT_DRAW_H_PX) * 0.95
+        arrow_len = max(draw_w_px, draw_h_px) * 0.95
         fx = cx + math.cos(th_rad) * arrow_len
         fy = cy + math.sin(th_rad) * arrow_len
         heading = self.create_line(
@@ -1004,10 +1049,10 @@ class WorldCanvas(tk.Canvas):
             items.append(sensor_marker)
         if colliding:
             border = self.create_rectangle(
-                cx - _ROBOT_DRAW_W_PX / 2.0,
-                cy - _ROBOT_DRAW_H_PX / 2.0,
-                cx + _ROBOT_DRAW_W_PX / 2.0,
-                cy + _ROBOT_DRAW_H_PX / 2.0,
+                cx - draw_w_px / 2.0,
+                cy - draw_h_px / 2.0,
+                cx + draw_w_px / 2.0,
+                cy + draw_h_px / 2.0,
                 outline=_ROBOT_COLLISION,
                 width=2,
             )
@@ -1249,24 +1294,78 @@ class WorldCanvas(tk.Canvas):
     def _update_scrollregion(self) -> None:
         world_w_px = int(round(self._world_w * self._px_per_mm))
         world_h_px = int(round(self._world_h * self._px_per_mm))
-        self.configure(scrollregion=(0, 0, world_w_px, world_h_px))
+        view_w_px = max(1.0, float(self.winfo_width() or 1))
+        view_h_px = max(1.0, float(self.winfo_height() or 1))
+        self._follow_pad_x_px = (
+            view_w_px * _FOLLOW_EDGE_MARGIN_RATIO if world_w_px > view_w_px else 0.0
+        )
+        self._follow_pad_y_px = (
+            view_h_px * _FOLLOW_EDGE_MARGIN_RATIO if world_h_px > view_h_px else 0.0
+        )
+        self.configure(
+            scrollregion=(
+                -self._follow_pad_x_px,
+                -self._follow_pad_y_px,
+                world_w_px + self._follow_pad_x_px,
+                world_h_px + self._follow_pad_y_px,
+            )
+        )
+
+    def _set_zoom_factor(self, zoom_factor: float) -> float:
+        clamped = min(max(float(zoom_factor), _MIN_ZOOM_FACTOR), _MAX_ZOOM_FACTOR)
+        if abs(clamped - self._zoom_factor) < 1e-9:
+            return self._zoom_factor
+
+        center_world = self._viewport_center_mm()
+        self._zoom_factor = clamped
+        self._px_per_mm = _PX_PER_MM * self._zoom_factor
+        self._asset_image_cache.clear()
+        self._load_robot_sprite()
+        self._update_scrollregion()
+        self._draw_background()
+        self._redraw_surface()
+        self._redraw_obstacles()
+        self._redraw_editor_assets()
+        if self._show_trail:
+            self._draw_trail()
+        self._redraw_placement_marker()
+        if center_world is not None:
+            self._center_view_on_mm(center_world[0], center_world[1])
+        return self._zoom_factor
+
+    def _viewport_center_mm(self) -> Optional[tuple[float, float]]:
+        sx, sy = self._get_transform()
+        if sx <= 0 or sy <= 0:
+            return None
+
+        view_w_px = max(1.0, float(self.winfo_width() or 1))
+        view_h_px = max(1.0, float(self.winfo_height() or 1))
+        center_x_px = self.canvasx(view_w_px / 2.0)
+        center_y_px = self.canvasy(view_h_px / 2.0)
+        x_mm = min(max(center_x_px / sx, 0.0), self._world_w)
+        y_mm = min(max(center_y_px / sy, 0.0), self._world_h)
+        return x_mm, y_mm
 
     def _center_view_on_mm(self, x_mm: float, y_mm: float) -> None:
         world_w_px = max(1.0, self._world_w * self._px_per_mm)
         world_h_px = max(1.0, self._world_h * self._px_per_mm)
+        total_w_px = world_w_px + 2.0 * self._follow_pad_x_px
+        total_h_px = world_h_px + 2.0 * self._follow_pad_y_px
         view_w_px = max(1.0, float(self.winfo_width() or 1))
         view_h_px = max(1.0, float(self.winfo_height() or 1))
 
-        center_x_px = x_mm * self._px_per_mm
-        center_y_px = y_mm * self._px_per_mm
+        center_x_px = x_mm * self._px_per_mm + self._follow_pad_x_px
+        center_y_px = y_mm * self._px_per_mm + self._follow_pad_y_px
 
-        max_left = max(0.0, world_w_px - view_w_px)
-        max_top = max(0.0, world_h_px - view_h_px)
+        max_left = max(0.0, total_w_px - view_w_px)
+        max_top = max(0.0, total_h_px - view_h_px)
         left_px = min(max(0.0, center_x_px - view_w_px / 2.0), max_left)
         top_px = min(max(0.0, center_y_px - view_h_px / 2.0), max_top)
 
-        x_fraction = 0.0 if world_w_px <= 0 else left_px / world_w_px
-        y_fraction = 0.0 if world_h_px <= 0 else top_px / world_h_px
+        x_fraction = 0.0 if total_w_px <= 0 else left_px / total_w_px
+        y_fraction = 0.0 if total_h_px <= 0 else top_px / total_h_px
+        x_fraction = min(max(0.0, x_fraction), 1.0)
+        y_fraction = min(max(0.0, y_fraction), 1.0)
 
         x_move = getattr(self, "xview_moveto", None)
         y_move = getattr(self, "yview_moveto", None)

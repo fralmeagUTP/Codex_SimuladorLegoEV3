@@ -10,11 +10,13 @@ import os
 import tkinter as tk
 from typing import Callable
 
+from simulador_ev3.shared.paths import resolve_image_assets_dir
+
 _BAR_BG = "#ECEFF1"
 _BTN_BG = "#CFD8DC"
 _BTN_ACTIVE = "#90A4AE"
 _ICON_SIZE_PX = 32
-_IMAGES_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "images"))
+_IMAGES_DIR = os.path.normpath(str(resolve_image_assets_dir()))
 _TOOL_IMAGE_OVERRIDES: dict[str, list[str]] = {
     "line_64x64_cruz": ["line_64X64_Cruz.png"],
     "line_64_64_hor": ["line_64_64_Hor.png"],

@@ -2,6 +2,11 @@
 
 Esta guia describe como operar la version web del Simulador EV3.
 
+Estado oficial de interfaces:
+
+- La web es el frontend principal del proyecto.
+- La aplicacion Tkinter queda como interfaz legacy para compatibilidad y soporte offline.
+
 Version documentada: 1.3.0  
 Fecha de actualizacion: 2026-05-20
 
@@ -147,14 +152,14 @@ Cuando se ejecuta en segundo plano:
 La aplicacion permite configurar valores sin editar codigo:
 
 | Variable | Uso | Valor por defecto |
-|---|---|---|
+| --- | --- | --- |
 | `EV3_WEB_HOST` | Host de escucha del servidor. | `127.0.0.1` |
 | `EV3_WEB_PORT` | Puerto HTTP. | `5050` |
 | `EV3_WEB_THREADS` | Hilos de Waitress. | `8` |
 | `EV3_WEB_SECRET_KEY` | Llave Flask para cookies/sesiones. | `dev-simulador-ev3` |
-| `EV3_WEB_EXAMPLES_DIR` | Carpeta de ejemplos Pybricks. | `Documentos\Ejemplos` |
-| `EV3_WEB_WORLDS_DIR` | Carpeta de mundos JSON. | `Documentos\Mundos` |
-| `EV3_WEB_IMAGE_ASSETS_DIR` | Carpeta de imagenes de assets. | `simulador_ev3\images` |
+| `EV3_WEB_EXAMPLES_DIR` | Carpeta de ejemplos Pybricks. | `examples` |
+| `EV3_WEB_WORLDS_DIR` | Carpeta de mundos JSON. | `worlds` |
+| `EV3_WEB_IMAGE_ASSETS_DIR` | Carpeta de imagenes de assets. | `simulador_ev3\assets` |
 | `EV3_WEB_SESSION_IDLE_TIMEOUT_MIN` | Minutos de inactividad antes de expirar sesion. | `30` |
 | `EV3_WEB_MAX_ACTIVE_SESSIONS` | Numero maximo de sesiones activas. | `20` |
 | `EV3_WEB_MAX_RUNNING_SIMULATIONS` | Numero maximo de simulaciones corriendo. | `8` |
@@ -166,6 +171,10 @@ La aplicacion permite configurar valores sin editar codigo:
 | `EV3_WEB_ENABLE_SESSION_CLEANUP_THREAD` | Activa limpieza periodica en segundo plano. | `true` |
 | `EV3_WEB_ENABLE_SECURITY_HEADERS` | Activa cabeceras basicas de seguridad HTTP. | `true` |
 | `EV3_WEB_SESSION_COOKIE_SECURE` | Marca cookies como seguras cuando se use HTTPS. | `false` |
+
+Compatibilidad temporal:
+
+- Si todavia no migraste carpetas, tambien puedes apuntar a `Documentos\Ejemplos` y `Documentos\Mundos`.
 
 Ejemplo:
 

@@ -40,7 +40,10 @@ def create_app(config: dict | None = None) -> Flask:
 
     @app.context_processor
     def _asset_version_context():
-        return {"asset_version": app.config.get("STATIC_ASSET_VERSION", "dev")}
+        return {
+            "asset_version": app.config.get("STATIC_ASSET_VERSION", "dev"),
+            "fit_padding_ratio": app.config.get("UI_FIT_PADDING_RATIO", 0.05),
+        }
 
     @app.after_request
     def _security_headers(response):

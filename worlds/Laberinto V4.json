@@ -1,0 +1,1226 @@
+{
+  "grid_size_px": 32,
+  "placements": [
+    {
+      "asset_key": "zone_green_128",
+      "id": "zone_0021",
+      "rotation": 0,
+      "x": 0,
+      "y": 64
+    },
+    {
+      "asset_key": "zone_red_128",
+      "id": "zone_0189",
+      "rotation": 0,
+      "x": 960,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0001",
+      "rotation": 0,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0002",
+      "rotation": 0,
+      "x": 64,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0003",
+      "rotation": 0,
+      "x": 128,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0005",
+      "rotation": 0,
+      "x": 192,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0010",
+      "rotation": 0,
+      "x": 256,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0011",
+      "rotation": 0,
+      "x": 320,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0012",
+      "rotation": 0,
+      "x": 384,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0014",
+      "rotation": 0,
+      "x": 448,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0015",
+      "rotation": 0,
+      "x": 512,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0016",
+      "rotation": 0,
+      "x": 576,
+      "y": 0
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0017",
+      "rotation": 0,
+      "x": 576,
+      "y": 64
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0018",
+      "rotation": 0,
+      "x": 576,
+      "y": 128
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0022",
+      "rotation": 0,
+      "x": 0,
+      "y": 192
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0023",
+      "rotation": 0,
+      "x": 64,
+      "y": 192
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0024",
+      "rotation": 0,
+      "x": 128,
+      "y": 192
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0025",
+      "rotation": 0,
+      "x": 192,
+      "y": 192
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0026",
+      "rotation": 0,
+      "x": 384,
+      "y": 192
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0019",
+      "rotation": 0,
+      "x": 576,
+      "y": 192
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0029",
+      "rotation": 0,
+      "x": 0,
+      "y": 256
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0027",
+      "rotation": 0,
+      "x": 384,
+      "y": 256
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0038",
+      "rotation": 0,
+      "x": 576,
+      "y": 256
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0030",
+      "rotation": 0,
+      "x": 0,
+      "y": 320
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0028",
+      "rotation": 0,
+      "x": 384,
+      "y": 320
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0039",
+      "rotation": 0,
+      "x": 576,
+      "y": 320
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0031",
+      "rotation": 0,
+      "x": 0,
+      "y": 384
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0035",
+      "rotation": 0,
+      "x": 192,
+      "y": 384
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0034",
+      "rotation": 0,
+      "x": 256,
+      "y": 384
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0033",
+      "rotation": 0,
+      "x": 320,
+      "y": 384
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0032",
+      "rotation": 0,
+      "x": 384,
+      "y": 384
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0040",
+      "rotation": 0,
+      "x": 576,
+      "y": 384
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0036",
+      "rotation": 0,
+      "x": 0,
+      "y": 448
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0041",
+      "rotation": 0,
+      "x": 576,
+      "y": 448
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0047",
+      "rotation": 0,
+      "x": 0,
+      "y": 512
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0042",
+      "rotation": 0,
+      "x": 576,
+      "y": 512
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0048",
+      "rotation": 0,
+      "x": 0,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0049",
+      "rotation": 0,
+      "x": 64,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0050",
+      "rotation": 0,
+      "x": 128,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0051",
+      "rotation": 0,
+      "x": 192,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0046",
+      "rotation": 0,
+      "x": 384,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0045",
+      "rotation": 0,
+      "x": 448,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0044",
+      "rotation": 0,
+      "x": 512,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0043",
+      "rotation": 0,
+      "x": 576,
+      "y": 576
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0073",
+      "rotation": 0,
+      "x": 0,
+      "y": 640
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0052",
+      "rotation": 0,
+      "x": 192,
+      "y": 640
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0059",
+      "rotation": 0,
+      "x": 576,
+      "y": 640
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0074",
+      "rotation": 0,
+      "x": 0,
+      "y": 704
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0053",
+      "rotation": 0,
+      "x": 192,
+      "y": 704
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0060",
+      "rotation": 0,
+      "x": 576,
+      "y": 704
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0075",
+      "rotation": 0,
+      "x": 0,
+      "y": 768
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0054",
+      "rotation": 0,
+      "x": 192,
+      "y": 768
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0055",
+      "rotation": 0,
+      "x": 256,
+      "y": 768
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0056",
+      "rotation": 0,
+      "x": 320,
+      "y": 768
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0057",
+      "rotation": 0,
+      "x": 384,
+      "y": 768
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0063",
+      "rotation": 0,
+      "x": 576,
+      "y": 768
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0076",
+      "rotation": 0,
+      "x": 0,
+      "y": 832
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0079",
+      "rotation": 0,
+      "x": 320,
+      "y": 832
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0064",
+      "rotation": 0,
+      "x": 576,
+      "y": 832
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0077",
+      "rotation": 0,
+      "x": 0,
+      "y": 896
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0081",
+      "rotation": 0,
+      "x": 320,
+      "y": 896
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0065",
+      "rotation": 0,
+      "x": 576,
+      "y": 896
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0078",
+      "rotation": 0,
+      "x": 0,
+      "y": 960
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0072",
+      "rotation": 0,
+      "x": 192,
+      "y": 960
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0071",
+      "rotation": 0,
+      "x": 256,
+      "y": 960
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0070",
+      "rotation": 0,
+      "x": 320,
+      "y": 960
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0069",
+      "rotation": 0,
+      "x": 384,
+      "y": 960
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0066",
+      "rotation": 0,
+      "x": 576,
+      "y": 960
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0082",
+      "rotation": 0,
+      "x": 0,
+      "y": 1024
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0088",
+      "rotation": 0,
+      "x": 192,
+      "y": 1024
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0086",
+      "rotation": 0,
+      "x": 256,
+      "y": 1024
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0084",
+      "rotation": 0,
+      "x": 320,
+      "y": 1024
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0097",
+      "rotation": 0,
+      "x": 576,
+      "y": 1024
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0083",
+      "rotation": 0,
+      "x": 0,
+      "y": 1088
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0089",
+      "rotation": 0,
+      "x": 192,
+      "y": 1088
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0087",
+      "rotation": 0,
+      "x": 256,
+      "y": 1088
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0085",
+      "rotation": 0,
+      "x": 320,
+      "y": 1088
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0098",
+      "rotation": 0,
+      "x": 576,
+      "y": 1088
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0092",
+      "rotation": 0,
+      "x": 0,
+      "y": 1152
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0090",
+      "rotation": 0,
+      "x": 256,
+      "y": 1152
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0100",
+      "rotation": 0,
+      "x": 512,
+      "y": 1152
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0099",
+      "rotation": 0,
+      "x": 576,
+      "y": 1152
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0093",
+      "rotation": 0,
+      "x": 0,
+      "y": 1216
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0091",
+      "rotation": 0,
+      "x": 256,
+      "y": 1216
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0102",
+      "rotation": 0,
+      "x": 448,
+      "y": 1216
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0101",
+      "rotation": 0,
+      "x": 512,
+      "y": 1216
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0094",
+      "rotation": 0,
+      "x": 0,
+      "y": 1280
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0095",
+      "rotation": 0,
+      "x": 64,
+      "y": 1280
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0096",
+      "rotation": 0,
+      "x": 256,
+      "y": 1280
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0103",
+      "rotation": 0,
+      "x": 448,
+      "y": 1280
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0113",
+      "rotation": 0,
+      "x": 512,
+      "y": 1280
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0114",
+      "rotation": 0,
+      "x": 576,
+      "y": 1280
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0115",
+      "rotation": 0,
+      "x": 640,
+      "y": 1280
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0104",
+      "rotation": 0,
+      "x": 64,
+      "y": 1344
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0116",
+      "rotation": 0,
+      "x": 640,
+      "y": 1344
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0105",
+      "rotation": 0,
+      "x": 64,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0117",
+      "rotation": 0,
+      "x": 640,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0181",
+      "rotation": 0,
+      "x": 704,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0182",
+      "rotation": 0,
+      "x": 768,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0183",
+      "rotation": 0,
+      "x": 832,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0184",
+      "rotation": 0,
+      "x": 896,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0187",
+      "rotation": 0,
+      "x": 960,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0188",
+      "rotation": 0,
+      "x": 1024,
+      "y": 1408
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0106",
+      "rotation": 0,
+      "x": 64,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0107",
+      "rotation": 0,
+      "x": 128,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0108",
+      "rotation": 0,
+      "x": 192,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0109",
+      "rotation": 0,
+      "x": 256,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0110",
+      "rotation": 0,
+      "x": 320,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0111",
+      "rotation": 0,
+      "x": 384,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0112",
+      "rotation": 0,
+      "x": 448,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0118",
+      "rotation": 0,
+      "x": 640,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0180",
+      "rotation": 0,
+      "x": 704,
+      "y": 1472
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0137",
+      "rotation": 0,
+      "x": 0,
+      "y": 1536
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0136",
+      "rotation": 0,
+      "x": 64,
+      "y": 1536
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0127",
+      "rotation": 0,
+      "x": 256,
+      "y": 1536
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0119",
+      "rotation": 0,
+      "x": 640,
+      "y": 1536
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0179",
+      "rotation": 0,
+      "x": 704,
+      "y": 1536
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0138",
+      "rotation": 0,
+      "x": 0,
+      "y": 1600
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0126",
+      "rotation": 0,
+      "x": 256,
+      "y": 1600
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0120",
+      "rotation": 0,
+      "x": 640,
+      "y": 1600
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0178",
+      "rotation": 0,
+      "x": 704,
+      "y": 1600
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0177",
+      "rotation": 0,
+      "x": 896,
+      "y": 1600
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0185",
+      "rotation": 0,
+      "x": 960,
+      "y": 1600
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0186",
+      "rotation": 0,
+      "x": 1024,
+      "y": 1600
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0139",
+      "rotation": 0,
+      "x": 0,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0125",
+      "rotation": 0,
+      "x": 256,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0124",
+      "rotation": 0,
+      "x": 448,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0123",
+      "rotation": 0,
+      "x": 512,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0122",
+      "rotation": 0,
+      "x": 576,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0121",
+      "rotation": 0,
+      "x": 640,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0170",
+      "rotation": 0,
+      "x": 704,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0176",
+      "rotation": 0,
+      "x": 896,
+      "y": 1664
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0140",
+      "rotation": 0,
+      "x": 0,
+      "y": 1728
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0128",
+      "rotation": 0,
+      "x": 256,
+      "y": 1728
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0129",
+      "rotation": 0,
+      "x": 448,
+      "y": 1728
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0175",
+      "rotation": 0,
+      "x": 896,
+      "y": 1728
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0141",
+      "rotation": 0,
+      "x": 0,
+      "y": 1792
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0130",
+      "rotation": 0,
+      "x": 448,
+      "y": 1792
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0174",
+      "rotation": 0,
+      "x": 896,
+      "y": 1792
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0142",
+      "rotation": 0,
+      "x": 0,
+      "y": 1856
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0131",
+      "rotation": 0,
+      "x": 448,
+      "y": 1856
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0169",
+      "rotation": 0,
+      "x": 768,
+      "y": 1856
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0171",
+      "rotation": 0,
+      "x": 832,
+      "y": 1856
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0172",
+      "rotation": 0,
+      "x": 896,
+      "y": 1856
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0143",
+      "rotation": 0,
+      "x": 0,
+      "y": 1920
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0144",
+      "rotation": 0,
+      "x": 64,
+      "y": 1920
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0135",
+      "rotation": 0,
+      "x": 256,
+      "y": 1920
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0134",
+      "rotation": 0,
+      "x": 320,
+      "y": 1920
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0133",
+      "rotation": 0,
+      "x": 384,
+      "y": 1920
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0132",
+      "rotation": 0,
+      "x": 448,
+      "y": 1920
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0168",
+      "rotation": 0,
+      "x": 704,
+      "y": 1920
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0146",
+      "rotation": 0,
+      "x": 0,
+      "y": 1984
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0145",
+      "rotation": 0,
+      "x": 256,
+      "y": 1984
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0165",
+      "rotation": 0,
+      "x": 320,
+      "y": 1984
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0166",
+      "rotation": 0,
+      "x": 384,
+      "y": 1984
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0164",
+      "rotation": 0,
+      "x": 640,
+      "y": 1984
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0148",
+      "rotation": 0,
+      "x": 0,
+      "y": 2048
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0150",
+      "rotation": 0,
+      "x": 192,
+      "y": 2048
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0147",
+      "rotation": 0,
+      "x": 256,
+      "y": 2048
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0167",
+      "rotation": 0,
+      "x": 320,
+      "y": 2048
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0163",
+      "rotation": 0,
+      "x": 576,
+      "y": 2048
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0149",
+      "rotation": 0,
+      "x": 0,
+      "y": 2112
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0151",
+      "rotation": 0,
+      "x": 192,
+      "y": 2112
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0162",
+      "rotation": 0,
+      "x": 512,
+      "y": 2112
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0152",
+      "rotation": 0,
+      "x": 0,
+      "y": 2176
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0161",
+      "rotation": 0,
+      "x": 448,
+      "y": 2176
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0153",
+      "rotation": 0,
+      "x": 0,
+      "y": 2240
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0160",
+      "rotation": 0,
+      "x": 384,
+      "y": 2240
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0154",
+      "rotation": 0,
+      "x": 0,
+      "y": 2304
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0155",
+      "rotation": 0,
+      "x": 64,
+      "y": 2304
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0156",
+      "rotation": 0,
+      "x": 128,
+      "y": 2304
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0157",
+      "rotation": 0,
+      "x": 192,
+      "y": 2304
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0158",
+      "rotation": 0,
+      "x": 256,
+      "y": 2304
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0159",
+      "rotation": 0,
+      "x": 320,
+      "y": 2304
+    }
+  ],
+  "schema_version": 1,
+  "world_height_cells": 160,
+  "world_width_cells": 160
+}

@@ -1,15 +1,29 @@
 # Simulador EV3 Pybricks
 
-Version actual: 1.3.1
+Version actual: 1.3.2
 
 Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyecto incluye aplicacion de escritorio Tkinter y aplicacion web Flask para ejecutar scripts, editar mundos 2D y visualizar telemetria del robot.
+
+## Estado de interfaces
+
+- Frontend principal: Web Flask (`/` y `/worlds`).
+- Frontend legado: Tkinter (`simulador_ev3/ui`) en modo mantenimiento correctivo.
+- Politica de evolucion: nuevas funcionalidades primero en web; en escritorio solo correcciones necesarias de compatibilidad.
 
 ## Estado del repositorio
 
 - Rama publicada: `main`
-- Version objetivo en GitHub: `1.3.1`
+- Version objetivo en GitHub: `1.3.2`
 - Interfaz web: incluida desde la version `1.3.0`
-- Interfaz escritorio Tkinter: mantenida
+- Interfaz escritorio Tkinter: legado en mantenimiento
+
+## Estructura estandar de recursos
+
+- Ejemplos compartidos: `examples/`
+- Mundos compartidos: `worlds/`
+- Documentacion: `Documentos/` (legacy, en proceso de migracion a `docs/`)
+
+Compatibilidad: el codigo mantiene fallback a `Documentos/Ejemplos` y `Documentos/Mundos` para no romper despliegues existentes.
 
 ## Funcionalidades principales
 
@@ -19,6 +33,9 @@ Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyect
 - Carga/guardado de mundos JSON.
 - Simulacion web multi-sesion con Flask.
 - Debug web con breakpoints, step y continue.
+- Resaltado de linea actual en modo depuracion web.
+- Boton unico `Detener y reiniciar` para salida consistente de ejecucion.
+- Auto-reinicio de estado al finalizar scripts para evitar sesiones colgadas.
 - Evidencia visual automatizada para la web.
 - Pruebas unitarias, integracion, E2E Playwright y smoke de release.
 
@@ -68,7 +85,7 @@ Detener:
 .\.venv\Scripts\python.exe -m pytest tests\web tests\e2e tests\application
 ```
 
-Ultima validacion documentada: `117 passed`.
+Ultima validacion documentada: `565 passed`.
 
 Para validacion completa por bloques, usar `Documentos/CHECKLIST_QA_RELEASE.md`.
 
@@ -81,3 +98,9 @@ El mapa web usa la misma escala que Tkinter:
 - si el mapa no cabe en el panel visible, el contenedor web usa scroll.
 
 Esto evita deformaciones visuales y mantiene la misma dimension fisica de mundos y assets en ambas interfaces.
+
+## Unidades de medida en interfaz
+
+- Distancias mostradas al usuario en web y Tkinter: `cm`.
+- Unidad interna del motor de simulacion y geometria del mundo: `mm`.
+- Angulos: `deg`.

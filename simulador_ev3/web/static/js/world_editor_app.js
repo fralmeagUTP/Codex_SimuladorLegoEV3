@@ -17,10 +17,14 @@
   const robotThetaInput = document.getElementById("robotThetaInput");
   const robotStartReadout = document.getElementById("robotStartReadout");
   const worldNameLabel = document.getElementById("worldNameLabel");
+  const simulateSavedWorldLink = document.getElementById("simulateSavedWorldLink");
   const worldWidthInput = document.getElementById("worldWidthInput");
   const worldHeightInput = document.getElementById("worldHeightInput");
   const cursorReadout = document.getElementById("cursorReadout");
   const validationStatus = document.getElementById("validationStatus");
+  const worldMapZoomInBtn = document.getElementById("worldMapZoomInBtn");
+  const worldMapZoomOutBtn = document.getElementById("worldMapZoomOutBtn");
+  const worldMapZoomResetBtn = document.getElementById("worldMapZoomResetBtn");
   const DEFAULT_WORLD_CELLS = 40;
   let currentWorld = null;
   let editorWorld = null;
@@ -72,7 +76,7 @@
       button.title = item.key;
       button.dataset.assetKey = item.key;
       const img = document.createElement("img");
-      img.src = `/assets/images/${encodeURIComponent(assetImageFile(item.key))}`;
+      img.src = api.resolvePath(`/assets/${encodeURIComponent(assetImageFile(item.key))}`);
       img.alt = "";
       img.onerror = () => {
         img.remove();
@@ -145,6 +149,18 @@
     });
   }
 
+  function applyMapZoom(action) {
+    if (!window.EV3Canvas || !canvas) return;
+    if (action === "in") {
+      window.EV3Canvas.zoomIn(canvas);
+    } else if (action === "out") {
+      window.EV3Canvas.zoomOut(canvas);
+    } else {
+      window.EV3Canvas.fitToView(canvas, currentWorld);
+    }
+    drawEditor();
+  }
+
   window.addEventListener("ev3-assets-loaded", drawEditor);
 
   function updateSelection(placement) {
@@ -192,9 +208,12 @@
       robotStartReadout.textContent = "Pose no fijada";
       return;
     }
+
+    const xCm = robotStart.x_mm / 10;
+    const yCm = robotStart.y_mm / 10;
     robotStartReadout.textContent =
-      `X ${robotStart.x_mm.toFixed(1)} mm, Y ${robotStart.y_mm.toFixed(1)} mm, ` +
-      `${robotStart.theta_deg.toFixed(0)} deg`;
+      `X ${xCm.toFixed(1)} cm, Y ${yCm.toFixed(1)} cm, ` +
+      `${robotStart.theta_deg.toFixed(0)} °`;
   }
 
   function showValidation(validation) {
@@ -235,6 +254,45 @@
 
   function stripJsonExtension(name) {
     return String(name || "").replace(/\.json$/i, "");
+  }
+
+  function setSimulateSavedWorldLink(savedName) {
+    if (!simulateSavedWorldLink) return;
+    if (!savedName) {
+      simulateSavedWorldLink.classList.add("hidden");
+      simulateSavedWorldLink.href = api.resolvePath("/");
+      return;
+    }
+    const name = String(savedName || "").trim();
+    if (!name) {
+      simulateSavedWorldLink.classList.add("hidden");
+      simulateSavedWorldLink.href = api.resolvePath("/");
+      return;
+    }
+    const encoded = encodeURIComponent(name);
+    simulateSavedWorldLink.href = api.resolvePath(`/?world=${encoded}`);
+    simulateSavedWorldLink.classList.remove("hidden");
+  }
+
+  async function saveWorldOnServer() {
+    const currentName = currentWorldName();
+    const suggested = currentName || "mundo_ev3_web";
+    const rawName = window.prompt("Nombre del mundo para guardar en servidor", suggested);
+    if (rawName === null) {
+      log("Guardado cancelado.");
+      return;
+    }
+    const trimmed = String(rawName || "").trim();
+    if (!trimmed) {
+      log("Debes indicar un nombre de mundo.");
+      return;
+    }
+    const result = await api.saveEditorWorld(trimmed);
+    const savedFileName = String(result.name || "").trim();
+    const displayName = stripJsonExtension(savedFileName || trimmed);
+    setWorldNameLabel(displayName);
+    setSimulateSavedWorldLink(savedFileName);
+    log(`Mundo guardado en servidor: ${savedFileName}`);
   }
 
   async function downloadWorldAsFile() {
@@ -289,6 +347,7 @@
       const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
       setEditorWorld(data.world);
       setWorldNameLabel("");
+      setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {
@@ -304,6 +363,7 @@
       );
       setEditorWorld(data.world);
       setWorldNameLabel("");
+      setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {
@@ -325,8 +385,10 @@
     if (!currentWorld) return;
     const point = window.EV3Canvas.canvasToWorld(canvas, event.clientX, event.clientY, currentWorld);
     const editorPoint = window.EV3Canvas.canvasToEditor(canvas, event.clientX, event.clientY, currentWorld);
+    const xCm = point.xMm / 10;
+    const yCm = point.yMm / 10;
     cursorReadout.textContent =
-      `Cursor: (${Math.round(point.xMm)} mm, ${Math.round(point.yMm)} mm) | Snap: ` +
+      `Cursor: (${xCm.toFixed(1)} cm, ${yCm.toFixed(1)} cm) | Snap: ` +
       `(${editorPoint.x}px, ${editorPoint.y}px) | Tool: ${assetSelect.value || "Select"}`;
     const canPreviewPlacement =
       assetSelect.value && !robotStartMode && !moveMode && !dragPlacement;
@@ -587,10 +649,14 @@
     try {
       const text = await file.text();
       const world = JSON.parse(text);
-      const data = await api.importEditorWorld(world);
+      const importPayload = (world && typeof world === "object" && world.editor_spec && typeof world.editor_spec === "object")
+        ? world.editor_spec
+        : world;
+      const data = await api.importEditorWorld(importPayload);
       setEditorWorld(data.world);
       const inferredName = stripJsonExtension(world?.name || world?.world_name || file.name);
       setWorldNameLabel(inferredName);
+      setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {
@@ -607,6 +673,26 @@
     } catch (err) {
       log(err.message);
     }
+  });
+
+  document.getElementById("saveWorldBtn").addEventListener("click", async () => {
+    try {
+      await saveWorldOnServer();
+    } catch (err) {
+      log(err.message);
+    }
+  });
+
+  worldMapZoomInBtn?.addEventListener("click", () => {
+    applyMapZoom("in");
+  });
+
+  worldMapZoomOutBtn?.addEventListener("click", () => {
+    applyMapZoom("out");
+  });
+
+  worldMapZoomResetBtn?.addEventListener("click", () => {
+    applyMapZoom("reset");
   });
 
   try {

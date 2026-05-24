@@ -77,6 +77,19 @@ if ($breakpointsResponse.StatusCode -ne 200) {
 }
 Write-Host "OK POST /api/sessions/<id>/debug/breakpoints"
 
+$watchesResponse = Invoke-WebRequest `
+    -UseBasicParsing `
+    -Method POST `
+    -Uri "$BaseUrl/api/sessions/$($session.session_id)/debug/watches" `
+    -Headers $headers `
+    -ContentType "application/json" `
+    -Body '{"watches":["x + 1","x * 2"]}'
+
+if ($watchesResponse.StatusCode -ne 200) {
+    throw "POST /api/sessions/<id>/debug/watches retorno HTTP $($watchesResponse.StatusCode)"
+}
+Write-Host "OK POST /api/sessions/<id>/debug/watches"
+
 $stepResponse = Invoke-WebRequest `
     -UseBasicParsing `
     -Method POST `

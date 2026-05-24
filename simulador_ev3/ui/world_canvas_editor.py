@@ -13,13 +13,19 @@ from typing import Any, Callable, Optional
 
 from simulador_ev3.application.world_validation_engine import rotated_connectors
 from simulador_ev3.domain.editor.world_editor_model import CELL_SIZE_MM, GRID_SIZE_PX, get_asset_spec
+from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
 _BG = "#F4F6F8"
 _GRID = "#D0D7DE"
 _BORDER = "#B0BEC5"
 _LINE_TRACK_WIDTH_MM = 25.0
 _SIM_SURFACE_CELL_MM = 12.5
-_IMAGES_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "images"))
+_MIN_ZOOM_FACTOR = 0.5
+_MAX_ZOOM_FACTOR = 3.0
+_ZOOM_STEP = 0.15
+_FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
+_IMAGES_DIR = os.path.normpath(str(resolve_image_assets_dir()))
 _ASSET_IMAGE_OVERRIDES: dict[str, list[str]] = {
     "line_64x64_cruz": ["line_64X64_Cruz.png"],
     "line_64_64_hor": ["line_64_64_Hor.png"],
@@ -70,6 +76,7 @@ class WorldCanvasEditor(tk.Canvas):
         self._dragging = False
         self._drag_offset_px = (0, 0)
         self._hover_cell_px: Optional[tuple[int, int]] = None
+        self._zoom_factor = 1.0
         self._px_per_mm = GRID_SIZE_PX / CELL_SIZE_MM
 
         self.bind("<Configure>", self._on_resize)
@@ -104,6 +111,35 @@ class WorldCanvasEditor(tk.Canvas):
     def set_selected_id(self, object_id: Optional[str]) -> None:
         self._selected_id = object_id
         self._redraw()
+
+    def zoom_in(self) -> float:
+        return self._set_zoom_factor(self._zoom_factor + _ZOOM_STEP)
+
+    def zoom_out(self) -> float:
+        return self._set_zoom_factor(self._zoom_factor - _ZOOM_STEP)
+
+    def reset_zoom(self) -> float:
+        return self._set_zoom_factor(1.0)
+
+    def fit_to_view(self) -> float:
+        view_w_px = max(1.0, float(self.winfo_width() or 1))
+        view_h_px = max(1.0, float(self.winfo_height() or 1))
+        if view_w_px <= 1.0 or view_h_px <= 1.0:
+            return self._zoom_factor
+
+        world_w_mm = max(1.0, float(self._world_w_mm))
+        world_h_mm = max(1.0, float(self._world_h_mm))
+        base_px_per_mm = GRID_SIZE_PX / CELL_SIZE_MM
+        usable_w_px = max(1.0, view_w_px * (1.0 - 2.0 * _FIT_PADDING_RATIO))
+        usable_h_px = max(1.0, view_h_px * (1.0 - 2.0 * _FIT_PADDING_RATIO))
+        zoom_x = usable_w_px / (world_w_mm * base_px_per_mm)
+        zoom_y = usable_h_px / (world_h_mm * base_px_per_mm)
+        applied = self._set_zoom_factor(min(zoom_x, zoom_y))
+        self._center_view_on_mm(world_w_mm / 2.0, world_h_mm / 2.0)
+        return applied
+
+    def get_zoom_factor(self) -> float:
+        return self._zoom_factor
 
     # ------------------------------------------------------------------
     # Events
@@ -507,6 +543,52 @@ class WorldCanvasEditor(tk.Canvas):
     def _update_scrollregion(self) -> None:
         world_w_px, world_h_px = self._world_px_size()
         self.configure(scrollregion=(0, 0, world_w_px, world_h_px))
+
+    def _set_zoom_factor(self, zoom_factor: float) -> float:
+        clamped = min(max(float(zoom_factor), _MIN_ZOOM_FACTOR), _MAX_ZOOM_FACTOR)
+        if abs(clamped - self._zoom_factor) < 1e-9:
+            return self._zoom_factor
+        center_world = self._viewport_center_mm()
+        self._zoom_factor = clamped
+        self._px_per_mm = (GRID_SIZE_PX / CELL_SIZE_MM) * self._zoom_factor
+        self._asset_image_cache.clear()
+        self._update_scrollregion()
+        self._redraw()
+        if center_world is not None:
+            self._center_view_on_mm(center_world[0], center_world[1])
+        return self._zoom_factor
+
+    def _viewport_center_mm(self) -> tuple[float, float] | None:
+        view_w_px = max(1.0, float(self.winfo_width() or 1))
+        view_h_px = max(1.0, float(self.winfo_height() or 1))
+        center_x_px = self.canvasx(view_w_px / 2.0)
+        center_y_px = self.canvasy(view_h_px / 2.0)
+        return self._px_to_mm(center_x_px, center_y_px)
+
+    def _center_view_on_mm(self, x_mm: float, y_mm: float) -> None:
+        world_w_px, world_h_px = self._world_px_size()
+        total_w_px = max(1.0, float(world_w_px))
+        total_h_px = max(1.0, float(world_h_px))
+        view_w_px = max(1.0, float(self.winfo_width() or 1))
+        view_h_px = max(1.0, float(self.winfo_height() or 1))
+        center_x_px, center_y_px = self._mm_to_px(x_mm, y_mm)
+
+        max_left = max(0.0, total_w_px - view_w_px)
+        max_top = max(0.0, total_h_px - view_h_px)
+        left_px = min(max(0.0, center_x_px - view_w_px / 2.0), max_left)
+        top_px = min(max(0.0, center_y_px - view_h_px / 2.0), max_top)
+
+        x_fraction = 0.0 if total_w_px <= 0 else left_px / total_w_px
+        y_fraction = 0.0 if total_h_px <= 0 else top_px / total_h_px
+        x_fraction = min(max(0.0, x_fraction), 1.0)
+        y_fraction = min(max(0.0, y_fraction), 1.0)
+
+        x_move = getattr(self, "xview_moveto", None)
+        y_move = getattr(self, "yview_moveto", None)
+        if callable(x_move):
+            x_move(x_fraction)
+        if callable(y_move):
+            y_move(y_fraction)
 
     def _pick_object_id(self, x_px: float, y_px: float) -> Optional[str]:
         items = self.find_overlapping(x_px - 2, y_px - 2, x_px + 2, y_px + 2)

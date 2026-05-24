@@ -1,0 +1,239 @@
+{
+  "grid_size_px": 32,
+  "placements": [
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0011",
+      "rotation": 0,
+      "x": 0,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0010",
+      "rotation": 0,
+      "x": 64,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0002",
+      "rotation": 0,
+      "x": 128,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0003",
+      "rotation": 0,
+      "x": 192,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0004",
+      "rotation": 0,
+      "x": 256,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0005",
+      "rotation": 0,
+      "x": 320,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0027",
+      "rotation": 0,
+      "x": 384,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0026",
+      "rotation": 0,
+      "x": 448,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0022",
+      "rotation": 0,
+      "x": 0,
+      "y": 224
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0025",
+      "rotation": 0,
+      "x": 448,
+      "y": 224
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0012",
+      "rotation": 0,
+      "x": 0,
+      "y": 288
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0024",
+      "rotation": 0,
+      "x": 448,
+      "y": 288
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0013",
+      "rotation": 0,
+      "x": 0,
+      "y": 352
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0001",
+      "rotation": 0,
+      "x": 192,
+      "y": 352
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0007",
+      "rotation": 0,
+      "x": 256,
+      "y": 352
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0023",
+      "rotation": 0,
+      "x": 448,
+      "y": 352
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0014",
+      "rotation": 0,
+      "x": 0,
+      "y": 416
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0008",
+      "rotation": 0,
+      "x": 192,
+      "y": 416
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0009",
+      "rotation": 0,
+      "x": 256,
+      "y": 416
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0033",
+      "rotation": 0,
+      "x": 448,
+      "y": 416
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0032",
+      "rotation": 0,
+      "x": 0,
+      "y": 480
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0021",
+      "rotation": 0,
+      "x": 448,
+      "y": 480
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0031",
+      "rotation": 0,
+      "x": 0,
+      "y": 544
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0020",
+      "rotation": 0,
+      "x": 448,
+      "y": 544
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0030",
+      "rotation": 0,
+      "x": 0,
+      "y": 608
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0029",
+      "rotation": 0,
+      "x": 64,
+      "y": 608
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0028",
+      "rotation": 0,
+      "x": 128,
+      "y": 608
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0015",
+      "rotation": 0,
+      "x": 192,
+      "y": 608
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0016",
+      "rotation": 0,
+      "x": 256,
+      "y": 608
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0017",
+      "rotation": 0,
+      "x": 320,
+      "y": 608
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0018",
+      "rotation": 0,
+      "x": 384,
+      "y": 608
+    },
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0019",
+      "rotation": 0,
+      "x": 448,
+      "y": 608
+    },
+    {
+      "asset_key": "robot_ev3_32x32",
+      "id": "robot_0001",
+      "rotation": 0,
+      "x": 128,
+      "y": 288
+    }
+  ],
+  "schema_version": 1,
+  "world_height_cells": 160,
+  "world_width_cells": 160
+}

@@ -1,7 +1,7 @@
 # Manual de Uso - Simulador EV3 Pybricks
 
-Version documentada: 1.3.0  
-Fecha de actualizacion: 2026-05-20
+Version documentada: 1.3.2  
+Fecha de actualizacion: 2026-05-24
 
 ## 1. Objetivo
 
@@ -10,6 +10,12 @@ Este programa permite:
 - Escribir y ejecutar scripts Python compatibles con Pybricks.
 - Simular el robot EV3 en un mundo 2D.
 - Crear y editar mundos personalizados con el Editor de Mundos EV3.
+
+## 1.1 Estado de interfaces
+
+- Interfaz principal recomendada: Web Flask.
+- Interfaz de escritorio Tkinter: modo legado, mantenida para compatibilidad y uso offline.
+- Politica del proyecto: nuevas funciones se implementan primero en web; escritorio recibe mantenimiento correctivo.
 
 ## 2. Uso Web con Flask
 
@@ -48,16 +54,18 @@ Ruta: `http://127.0.0.1:5050/`
 Funciones:
 
 - Escribir o cargar codigo Pybricks.
-- Seleccionar ejemplos desde `Documentos/Ejemplos`.
-- Seleccionar mundos guardados desde `Documentos/Mundos`.
-- Ejecutar, pausar, reanudar, detener y reiniciar la simulacion.
+- Seleccionar ejemplos desde `examples/`.
+- Seleccionar mundos guardados desde `worlds/`.
+- Ejecutar, pausar y reanudar simulacion.
+- Detener y reiniciar simulacion con un unico boton: `Detener y reiniciar`.
 - Ver canvas, telemetria, motores, sensores, LED y pantalla EV3.
 - Usar depuracion con breakpoints, step y continue.
+- Ver resaltado de la linea actual durante depuracion.
 - Ubicar robot desde el canvas y ajustar `theta`.
 
 La pagina de simulacion no incluye controles para crear o editar mundos.
 
-Nota: cuando un script finaliza naturalmente, la web debe pasar a estado `stopped`. Si queda en `running`, reiniciar servidor y validar con `.\scripts\smoke_web.cmd`.
+Nota: cuando un script finaliza naturalmente, la web detiene ejecucion y reinicia estado de simulacion automaticamente para evitar bloqueos de sesion.
 
 ### 2.3 Pagina de creacion de mundos
 
@@ -73,7 +81,7 @@ Funciones:
 - Definir pose inicial del robot.
 - Validar el mundo.
 - Importar y exportar JSON.
-- Guardar mundos en `Documentos/Mundos`.
+- Guardar mundos en `worlds/`.
 
 La pagina de mundos no incluye editor de codigo ni botones para ejecutar la simulacion.
 
@@ -132,6 +140,7 @@ Alternativa:
 ```
 
 La guia completa de operacion web esta en `Documentos/GUIA_WEB_FLASK_WINDOWS.md`.
+Compatibilidad temporal: si todavia no migraste recursos, la app tambien admite `Documentos/Ejemplos` y `Documentos/Mundos`.
 
 ## 3. Aplicacion de Escritorio
 
@@ -160,13 +169,13 @@ Atajos:
 
 ### 4.2 Menu Ejemplos
 
-Carga scripts de ejemplo desde `Documentos/Ejemplos`.
+Carga scripts de ejemplo desde `examples/`.
 
 ### 4.3 Menu Mundos
 
 - `Cargar mundo JSON...`: carga un mundo desde archivo.
 - `Editor de mundos...`: abre el editor visual.
-- Lista de mundos detectados en `Documentos/Mundos`.
+- Lista de mundos detectados en `worlds/`.
 
 ### 4.4 Menu Escenarios
 
@@ -189,6 +198,11 @@ Antes de ejecutar:
 - Arrastra o usa la rueda del mouse para ajustar `theta`.
 - La barra informativa muestra coordenadas y orientacion.
 
+Convencion de unidades:
+
+- Las coordenadas visibles de `X` y `Y` se muestran en `cm`.
+- `theta` se mantiene en grados (`deg`).
+
 Al iniciar la simulacion, el modo de colocacion se desactiva.
 
 ## 7. Telemetria
@@ -199,6 +213,12 @@ La telemetria muestra:
 - Motores A/B/C/D (velocidad, angulo, estado).
 - Sensores S1/S2/S3/S4 (tipo y valor).
 - Tiempo/ticks de simulacion.
+
+Convencion de unidades en UI:
+
+- Distancias visibles (`X`, `Y`, sensor ultrasónico) en `cm`.
+- Angulos en `deg`.
+- Velocidad angular de motor en `deg/s`.
 
 ## 8. Editor de Mundos EV3
 
@@ -235,9 +255,9 @@ Los mundos se guardan en JSON y pueden incluir:
 - Si no ves cambios: confirmar que el mundo correcto esta cargado.
 - Si la telemetria no cambia: verificar puertos y creacion de dispositivos en el script.
 - Si la web parece colgada: revisar `http://127.0.0.1:5050/healthz`; debe responder HTTP 200 y mostrar `running_simulations`.
-- Si un script corto no termina: actualizar a version `1.3.0` o superior; esta version corrige la propagacion de estado `stopped`.
+- Si un script corto no termina: actualizar a version `1.3.2` o superior; esta version consolida parada + reinicio automatico al finalizar.
 - Si el mapa parece cortado: usar scroll dentro del panel; el canvas conserva el tamano real de Tkinter.
 
 ## 12. Version
 
-Manual actualizado para la version `1.3.0`, publicada en GitHub con tag `1.3`.
+Manual actualizado para la version `1.3.2`.

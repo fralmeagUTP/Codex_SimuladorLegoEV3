@@ -1,4 +1,4 @@
-"""Smoke tests E2E para ejemplos críticos de release (Fase 9)."""
+﻿"""Smoke tests E2E para ejemplos crÃ­ticos de release (Fase 9)."""
 
 from __future__ import annotations
 
@@ -29,9 +29,9 @@ def clean_pybricks():
 @pytest.mark.parametrize(
     ("world_file", "example_file", "run_s"),
     [
-        ("02_obstaculos_beacon.json", "05_esquiva_obstaculos.py", 0.8),
-        ("01_linea_negra.json", "06_siguelineas_basico.py", 0.8),
-        ("02_obstaculos_beacon.json", "12_pantalla_altavoz_test.py", 1.8),
+        ("02_obstaculos_beacon.json", "15_esquiva_obstaculos.py", 0.8),
+        ("01_linea_negra.json", "11_siguelineas_basico.py", 0.8),
+        ("02_obstaculos_beacon.json", "02_intro_pantalla_altavoz.py", 1.8),
     ],
 )
 def test_critical_examples_smoke(world_file: str, example_file: str, run_s: float):
@@ -60,3 +60,4 @@ def test_critical_examples_smoke(world_file: str, example_file: str, run_s: floa
     assert "started" in statuses
     assert "stopped" in statuses
     assert runtime_errors == []
+

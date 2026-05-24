@@ -1,7 +1,8 @@
 param(
     [int]$Port = 5050,
     [string]$HostAddress = "127.0.0.1",
-    [switch]$Foreground
+    [switch]$Foreground,
+    [int]$HealthTimeoutSeconds = 20
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,7 +32,17 @@ $listenPids = @(
         Sort-Object -Unique
 )
 if ($listenPids.Count -gt 0) {
-    throw "El puerto http://${HostAddress}:${Port}/ ya esta en uso por PID(s): $($listenPids -join ', '). Use restart_web.cmd o stop_web.cmd antes de iniciar."
+    $healthUrl = "http://${HostAddress}:${Port}/healthz"
+    try {
+        $existing = Invoke-WebRequest -UseBasicParsing $healthUrl -TimeoutSec 2
+        if ($existing.StatusCode -eq 200) {
+            Write-Host "Servidor web EV3 ya estaba activo: http://${HostAddress}:${Port}/"
+            Write-Host "Health: $($existing.StatusCode)"
+            exit 0
+        }
+    } catch {
+        throw "El puerto http://${HostAddress}:${Port}/ ya esta en uso por PID(s): $($listenPids -join ', '). Use .\\scripts\\restart_web.cmd o .\\scripts\\stop_web.cmd antes de iniciar."
+    }
 }
 
 if ($Foreground) {
@@ -53,9 +64,35 @@ Start-Process `
     -RedirectStandardOutput $OutLog `
     -RedirectStandardError $ErrLog
 
-Start-Sleep -Seconds 2
 $healthUrl = "http://${HostAddress}:${Port}/healthz"
-$response = Invoke-WebRequest -UseBasicParsing $healthUrl
+if ($HealthTimeoutSeconds -lt 3) {
+    $HealthTimeoutSeconds = 3
+}
+$deadline = (Get-Date).AddSeconds($HealthTimeoutSeconds)
+$response = $null
+$lastError = $null
+while ((Get-Date) -lt $deadline) {
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing $healthUrl -TimeoutSec 2
+        if ($response.StatusCode -eq 200) {
+            break
+        }
+    } catch {
+        $lastError = $_
+    }
+    Start-Sleep -Milliseconds 500
+}
+if (-not $response -or $response.StatusCode -ne 200) {
+    Write-Host "No se logro validar healthz en ${HealthTimeoutSeconds}s."
+    if (Test-Path $ErrLog) {
+        Write-Host "--- Ultimas lineas de error ---"
+        Get-Content $ErrLog -Tail 40
+    }
+    if ($lastError) {
+        throw "Fallo al iniciar servidor: $($lastError.Exception.Message)"
+    }
+    throw "Fallo al iniciar servidor: healthz no respondio HTTP 200."
+}
 
 Write-Host "Servidor web EV3 iniciado: http://${HostAddress}:${Port}/"
 Write-Host "Health: $($response.StatusCode)"

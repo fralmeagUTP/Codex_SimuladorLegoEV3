@@ -6,7 +6,6 @@ Standalone Tk window for creating and editing simulator worlds.
 
 from __future__ import annotations
 
-import os
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -19,11 +18,12 @@ from simulador_ev3.domain.editor.world_editor_model import (
     MAX_WORLD_CELLS,
     MAX_WORLD_PIXELS,
 )
+from simulador_ev3.shared.paths import resolve_worlds_dir
 from simulador_ev3.ui.object_properties_panel import ObjectPropertiesPanel
 from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
 from simulador_ev3.ui.world_toolbar import WorldToolbar
 
-_WORLDS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "Documentos", "Mundos")
+_WORLDS_DIR = resolve_worlds_dir()
 
 
 class WorldEditorWindow(tk.Toplevel):
@@ -77,6 +77,10 @@ class WorldEditorWindow(tk.Toplevel):
         self._world_h_entry = tk.Entry(world_cfg, width=8)
         self._world_h_entry.pack(side=tk.LEFT, padx=(4, 10))
         tk.Button(world_cfg, text="Aplicar tamano", command=self._cmd_apply_world_size).pack(side=tk.LEFT)
+        tk.Frame(world_cfg, width=12, bg="#ECEFF1").pack(side=tk.LEFT)
+        tk.Button(world_cfg, text="+", width=3, command=self._cmd_zoom_in).pack(side=tk.LEFT, padx=2)
+        tk.Button(world_cfg, text="-", width=3, command=self._cmd_zoom_out).pack(side=tk.LEFT, padx=2)
+        tk.Button(world_cfg, text="[]", width=3, command=self._cmd_zoom_reset).pack(side=tk.LEFT, padx=2)
 
         content = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=6, bg="#B0BEC5")
         content.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
@@ -136,7 +140,7 @@ class WorldEditorWindow(tk.Toplevel):
     def _cmd_open(self) -> None:
         path = filedialog.askopenfilename(
             title="Abrir mundo",
-            initialdir=_WORLDS_DIR,
+            initialdir=str(_WORLDS_DIR),
             filetypes=[("JSON", "*.json"), ("Todos", "*.*")],
         )
         if not path:
@@ -164,7 +168,7 @@ class WorldEditorWindow(tk.Toplevel):
     def _cmd_save_as(self) -> None:
         path = filedialog.asksaveasfilename(
             title="Guardar mundo como",
-            initialdir=_WORLDS_DIR,
+            initialdir=str(_WORLDS_DIR),
             defaultextension=".json",
             filetypes=[("JSON", "*.json"), ("Todos", "*.*")],
         )
@@ -254,6 +258,15 @@ class WorldEditorWindow(tk.Toplevel):
             )
             return
         self._refresh_canvas()
+
+    def _cmd_zoom_in(self) -> None:
+        self._canvas.zoom_in()
+
+    def _cmd_zoom_out(self) -> None:
+        self._canvas.zoom_out()
+
+    def _cmd_zoom_reset(self) -> None:
+        self._canvas.fit_to_view()
 
     # ------------------------------------------------------------------
     # Canvas callbacks

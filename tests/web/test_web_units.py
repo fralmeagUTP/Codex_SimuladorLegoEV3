@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from io import BytesIO
 from datetime import timedelta
@@ -128,13 +129,22 @@ def test_404_response_uses_json_error_contract(tmp_path):
 def test_image_asset_route_rejects_path_traversal_and_bad_extension(tmp_path):
     client = make_client(tmp_path)
 
-    traversal = client.get("/assets/images/..secret.png")
-    bad_extension = client.get("/assets/images/robot_ev3_32x32.svg")
+    traversal = client.get("/assets/..secret.png")
+    bad_extension = client.get("/assets/robot_ev3_32x32.svg")
 
     assert traversal.status_code == 400
     assert traversal.get_json()["error"]["code"] == "INVALID_PAYLOAD"
     assert bad_extension.status_code == 400
     assert bad_extension.get_json()["error"]["code"] == "INVALID_PAYLOAD"
+
+
+def test_image_asset_legacy_route_is_kept_for_compatibility(tmp_path):
+    client = make_client(tmp_path)
+
+    res = client.get("/assets/images/robot_ev3_32x32.png")
+
+    assert res.status_code == 308
+    assert res.headers["Location"].endswith("/assets/robot_ev3_32x32.png")
 
 
 def test_examples_and_worlds_are_listed_sorted(tmp_path):
@@ -230,3 +240,96 @@ def test_upload_world_rejects_oversized_multipart_file(tmp_path):
 
     assert res.status_code == 400
     assert res.get_json()["error"]["code"] == "INVALID_PAYLOAD"
+
+
+def test_loading_plain_world_clears_stale_editor_overlays(tmp_path):
+    worlds_dir = tmp_path / "worlds"
+    examples_dir = tmp_path / "examples"
+    worlds_dir.mkdir()
+    examples_dir.mkdir()
+
+    plain_world = {
+        "version": 1,
+        "world": {
+            "width_mm": 2000.0,
+            "height_mm": 2000.0,
+            "surface": {"cell_size_mm": 50.0, "default_color": "WHITE", "cells": []},
+            "obstacles": [],
+            "beacons": [],
+        },
+    }
+    (worlds_dir / "plain.json").write_text(
+        json.dumps(plain_world, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    session = SimulationSession(
+        session_id="overlay-reset",
+        config={
+            "WORLDS_DIR": worlds_dir,
+            "EXAMPLES_DIR": examples_dir,
+            "SCRIPT_MAX_RUNTIME_S": 1.0,
+        },
+        max_runtime_s=1.0,
+    )
+
+    # Simula estado previo con overlays del editor.
+    session.create_editor_world(width_cells=20, height_cells=20)
+    session.place_asset(
+        {
+            "asset_key": "line_64_64_hor",
+            "x": 0,
+            "y": 0,
+            "rotation": 0,
+        }
+    )
+    assert session.editor_response()["world"]["placements"]
+
+    loaded = session.load_world_name("plain.json")
+
+    assert loaded["world"]["editor_spec"] is None
+
+
+def test_loading_large_editor_world_keeps_original_dimensions(tmp_path):
+    worlds_dir = tmp_path / "worlds"
+    examples_dir = tmp_path / "examples"
+    worlds_dir.mkdir()
+    examples_dir.mkdir()
+
+    editor_world = {
+        "schema_version": 1,
+        "grid_size_px": 32,
+        "world_width_cells": 160,
+        "world_height_cells": 160,
+        "placements": [
+            {
+                "id": "robot_0001",
+                "asset_key": "robot_ev3_32x32",
+                "x": 3008,
+                "y": 3008,
+                "rotation": 0,
+            }
+        ],
+    }
+    (worlds_dir / "large_editor_world.json").write_text(
+        json.dumps(editor_world, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    session = SimulationSession(
+        session_id="large-world",
+        config={
+            "WORLDS_DIR": worlds_dir,
+            "EXAMPLES_DIR": examples_dir,
+            "SCRIPT_MAX_RUNTIME_S": 1.0,
+        },
+        max_runtime_s=1.0,
+    )
+
+    loaded = session.load_world_name("large_editor_world.json")
+    world = loaded["world"]
+
+    assert world["width_mm"] == 16000.0
+    assert world["height_mm"] == 16000.0
+    assert world["editor_spec"]["world_width_cells"] == 160
+    assert world["editor_spec"]["world_height_cells"] == 160

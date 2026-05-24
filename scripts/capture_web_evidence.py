@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import re
@@ -42,9 +42,9 @@ def prepare_evidence_data(base_dir: Path) -> tuple[Path, Path]:
     for name in ("01_linea_negra.json", "02_obstaculos_beacon.json", "qa_menu_world.json"):
         (worlds_dir / name).write_text(json.dumps(world), encoding="utf-8")
     examples = {
-        "06_siguelineas_basico.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("linea")\n',
-        "05_esquiva_obstaculos.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("ultra")\n',
-        "12_pantalla_altavoz_test.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n',
+        "11_siguelineas_basico.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("linea")\n',
+        "15_esquiva_obstaculos.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("ultra")\n',
+        "02_intro_pantalla_altavoz.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n',
         "qa_menu_example.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("menu")\n',
     }
     for name, source in examples.items():
@@ -121,8 +121,8 @@ def assert_world_canvas_matches_tkinter_size(page) -> None:
             };
         }"""
     )
-    # Tkinter usa 32 px por cada 100 mm. El mundo base de 16000x16000 mm debe medir 5120x5120 px.
-    expected_px = 5120
+    # Tkinter usa 32 px por cada 100 mm. El mundo base de 4000x4000 mm debe medir 1280x1280 px.
+    expected_px = 1280
     if metrics["canvasWidth"] != expected_px or metrics["canvasHeight"] != expected_px:
         raise AssertionError(f"worldCanvas no coincide con tamano Tkinter: {metrics}")
     if metrics["attrWidth"] != expected_px or metrics["attrHeight"] != expected_px:
@@ -320,3 +320,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

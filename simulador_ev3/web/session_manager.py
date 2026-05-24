@@ -120,6 +120,20 @@ class SessionManager:
     def can_start(self) -> bool:
         return self.running_count() < self._max_running
 
+    def evict_oldest_running(self) -> bool:
+        """Stop and remove the oldest running session to free one execution slot."""
+        with self._lock:
+            candidates = [
+                record for record in self._sessions.values()
+                if record.session.status == "running"
+            ]
+            if not candidates:
+                return False
+            oldest = min(candidates, key=lambda record: record.last_seen_at)
+            self._sessions.pop(oldest.session_id, None)
+        oldest.session.close()
+        return True
+
     def stats(self) -> dict[str, int]:
         with self._lock:
             return {

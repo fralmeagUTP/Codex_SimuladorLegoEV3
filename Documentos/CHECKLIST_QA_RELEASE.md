@@ -61,7 +61,7 @@ Fecha de actualizacion: 2026-05-20
 - Editar propiedades de asset, posicion y rotacion desde el panel lateral.
 - Rotar, duplicar y eliminar un asset.
 - Validar mundo.
-- Guardar mundo en `Documentos\Mundos`.
+- Guardar mundo en `worlds/` (o `Documentos\Mundos` si aun no migraste).
 - Usar enlace de simulacion del mundo guardado.
 - Importar el JSON guardado y confirmar que conserva placements.
 

@@ -8,3 +8,5 @@ dist/
 build/
 *.egg-info/
 .vscode/
+backups/
+temp_world.json

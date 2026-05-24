@@ -1,8 +1,8 @@
 {
   "version": 1,
   "world": {
-    "width_mm": 16000.0,
-    "height_mm": 16000.0,
+    "width_mm": 4000.0,
+    "height_mm": 4000.0,
     "surface": {
       "cell_size_mm": 12.5,
       "default_color": "WHITE",
@@ -13965,8 +13965,8 @@
   },
   "editor_objects": {
     "world": {
-      "width_mm": 16000.0,
-      "height_mm": 16000.0
+      "width_mm": 4000.0,
+      "height_mm": 4000.0
     },
     "walls": [
       {

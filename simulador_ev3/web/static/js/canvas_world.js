@@ -5,17 +5,37 @@ window.EV3Canvas = (() => {
     canvasWidth: 0,
     canvasHeight: 0,
     selectedPlacementId: null,
+    hidePlacedRobots: false,
     world: null,
     layer: null,
   };
+
+  function invalidateStaticLayer() {
+    staticLayerCache.world = null;
+    staticLayerCache.layer = null;
+  }
   const imageCache = new Map();
   const CELL_SIZE_MM = 100;
   const GRID_SIZE_PX = 32;
-  const PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM;
+  const BASE_PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM;
+  const MIN_ZOOM = 0.5;
+  const MAX_ZOOM = 3.0;
+  const ZOOM_STEP = 0.15;
+  const DEFAULT_FIT_PADDING_RATIO = 0.05;
+  const FIT_PADDING_RATIO = (() => {
+    const raw = document?.documentElement?.dataset?.ev3FitPaddingRatio;
+    const parsed = Number.parseFloat(raw || "");
+    if (!Number.isFinite(parsed)) return DEFAULT_FIT_PADDING_RATIO;
+    return clamp(parsed, 0, 0.4);
+  })();
   const DEFAULT_WORLD_MM = 4000;
   const ROBOT_WIDTH_MM = 110;
   const ROBOT_HEIGHT_MM = 70;
   const TRAIL_TELEPORT_THRESHOLD_MM = 150;
+  const FOLLOW_EDGE_MARGIN_RATIO = 0.45;
+  const FOLLOW_CENTER_X = 0.5;
+  const FOLLOW_CENTER_Y = 0.5;
+  const zoomByCanvas = new WeakMap();
 
   const assetFiles = {
     robot_ev3_32x32: "robot_ev3_32x32.png",
@@ -36,6 +56,9 @@ window.EV3Canvas = (() => {
     floor_tile_256_b: "floor_tile_256_b.png",
     floor_tile_256_c: "floor_tile_256_c.jpg",
   };
+  const assetFileFallbacks = {
+    robot_ev3_32x32: ["robot_ev3_32x32.png", "robot_ev3_32x32_.png"],
+  };
 
   function resize(canvas) {
     const rect = canvas.getBoundingClientRect();
@@ -45,31 +68,115 @@ window.EV3Canvas = (() => {
     if (canvas.height !== height) canvas.height = height;
   }
 
-  function syncCanvasWorldSize(canvas, world) {
-    const view = worldView(world);
-    const widthPx = Math.max(1, Math.round(view.widthMm * PX_PER_MM));
-    const heightPx = Math.max(1, Math.round(view.heightMm * PX_PER_MM));
+  function syncCanvasWorldSize(canvas, world, view = worldView(world, canvas)) {
+    const widthPx = Math.max(1, Math.round(view.widthMm * view.scale));
+    const heightPx = Math.max(1, Math.round(view.heightMm * view.scale));
     const cssWidth = `${widthPx}px`;
     const cssHeight = `${heightPx}px`;
     if (canvas.style.width !== cssWidth) canvas.style.width = cssWidth;
     if (canvas.style.height !== cssHeight) canvas.style.height = cssHeight;
     const pane = canvas.parentElement;
     if (pane) {
+      const followMarginX = widthPx > pane.clientWidth
+        ? Math.round(pane.clientWidth * FOLLOW_EDGE_MARGIN_RATIO)
+        : 0;
+      const followMarginY = heightPx > pane.clientHeight
+        ? Math.round(pane.clientHeight * FOLLOW_EDGE_MARGIN_RATIO)
+        : 0;
+      const marginCss = `${followMarginY}px ${followMarginX}px`;
+      if (canvas.style.margin !== marginCss) canvas.style.margin = marginCss;
       pane.style.justifyContent = widthPx <= pane.clientWidth ? "center" : "start";
       pane.style.alignContent = heightPx <= pane.clientHeight ? "center" : "start";
     }
   }
 
-  function worldView(world) {
+  function centerPaneOnPose(canvas, world, pose) {
+    if (!pose) return;
+    const pane = canvas.parentElement;
+    if (!pane) return;
+    const view = worldView(world, canvas);
+    const marginLeft = Number.parseFloat(canvas.style.marginLeft || "0") || 0;
+    const marginTop = Number.parseFloat(canvas.style.marginTop || "0") || 0;
+    const robotX = Number(pose.x_mm);
+    const robotY = Number(pose.y_mm);
+    if (!Number.isFinite(robotX) || !Number.isFinite(robotY)) return;
+
+    const desiredLeft = robotX * view.scale + marginLeft - pane.clientWidth * FOLLOW_CENTER_X;
+    const desiredTop = robotY * view.scale + marginTop - pane.clientHeight * FOLLOW_CENTER_Y;
+    const maxLeft = Math.max(0, pane.scrollWidth - pane.clientWidth);
+    const maxTop = Math.max(0, pane.scrollHeight - pane.clientHeight);
+    pane.scrollLeft = clamp(desiredLeft, 0, maxLeft);
+    pane.scrollTop = clamp(desiredTop, 0, maxTop);
+  }
+
+  function worldView(world, canvas = null) {
     const widthMm = world?.width_mm || DEFAULT_WORLD_MM;
     const heightMm = world?.height_mm || DEFAULT_WORLD_MM;
+    const zoom = getZoom(canvas);
     return {
       widthMm,
       heightMm,
-      scale: PX_PER_MM,
+      scale: BASE_PX_PER_MM * zoom,
       offsetX: 0,
       offsetY: 0,
     };
+  }
+
+  function getZoom(canvas) {
+    if (!canvas) return 1;
+    const zoom = Number(zoomByCanvas.get(canvas));
+    if (!Number.isFinite(zoom)) {
+      zoomByCanvas.set(canvas, 1);
+      return 1;
+    }
+    return zoom;
+  }
+
+  function clampZoom(value) {
+    return clamp(Number(value) || 1, MIN_ZOOM, MAX_ZOOM);
+  }
+
+  function setZoom(canvas, value) {
+    if (!canvas) return 1;
+    const nextZoom = clampZoom(value);
+    const currentZoom = getZoom(canvas);
+    if (Math.abs(nextZoom - currentZoom) < 1e-9) {
+      return currentZoom;
+    }
+    zoomByCanvas.set(canvas, nextZoom);
+    invalidateStaticLayer();
+    return nextZoom;
+  }
+
+  function zoomIn(canvas) {
+    return setZoom(canvas, getZoom(canvas) + ZOOM_STEP);
+  }
+
+  function zoomOut(canvas) {
+    return setZoom(canvas, getZoom(canvas) - ZOOM_STEP);
+  }
+
+  function resetZoom(canvas) {
+    return setZoom(canvas, 1);
+  }
+
+  function fitToView(canvas, world) {
+    if (!canvas) return 1;
+    const pane = canvas.parentElement;
+    if (!pane) return getZoom(canvas);
+
+    const widthMm = Number(world?.width_mm) || DEFAULT_WORLD_MM;
+    const heightMm = Number(world?.height_mm) || DEFAULT_WORLD_MM;
+    const paneW = Math.max(1, pane.clientWidth || 1);
+    const paneH = Math.max(1, pane.clientHeight || 1);
+    const usableW = Math.max(1, paneW * (1 - 2 * FIT_PADDING_RATIO));
+    const usableH = Math.max(1, paneH * (1 - 2 * FIT_PADDING_RATIO));
+    const zoomX = usableW / (Math.max(1, widthMm) * BASE_PX_PER_MM);
+    const zoomY = usableH / (Math.max(1, heightMm) * BASE_PX_PER_MM);
+    const nextZoom = setZoom(canvas, Math.min(zoomX, zoomY));
+    pane.scrollLeft = 0;
+    pane.scrollTop = 0;
+    return nextZoom;
   }
 
   function toCanvas(view, xMm, yMm) {
@@ -91,11 +198,17 @@ window.EV3Canvas = (() => {
   }
 
   function draw(canvas, snapshot, world, editorState = {}) {
-    syncCanvasWorldSize(canvas, world);
+    const view = worldView(world, canvas);
+    syncCanvasWorldSize(canvas, world, view);
     resize(canvas);
     const ctx = canvas.getContext("2d");
-    const view = worldView(world);
-    const baseLayer = staticWorldLayer(canvas, world, view, editorState.selectedPlacementId);
+    const baseLayer = staticWorldLayer(
+      canvas,
+      world,
+      view,
+      editorState.selectedPlacementId,
+      Boolean(editorState.hidePlacedRobots),
+    );
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(baseLayer, 0, 0);
@@ -109,6 +222,9 @@ window.EV3Canvas = (() => {
     if (editorState.robotStart) {
       drawRobotStartMarker(ctx, editorState.robotStart, view);
     }
+
+    const followPose = snapshot?.robot || editorState.robotStart || null;
+    centerPaneOnPose(canvas, world, followPose);
   }
 
   function resetTrail(robot = null) {
@@ -137,7 +253,7 @@ window.EV3Canvas = (() => {
     return Math.hypot(dx, dy);
   }
 
-  function staticWorldLayer(canvas, world, view, selectedPlacementId = null) {
+  function staticWorldLayer(canvas, world, view, selectedPlacementId = null, hidePlacedRobots = false) {
     const selectedId = selectedPlacementId || null;
     const worldChanged = staticLayerCache.world !== world;
     if (
@@ -145,7 +261,8 @@ window.EV3Canvas = (() => {
       !worldChanged &&
       staticLayerCache.canvasWidth === canvas.width &&
       staticLayerCache.canvasHeight === canvas.height &&
-      staticLayerCache.selectedPlacementId === selectedId
+      staticLayerCache.selectedPlacementId === selectedId &&
+      staticLayerCache.hidePlacedRobots === hidePlacedRobots
     ) {
       return staticLayerCache.layer;
     }
@@ -164,12 +281,13 @@ window.EV3Canvas = (() => {
     layerCtx.fillRect(0, 0, layer.width, layer.height);
     drawGrid(layerCtx, view);
     drawSurface(layerCtx, world, view);
-    drawEditorPlacements(layerCtx, world?.editor_spec, view, selectedId);
+    drawEditorPlacements(layerCtx, world?.editor_spec, view, selectedId, hidePlacedRobots);
     drawObstacles(layerCtx, world, view);
 
     staticLayerCache.canvasWidth = canvas.width;
     staticLayerCache.canvasHeight = canvas.height;
     staticLayerCache.selectedPlacementId = selectedId;
+    staticLayerCache.hidePlacedRobots = hidePlacedRobots;
     staticLayerCache.world = world;
     staticLayerCache.layer = layer;
     return layer;
@@ -185,7 +303,7 @@ window.EV3Canvas = (() => {
 
   function canvasToWorld(canvas, clientX, clientY, world) {
     const rect = canvas.getBoundingClientRect();
-    const view = worldView(world);
+    const view = worldView(world, canvas);
     return {
       xMm: clamp((clientX - rect.left - view.offsetX) / view.scale, 0, view.widthMm),
       yMm: clamp((clientY - rect.top - view.offsetY) / view.scale, 0, view.heightMm),
@@ -249,23 +367,29 @@ window.EV3Canvas = (() => {
     }
   }
 
-  function drawEditorPlacements(ctx, spec, view, selectedId) {
+  function drawEditorPlacements(ctx, spec, view, selectedId, hidePlacedRobots = false) {
     if (!spec?.placements) return;
     const gridSize = spec.grid_size_px || GRID_SIZE_PX;
     const mmPerPx = CELL_SIZE_MM / gridSize;
     for (const placement of spec.placements) {
       const key = placement.asset_key;
+      if (hidePlacedRobots && key?.includes("robot")) {
+        continue;
+      }
       const xPx = placement.x ?? placement.x_px ?? 0;
       const yPx = placement.y ?? placement.y_px ?? 0;
       const size = assetSize(key, placement.rotation);
       const pos = toCanvas(view, xPx * mmPerPx, yPx * mmPerPx);
       const canvasSize = sizeToCanvas(view, size.w * CELL_SIZE_MM, size.h * CELL_SIZE_MM);
+      const isSelected = Boolean(selectedId) && placement.id === selectedId;
 
       ctx.save();
       drawAsset(ctx, key, pos.x, pos.y, canvasSize.w, canvasSize.h);
-      ctx.strokeStyle = placement.id === selectedId ? "#f08c00" : strokeForAsset(key);
-      ctx.lineWidth = placement.id === selectedId ? 4 : 1.5;
-      ctx.strokeRect(pos.x, pos.y, canvasSize.w, canvasSize.h);
+      if (isSelected) {
+        ctx.strokeStyle = "#f08c00";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(pos.x, pos.y, canvasSize.w, canvasSize.h);
+      }
       ctx.restore();
     }
   }
@@ -407,12 +531,30 @@ window.EV3Canvas = (() => {
   }
 
   function getAssetImage(key) {
-    const file = assetFiles[key];
+    const preferred = assetFileFallbacks[key];
+    const file = preferred?.[0] || assetFiles[key];
     if (!file) return null;
     if (imageCache.has(file)) return imageCache.get(file);
     const img = new Image();
-    img.onload = () => window.dispatchEvent(new CustomEvent("ev3-assets-loaded"));
-    img.src = `/assets/images/${encodeURIComponent(file)}`;
+    let fallbackIndex = 0;
+    const files = preferred || [file];
+    const loadCurrent = () => {
+      const current = files[fallbackIndex];
+      const src = window.EV3Api?.resolvePath
+        ? window.EV3Api.resolvePath(`/assets/${encodeURIComponent(current)}`)
+        : `/assets/${encodeURIComponent(current)}`;
+      img.src = src;
+    };
+    img.onload = () => {
+      invalidateStaticLayer();
+      window.dispatchEvent(new CustomEvent("ev3-assets-loaded"));
+    };
+    img.onerror = () => {
+      if (fallbackIndex + 1 >= files.length) return;
+      fallbackIndex += 1;
+      loadCurrent();
+    };
+    loadCurrent();
     imageCache.set(file, img);
     return img;
   }
@@ -420,9 +562,17 @@ window.EV3Canvas = (() => {
   function drawFallbackAsset(ctx, key, x, y, w, h) {
     ctx.fillStyle = fillForAsset(key);
     ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = textColorForAsset(key);
-    ctx.font = "12px Segoe UI, Arial";
-    ctx.fillText(labelForAsset(key), x + 6, y + 17);
+    const shouldDrawLabel =
+      !key?.includes("line") &&
+      !key?.includes("wall") &&
+      !key?.includes("floor") &&
+      w >= 42 &&
+      h >= 24;
+    if (shouldDrawLabel) {
+      ctx.fillStyle = textColorForAsset(key);
+      ctx.font = "12px Segoe UI, Arial";
+      ctx.fillText(labelForAsset(key), x + 6, y + 17);
+    }
     if (key.includes("line")) {
       drawLineSymbol(ctx, key, x, y, w, h);
     }
@@ -540,6 +690,11 @@ window.EV3Canvas = (() => {
   return {
     draw,
     resetTrail,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    fitToView,
+    getZoom,
     canvasToEditor,
     canvasToWorld,
     findPlacementAt,

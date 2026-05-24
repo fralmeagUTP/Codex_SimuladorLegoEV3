@@ -21,13 +21,13 @@ _LED_COLORS: dict[str, str] = {
     "GREEN": "#4CAF50",
     "ORANGE": "#FF9800",
     "YELLOW": "#FFEB3B",
-    None: "#BDBDBD",  # apagado
+    None: "#C9CED6",  # apagado
 }
 
 # Paleta general del panel
-_BRICK_BG = "#263238"
-_LABEL_FG = "#ECEFF1"
-_DIVIDER = "#455A64"
+_BRICK_BG = "#FFFFFF"
+_LABEL_FG = "#1F2F46"
+_DIVIDER = "#E3E9F1"
 
 # Paleta de LCD EV3 simulado (monocromo)
 _LCD_FRAME = "#4F585F"
@@ -51,8 +51,8 @@ class BrickPanel(tk.Frame):
 
     def __init__(self, parent: tk.Widget, **kwargs) -> None:
         kwargs.setdefault("bg", _BRICK_BG)
-        kwargs.setdefault("padx", 8)
-        kwargs.setdefault("pady", 8)
+        kwargs.setdefault("padx", 0)
+        kwargs.setdefault("pady", 0)
         super().__init__(parent, **kwargs)
 
         self._screen_state = self._default_screen_state()
@@ -85,18 +85,20 @@ class BrickPanel(tk.Frame):
             text="EV3 Brick",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
-            font=("Arial", 11, "bold"),
-        ).pack(pady=(0, 6))
+            font=("Segoe UI", 9, "bold"),
+            anchor=tk.W,
+            padx=12,
+        ).pack(fill=tk.X, pady=(8, 0))
         self._build_led()
-        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=6)
+        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
         self._build_screen()
-        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=6)
+        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
         self._build_speaker()
 
     def _build_led(self) -> None:
         row = tk.Frame(self, bg=_BRICK_BG)
-        row.pack(fill=tk.X)
-        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Arial", 10)).pack(
+        row.pack(fill=tk.X, padx=12, pady=8)
+        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(
             side=tk.LEFT
         )
         self._led_canvas = tk.Canvas(
@@ -113,9 +115,9 @@ class BrickPanel(tk.Frame):
             22,
             22,
             fill=_LED_COLORS[None],
-            outline="#FFFFFF",
+            outline="#778",
         )
-        self._led_label = tk.Label(row, text="-", bg=_BRICK_BG, fg=_LABEL_FG, font=("Arial", 10))
+        self._led_label = tk.Label(row, text="Apagado", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9))
         self._led_label.pack(side=tk.LEFT)
 
     def _build_screen(self) -> None:
@@ -124,8 +126,8 @@ class BrickPanel(tk.Frame):
             text="Pantalla LCD EV3 (178x128):",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
-            font=("Arial", 10, "bold"),
-        ).pack(anchor=tk.W)
+            font=("Segoe UI", 9, "bold"),
+        ).pack(anchor=tk.W, padx=12, pady=(8, 4))
 
         self._screen_canvas = tk.Canvas(
             self,
@@ -142,16 +144,16 @@ class BrickPanel(tk.Frame):
 
     def _build_speaker(self) -> None:
         row = tk.Frame(self, bg=_BRICK_BG)
-        row.pack(fill=tk.X)
-        tk.Label(row, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Arial", 10)).pack(
+        row.pack(fill=tk.X, padx=12, pady=8)
+        tk.Label(row, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(
             side=tk.LEFT
         )
         self._speaker_label = tk.Label(
             row,
-            text="-",
+            text="Inactivo",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
-            font=("Arial", 10),
+            font=("Segoe UI", 9),
         )
         self._speaker_label.pack(side=tk.LEFT, padx=6)
 

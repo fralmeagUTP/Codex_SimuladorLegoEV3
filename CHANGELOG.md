@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.2 - 2026-05-24
+
+- Corregidos flujos de ejecucion web para evitar estados colgados y mejorar respuesta al finalizar script.
+- Unificados controles de parada en `Detener y reiniciar` para reducir ambiguedad operacional.
+- Agregado reinicio automatico de simulacion al terminar ejecucion para dejar la sesion en estado limpio.
+- Mejorada la experiencia de depuracion con resaltado de linea actual y estabilidad de controles.
+- Ajustadas pruebas E2E y de release a la nueva paleta del editor de mundos y al catalogo educativo de ejemplos renombrados.
+- Consolidado testeo integral: `565 passed`.
+
 ## v1.3.1 - 2026-05-22
 
 - Mejorada la ayuda web con enfoque didactico, tutoriales guiados y recursos visuales integrados.

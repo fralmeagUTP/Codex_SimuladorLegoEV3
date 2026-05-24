@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import re
@@ -113,6 +113,7 @@ def test_smoke_web_script_covers_critical_routes():
         "/api/sessions",
         "/snapshot",
         "/debug/breakpoints",
+        "/debug/watches",
         "/debug/step",
         "/debug/continue",
     ):
@@ -186,6 +187,7 @@ def test_simulation_and_world_editor_pages_are_separate(tmp_path):
 
     simulation = client.get("/").get_data(as_text=True)
     worlds = client.get("/worlds").get_data(as_text=True)
+    world_editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
 
     assert "simulation_app.js" in simulation
     assert "simulation_app.js?v=" in simulation
@@ -209,7 +211,7 @@ def test_simulation_and_world_editor_pages_are_separate(tmp_path):
     assert simulation.index('id="runBtn"') < simulation.index('id="pauseBtn"')
     assert simulation.index('id="pauseBtn"') < simulation.index('id="resumeBtn"')
     assert simulation.index('id="resumeBtn"') < simulation.index('id="stopBtn"')
-    assert simulation.index('id="stopBtn"') < simulation.index('id="resetBtn"')
+    assert 'id="resetBtn"' not in simulation
 
     assert "world_editor_app.js" in worlds
     assert "world_editor_app.js?v=" in worlds
@@ -219,11 +221,17 @@ def test_simulation_and_world_editor_pages_are_separate(tmp_path):
     assert 'id="assetSelect"' in worlds
     assert 'id="assetPropertiesForm"' in worlds
     assert 'id="assetKeyInput"' in worlds
-    assert 'id="saveWorldBtn"' not in worlds
+    assert 'id="saveWorldBtn"' in worlds
     assert 'id="exportWorldBtn"' in worlds
     assert 'id="simulateSavedWorldLink"' in worlds
+    assert 'id="worldMapZoomInBtn"' in worlds
+    assert 'id="worldMapZoomOutBtn"' in worlds
+    assert 'id="worldMapZoomResetBtn"' in worlds
     assert 'id="runBtn"' not in worlds
     assert 'id="codeEditor"' not in worlds
+    assert 'window.EV3Canvas.zoomIn(canvas)' in world_editor_js
+    assert 'window.EV3Canvas.zoomOut(canvas)' in world_editor_js
+    assert 'window.EV3Canvas.fitToView(canvas, currentWorld)' in world_editor_js
 
 
 def test_simulation_page_exposes_tk_style_menus(tmp_path):
@@ -245,6 +253,7 @@ def test_simulation_page_exposes_tk_style_menus(tmp_path):
         'id="placeRobotStartBtn"',
         'id="robotThetaInput"',
         'id="robotStartReadout"',
+        'id="watchesInput"',
         'class="sim-control-group robot-location-controls"',
         'id="speaker"',
         'id="examplesMenu"',
@@ -269,7 +278,7 @@ def test_simulation_page_exposes_tk_style_menus(tmp_path):
     assert html.index('id="runBtn"') < html.index('id="pauseBtn"')
     assert html.index('id="pauseBtn"') < html.index('id="resumeBtn"')
     assert html.index('id="resumeBtn"') < html.index('id="stopBtn"')
-    assert html.index('id="stopBtn"') < html.index('id="resetBtn"')
+    assert 'id="resetBtn"' not in html
 
 
 def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
@@ -279,9 +288,9 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     api_js = client.get("/static/js/api.js").get_data(as_text=True)
 
     for expected in (
-        "06_siguelineas_basico.py",
-        "05_esquiva_obstaculos.py",
-        "12_pantalla_altavoz_test.py",
+        "11_siguelineas_basico.py",
+        "15_esquiva_obstaculos.py",
+        "02_intro_pantalla_altavoz.py",
         "01_linea_negra.json",
         "02_obstaculos_beacon.json",
         "downloadScript",
@@ -311,11 +320,17 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "handleEditorPairs",
         "insertAtCursor",
         "speaker.duration_ms",
+        "AudioContext || window.webkitAudioContext",
+        "playSpeakerTone",
+        "bindAudioUnlockGesture",
         "autocompleteCandidates",
         "inferVariableTypes",
         "showAutocomplete",
         "applyAutocomplete",
         "updateSyntaxHighlight",
+        "handleGlobalShortcuts",
+        "event.ctrlKey || event.metaKey",
+        "window.addEventListener(\"keydown\", handleGlobalShortcuts, true)",
         "syntax-kw",
         "function updateControlStates()",
         "if (data.debug)",
@@ -323,21 +338,32 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "debugPaused",
         "runBtn.disabled = !canStart",
         "pauseBtn.disabled = !isRunning",
-        "resumeBtn.disabled = !isPaused",
-        "stopBtn.disabled = !isBusy",
+        "resumeBtn.disabled = !isEffectivelyPaused",
+        "stopBtn.disabled = status === \"created\"",
         "placeRobotStartBtn.disabled = isBusy",
         "window.EV3Canvas.resetTrail();",
         "latestSnapshot = null",
         "function clearBreakpoints()",
         "function clearDebugState()",
+        "watchesInput",
+        "setWatches",
+        "let executionMenuLocked = false",
+        "function updateMenuLockState()",
+        "function guardMenuAction()",
+        "MENU_LOCK_MESSAGE",
+        "executionMenuLocked = true;",
+        "executionMenuLocked = false;",
+        "if (guardMenuAction()) return;",
     ):
         assert expected in js
-    assert "api.createSession({ reuse: true })" in js
+    assert "api.createSession()" in js
     assert "api.closeSessionOnUnload()" in js
     assert "recoveryFailures" in js
     assert "setInterval(refreshSnapshot, 250)" in js
     assert "setInterval(refreshSnapshot, 120)" not in js
-    assert "api.openSnapshotStream" not in js
+    assert "api.openSnapshotStream" in js
+    assert "STREAM_BOOTSTRAP_TIMEOUT_MS" in js
+    assert "connectionError" in js
     assert "openScriptMenuBtnTop" not in js
     assert "saveScriptMenuBtnTop" not in js
     assert "exampleSelect" not in js
@@ -352,9 +378,11 @@ def test_simulation_canvas_preserves_physical_world_scale(tmp_path):
 
     js = client.get("/static/js/canvas_world.js").get_data(as_text=True)
 
-    assert "view.widthMm * PX_PER_MM" in js
-    assert "view.heightMm * PX_PER_MM" in js
-    assert "scale: PX_PER_MM" in js
+    assert "view.widthMm * view.scale" in js
+    assert "view.heightMm * view.scale" in js
+    assert "scale: BASE_PX_PER_MM * zoom" in js
+    assert "const MIN_ZOOM = 0.5" in js
+    assert "const MAX_ZOOM = 3.0" in js
     assert "staticLayerCache" in js
     assert "staticWorldLayer" in js
     assert "resetTrail" in js
@@ -372,9 +400,12 @@ def test_world_editor_can_link_saved_world_to_simulation(tmp_path):
     editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
 
     assert 'id="simulateSavedWorldLink"' in worlds
+    assert 'id="saveWorldBtn"' in worlds
     assert 'id="worldNameLabel"' in worlds
     assert "URLSearchParams(window.location.search)" in simulation_js
     assert 'params.get("world")' in simulation_js
+    assert "api.saveEditorWorld" in editor_js
+    assert "setSimulateSavedWorldLink(savedFileName)" in editor_js
     assert "setWorldNameLabel(inferredName)" in editor_js
     assert "api.updateAsset" in editor_js
     assert "dragPlacement" in editor_js
@@ -391,11 +422,15 @@ def test_canvas_renderer_matches_tkinter_world_scale(tmp_path):
 
     assert "const CELL_SIZE_MM = 100" in canvas_js
     assert "const GRID_SIZE_PX = 32" in canvas_js
-    assert "const PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM" in canvas_js
-    assert "scale: PX_PER_MM" in canvas_js
+    assert "const BASE_PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM" in canvas_js
+    assert "scale: BASE_PX_PER_MM * zoom" in canvas_js
     assert "function syncCanvasWorldSize" in canvas_js
-    assert "view.widthMm * PX_PER_MM" in canvas_js
-    assert "view.heightMm * PX_PER_MM" in canvas_js
+    assert "view.widthMm * view.scale" in canvas_js
+    assert "view.heightMm * view.scale" in canvas_js
+    assert "function zoomIn(canvas)" in canvas_js
+    assert "function zoomOut(canvas)" in canvas_js
+    assert "function resetZoom(canvas)" in canvas_js
+    assert "function fitToView(canvas, world)" in canvas_js
     assert "canvas.style.width = cssWidth" in canvas_js
     assert "canvas.style.height = cssHeight" in canvas_js
     assert "devicePixelRatio" not in canvas_js
@@ -417,9 +452,27 @@ def test_world_editor_defaults_to_four_meter_world(tmp_path):
     )
 
     assert res.status_code == 200
-    world = res.get_json()["world"]
-    assert world["world_width_cells"] == 40
-    assert world["world_height_cells"] == 40
+
+
+def test_load_blank_world_endpoint_resets_to_empty_editor_spec(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+
+    res = client.post(
+        f"/api/sessions/{session['session_id']}/world/blank",
+        json={"width_cells": 40, "height_cells": 40},
+        headers=headers,
+    )
+
+    assert res.status_code == 200
+    payload = res.get_json()
+    world = payload["world"]
+    assert world["width_mm"] == 4000.0
+    assert world["height_mm"] == 4000.0
+    assert world["editor_spec"]["world_width_cells"] == 40
+    assert world["editor_spec"]["world_height_cells"] == 40
+    assert world["editor_spec"]["placements"] == []
 
 
 def test_web_simulation_session_defaults_to_four_meter_world(tmp_path):
@@ -434,23 +487,27 @@ def test_web_simulation_session_defaults_to_four_meter_world(tmp_path):
     )
     stream_iter = iter(res.response)
 
+    world_event = ""
     try:
-        next(stream_iter)
-        next(stream_iter)
-        world_event = next(stream_iter).decode("utf-8")
+        for _ in range(8):
+            chunk = next(stream_iter).decode("utf-8")
+            if "event: world" in chunk:
+                world_event = chunk
+                break
     finally:
         res.close()
 
+    assert world_event
     assert '"width_mm": 4000.0' in world_event
     assert '"height_mm": 4000.0' in world_event
 
 
-def test_loading_legacy_oversized_editor_world_uses_four_meter_simulation_size(tmp_path):
+def test_loading_legacy_oversized_editor_world_keeps_authored_simulation_size(tmp_path):
     legacy_world = {
         "version": 1,
         "world": {
-            "width_mm": 16000.0,
-            "height_mm": 16000.0,
+            "width_mm": 8000.0,
+            "height_mm": 8000.0,
             "surface": {"cell_size_mm": 12.5, "default_color": "WHITE", "cells": []},
             "obstacles": [],
             "beacons": [],
@@ -463,20 +520,20 @@ def test_loading_legacy_oversized_editor_world_uses_four_meter_simulation_size(t
             "placements": [],
         },
     }
-    (tmp_path / "legacy_16m.json").write_text(json.dumps(legacy_world), encoding="utf-8")
+    (tmp_path / "legacy_8m.json").write_text(json.dumps(legacy_world), encoding="utf-8")
     client = make_client(tmp_path)
     session = client.post("/api/sessions").get_json()
 
     res = client.post(
         f"/api/sessions/{session['session_id']}/world",
-        json={"name": "legacy_16m.json"},
+        json={"name": "legacy_8m.json"},
         headers=auth_headers(session),
     )
 
     assert res.status_code == 200
     world = res.get_json()["world"]
-    assert world["width_mm"] == 4000.0
-    assert world["height_mm"] == 4000.0
+    assert world["width_mm"] == 16000.0
+    assert world["height_mm"] == 16000.0
 
 
 def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
@@ -571,6 +628,25 @@ def test_simulation_controls_live_inside_left_column_so_code_starts_top(tmp_path
     assert "grid-template-rows: auto minmax(300px, 1fr) minmax(230px, 0.62fr);" in css
 
 
+def test_map_zoom_buttons_are_present_and_wired(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    canvas_js = client.get("/static/js/canvas_world.js").get_data(as_text=True)
+
+    assert 'id="mapZoomInBtn"' in html
+    assert 'id="mapZoomOutBtn"' in html
+    assert 'id="mapZoomResetBtn"' in html
+    assert 'window.EV3Canvas.zoomIn(canvas)' in js
+    assert 'window.EV3Canvas.zoomOut(canvas)' in js
+    assert 'window.EV3Canvas.fitToView(canvas, currentWorld)' in js
+    assert "function zoomIn(canvas)" in canvas_js
+    assert "function zoomOut(canvas)" in canvas_js
+    assert "function resetZoom(canvas)" in canvas_js
+    assert "function fitToView(canvas, world)" in canvas_js
+
+
 def test_telemetry_panel_uses_three_readable_columns(tmp_path):
     client = make_client(tmp_path)
 
@@ -631,7 +707,7 @@ def test_world_editor_uses_jpg_for_floor_tile_c(tmp_path):
     client = make_client(tmp_path)
 
     editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
-    image = client.get("/assets/images/floor_tile_256_c.jpg")
+    image = client.get("/assets/floor_tile_256_c.jpg")
 
     assert 'floor_tile_256_c: "floor_tile_256_c.jpg"' in editor_js
     assert image.status_code == 200
@@ -822,10 +898,19 @@ def test_running_simulation_limit_is_enforced(tmp_path):
 
     try:
         assert first_start.status_code == 200
-        assert second_start.status_code == 429
-        assert second_start.get_json()["error"]["code"] == "CAPACITY_EXCEEDED"
+        assert second_start.status_code == 200
+        # Politica actual: se desaloja la sesion en ejecucion mas antigua para liberar cupo.
+        assert client.get(
+            f"/api/sessions/{a['session_id']}",
+            headers=auth_headers(a),
+        ).status_code == 404
+        assert client.get(
+            f"/api/sessions/{b['session_id']}",
+            headers=auth_headers(b),
+        ).status_code == 200
     finally:
         client.post(f"/api/sessions/{a['session_id']}/stop", headers=auth_headers(a))
+        client.post(f"/api/sessions/{b['session_id']}/stop", headers=auth_headers(b))
 
 
 def test_load_script_start_and_snapshot(tmp_path):
@@ -855,6 +940,36 @@ def test_load_script_start_and_snapshot(tmp_path):
     assert snap["snapshot"]["robot"]
 
     client.post(f"/api/sessions/{session['session_id']}/stop", headers=headers)
+
+
+def test_pause_does_not_consume_runtime_timeout_budget(tmp_path):
+    client = make_client_with_config(tmp_path, SCRIPT_MAX_RUNTIME_S=1.0)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sid = session["session_id"]
+
+    client.post(
+        f"/api/sessions/{sid}/script",
+        json={"source": "from pybricks.tools import wait\nwhile True:\n    wait(100)\n"},
+        headers=headers,
+    )
+    start = client.post(f"/api/sessions/{sid}/start", json={}, headers=headers)
+    assert start.status_code == 200
+    assert start.get_json()["status"] == "running"
+
+    paused = client.post(f"/api/sessions/{sid}/pause", headers=headers)
+    assert paused.status_code == 200
+    assert paused.get_json()["status"] == "paused"
+
+    time.sleep(1.4)
+    snapshot = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()
+    assert snapshot["status"] == "paused"
+    assert snapshot["error"] is None
+
+    resumed = client.post(f"/api/sessions/{sid}/resume", headers=headers)
+    assert resumed.status_code == 200
+    assert resumed.get_json()["status"] == "running"
+    client.post(f"/api/sessions/{sid}/stop", headers=headers)
 
 
 def test_finished_script_updates_web_status_to_stopped(tmp_path):
@@ -1049,6 +1164,120 @@ def test_import_editor_world(tmp_path):
     assert data["validation"]["valid"] is True
 
 
+def test_import_wrapped_editor_spec_world(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    wrapped_world = {
+        "version": 1,
+        "world": {"width_mm": 4000.0, "height_mm": 4000.0},
+        "editor_spec": {
+            "schema_version": 1,
+            "grid_size_px": 32,
+            "world_width_cells": 40,
+            "world_height_cells": 40,
+            "placements": [
+                {
+                    "id": "wall_0001",
+                    "asset_key": "wall_64x64_a",
+                    "x_px": 0,
+                    "y_px": 0,
+                    "rotation": 0,
+                }
+            ],
+        },
+    }
+
+    res = client.post(
+        f"/api/sessions/{session['session_id']}/editor/world",
+        json=wrapped_world,
+        headers=headers,
+    )
+
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["world"]["world_width_cells"] == 40
+    assert data["world"]["world_height_cells"] == 40
+    assert data["world"]["placements"][0]["asset_key"] == "wall_64x64_a"
+    assert data["validation"]["valid"] is True
+
+
+def test_import_simulation_world_repository_format_into_editor(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sim_world = {
+        "version": 1,
+        "world": {
+            "width_mm": 2000.0,
+            "height_mm": 2000.0,
+            "surface": {
+                "cell_size_mm": 50.0,
+                "default_color": "WHITE",
+                "cells": [],
+            },
+            "obstacles": [
+                {
+                    "name": "wall_demo",
+                    "vertices": [[200, 200], [400, 200], [400, 400], [200, 400]],
+                }
+            ],
+            "beacons": [],
+        },
+    }
+
+    res = client.post(
+        f"/api/sessions/{session['session_id']}/editor/world",
+        json=sim_world,
+        headers=headers,
+    )
+
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["world"]["world_width_cells"] == 20
+    assert data["world"]["world_height_cells"] == 20
+    assert data["world"]["placements"]
+    assert data["validation"]["valid"] is True
+
+
+def test_import_line_surface_world_into_editor_without_out_of_bounds(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+
+    cells = [
+        {"col": col, "row": 4, "color": "BLACK", "reflectance": 5.0}
+        for col in range(40)
+    ]
+    sim_world = {
+        "version": 1,
+        "world": {
+            "width_mm": 2000.0,
+            "height_mm": 2000.0,
+            "surface": {
+                "cell_size_mm": 50.0,
+                "default_color": "WHITE",
+                "cells": cells,
+            },
+            "obstacles": [],
+            "beacons": [],
+        },
+    }
+
+    res = client.post(
+        f"/api/sessions/{session['session_id']}/editor/world",
+        json=sim_world,
+        headers=headers,
+    )
+
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["validation"]["valid"] is True
+    assert data["validation"]["errors"] == []
+    assert len(data["world"]["placements"]) == 10
+    assert all(p["asset_key"] == "line_64_64_hor" for p in data["world"]["placements"])
+
+
 def test_save_editor_world_to_worlds_dir(tmp_path):
     client = make_client(tmp_path)
     session = client.post("/api/sessions").get_json()
@@ -1130,6 +1359,7 @@ def test_stream_emits_initial_status_snapshot_and_world(tmp_path):
         first = next(stream_iter).decode("utf-8")
         second = next(stream_iter).decode("utf-8")
         third = next(stream_iter).decode("utf-8")
+        fourth = next(stream_iter).decode("utf-8")
     finally:
         res.close()
 
@@ -1138,8 +1368,10 @@ def test_stream_emits_initial_status_snapshot_and_world(tmp_path):
     assert '"status": "created"' in first
     assert "event: snapshot" in second
     assert '"robot"' in second
-    assert "event: world" in third
-    assert '"editor_spec"' in third
+    assert "event: debug_state" in third
+    assert '"debug_state": "idle"' in third
+    assert "event: world" in fourth
+    assert '"editor_spec"' in fourth
 
 
 def test_stream_uses_configured_heartbeat_interval(tmp_path):
@@ -1158,14 +1390,16 @@ def test_stream_uses_configured_heartbeat_interval(tmp_path):
         second = next(stream_iter).decode("utf-8")
         third = next(stream_iter).decode("utf-8")
         fourth = next(stream_iter).decode("utf-8")
+        fifth = next(stream_iter).decode("utf-8")
     finally:
         res.close()
 
     assert res.status_code == 200
     assert "event: status" in first
     assert "event: snapshot" in second
-    assert "event: world" in third
-    assert "event: heartbeat" in fourth
+    assert "event: debug_state" in third
+    assert "event: world" in fourth
+    assert "event: heartbeat" in fifth
 
 
 def test_debug_breakpoint_pause_and_continue(tmp_path):
@@ -1206,6 +1440,9 @@ def test_debug_breakpoint_pause_and_continue(tmp_path):
     assert breakpoints.get_json()["breakpoints"] == [2]
     assert started.status_code == 200
     assert paused is not None
+    assert paused["debug_state"] == "paused_breakpoint"
+    assert paused["can_continue"] is True
+    assert paused["can_step"] is True
     assert paused["line"] == 2
     assert paused["reason"] == "breakpoint"
     assert continued.status_code == 200
@@ -1213,7 +1450,8 @@ def test_debug_breakpoint_pause_and_continue(tmp_path):
     assert continued.get_json()["type"] == "command"
 
     after_continue = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()
-    assert after_continue["debug"]["type"] != "paused"
+    assert after_continue["debug"].get("type") != "paused"
+    assert after_continue["debug"]["debug_state"] in {"running", "stopped"}
 
 
 def test_debug_step_starts_in_step_mode(tmp_path):
@@ -1246,9 +1484,67 @@ def test_debug_step_starts_in_step_mode(tmp_path):
 
     assert started.status_code == 200
     assert paused is not None
+    assert paused["debug_state"] == "paused_step"
+    assert paused["can_continue"] is True
+    assert paused["can_step"] is True
     assert paused["reason"] == "step"
     assert step.status_code == 200
     assert step.get_json()["action"] == "step"
+
+
+def test_snapshot_debug_state_includes_capabilities_and_breakpoints(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    sid = session["session_id"]
+    headers = auth_headers(session)
+
+    client.post(
+        f"/api/sessions/{sid}/script",
+        json={"source": "x = 1\nx = 2\nx = 3\n"},
+        headers=headers,
+    )
+    client.post(
+        f"/api/sessions/{sid}/debug/breakpoints",
+        json={"breakpoints": [2, 3]},
+        headers=headers,
+    )
+    client.post(
+        f"/api/sessions/{sid}/debug/watches",
+        json={"watches": ["x + 1", "x * 2", "z_no_existe + 1"]},
+        headers=headers,
+    )
+    client.post(
+        f"/api/sessions/{sid}/start",
+        json={"debug": True},
+        headers=headers,
+    )
+
+    payload = None
+    debug_context = None
+    for _ in range(30):
+        snapshot = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()
+        debug = snapshot.get("debug") or {}
+        if debug.get("debug_state") == "paused_breakpoint":
+            payload = debug
+            debug_context = snapshot.get("debug_context") or {}
+            break
+        time.sleep(0.02)
+    client.post(f"/api/sessions/{sid}/stop", headers=headers)
+
+    assert payload is not None
+    assert payload["breakpoints"] == [2, 3]
+    assert payload["watches"] == ["x + 1", "x * 2", "z_no_existe + 1"]
+    assert payload["can_continue"] is True
+    assert payload["can_step"] is True
+    assert isinstance(payload.get("timestamp"), str)
+    assert debug_context.get("line") == payload["line"]
+    assert isinstance(debug_context.get("stack"), list)
+    assert isinstance(debug_context.get("locals"), dict)
+    assert isinstance(debug_context.get("watches"), list)
+    watch_values = {item["expr"]: item for item in debug_context["watches"]}
+    assert watch_values["x + 1"]["value"] == 2
+    assert watch_values["x * 2"]["value"] == 2
+    assert watch_values["z_no_existe + 1"]["error"]
 
 
 def test_debug_breakpoints_reject_invalid_payload(tmp_path):
@@ -1265,10 +1561,33 @@ def test_debug_breakpoints_reject_invalid_payload(tmp_path):
     assert res.get_json()["error"]["code"] == "INVALID_PAYLOAD"
 
 
+def test_debug_watches_endpoint_and_validation(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    sid = session["session_id"]
+    headers = auth_headers(session)
+
+    valid = client.post(
+        f"/api/sessions/{sid}/debug/watches",
+        json={"watches": ["distancia < 300", "velocidad * 2"]},
+        headers=headers,
+    )
+    invalid = client.post(
+        f"/api/sessions/{sid}/debug/watches",
+        json={"watches": "distancia < 300"},
+        headers=headers,
+    )
+
+    assert valid.status_code == 200
+    assert valid.get_json()["watches"] == ["distancia < 300", "velocidad * 2"]
+    assert invalid.status_code == 400
+    assert invalid.get_json()["error"]["code"] == "INVALID_PAYLOAD"
+
+
 def test_image_asset_route_serves_robot(tmp_path):
     client = make_client(tmp_path)
 
-    res = client.get("/assets/images/robot_ev3_32x32.png")
+    res = client.get("/assets/robot_ev3_32x32.png")
 
     assert res.status_code == 200
     assert res.content_type.startswith("image/png")
@@ -1460,3 +1779,4 @@ def test_load_saved_world_in_new_session_keeps_editor_spec_for_rendering(tmp_pat
     data = loaded.get_json()
     assert data["world"]["editor_spec"]["placements"]
     assert data["world"]["editor_spec"]["placements"][0]["asset_key"] == "line_64_64_hor"
+

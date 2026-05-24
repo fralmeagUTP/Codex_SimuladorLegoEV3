@@ -13,15 +13,19 @@ import tkinter as tk
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 
-_BG = "#FAFAFA"
-_HDR_BG = "#ECEFF1"
-_HDR_FG = "#37474F"
-_VAL_FG = "#1565C0"
+_BG = "#FFFFFF"
+_HDR_BG = "#FFFFFF"
+_HDR_FG = "#1D2D44"
+_VAL_FG = "#1F2F46"
 _COL_FG = "#D32F2F"
-_MONO = ("Courier New", 10)
-_LABEL = ("Arial", 10)
-_BOLD = ("Arial", 10, "bold")
+_MONO = ("Segoe UI", 9)
+_LABEL = ("Segoe UI", 9)
+_BOLD = ("Segoe UI", 9, "bold")
 _EMPTY = "-"
+
+
+def _mm_to_cm(value: float) -> float:
+    return float(value) / 10.0
 
 _MOTOR_PORTS = ("A", "B", "C", "D")
 _SENSOR_PORTS = ("S1", "S2", "S3", "S4")
@@ -29,13 +33,13 @@ _SENSOR_PORTS = ("S1", "S2", "S3", "S4")
 
 def _apply_scrollbar_style(sb: tk.Scrollbar) -> None:
     sb.configure(
-        bg="#B0BEC5",
-        activebackground="#78909C",
-        troughcolor="#ECEFF1",
+        bg="#D4DDE8",
+        activebackground="#B8C7DA",
+        troughcolor="#F8FBFF",
         relief=tk.RAISED,
         bd=1,
         highlightthickness=1,
-        highlightbackground="#90A4AE",
+        highlightbackground="#D4DDE8",
     )
 
 
@@ -44,8 +48,8 @@ class TelemetryPanel(tk.Frame):
 
     def __init__(self, parent: tk.Widget, **kwargs) -> None:
         kwargs.setdefault("bg", _BG)
-        kwargs.setdefault("padx", 8)
-        kwargs.setdefault("pady", 8)
+        kwargs.setdefault("padx", 0)
+        kwargs.setdefault("pady", 0)
         super().__init__(parent, **kwargs)
 
         self._motor_vars: dict[str, dict[str, tk.StringVar]] = {}
@@ -113,6 +117,7 @@ class TelemetryPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
+        _header(self._content, "Telemetria")
         self._build_robot_section()
         _separator(self._content)
         self._build_motors_section()
@@ -125,9 +130,9 @@ class TelemetryPanel(tk.Frame):
         _header(self._content, "Robot")
         grid = tk.Frame(self._content, bg=_BG)
         grid.pack(fill=tk.X)
-        self._var_x = _row(grid, "X (mm):", 0)
-        self._var_y = _row(grid, "Y (mm):", 1)
-        self._var_theta = _row(grid, "Theta (deg):", 2)
+        self._var_x = _row(grid, "X (cm):", 0)
+        self._var_y = _row(grid, "Y (cm):", 1)
+        self._var_theta = _row(grid, "Theta (°):", 2)
         self._var_col = tk.StringVar(value="OK")
         tk.Label(grid, text="Colision:", bg=_BG, font=_LABEL).grid(
             row=3, column=0, sticky=tk.W
@@ -143,9 +148,10 @@ class TelemetryPanel(tk.Frame):
             grp = tk.LabelFrame(self._content, text=port, bg=_BG, font=_LABEL, pady=2)
             grp.pack(fill=tk.X, padx=4, pady=2)
             self._motor_vars[port] = {
-                "speed": _row(grp, "Vel (deg/s):", 0),
-                "angle": _row(grp, "Ang (deg):", 1),
-                "state": _row(grp, "Estado:", 2),
+                "speed": _row(grp, "Vel (°/s):", 0),
+                "angle": _row(grp, "Ang (°):", 1),
+                "angle_norm": _row(grp, "Ang 0-360 (°):", 2),
+                "state": _row(grp, "Estado:", 3),
             }
 
     def _build_sensors_section(self) -> None:
@@ -200,8 +206,8 @@ class TelemetryPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _update_robot(self, dto: SnapshotDTO) -> None:
-        self._var_x.set(f"{dto.robot['x_mm']:.1f}")
-        self._var_y.set(f"{dto.robot['y_mm']:.1f}")
+        self._var_x.set(f"{_mm_to_cm(dto.robot['x_mm']):.1f}")
+        self._var_y.set(f"{_mm_to_cm(dto.robot['y_mm']):.1f}")
         self._var_theta.set(f"{dto.robot['theta_deg']:.1f}")
         if dto.colliding:
             self._var_col.set("COLISION")
@@ -229,7 +235,9 @@ class TelemetryPanel(tk.Frame):
             if isinstance(speed, (int, float)):
                 vars_by_key["speed"].set(f"{speed:.0f}")
             if isinstance(angle, (int, float)):
-                vars_by_key["angle"].set(f"{angle:.1f}deg")
+                vars_by_key["angle"].set(f"{angle:.1f}°")
+                normalized = (float(angle) % 360.0 + 360.0) % 360.0
+                vars_by_key["angle_norm"].set(f"{normalized:.1f}°")
             if state is not None:
                 vars_by_key["state"].set(str(state))
 
@@ -246,7 +254,18 @@ class TelemetryPanel(tk.Frame):
 
             vars_by_key["type"].set(str(sensor.get("type", _EMPTY)))
             val = sensor.get("value", sensor.get("data", _EMPTY))
-            vars_by_key["value"].set(str(val)[:40])
+            if isinstance(val, dict) and "distance_mm" in val:
+                parts: list[str] = []
+                dist_mm = val.get("distance_mm")
+                if isinstance(dist_mm, (int, float)):
+                    parts.append(f"distance_cm={_mm_to_cm(dist_mm):.1f}")
+                for key, item in val.items():
+                    if key == "distance_mm":
+                        continue
+                    parts.append(f"{key}={item}")
+                vars_by_key["value"].set(", ".join(parts)[:40] if parts else _EMPTY)
+            else:
+                vars_by_key["value"].set(str(val)[:40])
 
     def _update_time(self, dto: SnapshotDTO) -> None:
         self._var_tick.set(str(dto.tick))
@@ -255,7 +274,7 @@ class TelemetryPanel(tk.Frame):
 
 def _header(parent: tk.Widget, text: str) -> None:
     frame = tk.Frame(parent, bg=_HDR_BG)
-    frame.pack(fill=tk.X, pady=(6, 2))
+    frame.pack(fill=tk.X, pady=(0, 0))
     tk.Label(
         frame,
         text=text,
@@ -263,11 +282,11 @@ def _header(parent: tk.Widget, text: str) -> None:
         fg=_HDR_FG,
         font=_BOLD,
         anchor=tk.W,
-    ).pack(side=tk.LEFT, padx=4, pady=1)
+    ).pack(side=tk.LEFT, padx=10, pady=7)
 
 
 def _separator(parent: tk.Widget) -> None:
-    tk.Frame(parent, height=1, bg="#BDBDBD").pack(fill=tk.X, pady=2)
+    tk.Frame(parent, height=1, bg="#E3E9F1").pack(fill=tk.X, pady=0)
 
 
 def _row(parent: tk.Widget, label: str, row: int) -> tk.StringVar:
@@ -276,7 +295,8 @@ def _row(parent: tk.Widget, label: str, row: int) -> tk.StringVar:
         row=row,
         column=0,
         sticky=tk.W,
-        padx=4,
+        padx=10,
+        pady=1,
     )
     tk.Label(
         parent,
@@ -285,5 +305,5 @@ def _row(parent: tk.Widget, label: str, row: int) -> tk.StringVar:
         font=_MONO,
         fg=_VAL_FG,
         anchor=tk.W,
-    ).grid(row=row, column=1, sticky=tk.W)
+    ).grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=1)
     return var

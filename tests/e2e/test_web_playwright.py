@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import socket
 import threading
@@ -43,9 +43,9 @@ def live_web_app(tmp_path):
     for name in ("01_linea_negra.json", "02_obstaculos_beacon.json", "menu_world.json"):
         (worlds_dir / name).write_text(json.dumps(world), encoding="utf-8")
     examples = {
-        "06_siguelineas_basico.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("linea")\n',
-        "05_esquiva_obstaculos.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("ultra")\n',
-        "12_pantalla_altavoz_test.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n',
+        "11_siguelineas_basico.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("linea")\n',
+        "15_esquiva_obstaculos.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("ultra")\n',
+        "02_intro_pantalla_altavoz.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n',
         "menu_example.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("menu")\n',
     }
     for name, source in examples.items():
@@ -114,7 +114,9 @@ def test_simulation_page_runs_default_script(page, live_web_app, expect):
 
     page.locator("#runBtn").click()
 
-    expect(page.locator("#screen")).to_contain_text("EV3 Web", timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile("running|created"), timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=7000)
+    expect(page.locator("#runBtn")).to_be_enabled()
     expect(page.locator("#telemetry")).to_contain_text("Tick", timeout=5000)
 
 
@@ -127,7 +129,6 @@ def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
     expect(page.locator("#pauseBtn")).to_be_disabled()
     expect(page.locator("#resumeBtn")).to_be_disabled()
     expect(page.locator("#stopBtn")).to_be_disabled()
-    expect(page.locator("#resetBtn")).to_be_disabled()
     expect(page.locator("#placeRobotStartBtn")).to_be_enabled()
 
     page.locator("#codeEditor").fill(
@@ -157,11 +158,11 @@ def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
     expect(page.locator("#sessionStatus")).to_have_text("running", timeout=5000)
 
     page.locator("#stopBtn").click()
-    expect(page.locator("#sessionStatus")).to_have_text("stopped", timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
     expect(page.locator("#runBtn")).to_be_enabled()
     expect(page.locator("#pauseBtn")).to_be_disabled()
     expect(page.locator("#resumeBtn")).to_be_disabled()
-    expect(page.locator("#resetBtn")).to_be_enabled()
+    expect(page.locator("#stopBtn")).to_be_disabled()
     expect(page.locator("#placeRobotStartBtn")).to_be_enabled()
 
 
@@ -470,10 +471,10 @@ def test_world_editor_builds_valid_world_and_exposes_simulation_link(page, live_
     page.goto(f"{live_web_app}/worlds")
 
     expect(page.locator("#sessionStatus")).to_have_text("created")
-    expect(page.locator("#assetSelect")).to_be_visible()
+    expect(page.locator("#assetPalette")).to_be_visible()
     expect(page.locator("#worldCanvas")).to_be_visible()
 
-    page.locator("#assetSelect").select_option("robot_ev3_32x32")
+    page.locator("#assetPalette .asset-tool[data-asset-key='robot_ev3_32x32']").click()
     box = page.locator("#worldCanvas").bounding_box()
     assert box is not None
     page.mouse.click(box["x"] + 120, box["y"] + 120)
@@ -481,16 +482,18 @@ def test_world_editor_builds_valid_world_and_exposes_simulation_link(page, live_
     expect(page.locator("#selectedAsset")).to_contain_text("robot_ev3_32x32", timeout=5000)
     expect(page.locator("#validationStatus")).to_contain_text("Validacion", timeout=5000)
 
-    page.locator("#exportWorldBtn").click()
+    page.on("dialog", lambda dialog: dialog.accept("world_editor_smoke"))
+    page.locator("#saveWorldBtn").click()
 
     expect(page.locator("#console")).to_contain_text("Mundo")
     expect(page.locator("#console")).to_contain_text(".json")
+    expect(page.locator("#simulateSavedWorldLink")).to_be_visible()
 
 
 def test_world_editor_updates_selected_asset_properties(page, live_web_app, expect):
     page.goto(f"{live_web_app}/worlds")
 
-    page.locator("#assetSelect").select_option("wall_64x64_a")
+    page.locator("#assetPalette .asset-tool[data-asset-key='wall_64x64_a']").click()
     box = page.locator("#worldCanvas").bounding_box()
     assert box is not None
     page.mouse.click(box["x"] + 120, box["y"] + 120)
@@ -511,7 +514,7 @@ def test_world_editor_updates_selected_asset_properties(page, live_web_app, expe
 def test_world_editor_drags_selected_asset(page, live_web_app, expect):
     page.goto(f"{live_web_app}/worlds")
 
-    page.locator("#assetSelect").select_option("wall_64x64_a")
+    page.locator("#assetPalette .asset-tool[data-asset-key='wall_64x64_a']").click()
     box = page.locator("#worldCanvas").bounding_box()
     assert box is not None
     start_x = box["x"] + 120
@@ -557,14 +560,14 @@ def test_two_browser_contexts_keep_sessions_independent(browser, live_web_app, e
             "from pybricks.tools import wait\n"
             "ev3 = EV3Brick()\n"
             "ev3.screen.print('perfil A')\n"
-            "wait(20)\n"
+            "wait(900)\n"
         )
         page_b.locator("#codeEditor").fill(
             "from pybricks.hubs import EV3Brick\n"
             "from pybricks.tools import wait\n"
             "ev3 = EV3Brick()\n"
             "ev3.screen.print('perfil B')\n"
-            "wait(20)\n"
+            "wait(900)\n"
         )
 
         page_a.locator("#runBtn").click()
@@ -577,3 +580,4 @@ def test_two_browser_contexts_keep_sessions_independent(browser, live_web_app, e
     finally:
         context_a.close()
         context_b.close()
+

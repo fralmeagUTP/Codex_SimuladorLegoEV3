@@ -36,6 +36,19 @@ def load_world(session_id: str):
     return jsonify(require_session(session_id).load_world_name(name))
 
 
+@bp.post("/sessions/<session_id>/world/blank")
+def load_blank_world(session_id: str):
+    data = json_body()
+    width_cells = data.get("width_cells")
+    height_cells = data.get("height_cells")
+    return jsonify(
+        require_session(session_id).load_blank_world(
+            width_cells=width_cells,
+            height_cells=height_cells,
+        )
+    )
+
+
 @bp.post("/sessions/<session_id>/world/upload")
 def upload_world(session_id: str):
     if request.is_json:

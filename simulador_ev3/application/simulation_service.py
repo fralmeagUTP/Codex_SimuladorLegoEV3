@@ -107,6 +107,8 @@ class SimulationService:
         self._source_code: Optional[str] = None
         self._loaded_world: Optional[WorldModel] = None
         self._debug_breakpoints: set[int] = set()
+        self._debug_watches: list[str] = []
+        self._latest_debug_event: dict | None = None
 
         # Construir la infraestructura inicial
         self._rebuild()
@@ -136,6 +138,11 @@ class SimulationService:
         if self._controller:
             self._controller.set_debug_breakpoints(self._debug_breakpoints)
 
+    def set_debug_watches(self, watches: list[str]) -> None:
+        self._debug_watches = [str(expr).strip() for expr in (watches or []) if str(expr).strip()]
+        if self._controller:
+            self._controller.set_debug_watches(self._debug_watches)
+
     def debug_continue(self) -> None:
         if self._controller:
             self._controller.debug_continue()
@@ -143,6 +150,12 @@ class SimulationService:
     def debug_step(self) -> None:
         if self._controller:
             self._controller.debug_step()
+
+    def get_debug_state(self) -> dict | None:
+        """Devuelve el ultimo payload de depuracion emitido por runtime."""
+        if self._latest_debug_event is None:
+            return None
+        return dict(self._latest_debug_event)
 
     # ------------------------------------------------------------------
     # API de script
@@ -156,6 +169,7 @@ class SimulationService:
         if self.is_running:
             self.stop()
         self._source_code = source_code
+        self._latest_debug_event = None
 
     def set_robot_start(
         self,
@@ -206,6 +220,28 @@ class SimulationService:
             self.set_robot_start(x_mm, y_mm, theta_deg)
         self._notify_status("world_loaded")
 
+    def load_blank_world(self, width_mm: float | None = None, height_mm: float | None = None) -> None:
+        """Carga un mundo vacío (sin obstáculos, líneas ni zonas) para empezar desde cero."""
+        if self.is_running:
+            self.stop(reason="world_change")
+
+        target_w = float(width_mm) if width_mm is not None else float(DEFAULT_WORLD_CELLS * CELL_SIZE_MM)
+        target_h = float(height_mm) if height_mm is not None else float(DEFAULT_WORLD_CELLS * CELL_SIZE_MM)
+        if target_w > MAX_WORLD_MM or target_h > MAX_WORLD_MM:
+            raise ValueError(
+                f"El mundo excede el maximo permitido ({MAX_WORLD_PIXELS} px por eje en visor/editor). "
+                f"Tamano recibido: {target_w:.0f}x{target_h:.0f} mm."
+            )
+
+        world = WorldModel(
+            width_mm=target_w,
+            height_mm=target_h,
+        )
+        setattr(world, "name", "Mundo en blanco")
+        self._loaded_world = world
+        self._engine.set_world(world)
+        self._notify_status("world_loaded")
+
     def _load_world_with_editor_physics(
         self, path: str | Path
     ) -> tuple[WorldModel, tuple[float, float, float] | None]:
@@ -243,14 +279,11 @@ class SimulationService:
         return WorldRepository.load(src), None
 
     def _normalize_loaded_world_size_for_simulation(self, svc: WorldEditorService) -> None:
-        """Use the current default simulation size for legacy oversized editor worlds."""
-
+        """Preserve authored editor-world size; do not crop legacy maps silently."""
         world = svc.current_formal_world()
-        if (
-            world.world_width_cells > DEFAULT_WORLD_CELLS
-            or world.world_height_cells > DEFAULT_WORLD_CELLS
-        ):
+        if world.world_width_cells < 1:
             world.world_width_cells = DEFAULT_WORLD_CELLS
+        if world.world_height_cells < 1:
             world.world_height_cells = DEFAULT_WORLD_CELLS
 
     def _extract_robot_start_from_editor_spec(
@@ -316,6 +349,7 @@ class SimulationService:
         self._controller.set_debug_mode(debug)
         self._controller.set_debug_step_mode(step_mode if debug else False)
         self._controller.set_debug_breakpoints(self._debug_breakpoints if debug else set())
+        self._controller.set_debug_watches(self._debug_watches if debug else [])
         self._controller.start()
         self._notify_status("started")
 
@@ -345,6 +379,7 @@ class SimulationService:
         """
         self.stop(reason="reset")
         self._source_code = None
+        self._latest_debug_event = None
         self._rebuild()
         self._notify_status("reset")
 
@@ -424,6 +459,7 @@ class SimulationService:
         self._controller.set_snapshot_callback(self._on_snapshot)
         self._controller.set_debug_callback(self._on_debug_event)
         self._controller.set_debug_breakpoints(self._debug_breakpoints)
+        self._controller.set_debug_watches(self._debug_watches)
         self._engine.event_bus.subscribe(
             EVENT_RUNTIME_ERROR, self._on_runtime_error
         )
@@ -457,6 +493,7 @@ class SimulationService:
         self._notify_status("stopped")
 
     def _on_debug_event(self, payload: dict) -> None:
+        self._latest_debug_event = dict(payload)
         if self._debug_cb:
             try:
                 self._debug_cb(payload)

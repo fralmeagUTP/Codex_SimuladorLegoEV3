@@ -22,7 +22,8 @@
       <div class="menu-group">
         <button type="button" class="menu-trigger" aria-haspopup="true">Mundos</button>
         <div id="worldsMenu" class="menu-dropdown">
-          <a href="/worlds">Editor de mundos</a>
+          <a href="{{ url_for('pages.worlds_page') }}">Editor de mundos</a>
+          <button type="button" id="loadBlankWorldMenuBtn">Mundo en blanco (sin mapa)</button>
           <button type="button" id="loadWorldFromFileMenuBtn">Cargar mundo desde tu equipo</button>
           <span class="menu-empty">Cargando mundos</span>
         </div>
@@ -33,12 +34,15 @@
           <button type="button" data-scenario="line">Seguidor de linea</button>
           <button type="button" data-scenario="ultrasonic">Ultrasonido + obstaculos</button>
           <button type="button" data-scenario="brick">Test pantalla/altavoz</button>
+          <button type="button" data-scenario="gyro">Gyro: correccion de rumbo</button>
+          <button type="button" data-scenario="beacon">IR beacon: seguimiento</button>
+          <button type="button" data-scenario="curve">DriveBase curva y estado</button>
         </div>
       </div>
       <div class="menu-group">
         <button type="button" class="menu-trigger" aria-haspopup="true">Ayuda</button>
         <div class="menu-dropdown">
-          <a href="/help" target="_blank">Manual de uso</a>
+          <a href="{{ url_for('pages.help_page') }}" target="_blank">Manual de uso</a>
           <button type="button" id="aboutMenuBtn">Acerca de</button>
         </div>
       </div>
@@ -55,8 +59,7 @@
             <button id="runBtn" class="run-button">Ejecutar</button>
             <button id="pauseBtn">Pausar</button>
             <button id="resumeBtn">Reanudar</button>
-            <button id="stopBtn" class="stop-button">Finalizar</button>
-            <button id="resetBtn">Resetear</button>
+            <button id="stopBtn" class="stop-button" title="Detiene el programa y reinicia la simulacion">Detener y reiniciar</button>
           </div>
           <div class="sim-control-group robot-location-controls" aria-label="Ubicacion inicial del robot">
             <button id="placeRobotStartBtn" type="button">Ubicar robot</button>
@@ -73,9 +76,9 @@
               <span class="world-name-inline">Mundo actual: <span id="statusWorld">Basico</span></span>
             </div>
             <div class="map-tools" aria-label="Herramientas del mapa">
-              <button type="button" title="Acercar">+</button>
-              <button type="button" title="Alejar">-</button>
-              <button type="button" title="Ajustar vista">[]</button>
+              <button id="mapZoomInBtn" type="button" title="Acercar" aria-label="Acercar mapa">+</button>
+              <button id="mapZoomOutBtn" type="button" title="Alejar" aria-label="Alejar mapa">-</button>
+              <button id="mapZoomResetBtn" type="button" title="Ajustar vista" aria-label="Ajustar vista del mapa">[]</button>
             </div>
           </div>
           <div class="sim-map-pane">
@@ -129,7 +132,23 @@
         <button id="debugContinueBtn" class="continue-button">Continuar</button>
         <label for="breakpointsInput">Breakpoints</label>
         <input id="breakpointsInput" type="text" inputmode="numeric" placeholder="2, 5, 8">
+        <label for="watchesInput">Watches</label>
+        <input id="watchesInput" type="text" placeholder="distancia < 300, x + 1">
         <div id="debugState" class="debug-state">sin eventos</div>
+      </div>
+      <div id="debugWatchesPanel" class="debug-watches hidden" aria-live="polite">
+        <div class="debug-watches-title">Watches (pausa actual)</div>
+        <div id="debugWatchesEmpty" class="debug-watches-empty">sin datos (pausa para evaluar)</div>
+        <table class="debug-watches-table" aria-label="Resultado de watches">
+          <thead>
+            <tr>
+              <th>Expresion</th>
+              <th>Valor</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody id="debugWatchesBody"></tbody>
+        </table>
       </div>
       <div class="code-editor-shell">
         <div id="editorGutter" class="editor-gutter" aria-label="Lineas y breakpoints"></div>
@@ -166,6 +185,24 @@ motor.stop()
     </footer>
   </section>
 </main>
+
+<div id="aboutDialogBackdrop" class="about-backdrop hidden" aria-hidden="true"></div>
+<section
+  id="aboutDialog"
+  class="about-dialog hidden"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="aboutDialogTitle"
+>
+  <header class="about-dialog-header">
+    <h3 id="aboutDialogTitle">Acerca de</h3>
+    <button id="aboutDialogCloseBtn" type="button" aria-label="Cerrar">X</button>
+  </header>
+  <pre id="aboutDialogText" class="about-dialog-text"></pre>
+  <footer class="about-dialog-footer">
+    <button id="aboutDialogOkBtn" type="button">Aceptar</button>
+  </footer>
+</section>
 
 <script src="{{ url_for('static', filename='js/api.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/canvas_world.js', v=asset_version) }}"></script>

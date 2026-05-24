@@ -41,14 +41,17 @@ Salida esperada:
 
 Copiar junto al ejecutable:
 
-- `Documentos\Ejemplos`
-- `Documentos\Mundos`
+- `examples`
+- `worlds`
 
 Estructura recomendada:
 
 - `SimuladorEV3\SimuladorEV3.exe`
 - `SimuladorEV3\Documentos\Ejemplos\...`
 - `SimuladorEV3\Documentos\Mundos\...`
+
+Nota: el script `build_release_windows.ps1` ya soporta ambas estructuras.
+Prioriza `examples/` y `worlds/`; usa `Documentos\Ejemplos` y `Documentos\Mundos` solo como fallback legacy.
 
 ## 4. Smoke test manual de release
 
@@ -68,7 +71,7 @@ Criterio de aceptacion:
 
 - Si Windows SmartScreen bloquea: seleccionar `Mas informacion` y luego `Ejecutar de todas formas`.
 - Si falta audio: verificar volumen del sistema y dispositivo de salida.
-- Si no aparecen mundos/ejemplos: confirmar que `Documentos` este junto al `.exe`.
+- Si no aparecen mundos/ejemplos: confirmar que se copiaron los recursos del release (origen `examples/` y `worlds/`, o fallback `Documentos`).
 
 ## 6. Relacion con version web
 

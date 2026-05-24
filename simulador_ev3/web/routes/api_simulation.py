@@ -94,8 +94,16 @@ def load_script(session_id: str):
 @bp.post("/sessions/<session_id>/start")
 def start(session_id: str):
     manager = get_manager()
+    manager.cleanup_expired()
     if not manager.can_start():
-        raise CapacityExceeded("Se alcanzo el limite de simulaciones activas.")
+        # Entorno local: liberar una sesion en ejecucion atascada y reintentar.
+        manager.evict_oldest_running()
+        if not manager.can_start():
+            stats = manager.stats()
+            raise CapacityExceeded(
+                "Se alcanzo el limite de simulaciones activas. "
+                f"Activas: {stats['running_simulations']}/{stats['max_running_simulations']}."
+            )
     data = json_body()
     session = require_session(session_id)
     return jsonify(
@@ -137,6 +145,25 @@ def set_debug_breakpoints(session_id: str):
     except (TypeError, ValueError) as exc:
         raise InvalidPayload("breakpoints debe contener numeros de linea validos.") from exc
     return jsonify(require_session(session_id).set_debug_breakpoints(breakpoints))
+
+
+@bp.post("/sessions/<session_id>/debug/watches")
+def set_debug_watches(session_id: str):
+    data = json_body()
+    raw_watches = data.get("watches", [])
+    if not isinstance(raw_watches, list):
+        raise InvalidPayload("watches debe ser una lista de expresiones.")
+    watches: list[str] = []
+    for item in raw_watches:
+        if not isinstance(item, str):
+            raise InvalidPayload("watches debe contener solo expresiones de texto.")
+        expr = item.strip()
+        if not expr:
+            continue
+        if len(expr) > 200:
+            raise InvalidPayload("Cada watch debe tener maximo 200 caracteres.")
+        watches.append(expr)
+    return jsonify(require_session(session_id).set_debug_watches(watches))
 
 
 @bp.post("/sessions/<session_id>/debug/continue")
@@ -184,6 +211,16 @@ def stream(session_id: str):
             yield (
                 "event: snapshot\n"
                 f"data: {json.dumps(initial['snapshot'], ensure_ascii=False)}\n\n"
+            )
+        if initial.get("debug") is not None:
+            yield (
+                "event: debug_state\n"
+                f"data: {json.dumps(initial['debug'], ensure_ascii=False)}\n\n"
+            )
+        if initial.get("debug_context") is not None:
+            yield (
+                "event: debug_context\n"
+                f"data: {json.dumps(initial['debug_context'], ensure_ascii=False)}\n\n"
             )
         current_world = session.current_world()
         if current_world is not None:

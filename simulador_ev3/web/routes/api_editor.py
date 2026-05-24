@@ -25,8 +25,14 @@ def get_editor_world(session_id: str):
 @bp.post("/sessions/<session_id>/editor/world")
 def create_editor_world(session_id: str):
     data = json_body()
-    if "schema_version" in data and "placements" in data:
-        return jsonify(require_session(session_id).load_editor_world(data))
+    if (
+        ("schema_version" in data and "placements" in data)
+        or isinstance(data.get("editor_spec"), dict)
+        or isinstance(data.get("editor_objects"), dict)
+        or (isinstance(data.get("world"), dict) and "version" in data)
+        or all(key in data for key in ("world", "walls", "lines", "zones"))
+    ):
+        return jsonify(require_session(session_id).import_editor_world_payload(data))
     return jsonify(
         require_session(session_id).create_editor_world(
             data.get("width_cells", DEFAULT_WORLD_CELLS),

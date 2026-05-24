@@ -261,6 +261,65 @@ class TestSandboxExecution:
         assert done is True
         assert sb.state == SandboxState.FINISHED
 
+    def test_debug_pause_includes_context_stack_and_locals(self):
+        pauses = []
+        code = "a = 1\nb = 2\nc = a + b\n"
+        sb = RuntimeSandbox(
+            source_code=code,
+            policy=ExecutionPolicy(max_runtime_s=0),
+            debug_enabled=True,
+            debug_breakpoints={3},
+            debug_callback=lambda payload: pauses.append(payload)
+            if payload.get("type") == "paused" else None,
+        )
+        sb.start()
+        time.sleep(0.2)
+        sb.debug_continue()
+        sb.join(timeout=2.0)
+
+        assert pauses
+        paused = pauses[0]
+        assert paused["line"] == 3
+        assert paused["reason"] == "breakpoint"
+        assert isinstance(paused.get("stack"), list)
+        assert paused["stack"][0]["line"] == 3
+        assert paused["stack"][0]["function"] == "<module>"
+        assert isinstance(paused.get("locals"), dict)
+        assert paused["locals"]["a"] == 1
+        assert paused["locals"]["b"] == 2
+        assert paused.get("watches") == []
+
+    def test_debug_pause_evaluates_watches_with_value_and_error(self):
+        pauses = []
+        code = "distancia = 245\nvelocidad = 120\nresultado = distancia + velocidad\n"
+        sb = RuntimeSandbox(
+            source_code=code,
+            policy=ExecutionPolicy(max_runtime_s=0),
+            debug_enabled=True,
+            debug_breakpoints={3},
+            debug_watches=["distancia < 300", "velocidad * 2", "no_existe + 1"],
+            debug_callback=lambda payload: pauses.append(payload)
+            if payload.get("type") == "paused" else None,
+        )
+        sb.start()
+        time.sleep(0.2)
+        sb.debug_continue()
+        sb.join(timeout=2.0)
+
+        assert pauses
+        paused = pauses[0]
+        watches = paused.get("watches", [])
+        assert len(watches) == 3
+        assert watches[0]["expr"] == "distancia < 300"
+        assert watches[0]["value"] is True
+        assert watches[0]["error"] is None
+        assert watches[1]["expr"] == "velocidad * 2"
+        assert watches[1]["value"] == 240
+        assert watches[1]["error"] is None
+        assert watches[2]["expr"] == "no_existe + 1"
+        assert watches[2]["value"] is None
+        assert watches[2]["error"]
+
 
 # ===========================================================================
 # RuntimeController

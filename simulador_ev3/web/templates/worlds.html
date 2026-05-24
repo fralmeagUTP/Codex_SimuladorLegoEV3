@@ -5,9 +5,9 @@
   <header class="menu-bar">
     <strong>Editor de Mundos EV3</strong>
     <nav>
-      <a href="/">Simulacion</a>
-      <a href="/worlds">Mundos</a>
-      <a href="/help" target="_blank">Ayuda</a>
+      <a href="{{ url_for('pages.index') }}">Simulacion</a>
+      <a href="{{ url_for('pages.worlds_page') }}">Mundos</a>
+      <a href="{{ url_for('pages.help_page') }}" target="_blank">Ayuda</a>
     </nav>
   </header>
 
@@ -15,6 +15,7 @@
     <section class="world-editor-toolbar">
       <button id="newWorldBtn">Nuevo</button>
       <button id="openWorldBtn">Abrir</button>
+      <button id="saveWorldBtn">Guardar</button>
       <button id="exportWorldBtn">Guardar como</button>
       <span class="toolbar-separator"></span>
       <button id="moveAssetBtn">Seleccionar</button>
@@ -40,8 +41,11 @@
       <input id="robotThetaInput" type="number" value="0" step="15" min="0" max="359">
       <button id="placeRobotStartBtn">Colocar robot</button>
       <button id="clearRobotStartBtn">Limpiar marca</button>
+      <button id="worldMapZoomInBtn" type="button" title="Acercar mapa">+</button>
+      <button id="worldMapZoomOutBtn" type="button" title="Alejar mapa">-</button>
+      <button id="worldMapZoomResetBtn" type="button" title="Ajustar vista">[]</button>
       <span class="world-name-readout">Mundo: <span id="worldNameLabel">sin nombre</span></span>
-      <a id="simulateSavedWorldLink" class="action-link hidden" href="/">Simular mundo guardado</a>
+      <a id="simulateSavedWorldLink" class="action-link hidden" href="{{ url_for('pages.index') }}">Simular mundo guardado</a>
     </section>
 
     <section class="world-editor-main">

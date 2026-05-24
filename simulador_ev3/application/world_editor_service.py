@@ -856,18 +856,41 @@ class WorldEditorService:
                     rotation_deg=0.0,
                 )
 
-        # Import non-white surface cells as simple zones (fallback mode).
-        cs = world.surface.cell_size_mm
+        # Import de superficie para editor:
+        # - Celdas BLACK -> tiles de linea del editor (evita zonas gigantes fuera de limites).
+        # - Otros colores se omiten en este fallback para no introducir artefactos.
+        cs = float(world.surface.cell_size_mm)
+        black_tiles: set[tuple[int, int]] = set()
+        max_cols = max(1, self._formal_world.world_width_cells)
+        max_rows = max(1, self._formal_world.world_height_cells)
+        tile_mm = 2.0 * CELL_SIZE_MM
+
         for (col, row), cell in world.surface._grid.items():
-            if cell.color == SurfaceColor.WHITE:
+            if cell.color != SurfaceColor.BLACK:
                 continue
-            self.add_zone(
-                color=cell.color.name,
-                x_mm=col * cs,
-                y_mm=row * cs,
-                width_mm=cs,
-                height_mm=cs,
-            )
+            center_x_mm = (float(col) * cs) + (cs / 2.0)
+            center_y_mm = (float(row) * cs) + (cs / 2.0)
+            tc = int(center_x_mm // tile_mm)
+            tr = int(center_y_mm // tile_mm)
+            if 0 <= (tc * 2) < max_cols and 0 <= (tr * 2) < max_rows:
+                black_tiles.add((tc, tr))
+
+        if black_tiles:
+            connectors = _connectors_from_cells(sorted(black_tiles))
+            for tc, tr in sorted(connectors.keys()):
+                asset_key = _line_asset_from_connectors(connectors[(tc, tr)])
+                if asset_key is None:
+                    continue
+                self._formal_world.placements.append(
+                    Placement(
+                        id=self._next_id("line"),
+                        asset_key=asset_key,
+                        x_px=int(tc * (2 * GRID_SIZE_PX)),
+                        y_px=int(tr * (2 * GRID_SIZE_PX)),
+                        rotation=0,
+                    )
+                )
+            self._rebuild_legacy_from_formal()
 
 
 def _with_id(expected_type: str, item: dict[str, Any], fallback_id: str) -> dict[str, Any]:

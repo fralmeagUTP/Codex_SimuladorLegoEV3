@@ -68,6 +68,67 @@ textarea {
   display: none !important;
 }
 
+.about-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.38);
+  z-index: 900;
+}
+
+.about-dialog {
+  position: fixed;
+  z-index: 901;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(460px, calc(100% - 24px));
+  background: #f8fbff;
+  border: 1px solid #b8c8da;
+  border-radius: 6px;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.26);
+}
+
+.about-dialog-header,
+.about-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.about-dialog-header {
+  border-bottom: 1px solid #d9e4ef;
+}
+
+.about-dialog-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1d2d44;
+}
+
+.about-dialog-text {
+  margin: 0;
+  padding: 12px;
+  background: #f8fbff;
+  color: #21344d;
+  white-space: pre-wrap;
+  font: 500 14px/1.45 "Segoe UI", Arial, sans-serif;
+}
+
+.about-dialog-footer {
+  justify-content: flex-end;
+  border-top: 1px solid #d9e4ef;
+}
+
+.about-dialog button {
+  border: 1px solid #9cb1c8;
+  background: #fefefe;
+  color: #1b3658;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
 .status-pill {
   display: inline-block;
   margin-left: 10px;
@@ -828,7 +889,11 @@ dd {
 .sim-code-pane .debug-panel {
   position: relative;
   z-index: 2;
-  grid-template-columns: auto auto auto auto minmax(96px, 150px) minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 6px;
   padding: 4px 10px;
   border: 0;
   border-bottom: 1px solid #e3e9f1;
@@ -839,7 +904,10 @@ dd {
 }
 
 .sim-code-pane .debug-state {
-  grid-column: auto;
+  flex: 1 1 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
   color: #2d68af;
 }
 
@@ -854,10 +922,83 @@ dd {
   font-size: 12px;
 }
 
+.sim-code-pane .debug-panel label {
+  white-space: nowrap;
+}
+
+.sim-code-pane .debug-panel #breakpointsInput {
+  flex: 0 1 130px;
+  min-width: 84px;
+}
+
+.sim-code-pane .debug-panel #watchesInput {
+  flex: 1 1 220px;
+  min-width: 150px;
+}
+
 .sim-code-pane .debug-panel .debug-button,
 .sim-code-pane .debug-panel .step-button,
 .sim-code-pane .debug-panel .continue-button {
   min-width: 64px;
+}
+
+.debug-watches {
+  border-top: 1px solid #d8e2ee;
+  border-bottom: 1px solid #d8e2ee;
+  background: #f8fbff;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #274264;
+}
+
+.debug-watches-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.debug-watches-empty {
+  color: #516b89;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+.debug-watches-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.debug-watches-table th,
+.debug-watches-table td {
+  border-top: 1px solid #e1e9f3;
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.debug-watches-table th {
+  color: #35557a;
+  font-weight: 700;
+}
+
+.debug-watches-table th:nth-child(1),
+.debug-watches-table td:nth-child(1) {
+  width: 42%;
+}
+
+.debug-watches-table th:nth-child(2),
+.debug-watches-table td:nth-child(2) {
+  width: 30%;
+}
+
+.debug-watches-table th:nth-child(3),
+.debug-watches-table td:nth-child(3) {
+  width: 28%;
+}
+
+.debug-watch-row-error td:nth-child(3) {
+  color: #b13131;
 }
 
 .robot-start-readout {
@@ -878,6 +1019,14 @@ dd {
 }
 
 .code-editor-shell {
+  --editor-font-family: Consolas, Menlo, monospace;
+  --editor-font-size: 13px;
+  --editor-line-height: 1.45;
+  --editor-line-height-px: calc(var(--editor-font-size) * var(--editor-line-height));
+  --editor-pad-top: 12px;
+  --editor-pad-right: 12px;
+  --editor-pad-bottom: 72px;
+  --editor-pad-left: 12px;
   position: relative;
   z-index: 4;
   min-height: 0;
@@ -892,20 +1041,33 @@ dd {
   border-right: 1px solid #e1e8f0;
   background: #f8fafc;
   color: #74849a;
-  font-family: Consolas, Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.45;
+  box-sizing: border-box;
+  padding: var(--editor-pad-top) 0 var(--editor-pad-bottom);
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height-px);
+  font-variant-numeric: tabular-nums;
   user-select: none;
 }
 
 .gutter-line {
-  height: 20.3px;
+  appearance: none;
+  border: 0;
+  margin: 0;
+  background: transparent;
+  width: 100%;
+  height: var(--editor-line-height-px);
   display: grid;
   grid-template-columns: 14px 1fr;
   gap: 2px;
   align-items: center;
+  line-height: var(--editor-line-height-px);
   padding: 0 5px;
+  font: inherit;
+  color: inherit;
+  text-align: right;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .gutter-line::before {
@@ -934,10 +1096,11 @@ dd {
   border-radius: 0;
   margin: 0;
   padding: 12px 12px 72px;
+  padding: var(--editor-pad-top) var(--editor-pad-right) var(--editor-pad-bottom) var(--editor-pad-left);
   overflow: auto;
-  font-family: Consolas, Menlo, monospace;
-  font-size: 13px;
-  line-height: 1.45;
+  font-family: var(--editor-font-family);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height-px);
   white-space: pre;
   word-break: normal;
   overflow-wrap: normal;
@@ -948,6 +1111,17 @@ dd {
   pointer-events: none;
   background: #fff;
   color: #172033;
+}
+
+.syntax-line {
+  display: block;
+  min-height: var(--editor-line-height-px);
+  line-height: var(--editor-line-height-px);
+  white-space: pre;
+}
+
+.syntax-line.current-debug-line {
+  background: #e8f1ff;
 }
 
 .sim-code-pane #codeEditor {
@@ -985,18 +1159,19 @@ dd {
 
 .autocomplete-popup {
   position: absolute;
-  z-index: 100;
+  z-index: 120;
   left: 54px;
   top: 10px;
-  width: 230px;
-  max-height: min(172px, calc(100% - 20px));
+  width: min(300px, calc(100% - 60px));
+  max-height: min(220px, calc(100% - 16px));
   overflow: auto;
-  border: 1px solid #3b82f6;
-  background: #fff;
-  color: #1e3554;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.36);
+  border: 1px solid #1d4ed8;
+  border-radius: 6px;
+  background: #fefefe;
+  color: #16345b;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.28);
   font-family: Consolas, Menlo, monospace;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .autocomplete-item {
@@ -1005,15 +1180,19 @@ dd {
   border: 0;
   background: transparent;
   color: inherit;
-  padding: 5px 8px;
+  padding: 6px 10px;
   text-align: left;
   cursor: pointer;
 }
 
-.autocomplete-item.active,
 .autocomplete-item:hover {
-  background: #dbeafe;
-  color: #fff;
+  background: #e8f1ff;
+  color: #16345b;
+}
+
+.autocomplete-item.active {
+  background: #1e40af;
+  color: #ffffff;
 }
 
 .sim-code-pane .console {

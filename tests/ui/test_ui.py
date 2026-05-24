@@ -253,6 +253,23 @@ class TestWorldCanvas:
         assert wc.xview_moveto.called
         assert wc.yview_moveto.called
 
+    def test_zoom_in_and_out_change_scale(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        base_scale = wc._px_per_mm
+        wc.zoom_in()
+        assert wc._px_per_mm > base_scale
+        wc.zoom_out()
+        assert wc._px_per_mm == pytest.approx(base_scale)
+
+    def test_reset_zoom_restores_base_scale(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        base_scale = wc._px_per_mm
+        wc.zoom_in()
+        wc.zoom_in()
+        assert wc._px_per_mm > base_scale
+        wc.reset_zoom()
+        assert wc._px_per_mm == pytest.approx(base_scale)
+
     def test_robot_sprite_rotation_is_requested_with_theta(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
         wc._robot_sprite = object()
@@ -504,8 +521,8 @@ class TestTelemetryPanel:
         tp = self.TelemetryPanel(mock.MagicMock())
         dto = _snap()
         tp.update_from_dto(dto)
-        assert tp._var_x.get() == f"{dto.robot['x_mm']:.1f}"
-        assert tp._var_y.get() == f"{dto.robot['y_mm']:.1f}"
+        assert tp._var_x.get() == f"{dto.robot['x_mm'] / 10.0:.1f}"
+        assert tp._var_y.get() == f"{dto.robot['y_mm'] / 10.0:.1f}"
 
     def test_tick_var_updated(self):
         tp = self.TelemetryPanel(mock.MagicMock())
@@ -682,10 +699,10 @@ class TestMainWindow:
         PybricksContext.clear()
         app = self.EV3SimulatorApp()
 
-        with mock.patch.object(mw.os.path, "exists", return_value=True), \
+        with mock.patch.object(mw.Path, "exists", return_value=True), \
              mock.patch.object(app._service, "load_world_file") as load_world, \
              mock.patch.object(app._editor, "load_file") as load_file:
-            app._apply_scenario("01_linea_negra.json", "06_siguelineas_basico.py")
+            app._apply_scenario("01_linea_negra.json", "11_siguelineas_basico.py")
 
         load_world.assert_called_once()
         load_file.assert_called_once()
@@ -699,12 +716,9 @@ class TestMainWindow:
         PybricksContext.clear()
         app = self.EV3SimulatorApp()
 
-        def _exists(path: str) -> bool:
-            return not path.endswith("01_linea_negra.json")
-
-        with mock.patch.object(mw.os.path, "exists", side_effect=_exists), \
+        with mock.patch.object(mw.Path, "exists", side_effect=[False, True]), \
              mock.patch.object(mw.messagebox, "showerror") as showerror:
-            app._apply_scenario("01_linea_negra.json", "06_siguelineas_basico.py")
+            app._apply_scenario("01_linea_negra.json", "11_siguelineas_basico.py")
 
         showerror.assert_called_once()
         app._on_close()
@@ -847,4 +861,52 @@ class TestMainWindow:
             app._cmd_debug_continue()
 
         debug_continue.assert_called_once()
+        app._on_close()
+
+    def test_menu_lock_state_follows_execution_status(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        assert app._execution_menu_locked is False
+
+        app._on_status("started")
+        assert app._execution_menu_locked is True
+
+        app._on_status("stopped")
+        assert app._execution_menu_locked is True
+
+        app._on_status("reset")
+        assert app._execution_menu_locked is False
+        app._on_close()
+
+    def test_guard_menu_locked_shows_message_when_blocked(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.ui import main_window as mw
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        app._set_execution_menu_locked(True)
+        with mock.patch.object(mw.messagebox, "showinfo") as showinfo:
+            assert app._guard_menu_locked() is True
+
+        showinfo.assert_called_once()
+        app._on_close()
+
+    def test_cmd_new_is_blocked_while_menu_locked(self):
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        app._set_execution_menu_locked(True)
+        app._editor.set_code = mock.Mock()
+        app._cmd_new()
+
+        app._editor.set_code.assert_not_called()
         app._on_close()

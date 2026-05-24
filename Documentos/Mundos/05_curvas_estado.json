@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "world": {
+    "width_mm": 2000.0,
+    "height_mm": 2000.0,
+    "surface": {
+      "cell_size_mm": 50.0,
+      "default_color": "WHITE",
+      "cells": []
+    },
+    "obstacles": [
+      {
+        "name": "isla_1",
+        "vertices": [[500, 500], [700, 500], [700, 700], [500, 700]]
+      },
+      {
+        "name": "isla_2",
+        "vertices": [[1300, 400], [1500, 400], [1500, 600], [1300, 600]]
+      },
+      {
+        "name": "isla_3",
+        "vertices": [[900, 1300], [1100, 1300], [1100, 1500], [900, 1500]]
+      }
+    ],
+    "beacons": []
+  },
+  "editor_spec": {
+    "schema_version": 1,
+    "grid_size_px": 32,
+    "world_width_cells": 20,
+    "world_height_cells": 20,
+    "placements": [
+      {"id": "wall_0001", "asset_key": "wall_64x64_a", "x": 160, "y": 160, "rotation": 0},
+      {"id": "wall_0002", "asset_key": "wall_64x64_b", "x": 416, "y": 128, "rotation": 0},
+      {"id": "wall_0003", "asset_key": "wall_64x64_c", "x": 288, "y": 416, "rotation": 0}
+    ]
+  }
+}

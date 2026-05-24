@@ -17,7 +17,7 @@ Usa este checklist despues de publicar en cPanel.
 - [ ] Entorno virtual activado correctamente.
 - [ ] `pip install -e .` ejecutado sin errores.
 - [ ] Variables EV3_WEB configuradas (`SECRET_KEY`, `WORLDS_DIR`, `EXAMPLES_DIR`, `IMAGE_ASSETS_DIR`).
-- [ ] Permisos de escritura en `Documentos/Mundos`.
+- [ ] Permisos de escritura en `worlds/` (o `Documentos/Mundos` si aun no migraste).
 
 ## 3. Validacion funcional web
 

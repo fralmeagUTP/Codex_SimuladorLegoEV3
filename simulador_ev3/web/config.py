@@ -6,15 +6,19 @@ import os
 from pathlib import Path
 from typing import Any, Callable
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+from simulador_ev3.shared.paths import (
+    resolve_examples_dir,
+    resolve_image_assets_dir,
+    resolve_worlds_dir,
+)
+from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
 
 class DefaultWebConfig:
     SECRET_KEY = "dev-simulador-ev3"
-    EXAMPLES_DIR = PROJECT_ROOT / "Documentos" / "Ejemplos"
-    WORLDS_DIR = PROJECT_ROOT / "Documentos" / "Mundos"
-    IMAGE_ASSETS_DIR = PROJECT_ROOT / "simulador_ev3" / "images"
+    EXAMPLES_DIR = resolve_examples_dir()
+    WORLDS_DIR = resolve_worlds_dir()
+    IMAGE_ASSETS_DIR = resolve_image_assets_dir()
     SESSION_IDLE_TIMEOUT_MIN = 30
     MAX_ACTIVE_SESSIONS = 20
     MAX_RUNNING_SIMULATIONS = 8
@@ -23,11 +27,15 @@ class DefaultWebConfig:
     MAX_WORLD_JSON_SIZE_BYTES = 2 * 1024 * 1024
     SSE_HEARTBEAT_S = 15
     WEB_SNAPSHOT_MAX_HZ = 12.0
-    STATIC_ASSET_VERSION = "2026-05-22-editor-last-line"
+    STATIC_ASSET_VERSION = "2026-05-24-auto-reset-stability-fix"
     SESSION_CLEANUP_INTERVAL_S = 60
     ENABLE_SESSION_CLEANUP_THREAD = True
     ENABLE_SECURITY_HEADERS = True
     SESSION_COOKIE_SECURE = False
+    UI_FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
+    DEBUGSTATE_V2_ENABLED = True
+    WEB_DEBUGSTATE_V2 = True
+    TK_DEBUGSTATE_V2 = True
 
 
 _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
@@ -48,6 +56,10 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "ENABLE_SESSION_CLEANUP_THREAD": lambda value: _parse_bool(value),
     "ENABLE_SECURITY_HEADERS": lambda value: _parse_bool(value),
     "SESSION_COOKIE_SECURE": lambda value: _parse_bool(value),
+    "UI_FIT_PADDING_RATIO": float,
+    "DEBUGSTATE_V2_ENABLED": lambda value: _parse_bool(value),
+    "WEB_DEBUGSTATE_V2": lambda value: _parse_bool(value),
+    "TK_DEBUGSTATE_V2": lambda value: _parse_bool(value),
 }
 
 

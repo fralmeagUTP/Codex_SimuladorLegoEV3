@@ -1,0 +1,155 @@
+{
+  "grid_size_px": 32,
+  "placements": [
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0265",
+      "rotation": 0,
+      "x": 192,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0266",
+      "rotation": 0,
+      "x": 256,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0267",
+      "rotation": 0,
+      "x": 320,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0268",
+      "rotation": 0,
+      "x": 384,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0269",
+      "rotation": 0,
+      "x": 448,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0270",
+      "rotation": 0,
+      "x": 512,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0271",
+      "rotation": 0,
+      "x": 576,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0272",
+      "rotation": 0,
+      "x": 640,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0273",
+      "rotation": 0,
+      "x": 704,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_supder",
+      "id": "line_0274",
+      "rotation": 0,
+      "x": 768,
+      "y": 672
+    },
+    {
+      "asset_key": "line_64_64_ver",
+      "id": "line_0275",
+      "rotation": 0,
+      "x": 768,
+      "y": 736
+    },
+    {
+      "asset_key": "line_64_64_ver",
+      "id": "line_0276",
+      "rotation": 0,
+      "x": 768,
+      "y": 800
+    },
+    {
+      "asset_key": "line_64_64_ver",
+      "id": "line_0277",
+      "rotation": 0,
+      "x": 768,
+      "y": 864
+    },
+    {
+      "asset_key": "line_64_64_ver",
+      "id": "line_0278",
+      "rotation": 0,
+      "x": 768,
+      "y": 928
+    },
+    {
+      "asset_key": "line_64_64_ver",
+      "id": "line_0279",
+      "rotation": 0,
+      "x": 768,
+      "y": 992
+    },
+    {
+      "asset_key": "line_64_64_ver",
+      "id": "line_0280",
+      "rotation": 0,
+      "x": 768,
+      "y": 1056
+    },
+    {
+      "asset_key": "line_64_64_infizq",
+      "id": "line_0281",
+      "rotation": 0,
+      "x": 768,
+      "y": 1120
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0282",
+      "rotation": 0,
+      "x": 832,
+      "y": 1120
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0283",
+      "rotation": 0,
+      "x": 896,
+      "y": 1120
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0284",
+      "rotation": 0,
+      "x": 960,
+      "y": 1120
+    },
+    {
+      "asset_key": "line_64_64_hor",
+      "id": "line_0285",
+      "rotation": 0,
+      "x": 1024,
+      "y": 1120
+    }
+  ],
+  "schema_version": 1,
+  "world_height_cells": 40,
+  "world_width_cells": 40
+}

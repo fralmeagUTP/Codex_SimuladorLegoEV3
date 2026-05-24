@@ -407,7 +407,7 @@ Flujo entre paginas:
 | `simulador_ev3/application` | Reutilizable | Usar `SimulationService`, `SnapshotDTO`, `WorldEditorService`. |
 | `simulador_ev3/persistence` | Reutilizable | Usar `WorldRepository` para JSON existente. |
 | `simulador_ev3/examples` | Reutilizable | Exponer con endpoints de ejemplos. |
-| `simulador_ev3/images` | Reutilizable | Copiar o servir como assets estaticos web. |
+| `simulador_ev3/assets` | Reutilizable | Copiar o servir como assets estaticos web. |
 | `simulador_ev3/ui` | Reemplazar | No migrar linea por linea; crear HTML/CSS/JS nuevo. |
 | `audio_output.py` | Adaptar | No reproducir audio en servidor; usar Web Audio API. |
 
@@ -1115,7 +1115,7 @@ Constantes:
 - `SUPPORTED_ROTATIONS = (0, 90, 180, 270)`
 - `MAX_WORLD_PIXELS = 5120`
 - `MAX_WORLD_CELLS = 160`
-- `MAX_WORLD_MM = 16000`
+- `MAX_WORLD_MM = MAX_WORLD_CELLS * CELL_SIZE_MM` (el mundo por defecto es `4000 mm x 4000 mm`).
 
 ### A.2 Catalogo de assets
 
@@ -1291,7 +1291,7 @@ Configuracion minima:
 class DefaultWebConfig:
     EXAMPLES_DIR = "Documentos/Ejemplos"
     WORLDS_DIR = "Documentos/Mundos"
-    IMAGE_ASSETS_DIR = "simulador_ev3/images"
+    IMAGE_ASSETS_DIR = "simulador_ev3/assets"
     MAX_ACTIVE_SESSIONS = 20
     MAX_RUNNING_SIMULATIONS = 8
     SESSION_IDLE_TIMEOUT_MIN = 30

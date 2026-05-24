@@ -7,6 +7,7 @@ import re
 import tempfile
 import threading
 import time
+from datetime import datetime, timezone
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -48,13 +49,17 @@ class SimulationSession:
         self._latest_snapshot: dict[str, Any] | None = None
         self._latest_error: dict[str, Any] | None = None
         self._latest_debug: dict[str, Any] | None = None
+        self._latest_debug_context: dict[str, Any] | None = None
         self._last_snapshot_event_at = 0.0
         snapshot_hz = float(self._config.get("WEB_SNAPSHOT_MAX_HZ", 12.0))
         self._snapshot_event_interval_s = 0.0 if snapshot_hz <= 0 else 1.0 / snapshot_hz
         self._debug_breakpoints: set[int] = set()
+        self._debug_watches: list[str] = []
+        self._debugstate_v2_enabled = bool(self._config.get("DEBUGSTATE_V2_ENABLED", True))
         self._status = "created"
         self._loaded_world_name: str | None = None
         self._editor = WorldEditorService()
+        self._world_has_editor_spec = False
         self._service = SimulationService(
             config=SimEngineConfig(
                 world_width_mm=DEFAULT_WORLD_MM,
@@ -63,6 +68,7 @@ class SimulationSession:
             policy=ExecutionPolicy(max_runtime_s=max_runtime_s)
         )
         self._wire_callbacks()
+        self._latest_debug = self._build_debug_state("idle")
 
     @property
     def status(self) -> str:
@@ -81,6 +87,7 @@ class SimulationSession:
             if self._status in {"created", "stopped", "error"}:
                 self._status = "ready"
             self._latest_error = None
+            self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -90,8 +97,10 @@ class SimulationSession:
                 raise InvalidSessionState("No hay script cargado para ejecutar.")
             if debug:
                 self._service.set_debug_breakpoints(self._debug_breakpoints)
+                self._service.set_debug_watches(self._debug_watches)
             self._service.start(debug=debug, step_mode=step_mode)
             self._status = "running"
+            self._set_debug_state("running")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -99,6 +108,7 @@ class SimulationSession:
         with self._lock:
             self._service.pause()
             self._status = "paused"
+            self._set_debug_state("paused_manual", reason="manual")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -106,13 +116,15 @@ class SimulationSession:
         with self._lock:
             self._service.resume()
             self._status = "running"
+            self._set_debug_state("running")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
     def stop(self) -> dict[str, Any]:
         with self._lock:
-            self._service.stop()
             self._status = "stopped"
+            self._set_debug_state("stopped")
+            self._service.stop()
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -123,9 +135,11 @@ class SimulationSession:
             self._source_code = None
             self._latest_snapshot = None
             self._latest_error = None
-            self._latest_debug = None
+            self._latest_debug_context = None
             self._debug_breakpoints = set()
+            self._debug_watches = []
             self._status = "created"
+            self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -134,23 +148,40 @@ class SimulationSession:
             self._debug_breakpoints = {int(line) for line in breakpoints if int(line) > 0}
             self._service.set_debug_breakpoints(self._debug_breakpoints)
             payload = {"breakpoints": sorted(self._debug_breakpoints)}
-            self._push_event("debug", {"type": "breakpoints", **payload})
+            self._set_debug_state(
+                self._latest_debug.get("debug_state", "idle") if isinstance(self._latest_debug, dict) else "idle",
+                legacy={"type": "breakpoints", **payload},
+            )
+            return payload
+
+    def set_debug_watches(self, watches: list[str]) -> dict[str, Any]:
+        with self._lock:
+            cleaned: list[str] = []
+            for raw in watches[:20]:
+                expr = str(raw).strip()
+                if expr:
+                    cleaned.append(expr)
+            self._debug_watches = cleaned
+            self._service.set_debug_watches(self._debug_watches)
+            payload = {"watches": list(self._debug_watches)}
+            self._set_debug_state(
+                self._latest_debug.get("debug_state", "idle") if isinstance(self._latest_debug, dict) else "idle",
+                legacy={"type": "watches", **payload},
+            )
             return payload
 
     def debug_continue(self) -> dict[str, Any]:
         with self._lock:
             self._service.debug_continue()
             payload = {"type": "command", "status": self._status, "action": "continue"}
-            self._latest_debug = payload
-            self._push_event("debug", payload)
+            self._set_debug_state("running", legacy=payload)
             return payload
 
     def debug_step(self) -> dict[str, Any]:
         with self._lock:
             self._service.debug_step()
             payload = {"type": "command", "status": self._status, "action": "step"}
-            self._latest_debug = payload
-            self._push_event("debug", payload)
+            self._set_debug_state("running", legacy=payload)
             return payload
 
     def set_robot_start(
@@ -199,13 +230,75 @@ class SimulationSession:
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
 
+    def load_blank_world(
+        self,
+        width_cells: int = DEFAULT_WORLD_CELLS,
+        height_cells: int = DEFAULT_WORLD_CELLS,
+    ) -> dict[str, Any]:
+        with self._lock:
+            try:
+                w_cells = int(width_cells)
+                h_cells = int(height_cells)
+            except (TypeError, ValueError) as exc:
+                raise InvalidPayload("Dimensiones de mundo invalidas.") from exc
+
+            w_mm = float(w_cells * CELL_SIZE_MM)
+            h_mm = float(h_cells * CELL_SIZE_MM)
+            self._service.load_blank_world(width_mm=w_mm, height_mm=h_mm)
+            self._editor.reset_formal_world(w_cells, h_cells)
+            self._world_has_editor_spec = True
+            self._loaded_world_name = None
+            self._status = "ready" if self._status == "created" else self._status
+            self._push_event("world", self.current_world())
+            return self.summary() | {"world": self.current_world()}
+
     def _sync_editor_from_world_file(self, path: Path) -> None:
         """Keep editor_spec aligned with the currently loaded simulation world file."""
         try:
-            self._editor.load_json(path)
+            raw = json.loads(path.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
-            # Some legacy worlds have no editor metadata; keep current editor state.
-            pass
+            # Si el archivo no se puede parsear, al menos limpiar estado visual.
+            self._editor.reset_formal_world(DEFAULT_WORLD_CELLS, DEFAULT_WORLD_CELLS)
+            self._world_has_editor_spec = False
+            return
+
+        try:
+            # 1) Mundo de editor "formal" puro.
+            if isinstance(raw, dict) and all(
+                key in raw for key in ("schema_version", "world_width_cells", "world_height_cells", "placements")
+            ):
+                world = self._editor.load(json.dumps(raw, ensure_ascii=False))
+                self._editor._formal_world = world
+                self._editor._rebuild_legacy_from_formal()
+                self._world_has_editor_spec = True
+                return
+
+            # 2) Mundo de simulacion envuelto con editor_spec.
+            editor_spec = raw.get("editor_spec") if isinstance(raw, dict) else None
+            if isinstance(editor_spec, dict):
+                self._editor.load_json(path)
+                self._world_has_editor_spec = True
+                return
+
+            # 3) Mundo de simulacion puro (sin editor_spec): limpiar overlays previos.
+            world_data = raw.get("world") if isinstance(raw, dict) else None
+            if isinstance(world_data, dict):
+                width_mm = float(world_data.get("width_mm", DEFAULT_WORLD_MM))
+                height_mm = float(world_data.get("height_mm", DEFAULT_WORLD_MM))
+                width_cells = max(1, int(round(width_mm / CELL_SIZE_MM)))
+                height_cells = max(1, int(round(height_mm / CELL_SIZE_MM)))
+                self._editor.reset_formal_world(width_cells, height_cells)
+                self._world_has_editor_spec = False
+                return
+        except Exception:  # noqa: BLE001
+            # Fallback defensivo: estado limpio por defecto.
+            self._editor.reset_formal_world(DEFAULT_WORLD_CELLS, DEFAULT_WORLD_CELLS)
+            self._world_has_editor_spec = False
+            return
+
+        # Si no reconoce formato, dejar estado visual limpio.
+        self._editor.reset_formal_world(DEFAULT_WORLD_CELLS, DEFAULT_WORLD_CELLS)
+        self._world_has_editor_spec = False
 
     def snapshot_response(self) -> dict[str, Any]:
         with self._lock:
@@ -220,6 +313,7 @@ class SimulationSession:
                 "snapshot": snapshot,
                 "error": self._latest_error,
                 "debug": self._latest_debug,
+                "debug_context": self._latest_debug_context,
             }
 
     def create_editor_world(
@@ -246,6 +340,50 @@ class SimulationSession:
             self._editor._rebuild_legacy_from_formal()
             self._push_event("editor_world", world.to_dict())
             return self.editor_response()
+
+    def import_editor_world_payload(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Accept both pure editor_spec and wrapped world JSON payloads."""
+        if not isinstance(data, dict):
+            raise InvalidPayload("El mundo del editor debe ser un objeto JSON.")
+
+        formal_payload = data
+        if "schema_version" not in formal_payload or "placements" not in formal_payload:
+            wrapped_spec = data.get("editor_spec")
+            if isinstance(wrapped_spec, dict):
+                formal_payload = wrapped_spec
+
+        if isinstance(formal_payload, dict) and "schema_version" in formal_payload and "placements" in formal_payload:
+            return self.load_editor_world(formal_payload)
+
+        legacy_payload = data.get("editor_objects") if isinstance(data.get("editor_objects"), dict) else None
+        if legacy_payload is None and all(key in data for key in ("world", "walls", "lines", "zones")):
+            legacy_payload = data
+
+        if legacy_payload is not None:
+            with self._lock:
+                try:
+                    self._editor.from_editor_dict(legacy_payload)
+                except Exception as exc:  # noqa: BLE001
+                    raise InvalidPayload(f"Mundo del editor invalido: {exc}") from exc
+                self._world_has_editor_spec = True
+                self._push_event("editor_world", self._editor.current_formal_world().to_dict())
+                return self.editor_response()
+
+        # Formato de mundo de simulacion (WorldRepository): {"version": 1, "world": {...}}
+        if isinstance(data.get("world"), dict) and "version" in data:
+            with self._lock:
+                try:
+                    world = WorldRepository.from_dict(data)
+                    self._editor._from_world_model(world)
+                except Exception as exc:  # noqa: BLE001
+                    raise InvalidPayload(f"Mundo de simulacion invalido: {exc}") from exc
+                self._world_has_editor_spec = True
+                self._push_event("editor_world", self._editor.current_formal_world().to_dict())
+                return self.editor_response()
+
+        raise InvalidPayload(
+            "Formato de mundo no soportado. Se esperaba editor_spec o editor_objects."
+        )
 
     def save_editor_world(self, name: str) -> dict[str, Any]:
         safe_name = _safe_world_filename(name)
@@ -376,6 +514,7 @@ class SimulationSession:
                 self._service.set_robot_start(x_mm, y_mm, theta_deg)
             self._service._loaded_world = world
             self._service.engine.set_world(world)
+            self._world_has_editor_spec = True
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
 
@@ -389,9 +528,10 @@ class SimulationSession:
     def current_world(self) -> dict[str, Any] | None:
         if self._service.engine is None:
             return None
+        editor_spec = self._editor.current_formal_world().to_dict() if self._world_has_editor_spec else None
         return world_to_dict(
             self._service.engine.world,
-            editor_spec=self._editor.current_formal_world().to_dict(),
+            editor_spec=editor_spec,
         )
 
     def events_since(self, sequence: int = 0) -> list[dict[str, Any]]:
@@ -406,13 +546,16 @@ class SimulationSession:
             "has_script": self._source_code is not None,
             "error": self._latest_error,
             "debug": self._latest_debug,
+            "debug_context": self._latest_debug_context,
             "breakpoints": sorted(self._debug_breakpoints),
+            "watches": list(self._debug_watches),
         }
 
     def close(self) -> None:
         with self._lock:
             self._service.stop(reason="session_close")
             self._status = "expired"
+            self._set_debug_state("stopped")
             self._push_event("status", {"status": self._status})
 
     def _wire_callbacks(self) -> None:
@@ -432,11 +575,17 @@ class SimulationSession:
 
     def _on_error(self, payload: dict[str, Any]) -> None:
         with self._lock:
+            if self._status in {"stopped", "created", "expired"}:
+                return
             self._latest_error = dict(payload)
             self._status = "error"
+            error_reason = "timeout" if "tiempo m" in str(payload.get("error", "")).lower() else "error"
+            self._set_debug_state("error", reason=error_reason)
             self._push_event("error", self._latest_error)
 
     def _on_status(self, status: str) -> None:
+        if status == "error" and self._status in {"stopped", "created", "expired"}:
+            return
         mapped = {
             "started": "running",
             "paused": "paused",
@@ -448,12 +597,137 @@ class SimulationSession:
         }.get(status, status)
         with self._lock:
             self._status = mapped
+            if status == "started":
+                self._set_debug_state("running")
+            elif status == "paused":
+                self._set_debug_state("paused_manual", reason="manual")
+            elif status == "resumed":
+                self._set_debug_state("running")
+            elif status == "stopped":
+                self._set_debug_state("stopped")
+            elif status == "reset":
+                self._set_debug_state("idle")
+            elif status == "error":
+                self._set_debug_state("error", reason="error")
             self._push_event("status", {"status": mapped, "raw_status": status})
 
     def _on_debug(self, payload: dict[str, Any]) -> None:
         with self._lock:
-            self._latest_debug = dict(payload)
-            self._push_event("debug", self._latest_debug)
+            normalized = dict(payload)
+            debug_context = {
+                "line": normalized.get("line"),
+                "stack": normalized.get("stack"),
+                "locals": normalized.get("locals"),
+                "watches": normalized.get("watches"),
+            }
+            if any(debug_context.get(key) is not None for key in ("stack", "locals", "watches")):
+                self._latest_debug_context = debug_context
+                if self._debugstate_v2_enabled:
+                    self._push_event("debug_context", self._latest_debug_context)
+            event_type = str(normalized.get("type", ""))
+            if self._status in {"stopped", "created", "expired", "error"} and event_type in {"line", "paused"}:
+                return
+            line = normalized.get("line")
+            function_name = normalized.get("function")
+            reason = normalized.get("reason")
+            if event_type == "paused":
+                debug_state = "paused_breakpoint" if reason == "breakpoint" else "paused_step"
+                self._set_debug_state(
+                    debug_state,
+                    line=line,
+                    function=function_name,
+                    reason=reason or "step",
+                    legacy=normalized,
+                )
+                return
+            if event_type == "line":
+                self._set_debug_state(
+                    "running",
+                    line=line,
+                    function=function_name,
+                    legacy=normalized,
+                )
+                return
+            self._set_debug_state(
+                self._latest_debug.get("debug_state", "idle") if isinstance(self._latest_debug, dict) else "idle",
+                line=line,
+                function=function_name,
+                reason=reason,
+                legacy=normalized,
+            )
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+    @staticmethod
+    def _debug_capabilities(debug_state: str) -> tuple[bool, bool]:
+        can_continue = debug_state in {"paused_breakpoint", "paused_step", "paused_manual"}
+        can_step = debug_state in {"paused_breakpoint", "paused_step", "paused_manual"}
+        return can_continue, can_step
+
+    def _build_debug_state(
+        self,
+        debug_state: str,
+        *,
+        line: int | None = None,
+        function: str | None = None,
+        reason: str | None = None,
+        legacy: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "debug_state": debug_state,
+            "breakpoints": sorted(self._debug_breakpoints),
+            "watches": list(self._debug_watches),
+            "timestamp": self._utc_now_iso(),
+        }
+        can_continue, can_step = self._debug_capabilities(debug_state)
+        payload["can_continue"] = can_continue
+        payload["can_step"] = can_step
+
+        if line is not None:
+            try:
+                payload["line"] = int(line)
+            except (TypeError, ValueError):
+                pass
+        elif isinstance(self._latest_debug, dict) and isinstance(self._latest_debug.get("line"), int):
+            if debug_state.startswith("paused_"):
+                payload["line"] = int(self._latest_debug["line"])
+
+        if function:
+            payload["function"] = str(function)
+        elif isinstance(self._latest_debug, dict) and self._latest_debug.get("function") and debug_state.startswith("paused_"):
+            payload["function"] = str(self._latest_debug["function"])
+
+        if reason:
+            payload["reason"] = str(reason)
+
+        if legacy:
+            for key, value in legacy.items():
+                if key == "watches":
+                    continue
+                payload[key] = value
+        return payload
+
+    def _set_debug_state(
+        self,
+        debug_state: str,
+        *,
+        line: int | None = None,
+        function: str | None = None,
+        reason: str | None = None,
+        legacy: dict[str, Any] | None = None,
+    ) -> None:
+        self._latest_debug = self._build_debug_state(
+            debug_state,
+            line=line,
+            function=function,
+            reason=reason,
+            legacy=legacy,
+        )
+        self._push_event("debug", self._latest_debug)
+        if self._debugstate_v2_enabled:
+            self._push_event("debug_state", self._latest_debug)
 
     def _push_event(self, event_type: str, payload: dict[str, Any] | None) -> None:
         self._sequence += 1

@@ -140,11 +140,11 @@ ev3.light.off()
 @pytest.mark.parametrize(
     ("example_file", "run_s"),
     [
-        ("01_basico_avanzar.py", 2.4),
-        ("04_sensor_ultrasonido.py", 1.2),
-        ("06_siguelineas_basico.py", 1.0),
-        ("11_ledRojo.py", 1.0),
-        ("12_pantalla_altavoz_test.py", 2.2),
+        ("03_movimiento_basico.py", 2.4),
+        ("08_sensor_ultrasonido_frenado.py", 1.2),
+        ("11_siguelineas_basico.py", 1.0),
+        ("01_intro_led.py", 1.0),
+        ("02_intro_pantalla_altavoz.py", 2.2),
     ],
 )
 def test_release_examples_smoke_extended(example_file: str, run_s: float):

@@ -1,0 +1,36 @@
+{
+  "grid_size_px": 32,
+  "placements": [
+    {
+      "asset_key": "wall_64x64_b",
+      "id": "wall_0002",
+      "rotation": 0,
+      "x": 416,
+      "y": 128
+    },
+    {
+      "asset_key": "wall_64x64_a",
+      "id": "wall_0001",
+      "rotation": 0,
+      "x": 160,
+      "y": 160
+    },
+    {
+      "asset_key": "wall_64x64_c",
+      "id": "wall_0003",
+      "rotation": 0,
+      "x": 288,
+      "y": 416
+    },
+    {
+      "asset_key": "robot_ev3_32x32",
+      "id": "robot_0005",
+      "rotation": 0,
+      "x": 0,
+      "y": 160
+    }
+  ],
+  "schema_version": 1,
+  "world_height_cells": 20,
+  "world_width_cells": 20
+}

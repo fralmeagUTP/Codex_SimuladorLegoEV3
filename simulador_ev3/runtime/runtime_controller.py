@@ -90,6 +90,7 @@ class RuntimeController:
         self._debug_mode: bool                   = False
         self._debug_step_mode: bool              = False
         self._debug_breakpoints: set[int]        = set()
+        self._debug_watches: list[str]           = []
         self._debug_cb                           = None
 
         # Callback opcional que la UI puede registrar para recibir snapshots
@@ -154,6 +155,11 @@ class RuntimeController:
         if self._sandbox is not None:
             self._sandbox.set_debug_breakpoints(self._debug_breakpoints)
 
+    def set_debug_watches(self, watches: list[str]) -> None:
+        self._debug_watches = [str(expr).strip() for expr in (watches or []) if str(expr).strip()]
+        if self._sandbox is not None:
+            self._sandbox.set_debug_watches(self._debug_watches)
+
     def set_debug_callback(self, callback) -> None:
         """Registra callback para eventos de depuracion (linea ejecutada)."""
         self._debug_cb = callback
@@ -205,6 +211,7 @@ class RuntimeController:
                 debug_enabled=self._debug_mode,
                 debug_step_mode=self._debug_step_mode,
                 debug_breakpoints=self._debug_breakpoints,
+                debug_watches=self._debug_watches,
                 debug_callback=self._debug_cb,
             )
             self._last_sandbox = self._sandbox
@@ -225,6 +232,8 @@ class RuntimeController:
         if self._state != ControllerState.RUNNING:
             return
         self._pause_flag.set()
+        if self._sandbox and self._sandbox.is_alive():
+            self._sandbox.pause_timeout()
         self._state = ControllerState.PAUSED
 
     def resume(self) -> None:
@@ -232,6 +241,8 @@ class RuntimeController:
         if self._state != ControllerState.PAUSED:
             return
         self._pause_flag.clear()
+        if self._sandbox and self._sandbox.is_alive():
+            self._sandbox.resume_timeout()
         self._state = ControllerState.RUNNING
 
     def stop(self, timeout: float = 3.0, reason: str = "user_stop") -> None:
@@ -273,6 +284,7 @@ class RuntimeController:
         self._debug_mode = False
         self._debug_step_mode = False
         self._debug_breakpoints = set()
+        self._debug_watches = []
         self._debug_cb = None
         self._stop_flag.clear()
         self._pause_flag.clear()
@@ -344,10 +356,21 @@ class RuntimeController:
                 self._sandbox.state in (SandboxState.FINISHED, SandboxState.ERROR)):
             reason = "script_finished" if self._sandbox.state == SandboxState.FINISHED \
                      else "script_error"
+
+            # Si terminó sin error, dejamos una ventana de ~1 tick para que
+            # comandos no bloqueantes encolados al final (p.ej. screen.print)
+            # alcancen a procesarse antes de detener el engine.
+            delay_s = self._dt if reason == "script_finished" else 0.0
+
             # Detenemos en un hilo aparte para no deadlock
             t = threading.Thread(
-                target=self.stop,
-                kwargs={"reason": reason},
+                target=self._deferred_stop,
+                kwargs={"reason": reason, "delay_s": delay_s},
                 daemon=True,
             )
             t.start()
+
+    def _deferred_stop(self, *, reason: str, delay_s: float = 0.0) -> None:
+        if delay_s > 0:
+            time.sleep(delay_s)
+        self.stop(reason=reason)

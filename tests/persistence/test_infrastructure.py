@@ -1,4 +1,4 @@
-"""Tests de Fase 8: persistencia JSON y catálogo de ejemplos."""
+﻿"""Tests de Fase 8: persistencia JSON y catÃ¡logo de ejemplos."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -97,15 +97,16 @@ class TestExampleCatalog:
 
     def test_exists_true_for_known_example(self):
         catalog = ExampleCatalog(EXAMPLES_DIR)
-        assert catalog.exists("01_basico_avanzar.py")
+        assert catalog.exists("03_movimiento_basico.py")
 
     def test_read_example_contains_pybricks_import(self):
         catalog = ExampleCatalog(EXAMPLES_DIR)
-        code = catalog.read_example("01_basico_avanzar.py")
+        code = catalog.read_example("03_movimiento_basico.py")
         assert "from pybricks" in code
 
     def test_read_example_by_absolute_path(self):
         catalog = ExampleCatalog(EXAMPLES_DIR)
-        path = EXAMPLES_DIR / "main.py"
+        path = EXAMPLES_DIR / "14_navegacion_hasta_pared.py"
         code = catalog.read_example(str(path))
         assert "DriveBase" in code
+
