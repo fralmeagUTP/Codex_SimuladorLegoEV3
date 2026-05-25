@@ -3,6 +3,7 @@ window.EV3Api = (() => {
   let ownerToken = null;
   let sessionRecoveryPromise = null;
   let lastWorkerInfo = null;
+  const MAX_SESSION_RECOVERY_ATTEMPTS = 4;
 
   const rootData = document.documentElement?.dataset?.ev3BasePath || "";
   const basePath = rootData === "/" ? "" : rootData.replace(/\/+$/, "");
@@ -72,15 +73,20 @@ window.EV3Api = (() => {
   }
 
   async function request(path, options = {}) {
-    try {
-      return await rawRequest(path, options);
-    } catch (error) {
-      const isSessionRoute = /^\/api\/sessions(\/|$)/i.test(path);
-      const canRecover = !isSessionRoute && error?.status === 404 && error?.code === "SESSION_NOT_FOUND";
-      if (!canRecover) throw error;
-      await recoverSession();
-      return await rawRequest(withSessionPath(path, sessionId), options);
+    let requestPath = path;
+    let lastError = null;
+    for (let attempt = 0; attempt <= MAX_SESSION_RECOVERY_ATTEMPTS; attempt += 1) {
+      try {
+        return await rawRequest(requestPath, options);
+      } catch (error) {
+        lastError = error;
+        const canRecover = error?.status === 404 && error?.code === "SESSION_NOT_FOUND";
+        if (!canRecover || attempt >= MAX_SESSION_RECOVERY_ATTEMPTS) break;
+        const recovered = await recoverSession();
+        requestPath = withSessionPath(path, recovered?.session_id || sessionId);
+      }
     }
+    throw lastError;
   }
 
   async function createSession(options = {}) {
