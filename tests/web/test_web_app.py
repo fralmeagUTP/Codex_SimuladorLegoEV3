@@ -404,9 +404,11 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "recoverSession" in api_js
     assert "withSessionPath" in api_js
     assert "MAX_SESSION_RECOVERY_ATTEMPTS = 4" in api_js
+    assert "ev3-session-recovered" in api_js
     assert "X-Worker-Id" in api_js
     assert "X-Worker-Pid" in api_js
     assert "lastWorkerInfo" in api_js
+    assert "window.addEventListener(\"ev3-session-recovered\"" in js
 
 
 def test_simulation_canvas_preserves_physical_world_scale(tmp_path):

@@ -2101,6 +2101,17 @@
     api.closeSessionOnUnload();
   });
 
+  window.addEventListener("ev3-session-recovered", async () => {
+    stopLiveUpdates();
+    startSnapshotStream();
+    try {
+      await refreshSnapshot();
+      log("Sesion recuperada. Reconexion de estado en vivo.");
+    } catch {
+      // refreshSnapshot ya gestiona recuperacion y logging.
+    }
+  });
+
   window.addEventListener("keydown", handleGlobalShortcuts, true);
 
   try {

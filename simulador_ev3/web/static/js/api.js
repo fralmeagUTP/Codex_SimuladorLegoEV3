@@ -63,6 +63,16 @@ window.EV3Api = (() => {
       });
       sessionId = data.session_id;
       ownerToken = data.owner_token;
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(
+          new CustomEvent("ev3-session-recovered", {
+            detail: {
+              sessionId,
+              worker: lastWorkerInfo,
+            },
+          }),
+        );
+      }
       return data;
     })();
     try {
