@@ -168,6 +168,9 @@
   let audioContext = null;
   let audioUnlocked = false;
   let lastSpeakerSignature = "";
+  let lastSimTimeS = 0;
+  let lastSnapshotAtMs = 0;
+  let snapshotWatchdogTimer = null;
   const MENU_LOCK_MESSAGE = "Opciones de menu bloqueadas durante la ejecucion. Usa 'Detener y reiniciar' para habilitarlas.";
 
   function ensureAudioContext() {
@@ -301,6 +304,20 @@
       void performStopAndReset({ automatic: true });
     }
     updateControlStates();
+  }
+
+  function updateExecutionIndicator() {
+    if (!statusEl) return;
+    if (currentStatus === "running") {
+      const anim = [".", "..", "..."][Math.floor((Date.now() / 450) % 3)];
+      statusEl.textContent = `running${anim} t=${lastSimTimeS.toFixed(2)}s`;
+      return;
+    }
+    if (currentStatus === "paused") {
+      statusEl.textContent = `paused t=${lastSimTimeS.toFixed(2)}s`;
+      return;
+    }
+    statusEl.textContent = currentStatus;
   }
 
   function setMenuActionState(element, disabled) {
@@ -1511,6 +1528,20 @@
     usingPollingFallback = false;
   }
 
+  function startSnapshotWatchdog() {
+    if (snapshotWatchdogTimer) return;
+    snapshotWatchdogTimer = setInterval(() => {
+      if (recoveringSession || autoResetInProgress) return;
+      if (currentStatus !== "running") return;
+      const staleMs = Date.now() - lastSnapshotAtMs;
+      if (lastSnapshotAtMs > 0 && staleMs < 2200) return;
+      if (!usingPollingFallback) {
+        startPollingFallback();
+      }
+      void refreshSnapshot();
+    }, 1000);
+  }
+
   async function forceStateRefreshAfterStart() {
     try {
       await refreshSnapshot();
@@ -1552,6 +1583,11 @@
 
   function renderSnapshot(snapshot) {
     latestSnapshot = snapshot;
+    lastSnapshotAtMs = Date.now();
+    if (snapshot && Number.isFinite(Number(snapshot.sim_time_s))) {
+      lastSimTimeS = Number(snapshot.sim_time_s);
+    }
+    updateExecutionIndicator();
     updateTelemetry(snapshot);
     updateBrick(snapshot);
     redrawCanvas();
@@ -2116,6 +2152,7 @@
   updateSyntaxHighlight();
   updateControlStates();
   bindAudioUnlockGesture();
+  startSnapshotWatchdog();
   window.addEventListener("resize", syncEditorMetrics);
   window.addEventListener("resize", renderEditorGutter);
   window.addEventListener("resize", placeAutocompletePopup);
