@@ -19,6 +19,11 @@
   <nav class="help-nav">
     <a href="{{ url_for('pages.index') }}">Simulacion</a>
     <a href="{{ url_for('pages.worlds_page') }}">Crear mundos</a>
+    <label class="help-theme-control" for="helpThemeSelect">Tema</label>
+    <select id="helpThemeSelect" data-theme-select>
+      <option value="light">Claro</option>
+      <option value="dark">Oscuro</option>
+    </select>
   </nav>
 
   <section class="help-section">
@@ -190,4 +195,5 @@
     </ul>
   </section>
 </main>
+<script src="{{ url_for('static', filename='js/theme_manager.js', v=asset_version) }}"></script>
 {% endblock %}

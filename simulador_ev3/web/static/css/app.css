@@ -9,6 +9,11 @@ body {
   color: #18212f;
 }
 
+html[data-theme="dark"] body {
+  background: #0f1724;
+  color: #dbe5f5;
+}
+
 body:has(.app-shell) {
   overflow: hidden;
 }
@@ -411,8 +416,8 @@ dd {
 }
 
 .menu-trigger:hover,
-.menu-group:focus-within .menu-trigger,
-.menu-group:hover .menu-trigger {
+.menu-group:hover .menu-trigger,
+.menu-group.is-open .menu-trigger {
   background: #dbeafe;
 }
 
@@ -430,7 +435,7 @@ dd {
 }
 
 .menu-group:hover .menu-dropdown,
-.menu-group:focus-within .menu-dropdown {
+.menu-group.is-open .menu-dropdown {
   display: block;
 }
 
@@ -444,6 +449,12 @@ dd {
 .menu-dropdown button:hover,
 .menu-dropdown a:hover {
   background: #e0edf9;
+}
+
+.menu-dropdown button.is-active {
+  background: #dbeafe;
+  color: #0f2f5d;
+  font-weight: 600;
 }
 
 .menu-empty {
@@ -1569,6 +1580,21 @@ dd {
   border-radius: 4px;
 }
 
+.help-theme-control {
+  align-self: center;
+  color: #324968;
+  font-size: 14px;
+}
+
+.help-nav select[data-theme-select] {
+  min-height: 34px;
+  border: 1px solid #8fb3dc;
+  border-radius: 4px;
+  background: #f7fbff;
+  color: #152238;
+  padding: 6px 10px;
+}
+
 .help-section {
   margin: 18px 0;
   padding: 16px;
@@ -1665,6 +1691,299 @@ dd {
 
 .help-dl dd {
   text-align: left;
+}
+
+html[data-theme="dark"] .app-shell {
+  background: #0f1724;
+}
+
+html[data-theme="dark"] .menu-bar {
+  border-bottom-color: #26354b;
+  background: #111c2d;
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .menu-bar a,
+html[data-theme="dark"] .menu-trigger,
+html[data-theme="dark"] .menu-dropdown button,
+html[data-theme="dark"] .menu-dropdown a {
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] .menu-trigger:hover,
+html[data-theme="dark"] .menu-group:hover .menu-trigger,
+html[data-theme="dark"] .menu-group.is-open .menu-trigger {
+  background: #1f324d;
+}
+
+html[data-theme="dark"] .menu-dropdown {
+  border-color: #355178;
+  background: #17253a;
+  box-shadow: 0 10px 24px rgba(2, 8, 23, 0.55);
+}
+
+html[data-theme="dark"] .menu-dropdown button:hover,
+html[data-theme="dark"] .menu-dropdown a:hover {
+  background: #264265;
+}
+
+html[data-theme="dark"] .menu-dropdown button.is-active {
+  background: #2f4f78;
+  color: #f8fbff;
+}
+
+html[data-theme="dark"] .menu-empty {
+  color: #9eb4d0;
+}
+
+html[data-theme="dark"] .app-brand,
+html[data-theme="dark"] .brand-mark {
+  color: #d7e6ff;
+}
+
+html[data-theme="dark"] .brand-mark {
+  border-color: #5a7aa3;
+  background: #17253a;
+}
+
+html[data-theme="dark"] .sim-workspace {
+  background: #0f1724;
+}
+
+html[data-theme="dark"] .sim-status-strip {
+  border-top-color: #26354b;
+  background: #111c2d;
+  color: #bfd0e6;
+}
+
+html[data-theme="dark"] .sim-panel,
+html[data-theme="dark"] .world-canvas-pane,
+html[data-theme="dark"] .properties-pane,
+html[data-theme="dark"] .help-section,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .center-panel {
+  border-color: #2a3e5a;
+  background: #152235;
+  color: #dbe5f5;
+}
+
+html[data-theme="dark"] .sim-panel-header,
+html[data-theme="dark"] .brick-card h2,
+html[data-theme="dark"] .brick-status-row,
+html[data-theme="dark"] .sim-code-pane .debug-panel,
+html[data-theme="dark"] .program-name-strip {
+  border-color: #2a3e5a;
+  background: #16263a;
+  color: #c7d8ee;
+}
+
+html[data-theme="dark"] .world-name-inline,
+html[data-theme="dark"] .sim-control-bar label,
+html[data-theme="dark"] .debug-state,
+html[data-theme="dark"] .program-name-strip .program-current span,
+html[data-theme="dark"] .program-name-strip .save-path-inline span {
+  color: #a8bfdc;
+}
+
+html[data-theme="dark"] .sim-map-pane,
+html[data-theme="dark"] .world-canvas-pane {
+  background:
+    linear-gradient(#213149 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, #213149 1px, transparent 1px) 0 0 / 24px 24px,
+    #0f1724;
+}
+
+html[data-theme="dark"] .sim-map-pane #worldCanvas,
+html[data-theme="dark"] .world-canvas-pane #worldCanvas {
+  background: #0f1724;
+}
+
+html[data-theme="dark"] button,
+html[data-theme="dark"] select,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea {
+  border-color: #3d5b82;
+  background: #16263a;
+  color: #e4ecf9;
+}
+
+html[data-theme="dark"] .sim-control-bar button,
+html[data-theme="dark"] .map-tools button,
+html[data-theme="dark"] .world-editor-toolbar button,
+html[data-theme="dark"] .world-size-bar button {
+  background: #1d2f49;
+  color: #e4ecf9;
+}
+
+html[data-theme="dark"] .sim-control-bar .run-button {
+  background: #2e5ea3;
+  border-color: #2e5ea3;
+}
+
+html[data-theme="dark"] .sim-control-bar .robot-location-controls {
+  border-left-color: #2a3e5a;
+}
+
+html[data-theme="dark"] .telemetry-section,
+html[data-theme="dark"] .telemetry-card,
+html[data-theme="dark"] .world-status-bar,
+html[data-theme="dark"] .world-editor-toolbar,
+html[data-theme="dark"] .world-size-bar,
+html[data-theme="dark"] .properties-pane h2,
+html[data-theme="dark"] .properties-pane .asset-properties dd,
+html[data-theme="dark"] .asset-properties-form button {
+  border-color: #2a3e5a;
+  background: #18293f;
+  color: #dbe5f5;
+}
+
+html[data-theme="dark"] .telemetry-state {
+  color: #4dd082;
+}
+
+html[data-theme="dark"] .selection-readout,
+html[data-theme="dark"] .robot-start-readout,
+html[data-theme="dark"] .world-name-readout {
+  border-color: #2f4769;
+  background: #17283d;
+  color: #b8cce6;
+}
+
+html[data-theme="dark"] .sim-code-pane #codeEditor {
+  caret-color: #c9dcff;
+}
+
+html[data-theme="dark"] .editor-gutter {
+  border-right-color: #2a3e5a;
+  background: #111c2d;
+  color: #88a3c6;
+}
+
+html[data-theme="dark"] .gutter-line.current-debug-line,
+html[data-theme="dark"] .syntax-line.current-debug-line {
+  background: #2a3f5f;
+}
+
+html[data-theme="dark"] .syntax-highlight {
+  background: #152235;
+  color: #dde8fa;
+}
+
+html[data-theme="dark"] .syntax-kw {
+  color: #7bb7ff;
+}
+
+html[data-theme="dark"] .syntax-builtin {
+  color: #c0a2ff;
+}
+
+html[data-theme="dark"] .syntax-string {
+  color: #ffb86b;
+}
+
+html[data-theme="dark"] .syntax-comment {
+  color: #79c98a;
+}
+
+html[data-theme="dark"] .syntax-number {
+  color: #8fc0ff;
+}
+
+html[data-theme="dark"] .syntax-import {
+  color: #6fd7ea;
+}
+
+html[data-theme="dark"] .syntax-defname {
+  color: #db9cff;
+}
+
+html[data-theme="dark"] .syntax-classname {
+  color: #ffb37a;
+}
+
+html[data-theme="dark"] .syntax-decorator {
+  color: #ff8f8f;
+}
+
+html[data-theme="dark"] .syntax-const {
+  color: #d2a6ff;
+}
+
+html[data-theme="dark"] .autocomplete-popup {
+  border-color: #4d79b5;
+  background: #1a2c45;
+  color: #e3edff;
+  box-shadow: 0 14px 28px rgba(2, 8, 23, 0.6);
+}
+
+html[data-theme="dark"] .autocomplete-item:hover {
+  background: #2b4366;
+  color: #f5f9ff;
+}
+
+html[data-theme="dark"] .autocomplete-item.active {
+  background: #3b67a5;
+}
+
+html[data-theme="dark"] .sim-code-pane .console,
+html[data-theme="dark"] .world-console {
+  border-color: #2a3e5a;
+  background: #0f1a2b;
+  color: #b9cee8;
+}
+
+html[data-theme="dark"] .sim-brick-pane .brick-screen,
+html[data-theme="dark"] .brick-screen {
+  border-color: #4a6489;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      #d5dec9 0,
+      #d5dec9 17px,
+      #bdcab1 18px
+    );
+  color: #0f172a;
+}
+
+html[data-theme="dark"] .about-dialog {
+  border-color: #385172;
+  background: #1a2c45;
+}
+
+html[data-theme="dark"] .about-dialog-header,
+html[data-theme="dark"] .about-dialog-footer {
+  border-color: #2a3e5a;
+}
+
+html[data-theme="dark"] .about-dialog-header h3,
+html[data-theme="dark"] .about-dialog-text {
+  color: #dbe5f5;
+  background: #1a2c45;
+}
+
+html[data-theme="dark"] .help {
+  color: #dbe5f5;
+}
+
+html[data-theme="dark"] .help-lead {
+  color: #a8bfdc;
+}
+
+html[data-theme="dark"] .help-nav a,
+html[data-theme="dark"] .help-nav select[data-theme-select] {
+  border-color: #3e5d85;
+  background: #1a2c45;
+  color: #dbe5f5;
+}
+
+html[data-theme="dark"] .tutorial-card {
+  border-color: #2f4769;
+  background: #17283d;
+}
+
+html[data-theme="dark"] .tutorial-figure img {
+  border-color: #3a5477;
+  background: #1a2c45;
 }
 
 @media (max-width: 1000px) {

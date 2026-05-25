@@ -40,6 +40,13 @@
         </div>
       </div>
       <div class="menu-group">
+        <button type="button" class="menu-trigger" aria-haspopup="true">Tema</button>
+        <div class="menu-dropdown">
+          <button type="button" data-theme-choice="light" aria-pressed="false">Claro</button>
+          <button type="button" data-theme-choice="dark" aria-pressed="false">Oscuro</button>
+        </div>
+      </div>
+      <div class="menu-group">
         <button type="button" class="menu-trigger" aria-haspopup="true">Ayuda</button>
         <div class="menu-dropdown">
           <a href="{{ url_for('pages.help_page') }}" target="_blank">Manual de uso</a>
@@ -205,6 +212,8 @@ motor.stop()
 </section>
 
 <script src="{{ url_for('static', filename='js/api.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/theme_manager.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/menu_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/canvas_world.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/simulation_app.js', v=asset_version) }}"></script>
 {% endblock %}

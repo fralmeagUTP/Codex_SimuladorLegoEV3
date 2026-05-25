@@ -281,6 +281,31 @@ def test_simulation_page_exposes_tk_style_menus(tmp_path):
     assert 'id="resetBtn"' not in html
 
 
+def test_theme_controls_and_assets_are_available_across_pages(tmp_path):
+    client = make_client(tmp_path)
+
+    simulation = client.get("/").get_data(as_text=True)
+    worlds = client.get("/worlds").get_data(as_text=True)
+    help_page = client.get("/help").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    theme_js = client.get("/static/js/theme_manager.js")
+    menu_js = client.get("/static/js/menu_controller.js")
+
+    assert theme_js.status_code == 200
+    assert menu_js.status_code == 200
+    assert "data-theme-choice" in simulation
+    assert "data-theme-choice" in worlds
+    assert 'data-theme-select' in help_page
+    assert "theme_manager.js?v=" in simulation
+    assert "theme_manager.js?v=" in worlds
+    assert "theme_manager.js?v=" in help_page
+    assert "menu_controller.js?v=" in simulation
+    assert "menu_controller.js?v=" in worlds
+    assert "closeAll(groups)" in menu_js.get_data(as_text=True)
+    assert 'document.addEventListener("click"' in menu_js.get_data(as_text=True)
+    assert 'html[data-theme="dark"] body' in css
+
+
 def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     client = make_client(tmp_path)
 

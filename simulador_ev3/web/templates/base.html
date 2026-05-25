@@ -8,6 +8,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Simulador EV3 Web{% endblock %}</title>
+  <script>
+    (() => {
+      try {
+        const stored = localStorage.getItem("ev3_theme");
+        const valid = stored === "dark" || stored === "light";
+        const system = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", valid ? stored : system);
+      } catch (_) {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v=asset_version) }}">
 </head>
 <body>
