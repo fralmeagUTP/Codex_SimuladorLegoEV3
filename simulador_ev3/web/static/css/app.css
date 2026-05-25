@@ -1138,23 +1138,48 @@ dd {
 }
 
 .syntax-kw {
-  color: #005ed1;
+  color: #0b57d0;
+  font-weight: 600;
 }
 
 .syntax-builtin {
-  color: #7a3fc1;
+  color: #6f2dbd;
 }
 
 .syntax-string {
-  color: #a14f00;
+  color: #b54708;
 }
 
 .syntax-comment {
-  color: #007d26;
+  color: #2f7d32;
+  font-style: italic;
 }
 
 .syntax-number {
-  color: #004ec2;
+  color: #0f4aa1;
+}
+
+.syntax-import {
+  color: #0b7285;
+}
+
+.syntax-defname {
+  color: #8e24aa;
+  font-weight: 600;
+}
+
+.syntax-classname {
+  color: #9a3412;
+  font-weight: 600;
+}
+
+.syntax-decorator {
+  color: #c62828;
+}
+
+.syntax-const {
+  color: #7b1fa2;
+  font-weight: 600;
 }
 
 .autocomplete-popup {
@@ -1196,8 +1221,9 @@ dd {
 }
 
 .sim-code-pane .console {
-  min-height: 0;
-  max-height: 56px;
+  min-height: calc((1.35em * 5) + 8px);
+  line-height: 1.35;
+  max-height: calc((1.35em * 5) + 8px);
   margin: 0;
   border-radius: 0;
   background: #f8fbff;
@@ -1642,6 +1668,31 @@ dd {
 }
 
 @media (max-width: 1000px) {
+  body:has(.app-shell) {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .app-shell {
+    height: auto;
+    min-height: 100vh;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .menu-bar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 12px;
+  }
+
+  .menu-bar nav,
+  .app-menu {
+    width: 100%;
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
   .help-tutorial-grid {
     grid-template-columns: 1fr;
   }
@@ -1651,24 +1702,29 @@ dd {
   }
 
   .sim-workspace {
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    overflow: auto;
+    height: auto;
+    grid-template-rows: auto auto;
+    overflow: visible;
+    overflow-x: hidden;
+    padding: 4px 8px 8px;
   }
 
   .sim-main-area,
   .sim-left-column,
-  .sim-bottom-panels {
+  .sim-bottom-panels,
+  .sim-code-pane {
     grid-template-columns: 1fr;
     grid-template-rows: auto;
     overflow: visible;
+    width: 100%;
   }
 
   .sim-map-panel {
-    min-height: 420px;
+    min-height: 340px;
   }
 
   .sim-code-pane {
-    min-height: 520px;
+    min-height: 460px;
   }
 
   .sim-control-bar {
@@ -1694,6 +1750,16 @@ dd {
     min-height: 36px;
   }
 
+  .sim-status-strip span:last-child {
+    margin-left: 0;
+  }
+
+  .sim-code-pane .debug-panel #breakpointsInput,
+  .sim-code-pane .debug-panel #watchesInput {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+
   .world-editor-main {
     grid-template-columns: 1fr;
   }
@@ -1713,5 +1779,113 @@ dd {
 
   .help-dl dd {
     margin-bottom: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .menu-bar {
+    font-size: 12px;
+  }
+
+  .menu-trigger {
+    padding: 5px 7px;
+  }
+
+  .sim-workspace {
+    padding: 4px 6px 8px;
+    gap: 8px;
+  }
+
+  .sim-control-bar,
+  .sim-control-group {
+    gap: 6px;
+  }
+
+  .sim-control-bar .run-controls button {
+    flex: 1 1 calc(50% - 6px);
+  }
+
+  .sim-control-bar .robot-location-controls {
+    border-left: 0;
+    margin-left: 0;
+    padding-left: 0;
+    width: 100%;
+  }
+
+  .robot-start-readout {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .sim-code-pane .debug-panel label {
+    flex: 1 1 100%;
+  }
+
+  .sim-code-pane .debug-panel #breakpointsInput,
+  .sim-code-pane .debug-panel #watchesInput {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .sim-code-pane .code-header {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .program-name-strip {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .sim-map-panel {
+    min-height: 300px;
+  }
+
+  .sim-map-pane,
+  .world-canvas-pane {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .sim-map-pane #worldCanvas {
+    margin: 0 !important;
+  }
+
+  .sim-code-pane {
+    min-height: 380px;
+  }
+
+  .sim-telemetry-pane {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .telemetry-section {
+    border-right: 0;
+    border-bottom: 1px solid #e4eaf2;
+  }
+
+  .telemetry-section:last-child {
+    border-bottom: 0;
+  }
+
+  .sim-brick-pane .brick-screen {
+    width: min(260px, calc(100% - 24px));
+  }
+
+  .world-editor-toolbar,
+  .world-size-bar {
+    gap: 5px;
+    padding: 5px;
+  }
+
+  .world-size-bar input[type="number"] {
+    width: 52px;
+  }
+
+  .world-status-bar {
+    flex-wrap: wrap;
+    gap: 8px;
   }
 }

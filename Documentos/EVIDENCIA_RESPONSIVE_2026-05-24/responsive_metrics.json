@@ -1,0 +1,168 @@
+{
+  "generated_at": "2026-05-24T22:12:37",
+  "base_url": "http://127.0.0.1:62930",
+  "captures": [
+    {
+      "viewport": "mobile_s",
+      "size": [
+        360,
+        740
+      ],
+      "sim_top": "sim_mobile_s_360x740_top.png",
+      "sim_bottom": "sim_mobile_s_360x740_bottom.png",
+      "worlds_top": "worlds_mobile_s_360x740_top.png",
+      "worlds_bottom": "worlds_mobile_s_360x740_bottom.png",
+      "sim_metrics": {
+        "innerWidth": 360,
+        "innerHeight": 740,
+        "scrollWidth": 360,
+        "scrollHeight": 3050,
+        "overflowX": "hidden",
+        "overflowY": "auto",
+        "horizontalPageOverflow": false
+      },
+      "worlds_metrics": {
+        "innerWidth": 360,
+        "innerHeight": 740,
+        "scrollWidth": 360,
+        "scrollHeight": 2019,
+        "horizontalPageOverflow": false
+      }
+    },
+    {
+      "viewport": "mobile_m",
+      "size": [
+        390,
+        844
+      ],
+      "sim_top": "sim_mobile_m_390x844_top.png",
+      "sim_bottom": "sim_mobile_m_390x844_bottom.png",
+      "worlds_top": "worlds_mobile_m_390x844_top.png",
+      "worlds_bottom": "worlds_mobile_m_390x844_bottom.png",
+      "sim_metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 3050,
+        "overflowX": "hidden",
+        "overflowY": "auto",
+        "horizontalPageOverflow": false
+      },
+      "worlds_metrics": {
+        "innerWidth": 390,
+        "innerHeight": 844,
+        "scrollWidth": 390,
+        "scrollHeight": 1947,
+        "horizontalPageOverflow": false
+      }
+    },
+    {
+      "viewport": "mobile_l",
+      "size": [
+        430,
+        932
+      ],
+      "sim_top": "sim_mobile_l_430x932_top.png",
+      "sim_bottom": "sim_mobile_l_430x932_bottom.png",
+      "worlds_top": "worlds_mobile_l_430x932_top.png",
+      "worlds_bottom": "worlds_mobile_l_430x932_bottom.png",
+      "sim_metrics": {
+        "innerWidth": 430,
+        "innerHeight": 932,
+        "scrollWidth": 430,
+        "scrollHeight": 3035,
+        "overflowX": "hidden",
+        "overflowY": "auto",
+        "horizontalPageOverflow": false
+      },
+      "worlds_metrics": {
+        "innerWidth": 430,
+        "innerHeight": 932,
+        "scrollWidth": 430,
+        "scrollHeight": 1947,
+        "horizontalPageOverflow": false
+      }
+    },
+    {
+      "viewport": "tablet_portrait",
+      "size": [
+        768,
+        1024
+      ],
+      "sim_top": "sim_tablet_portrait_768x1024_top.png",
+      "sim_bottom": "sim_tablet_portrait_768x1024_bottom.png",
+      "worlds_top": "worlds_tablet_portrait_768x1024_top.png",
+      "worlds_bottom": "worlds_tablet_portrait_768x1024_bottom.png",
+      "sim_metrics": {
+        "innerWidth": 768,
+        "innerHeight": 1024,
+        "scrollWidth": 768,
+        "scrollHeight": 2843,
+        "overflowX": "hidden",
+        "overflowY": "auto",
+        "horizontalPageOverflow": false
+      },
+      "worlds_metrics": {
+        "innerWidth": 768,
+        "innerHeight": 1024,
+        "scrollWidth": 768,
+        "scrollHeight": 1851,
+        "horizontalPageOverflow": false
+      }
+    },
+    {
+      "viewport": "tablet_landscape",
+      "size": [
+        1024,
+        768
+      ],
+      "sim_top": "sim_tablet_landscape_1024x768_top.png",
+      "sim_bottom": "sim_tablet_landscape_1024x768_bottom.png",
+      "worlds_top": "worlds_tablet_landscape_1024x768_top.png",
+      "worlds_bottom": "worlds_tablet_landscape_1024x768_bottom.png",
+      "sim_metrics": {
+        "innerWidth": 1024,
+        "innerHeight": 768,
+        "scrollWidth": 1024,
+        "scrollHeight": 768,
+        "overflowX": "hidden",
+        "overflowY": "hidden",
+        "horizontalPageOverflow": false
+      },
+      "worlds_metrics": {
+        "innerWidth": 1024,
+        "innerHeight": 768,
+        "scrollWidth": 1024,
+        "scrollHeight": 768,
+        "horizontalPageOverflow": false
+      }
+    },
+    {
+      "viewport": "laptop",
+      "size": [
+        1366,
+        768
+      ],
+      "sim_top": "sim_laptop_1366x768_top.png",
+      "sim_bottom": "sim_laptop_1366x768_bottom.png",
+      "worlds_top": "worlds_laptop_1366x768_top.png",
+      "worlds_bottom": "worlds_laptop_1366x768_bottom.png",
+      "sim_metrics": {
+        "innerWidth": 1366,
+        "innerHeight": 768,
+        "scrollWidth": 1366,
+        "scrollHeight": 768,
+        "overflowX": "hidden",
+        "overflowY": "hidden",
+        "horizontalPageOverflow": false
+      },
+      "worlds_metrics": {
+        "innerWidth": 1366,
+        "innerHeight": 768,
+        "scrollWidth": 1366,
+        "scrollHeight": 768,
+        "horizontalPageOverflow": false
+      }
+    }
+  ]
+}

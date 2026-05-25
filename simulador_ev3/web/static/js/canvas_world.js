@@ -77,11 +77,12 @@ window.EV3Canvas = (() => {
     if (canvas.style.height !== cssHeight) canvas.style.height = cssHeight;
     const pane = canvas.parentElement;
     if (pane) {
+      const compactViewport = pane.clientWidth <= 420 || pane.clientHeight <= 360;
       const followMarginX = widthPx > pane.clientWidth
-        ? Math.round(pane.clientWidth * FOLLOW_EDGE_MARGIN_RATIO)
+        ? (compactViewport ? 0 : Math.round(pane.clientWidth * FOLLOW_EDGE_MARGIN_RATIO))
         : 0;
       const followMarginY = heightPx > pane.clientHeight
-        ? Math.round(pane.clientHeight * FOLLOW_EDGE_MARGIN_RATIO)
+        ? (compactViewport ? 0 : Math.round(pane.clientHeight * FOLLOW_EDGE_MARGIN_RATIO))
         : 0;
       const marginCss = `${followMarginY}px ${followMarginX}px`;
       if (canvas.style.margin !== marginCss) canvas.style.margin = marginCss;

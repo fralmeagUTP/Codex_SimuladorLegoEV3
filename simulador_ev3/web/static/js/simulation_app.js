@@ -130,6 +130,7 @@
     "except", "finally", "raise", "with", "as", "pass", "break", "continue",
     "lambda",
   ]);
+  const syntaxLiteralKeywords = new Set(["True", "False", "None"]);
   const syntaxBuiltins = new Set([
     "print", "len", "range", "str", "int", "float", "list", "dict", "set",
     "tuple", "type", "EV3Brick", "Motor", "ColorSensor", "UltrasonicSensor",
@@ -742,31 +743,168 @@
     `;
   }
 
-  function highlightCodeLine(line) {
-    const escaped = escapeHtml(line);
-    const commentIndex = escaped.indexOf("#");
-    const code = commentIndex >= 0 ? escaped.slice(0, commentIndex) : escaped;
-    const comment = commentIndex >= 0 ? escaped.slice(commentIndex) : "";
-    const highlighted = code.replace(
-      /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?\b|\b[A-Za-z_]\w*\b)/g,
+  function findCommentStart(line) {
+    let inSingle = false;
+    let inDouble = false;
+    let escaped = false;
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (!inDouble && ch === "'") {
+        inSingle = !inSingle;
+        continue;
+      }
+      if (!inSingle && ch === '"') {
+        inDouble = !inDouble;
+        continue;
+      }
+      if (!inSingle && !inDouble && ch === "#") {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function splitCodeAndComment(line) {
+    const commentStart = findCommentStart(line);
+    if (commentStart < 0) {
+      return { code: line, comment: "" };
+    }
+    return {
+      code: line.slice(0, commentStart),
+      comment: line.slice(commentStart),
+    };
+  }
+
+  function highlightInlineCode(rawCode) {
+    const code = escapeHtml(rawCode);
+    let expect = "";
+    let definitionKind = "";
+    return code.replace(
+      /(@[A-Za-z_]\w*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?\b|\b[A-Za-z_]\w*\b)/g,
       (token) => {
+        if (/^@/.test(token)) return `<span class="syntax-decorator">${token}</span>`;
         if (/^["']/.test(token)) return `<span class="syntax-string">${token}</span>`;
         if (/^\d/.test(token)) return `<span class="syntax-number">${token}</span>`;
+        if (expect === "definition_name") {
+          expect = "";
+          if (definitionKind === "class") {
+            definitionKind = "";
+            return `<span class="syntax-classname">${token}</span>`;
+          }
+          definitionKind = "";
+          return `<span class="syntax-defname">${token}</span>`;
+        }
+        if (token === "def") {
+          expect = "definition_name";
+          definitionKind = "def";
+          return `<span class="syntax-kw">${token}</span>`;
+        }
+        if (token === "class") {
+          expect = "definition_name";
+          definitionKind = "class";
+          return `<span class="syntax-kw">${token}</span>`;
+        }
+        if (token === "from") {
+          expect = "module_name";
+          return `<span class="syntax-kw">${token}</span>`;
+        }
+        if (token === "import") {
+          expect = "import_symbol";
+          return `<span class="syntax-kw">${token}</span>`;
+        }
+        if ((expect === "module_name" || expect === "import_symbol") && /^[A-Za-z_]\w*$/.test(token)) {
+          return `<span class="syntax-import">${token}</span>`;
+        }
+        if (syntaxLiteralKeywords.has(token)) return `<span class="syntax-const">${token}</span>`;
         if (syntaxKeywords.has(token)) return `<span class="syntax-kw">${token}</span>`;
         if (syntaxBuiltins.has(token)) return `<span class="syntax-builtin">${token}</span>`;
         return token;
       },
     );
-    if (!comment) return highlighted;
-    return `${highlighted}<span class="syntax-comment">${comment}</span>`;
+  }
+
+  function highlightCodeLine(line, state) {
+    let remaining = line;
+    let output = "";
+    while (remaining.length) {
+      if (state.blockStringDelim) {
+        const endInLine = remaining.indexOf(state.blockStringDelim);
+        if (endInLine < 0) {
+          output += `<span class="syntax-string">${escapeHtml(remaining)}</span>`;
+          break;
+        }
+        const chunk = remaining.slice(0, endInLine + state.blockStringDelim.length);
+        output += `<span class="syntax-string">${escapeHtml(chunk)}</span>`;
+        remaining = remaining.slice(endInLine + state.blockStringDelim.length);
+        state.blockStringDelim = null;
+        continue;
+      }
+
+      const tripleDouble = remaining.indexOf('"""');
+      const tripleSingle = remaining.indexOf("'''");
+      let tripleStart = -1;
+      let tripleDelim = "";
+      if (tripleDouble >= 0 && (tripleSingle < 0 || tripleDouble < tripleSingle)) {
+        tripleStart = tripleDouble;
+        tripleDelim = '"""';
+      } else if (tripleSingle >= 0) {
+        tripleStart = tripleSingle;
+        tripleDelim = "'''";
+      }
+
+      if (tripleStart < 0) {
+        const split = splitCodeAndComment(remaining);
+        output += highlightInlineCode(split.code);
+        if (split.comment) {
+          output += `<span class="syntax-comment">${escapeHtml(split.comment)}</span>`;
+        }
+        break;
+      }
+
+      const commentStart = findCommentStart(remaining);
+      if (commentStart >= 0 && commentStart < tripleStart) {
+        const split = splitCodeAndComment(remaining);
+        output += highlightInlineCode(split.code);
+        output += `<span class="syntax-comment">${escapeHtml(split.comment)}</span>`;
+        break;
+      }
+
+      const prefix = remaining.slice(0, tripleStart);
+      if (prefix) {
+        output += highlightInlineCode(prefix);
+      }
+
+      const restAfterStart = remaining.slice(tripleStart + 3);
+      const endInRest = restAfterStart.indexOf(tripleDelim);
+      if (endInRest < 0) {
+        output += `<span class="syntax-string">${escapeHtml(remaining.slice(tripleStart))}</span>`;
+        state.blockStringDelim = tripleDelim;
+        break;
+      }
+
+      const endIndex = tripleStart + 3 + endInRest + 3;
+      const stringChunk = remaining.slice(tripleStart, endIndex);
+      output += `<span class="syntax-string">${escapeHtml(stringChunk)}</span>`;
+      remaining = remaining.slice(endIndex);
+    }
+    return output || "&nbsp;";
   }
 
   function updateSyntaxHighlight() {
     const lines = codeEditor.value.split("\n");
+    const state = { blockStringDelim: null };
     syntaxHighlight.innerHTML = lines
       .map((line, index) => {
         const lineNo = index + 1;
-        const content = line.length ? highlightCodeLine(line) : "&nbsp;";
+        const content = line.length ? highlightCodeLine(line, state) : "&nbsp;";
         return `<span class="syntax-line" data-line="${lineNo}">${content}</span>`;
       })
       .join("");
