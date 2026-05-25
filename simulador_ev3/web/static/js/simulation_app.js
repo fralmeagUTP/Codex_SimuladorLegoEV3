@@ -1511,6 +1511,19 @@
     usingPollingFallback = false;
   }
 
+  async function forceStateRefreshAfterStart() {
+    try {
+      await refreshSnapshot();
+      if (!stream && !timer) {
+        startPollingFallback();
+      }
+    } catch {
+      if (!stream && !timer) {
+        startPollingFallback();
+      }
+    }
+  }
+
   function isSessionLost(err) {
     return err?.status === 404 || err?.code === "SESSION_NOT_FOUND";
   }
@@ -1629,6 +1642,7 @@
       hideRobotStartMarker();
       executionMenuLocked = true;
       setStatus(result.status);
+      await forceStateRefreshAfterStart();
       log("");
     } catch (err) {
       log(err.message);
@@ -1646,6 +1660,7 @@
       setStatus((await api.start({ debug: true })).status);
       executionMenuLocked = true;
       hideRobotStartMarker();
+      await forceStateRefreshAfterStart();
       log("");
     } catch (err) {
       log(err.message);
@@ -1663,6 +1678,7 @@
         setStatus((await api.start({ debug: true, step_mode: true })).status);
         executionMenuLocked = true;
         hideRobotStartMarker();
+        await forceStateRefreshAfterStart();
       } else {
         handleDebug(await api.debugStep());
       }
