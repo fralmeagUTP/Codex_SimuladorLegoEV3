@@ -8,8 +8,19 @@ from flask import Flask, jsonify
 
 from simulador_ev3.web.config import DefaultWebConfig, apply_env_overrides
 from simulador_ev3.web.errors import WebError
+from simulador_ev3.web.file_session_store import FileSessionStore
+from simulador_ev3.web.redis_session_store import RedisSessionStore
 from simulador_ev3.web.routes import register_blueprints
 from simulador_ev3.web.session_manager import SessionCleanupWorker, SessionManager
+
+
+def _create_metadata_store(config: dict) -> object | None:
+    redis_enabled = bool(config.get("REDIS_ENABLED", False))
+    if redis_enabled:
+        return RedisSessionStore(config)
+    if bool(config.get("FILE_MIRROR_ENABLED", True)):
+        return FileSessionStore(config)
+    return None
 
 
 def create_app(config: dict | None = None) -> Flask:
@@ -27,7 +38,9 @@ def create_app(config: dict | None = None) -> Flask:
     app.extensions["worker_id"] = worker_id
     app.extensions["worker_pid"] = worker_pid
 
-    session_manager = SessionManager(app.config)
+    metadata_store = _create_metadata_store(app.config)
+    app.extensions["session_metadata_store"] = metadata_store
+    session_manager = SessionManager(app.config, metadata_store=metadata_store)
     app.extensions["session_manager"] = session_manager
     app.extensions["session_cleanup_worker"] = None
     if (

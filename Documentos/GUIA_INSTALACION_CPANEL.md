@@ -209,6 +209,24 @@ EV3_WEB_ENABLE_SECURITY_HEADERS=true
 EV3_WEB_STATIC_ASSET_VERSION=cpanel-2026-05-22
 ```
 
+Variables Redis (faseada, opcional al inicio):
+
+```text
+EV3_WEB_SESSION_BACKEND=memory
+EV3_WEB_REDIS_ENABLED=false
+EV3_WEB_REDIS_URL=
+EV3_WEB_REDIS_PREFIX=ev3web
+EV3_WEB_REDIS_HEALTHCHECK_PING=false
+```
+
+Cuando habilites Redis real, cambia:
+
+```text
+EV3_WEB_REDIS_ENABLED=true
+EV3_WEB_REDIS_URL=redis://usuario:clave@host:6379/0
+EV3_WEB_REDIS_HEALTHCHECK_PING=true
+```
+
 ### Como quedan las variables de sesion
 
 Estas son las variables que controlan el comportamiento de sesion y concurrencia en hosting:
@@ -275,6 +293,7 @@ Validaciones minimas:
 - El editor de mundos carga.
 - La ayuda carga.
 - `healthz` responde con estado OK.
+- `healthz` reporta `worker_id`, `worker_pid` y bloque `redis`.
 
 ## 12. Actualizacion de version (deploy futuro)
 
@@ -332,6 +351,8 @@ Esta guia se acompana de:
 
 - `Documentos/wsgi_cpanel.py`: contenido exacto para copiar a `/home/ur5cxigur1qs/simuladorlego/wsgi.py`.
 - `Documentos/CHECKLIST_POST_DEPLOY_CPANEL.md`: checklist de validacion final (home, worlds, help, healthz, carga de mundo y script).
+- `Documentos/PLAYBOOK_REDIS_CPANEL_FASE3.md`: activacion Redis primario por fases, validacion y rollback.
+- `Documentos/PLAYBOOK_FILE_MIRROR_CPANEL_SHARED.md`: alternativa para hosting compartido sin Redis (sin root).
 
 ---
 

@@ -9,6 +9,7 @@ import pytest
 
 from simulador_ev3.web.app import create_app
 from simulador_ev3.web.errors import InvalidPayload, SessionNotFound
+from simulador_ev3.web.file_session_store import FileSessionStore
 from simulador_ev3.web.routes.helpers import safe_child
 from simulador_ev3.web.services.simulation_session import SimulationSession, asset_catalog_dict
 from simulador_ev3.web.session_manager import SessionManager, _hash_token, _utcnow
@@ -220,6 +221,278 @@ def test_session_manager_expires_session_on_access(tmp_path):
     assert manager.stats()["active_sessions"] == 0
 
 
+def test_session_manager_mirrors_metadata_lifecycle(tmp_path):
+    class FakeMirror:
+        def __init__(self):
+            self.upserts = []
+            self.touches = []
+            self.deletes = []
+
+        def upsert_metadata(self, session_id, metadata, ttl_s):
+            self.upserts.append((session_id, metadata, ttl_s))
+            return True
+
+        def touch(self, session_id, last_seen_at, ttl_s):
+            self.touches.append((session_id, last_seen_at, ttl_s))
+            return True
+
+        def delete(self, session_id):
+            self.deletes.append(session_id)
+            return True
+
+        def diagnostics(self):
+            return {"enabled": True}
+
+    mirror = FakeMirror()
+    manager = SessionManager(
+        {
+            "SESSION_IDLE_TIMEOUT_MIN": 30,
+            "MAX_ACTIVE_SESSIONS": 5,
+            "MAX_RUNNING_SIMULATIONS": 5,
+            "SCRIPT_MAX_RUNTIME_S": 0.5,
+            "WORLDS_DIR": tmp_path / "worlds",
+            "EXAMPLES_DIR": tmp_path / "examples",
+        },
+        metadata_store=mirror,
+    )
+    session_id, token = manager.create_session()
+    manager.get_session(session_id, token)
+    manager.close_session(session_id, token)
+
+    assert mirror.upserts
+    assert mirror.touches
+    assert mirror.deletes == [session_id]
+
+
+def test_session_manager_recovers_session_from_metadata_mirror(tmp_path):
+    session_id = "recovered-session"
+    owner_token = "owner-secret"
+    owner_hash = _hash_token(owner_token)
+
+    class RecoverMirror:
+        def upsert_metadata(self, _session_id, _metadata, ttl_s):
+            return True
+
+        def touch(self, _session_id, _last_seen_at, ttl_s):
+            return True
+
+        def delete(self, _session_id):
+            return True
+
+        def fetch_metadata(self, requested_id):
+            if requested_id != session_id:
+                return None
+            return {
+                "session_id": session_id,
+                "owner_token_hash": owner_hash,
+                "created_at": _utcnow().isoformat(),
+            }
+
+        def diagnostics(self):
+            return {"enabled": True}
+
+    manager = SessionManager(
+        {
+            "SESSION_IDLE_TIMEOUT_MIN": 30,
+            "MAX_ACTIVE_SESSIONS": 5,
+            "MAX_RUNNING_SIMULATIONS": 5,
+            "SCRIPT_MAX_RUNTIME_S": 0.5,
+            "WORLDS_DIR": tmp_path / "worlds",
+            "EXAMPLES_DIR": tmp_path / "examples",
+        },
+        metadata_store=RecoverMirror(),
+    )
+
+    recovered = manager.get_session(session_id, owner_token)
+
+    assert recovered.session_id == session_id
+    assert manager.stats()["sessions_recovered_from_mirror"] == 1
+
+
+def test_session_manager_recovery_fails_with_invalid_owner_token(tmp_path):
+    session_id = "recovered-session"
+    owner_hash = _hash_token("correct-token")
+
+    class RecoverMirror:
+        def upsert_metadata(self, _session_id, _metadata, ttl_s):
+            return True
+
+        def touch(self, _session_id, _last_seen_at, ttl_s):
+            return True
+
+        def delete(self, _session_id):
+            return True
+
+        def fetch_metadata(self, requested_id):
+            if requested_id != session_id:
+                return None
+            return {
+                "session_id": session_id,
+                "owner_token_hash": owner_hash,
+                "created_at": _utcnow().isoformat(),
+            }
+
+        def diagnostics(self):
+            return {"enabled": True}
+
+    manager = SessionManager(
+        {
+            "SESSION_IDLE_TIMEOUT_MIN": 30,
+            "MAX_ACTIVE_SESSIONS": 5,
+            "MAX_RUNNING_SIMULATIONS": 5,
+            "SCRIPT_MAX_RUNTIME_S": 0.5,
+            "WORLDS_DIR": tmp_path / "worlds",
+            "EXAMPLES_DIR": tmp_path / "examples",
+        },
+        metadata_store=RecoverMirror(),
+    )
+
+    with pytest.raises(SessionNotFound):
+        manager.get_session(session_id, "wrong-token")
+
+    assert manager.stats()["session_recovery_failures"] == 1
+
+
+def test_session_manager_recovers_script_world_and_debug_state_from_mirror(tmp_path):
+    shared: dict[str, dict[str, str]] = {}
+
+    class SharedMirror:
+        def __init__(self, state: dict[str, dict[str, str]]):
+            self._state = state
+
+        def upsert_metadata(self, session_id, metadata, ttl_s):
+            self._state[session_id] = {str(k): str(v) for k, v in metadata.items()}
+            return True
+
+        def touch(self, session_id, last_seen_at, ttl_s):
+            if session_id in self._state:
+                self._state[session_id]["last_seen_at"] = last_seen_at.isoformat()
+            return True
+
+        def delete(self, session_id):
+            self._state.pop(session_id, None)
+            return True
+
+        def fetch_metadata(self, session_id):
+            data = self._state.get(session_id)
+            return dict(data) if data is not None else None
+
+        def diagnostics(self):
+            return {"enabled": True}
+
+    config = {
+        "SESSION_IDLE_TIMEOUT_MIN": 30,
+        "MAX_ACTIVE_SESSIONS": 5,
+        "MAX_RUNNING_SIMULATIONS": 5,
+        "SCRIPT_MAX_RUNTIME_S": 1.0,
+        "WORLDS_DIR": tmp_path / "worlds",
+        "EXAMPLES_DIR": tmp_path / "examples",
+    }
+
+    manager_a = SessionManager(config, metadata_store=SharedMirror(shared))
+    session_id, owner_token = manager_a.create_session()
+    session_a = manager_a.get_session(session_id, owner_token)
+    session_a.load_script("x = 1\nx = x + 1\n")
+    session_a.load_blank_world(width_cells=20, height_cells=20)
+    session_a.set_debug_breakpoints({2, 5})
+    session_a.set_debug_watches(["x + 1"])
+    manager_a.sync_session_metadata(session_id)
+
+    manager_b = SessionManager(config, metadata_store=SharedMirror(shared))
+    session_b = manager_b.get_session(session_id, owner_token)
+    summary = session_b.summary()
+    world = session_b.current_world()
+
+    assert summary["has_script"] is True
+    assert summary["breakpoints"] == [2, 5]
+    assert summary["watches"] == ["x + 1"]
+    assert world is not None
+    assert world["width_mm"] == 2000.0
+    assert world["height_mm"] == 2000.0
+    assert manager_b.stats()["sessions_recovered_from_mirror"] == 1
+
+
+def test_session_manager_redis_primary_degrades_to_memory_when_mirror_write_fails(tmp_path):
+    class FailingMirror:
+        def upsert_metadata(self, session_id, metadata, ttl_s):
+            return False
+
+        def touch(self, session_id, last_seen_at, ttl_s):
+            return False
+
+        def delete(self, session_id):
+            return False
+
+        def fetch_metadata(self, session_id):
+            return None
+
+        def diagnostics(self):
+            return {"enabled": True, "client_ready": False}
+
+    manager = SessionManager(
+        {
+            "SESSION_BACKEND": "redis",
+            "REDIS_ENABLED": True,
+            "SESSION_IDLE_TIMEOUT_MIN": 30,
+            "MAX_ACTIVE_SESSIONS": 5,
+            "MAX_RUNNING_SIMULATIONS": 5,
+            "SCRIPT_MAX_RUNTIME_S": 1.0,
+            "WORLDS_DIR": tmp_path / "worlds",
+            "EXAMPLES_DIR": tmp_path / "examples",
+        },
+        metadata_store=FailingMirror(),
+    )
+
+    session_id, token = manager.create_session()
+    session = manager.get_session(session_id, token)
+    diag = manager.diagnostics()
+
+    assert session.session_id == session_id
+    assert diag["is_redis_primary"] is True
+    assert diag["degraded_to_memory"] is True
+    assert diag["degraded_reason"] == "redis_mirror_touch_failed"
+
+
+def test_session_manager_redis_primary_not_degraded_when_mirror_ok(tmp_path):
+    class HealthyMirror:
+        def upsert_metadata(self, session_id, metadata, ttl_s):
+            return True
+
+        def touch(self, session_id, last_seen_at, ttl_s):
+            return True
+
+        def delete(self, session_id):
+            return True
+
+        def fetch_metadata(self, session_id):
+            return None
+
+        def diagnostics(self):
+            return {"enabled": True, "client_ready": True}
+
+    manager = SessionManager(
+        {
+            "SESSION_BACKEND": "redis",
+            "REDIS_ENABLED": True,
+            "SESSION_IDLE_TIMEOUT_MIN": 30,
+            "MAX_ACTIVE_SESSIONS": 5,
+            "MAX_RUNNING_SIMULATIONS": 5,
+            "SCRIPT_MAX_RUNTIME_S": 1.0,
+            "WORLDS_DIR": tmp_path / "worlds",
+            "EXAMPLES_DIR": tmp_path / "examples",
+        },
+        metadata_store=HealthyMirror(),
+    )
+
+    session_id, token = manager.create_session()
+    manager.get_session(session_id, token)
+    diag = manager.diagnostics()
+
+    assert diag["is_redis_primary"] is True
+    assert diag["degraded_to_memory"] is False
+    assert diag["degraded_reason"] is None
+
+
 def test_upload_world_rejects_oversized_multipart_file(tmp_path):
     client = create_app(
         {
@@ -333,3 +606,40 @@ def test_loading_large_editor_world_keeps_original_dimensions(tmp_path):
     assert world["height_mm"] == 16000.0
     assert world["editor_spec"]["world_width_cells"] == 160
     assert world["editor_spec"]["world_height_cells"] == 160
+
+
+def test_file_session_store_lifecycle(tmp_path):
+    store = FileSessionStore(
+        {
+            "FILE_MIRROR_ENABLED": True,
+            "FILE_MIRROR_DIR": tmp_path / "mirror",
+            "REDIS_PREFIX": "ev3test",
+        }
+    )
+
+    assert store.upsert_metadata("sid-1", {"status": "ready", "owner_token_hash": "abc"}, ttl_s=30)
+    fetched = store.fetch_metadata("sid-1")
+    assert fetched is not None
+    assert fetched["status"] == "ready"
+    assert fetched["owner_token_hash"] == "abc"
+
+    assert store.touch("sid-1", _utcnow(), ttl_s=30)
+    fetched2 = store.fetch_metadata("sid-1")
+    assert fetched2 is not None
+    assert "last_seen_at" in fetched2
+
+    assert store.delete("sid-1")
+    assert store.fetch_metadata("sid-1") is None
+
+
+def test_file_session_store_expires_records(tmp_path):
+    store = FileSessionStore(
+        {
+            "FILE_MIRROR_ENABLED": True,
+            "FILE_MIRROR_DIR": tmp_path / "mirror",
+        }
+    )
+
+    assert store.upsert_metadata("sid-exp", {"status": "ready"}, ttl_s=1)
+    time.sleep(1.1)
+    assert store.fetch_metadata("sid-exp") is None

@@ -56,6 +56,8 @@ class SimulationSession:
         self._debug_breakpoints: set[int] = set()
         self._debug_watches: list[str] = []
         self._debugstate_v2_enabled = bool(self._config.get("DEBUGSTATE_V2_ENABLED", True))
+        self._start_idempotency: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._start_idempotency_ttl_s = float(self._config.get("START_IDEMPOTENCY_TTL_S", 20.0))
         self._status = "created"
         self._loaded_world_name: str | None = None
         self._editor = WorldEditorService()
@@ -104,6 +106,27 @@ class SimulationSession:
             self._push_event("status", {"status": self._status})
             return self.summary()
 
+    def get_start_idempotency(self, request_id: str | None) -> dict[str, Any] | None:
+        normalized = str(request_id or "").strip()
+        if not normalized:
+            return None
+        now = time.monotonic()
+        with self._lock:
+            self._prune_start_idempotency(now)
+            cached = self._start_idempotency.get(normalized)
+            if cached is None:
+                return None
+            return dict(cached[1])
+
+    def remember_start_idempotency(self, request_id: str | None, payload: dict[str, Any]) -> None:
+        normalized = str(request_id or "").strip()
+        if not normalized:
+            return
+        now = time.monotonic()
+        with self._lock:
+            self._prune_start_idempotency(now)
+            self._start_idempotency[normalized] = (now, dict(payload))
+
     def pause(self) -> dict[str, Any]:
         with self._lock:
             self._service.pause()
@@ -138,6 +161,7 @@ class SimulationSession:
             self._latest_debug_context = None
             self._debug_breakpoints = set()
             self._debug_watches = []
+            self._start_idempotency.clear()
             self._status = "created"
             self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
@@ -551,6 +575,80 @@ class SimulationSession:
             "watches": list(self._debug_watches),
         }
 
+    def runtime_checkpoint(self) -> dict[str, Any]:
+        with self._lock:
+            world_snapshot = self.current_world()
+            world_wrapper = {"version": 1, "world": world_snapshot} if world_snapshot else None
+            editor_world = (
+                self._editor.current_formal_world().to_dict() if self._world_has_editor_spec else None
+            )
+            return {
+                "source_code": self._source_code,
+                "loaded_world_name": self._loaded_world_name,
+                "status": self._status,
+                "debug_breakpoints": sorted(self._debug_breakpoints),
+                "debug_watches": list(self._debug_watches),
+                "world_has_editor_spec": self._world_has_editor_spec,
+                "world_wrapper": world_wrapper,
+                "editor_world": editor_world,
+            }
+
+    def restore_runtime_checkpoint(self, checkpoint: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(checkpoint, dict):
+            raise InvalidPayload("Checkpoint de sesion invalido.")
+
+        with self._lock:
+            source_code = checkpoint.get("source_code")
+            if isinstance(source_code, str) and source_code.strip():
+                self.load_script(source_code)
+
+            restored_world = False
+            world_wrapper = checkpoint.get("world_wrapper")
+            if isinstance(world_wrapper, dict) and world_wrapper:
+                try:
+                    self.upload_world_json(world_wrapper)
+                    restored_world = True
+                except Exception:  # noqa: BLE001
+                    restored_world = False
+
+            if not restored_world and bool(checkpoint.get("world_has_editor_spec", False)):
+                editor_world = checkpoint.get("editor_world")
+                if isinstance(editor_world, dict) and editor_world:
+                    try:
+                        self.load_editor_world(editor_world)
+                        self.apply_editor_world()
+                        restored_world = True
+                    except Exception:  # noqa: BLE001
+                        restored_world = False
+
+            loaded_world_name = checkpoint.get("loaded_world_name")
+            if isinstance(loaded_world_name, str) and loaded_world_name:
+                self._loaded_world_name = loaded_world_name
+
+            raw_breakpoints = checkpoint.get("debug_breakpoints")
+            if isinstance(raw_breakpoints, list):
+                try:
+                    breakpoints = {int(line) for line in raw_breakpoints if int(line) > 0}
+                    self.set_debug_breakpoints(breakpoints)
+                except (TypeError, ValueError):
+                    pass
+
+            raw_watches = checkpoint.get("debug_watches")
+            if isinstance(raw_watches, list):
+                watches: list[str] = []
+                for item in raw_watches[:20]:
+                    if isinstance(item, str) and item.strip():
+                        watches.append(item.strip())
+                self.set_debug_watches(watches)
+
+            raw_status = str(checkpoint.get("status", "")).strip().lower()
+            if raw_status in {"running", "paused"}:
+                self._status = "ready" if self._source_code else "created"
+                self._set_debug_state("idle", reason="recovered")
+                self._push_event("status", {"status": self._status, "raw_status": "recovered"})
+
+            return self.summary() | {"restored_world": restored_world}
+
     def close(self) -> None:
         with self._lock:
             self._service.stop(reason="session_close")
@@ -739,6 +837,19 @@ class SimulationSession:
                 "payload": payload or {},
             }
         )
+
+    def _prune_start_idempotency(self, now: float | None = None) -> None:
+        if self._start_idempotency_ttl_s <= 0:
+            self._start_idempotency.clear()
+            return
+        now_value = time.monotonic() if now is None else now
+        expired = [
+            key
+            for key, (created_at, _) in self._start_idempotency.items()
+            if now_value - created_at > self._start_idempotency_ttl_s
+        ]
+        for key in expired:
+            self._start_idempotency.pop(key, None)
 
     def _validation_dict(self) -> dict[str, Any]:
         report = self._editor._validator.validate(self._editor.current_formal_world())

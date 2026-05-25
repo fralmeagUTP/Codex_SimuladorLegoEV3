@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -19,7 +20,7 @@ class DefaultWebConfig:
     EXAMPLES_DIR = resolve_examples_dir()
     WORLDS_DIR = resolve_worlds_dir()
     IMAGE_ASSETS_DIR = resolve_image_assets_dir()
-    SESSION_IDLE_TIMEOUT_MIN = 30
+    SESSION_IDLE_TIMEOUT_MIN = 45
     MAX_ACTIVE_SESSIONS = 20
     MAX_RUNNING_SIMULATIONS = 8
     SCRIPT_MAX_RUNTIME_S = 0.0
@@ -27,11 +28,21 @@ class DefaultWebConfig:
     MAX_WORLD_JSON_SIZE_BYTES = 2 * 1024 * 1024
     SSE_HEARTBEAT_S = 15
     WEB_SNAPSHOT_MAX_HZ = 12.0
-    STATIC_ASSET_VERSION = "2026-05-25-session-retry-v3"
+    START_IDEMPOTENCY_TTL_S = 20.0
+    STATIC_ASSET_VERSION = "2026-05-25-session-retry-v4"
     SESSION_CLEANUP_INTERVAL_S = 60
     ENABLE_SESSION_CLEANUP_THREAD = True
     ENABLE_SECURITY_HEADERS = True
     SESSION_COOKIE_SECURE = False
+    SESSION_BACKEND = "memory"
+    REDIS_ENABLED = False
+    REDIS_URL = ""
+    REDIS_PREFIX = "ev3web"
+    REDIS_CONNECT_TIMEOUT_S = 0.2
+    REDIS_SOCKET_TIMEOUT_S = 0.2
+    REDIS_HEALTHCHECK_PING = False
+    FILE_MIRROR_ENABLED = True
+    FILE_MIRROR_DIR = Path(tempfile.gettempdir()) / "ev3web_session_mirror"
     UI_FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
     DEBUGSTATE_V2_ENABLED = True
     WEB_DEBUGSTATE_V2 = True
@@ -51,11 +62,21 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "MAX_WORLD_JSON_SIZE_BYTES": int,
     "SSE_HEARTBEAT_S": int,
     "WEB_SNAPSHOT_MAX_HZ": float,
+    "START_IDEMPOTENCY_TTL_S": float,
     "STATIC_ASSET_VERSION": str,
     "SESSION_CLEANUP_INTERVAL_S": float,
     "ENABLE_SESSION_CLEANUP_THREAD": lambda value: _parse_bool(value),
     "ENABLE_SECURITY_HEADERS": lambda value: _parse_bool(value),
     "SESSION_COOKIE_SECURE": lambda value: _parse_bool(value),
+    "SESSION_BACKEND": str,
+    "REDIS_ENABLED": lambda value: _parse_bool(value),
+    "REDIS_URL": str,
+    "REDIS_PREFIX": str,
+    "REDIS_CONNECT_TIMEOUT_S": float,
+    "REDIS_SOCKET_TIMEOUT_S": float,
+    "REDIS_HEALTHCHECK_PING": lambda value: _parse_bool(value),
+    "FILE_MIRROR_ENABLED": lambda value: _parse_bool(value),
+    "FILE_MIRROR_DIR": Path,
     "UI_FIT_PADDING_RATIO": float,
     "DEBUGSTATE_V2_ENABLED": lambda value: _parse_bool(value),
     "WEB_DEBUGSTATE_V2": lambda value: _parse_bool(value),

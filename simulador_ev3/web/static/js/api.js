@@ -3,7 +3,9 @@ window.EV3Api = (() => {
   let ownerToken = null;
   let sessionRecoveryPromise = null;
   let lastWorkerInfo = null;
+  const inFlightByKey = new Map();
   const MAX_SESSION_RECOVERY_ATTEMPTS = 4;
+  const TRANSIENT_HTTP_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
   const rootData = document.documentElement?.dataset?.ev3BasePath || "";
   const basePath = rootData === "/" ? "" : rootData.replace(/\/+$/, "");
@@ -99,6 +101,64 @@ window.EV3Api = (() => {
     throw lastError;
   }
 
+  function isTransientError(error) {
+    if (!error) return false;
+    if (TRANSIENT_HTTP_STATUS.has(Number(error.status))) return true;
+    if (error.name === "TypeError") return true; // fetch network failure
+    const code = String(error.code || "").toUpperCase();
+    if (code.includes("NETWORK") || code.includes("TIMEOUT")) return true;
+    const msg = String(error.message || "").toLowerCase();
+    return msg.includes("http2") || msg.includes("networkerror");
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function requestWithPolicy(path, options = {}, policy = {}) {
+    const retries = Number.isFinite(policy.retries) ? Number(policy.retries) : 0;
+    const baseDelayMs = Number.isFinite(policy.baseDelayMs) ? Number(policy.baseDelayMs) : 120;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        return await request(path, options);
+      } catch (error) {
+        if (!isTransientError(error) || attempt >= retries) {
+          throw error;
+        }
+        const delayMs = Math.min(1600, baseDelayMs * (2 ** attempt));
+        await sleep(delayMs);
+      }
+    }
+    throw new Error("No se pudo completar la solicitud.");
+  }
+
+  function randomRequestId() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function singleFlight(key, factory) {
+    const normalized = String(key || "").trim();
+    if (!normalized) {
+      return factory();
+    }
+    const existing = inFlightByKey.get(normalized);
+    if (existing) {
+      return existing;
+    }
+    const promise = Promise.resolve()
+      .then(factory)
+      .finally(() => {
+        if (inFlightByKey.get(normalized) === promise) {
+          inFlightByKey.delete(normalized);
+        }
+      });
+    inFlightByKey.set(normalized, promise);
+    return promise;
+  }
+
   async function createSession(options = {}) {
     const data = await request("/api/sessions", {
       method: "POST",
@@ -164,14 +224,20 @@ window.EV3Api = (() => {
       source.onerror = () => handlers.connectionError?.(source);
       return source;
     },
-    loadScript: (source) => request(`/api/sessions/${sessionId}/script`, {
-      method: "POST",
-      body: JSON.stringify({ source }),
-    }),
-    start: (options = {}) => request(`/api/sessions/${sessionId}/start`, {
-      method: "POST",
-      body: JSON.stringify(options),
-    }),
+    loadScript: (source) => singleFlight(
+      `script:${sessionId}`,
+      () => requestWithPolicy(`/api/sessions/${sessionId}/script`, {
+        method: "POST",
+        body: JSON.stringify({ source }),
+      }, { retries: 2, baseDelayMs: 120 }),
+    ),
+    start: (options = {}) => singleFlight(
+      `start:${sessionId}`,
+      () => requestWithPolicy(`/api/sessions/${sessionId}/start`, {
+        method: "POST",
+        body: JSON.stringify(Object.assign({}, options, { request_id: randomRequestId() })),
+      }, { retries: 2, baseDelayMs: 160 }),
+    ),
     pause: () => request(`/api/sessions/${sessionId}/pause`, { method: "POST", body: "{}" }),
     resume: () => request(`/api/sessions/${sessionId}/resume`, { method: "POST", body: "{}" }),
     stop: () => request(`/api/sessions/${sessionId}/stop`, { method: "POST", body: "{}" }),
@@ -192,7 +258,13 @@ window.EV3Api = (() => {
       method: "POST",
       body: "{}",
     }),
-    snapshot: () => request(`/api/sessions/${sessionId}/snapshot`),
+    snapshot: () => singleFlight(
+      `snapshot:${sessionId}`,
+      () => requestWithPolicy(`/api/sessions/${sessionId}/snapshot`, {
+        method: "POST",
+        body: "{}",
+      }, { retries: 2, baseDelayMs: 100 }),
+    ),
     listExamples: () => request("/api/examples"),
     getExample: (name) => request(`/api/examples/${encodeURIComponent(name)}`),
     listWorlds: () => request("/api/worlds"),

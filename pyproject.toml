@@ -12,6 +12,7 @@ dependencies = ["Flask>=3.1"]   # tkinter para escritorio, Flask para web
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-cov", "playwright>=1.45"]
 web-prod = ["waitress>=3.0"]
+web-redis = ["redis>=5.1,<8"]
 
 [tool.pytest.ini_options]
 testpaths   = ["tests"]

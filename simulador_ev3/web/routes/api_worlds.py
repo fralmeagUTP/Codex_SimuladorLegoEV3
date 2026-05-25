@@ -7,7 +7,7 @@ import json
 from flask import Blueprint, current_app, jsonify, request
 
 from simulador_ev3.web.errors import InvalidPayload
-from simulador_ev3.web.routes.helpers import json_body, require_session, safe_child
+from simulador_ev3.web.routes.helpers import get_manager, json_body, require_session, safe_child
 
 
 bp = Blueprint("api_worlds", __name__, url_prefix="/api")
@@ -33,7 +33,9 @@ def get_world(name: str):
 def load_world(session_id: str):
     data = json_body()
     name = str(data.get("name", ""))
-    return jsonify(require_session(session_id).load_world_name(name))
+    result = require_session(session_id).load_world_name(name)
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/world/blank")
@@ -41,12 +43,12 @@ def load_blank_world(session_id: str):
     data = json_body()
     width_cells = data.get("width_cells")
     height_cells = data.get("height_cells")
-    return jsonify(
-        require_session(session_id).load_blank_world(
+    result = require_session(session_id).load_blank_world(
             width_cells=width_cells,
             height_cells=height_cells,
         )
-    )
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/world/upload")
@@ -61,4 +63,6 @@ def upload_world(session_id: str):
         data = json.loads(raw.decode("utf-8"))
     else:
         raise InvalidPayload("Debe enviar JSON o archivo multipart.")
-    return jsonify(require_session(session_id).upload_world_json(data))
+    result = require_session(session_id).upload_world_json(data)
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)

@@ -1,3 +1,4 @@
 # Dependencias runtime para despliegue web en cPanel/Passenger
 # Recomendado: Python 3.11+
 Flask>=3.1
+redis>=5.1,<8

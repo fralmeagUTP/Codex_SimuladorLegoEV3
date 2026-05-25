@@ -88,7 +88,9 @@ def session_info(session_id: str):
 def load_script(session_id: str):
     data = json_body()
     session = require_session(session_id)
-    return jsonify(session.load_script(str(data.get("source", ""))))
+    result = session.load_script(str(data.get("source", "")))
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/start")
@@ -104,34 +106,49 @@ def start(session_id: str):
                 "Se alcanzo el limite de simulaciones activas. "
                 f"Activas: {stats['running_simulations']}/{stats['max_running_simulations']}."
             )
-    data = json_body()
     session = require_session(session_id)
-    return jsonify(
-        session.start(
+    data = json_body()
+    request_id = str(data.get("request_id", "")).strip()
+    if request_id:
+        cached = session.get_start_idempotency(request_id)
+        if cached is not None:
+            return jsonify(cached)
+    result = session.start(
             debug=bool(data.get("debug", False)),
             step_mode=bool(data.get("step_mode", False)),
         )
-    )
+    if request_id:
+        session.remember_start_idempotency(request_id, result)
+    manager.sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/pause")
 def pause(session_id: str):
-    return jsonify(require_session(session_id).pause())
+    result = require_session(session_id).pause()
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/resume")
 def resume(session_id: str):
-    return jsonify(require_session(session_id).resume())
+    result = require_session(session_id).resume()
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/stop")
 def stop(session_id: str):
-    return jsonify(require_session(session_id).stop())
+    result = require_session(session_id).stop()
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/reset")
 def reset(session_id: str):
-    return jsonify(require_session(session_id).reset())
+    result = require_session(session_id).reset()
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.post("/sessions/<session_id>/debug/breakpoints")
@@ -186,12 +203,19 @@ def robot_start(session_id: str):
         raise InvalidPayload("x_mm y y_mm son requeridos.") from exc
     theta = data.get("theta_deg")
     theta_deg = float(theta) if theta is not None else None
-    return jsonify(require_session(session_id).set_robot_start(x_mm, y_mm, theta_deg))
+    result = require_session(session_id).set_robot_start(x_mm, y_mm, theta_deg)
+    get_manager().sync_session_metadata(session_id)
+    return jsonify(result)
 
 
 @bp.get("/sessions/<session_id>/snapshot")
+@bp.post("/sessions/<session_id>/snapshot")
 def snapshot(session_id: str):
-    return jsonify(require_session(session_id).snapshot_response())
+    response = jsonify(require_session(session_id).snapshot_response())
+    response.headers.setdefault("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+    response.headers.setdefault("Pragma", "no-cache")
+    response.headers.setdefault("Expires", "0")
+    return response
 
 
 @bp.get("/sessions/<session_id>/stream")

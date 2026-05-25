@@ -152,6 +152,7 @@
   let timer = null;
   let stream = null;
   let streamBootstrapTimeout = null;
+  let streamRetryTimer = null;
   let usingPollingFallback = false;
   let recoveringSession = false;
   let autoResetInProgress = false;
@@ -1401,6 +1402,13 @@
     }
   }
 
+  function clearStreamRetryTimer() {
+    if (streamRetryTimer) {
+      clearTimeout(streamRetryTimer);
+      streamRetryTimer = null;
+    }
+  }
+
   function startSnapshotStream() {
     stopLiveUpdates();
     let hasInitialEvent = false;
@@ -1443,6 +1451,7 @@
         },
         connectionError: () => {
           clearStreamBootstrapTimeout();
+          clearStreamRetryTimer();
           if (usingPollingFallback) return;
           if (stream) {
             stream.close();
@@ -1465,9 +1474,19 @@
     }
   }
 
+  function scheduleStreamRetry() {
+    if (streamRetryTimer || !usingPollingFallback) return;
+    streamRetryTimer = setTimeout(() => {
+      streamRetryTimer = null;
+      if (!usingPollingFallback || recoveringSession) return;
+      startSnapshotStream();
+    }, 2500);
+  }
+
   function startPollingFallback() {
     if (usingPollingFallback) return;
     clearStreamBootstrapTimeout();
+    clearStreamRetryTimer();
     if (stream) {
       stream.close();
       stream = null;
@@ -1475,10 +1494,12 @@
     usingPollingFallback = true;
     timer = setInterval(refreshSnapshot, 250);
     refreshSnapshot();
+    scheduleStreamRetry();
   }
 
   function stopLiveUpdates() {
     clearStreamBootstrapTimeout();
+    clearStreamRetryTimer();
     if (timer) {
       clearInterval(timer);
       timer = null;
@@ -1499,12 +1520,11 @@
     recoveringSession = true;
     try {
       stopLiveUpdates();
-      const session = await api.createSession();
+      const session = await api.createSession({ reuse: true });
       recoveryFailures = 0;
       setStatus(session.status);
-      currentWorld = null;
       startSnapshotStream();
-      log("Sesion recreada.");
+      await refreshSnapshot();
     } catch (err) {
       log(err.message);
       recoveryFailures += 1;

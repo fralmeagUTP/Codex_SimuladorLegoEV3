@@ -139,6 +139,13 @@ def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     monkeypatch.setenv("EV3_WEB_ENABLE_SESSION_CLEANUP_THREAD", "false")
     monkeypatch.setenv("EV3_WEB_ENABLE_SECURITY_HEADERS", "false")
     monkeypatch.setenv("EV3_WEB_SESSION_COOKIE_SECURE", "true")
+    monkeypatch.setenv("EV3_WEB_SESSION_BACKEND", "redis")
+    monkeypatch.setenv("EV3_WEB_REDIS_ENABLED", "true")
+    monkeypatch.setenv("EV3_WEB_REDIS_URL", "redis://127.0.0.1:6379/0")
+    monkeypatch.setenv("EV3_WEB_REDIS_PREFIX", "ev3test")
+    monkeypatch.setenv("EV3_WEB_REDIS_CONNECT_TIMEOUT_S", "0.4")
+    monkeypatch.setenv("EV3_WEB_REDIS_SOCKET_TIMEOUT_S", "0.4")
+    monkeypatch.setenv("EV3_WEB_REDIS_HEALTHCHECK_PING", "true")
 
     app = create_app({"TESTING": True})
 
@@ -151,6 +158,34 @@ def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     assert app.config["ENABLE_SESSION_CLEANUP_THREAD"] is False
     assert app.config["ENABLE_SECURITY_HEADERS"] is False
     assert app.config["SESSION_COOKIE_SECURE"] is True
+    assert app.config["SESSION_BACKEND"] == "redis"
+    assert app.config["REDIS_ENABLED"] is True
+    assert app.config["REDIS_URL"] == "redis://127.0.0.1:6379/0"
+    assert app.config["REDIS_PREFIX"] == "ev3test"
+    assert app.config["REDIS_CONNECT_TIMEOUT_S"] == 0.4
+    assert app.config["REDIS_SOCKET_TIMEOUT_S"] == 0.4
+    assert app.config["REDIS_HEALTHCHECK_PING"] is True
+
+
+def test_healthz_includes_worker_session_and_redis_diagnostics(tmp_path):
+    client = make_client(tmp_path)
+
+    res = client.get("/healthz")
+
+    assert res.status_code == 200
+    payload = res.get_json()
+    assert payload["status"] == "ok"
+    assert str(payload["worker_id"]).startswith("pid-")
+    assert str(payload["worker_pid"]).isdigit()
+    assert payload["session_manager"]["session_backend"] == "memory"
+    assert payload["session_manager"]["is_redis_primary"] is False
+    assert payload["session_manager"]["degraded_to_memory"] is False
+    assert payload["session_manager"]["redis_enabled"] is False
+    assert "metadata_mirror" in payload["session_manager"]
+    assert payload["session_manager"]["metadata_mirror"]["enabled"] is True
+    assert payload["session_manager"]["metadata_mirror"]["driver"] == "file"
+    assert payload["redis"]["backend"] == "memory"
+    assert payload["redis"]["enabled"] is False
 
 
 def test_explicit_config_wins_over_environment(monkeypatch, tmp_path):
@@ -389,6 +424,8 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "api.closeSessionOnUnload()" in js
     assert "recoveryFailures" in js
     assert "setInterval(refreshSnapshot, 250)" in js
+    assert "scheduleStreamRetry()" in js
+    assert "api.createSession({ reuse: true })" in js
     assert "setInterval(refreshSnapshot, 120)" not in js
     assert "api.openSnapshotStream" in js
     assert "STREAM_BOOTSTRAP_TIMEOUT_MS" in js
@@ -404,6 +441,10 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "recoverSession" in api_js
     assert "withSessionPath" in api_js
     assert "MAX_SESSION_RECOVERY_ATTEMPTS = 4" in api_js
+    assert "singleFlight(" in api_js
+    assert "requestWithPolicy(" in api_js
+    assert "TRANSIENT_HTTP_STATUS" in api_js
+    assert "request_id: randomRequestId()" in api_js
     assert "ev3-session-recovered" in api_js
     assert "X-Worker-Id" in api_js
     assert "X-Worker-Pid" in api_js
@@ -978,6 +1019,60 @@ def test_load_script_start_and_snapshot(tmp_path):
     assert snap["snapshot"]["robot"]
 
     client.post(f"/api/sessions/{session['session_id']}/stop", headers=headers)
+
+
+def test_start_endpoint_is_idempotent_per_request_id(tmp_path, monkeypatch):
+    client = make_client(tmp_path)
+    session_data = client.post("/api/sessions").get_json()
+    headers = auth_headers(session_data)
+    sid = session_data["session_id"]
+
+    loaded = client.post(
+        f"/api/sessions/{sid}/script",
+        json={"source": "from pybricks.tools import wait\nwait(200)\n"},
+        headers=headers,
+    )
+    assert loaded.status_code == 200
+
+    manager = client.application.extensions["session_manager"]
+    session = manager.get_session(sid, session_data["owner_token"])
+    original_start = session.start
+    call_count = {"value": 0}
+
+    def counted_start(*, debug=False, step_mode=False):
+        call_count["value"] += 1
+        return original_start(debug=debug, step_mode=step_mode)
+
+    monkeypatch.setattr(session, "start", counted_start)
+    payload = {"request_id": "start-req-001"}
+
+    first = client.post(f"/api/sessions/{sid}/start", json=payload, headers=headers)
+    second = client.post(f"/api/sessions/{sid}/start", json=payload, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.get_json()["status"] == "running"
+    assert second.get_json()["status"] == "running"
+    assert call_count["value"] == 1
+
+    client.post(f"/api/sessions/{sid}/stop", headers=headers)
+
+
+def test_snapshot_endpoint_accepts_post_for_proxy_compatibility(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+
+    snap_response = client.post(
+        f"/api/sessions/{session['session_id']}/snapshot",
+        json={},
+        headers=headers,
+    )
+
+    assert snap_response.status_code == 200
+    assert "no-store" in snap_response.headers.get("Cache-Control", "")
+    snap = snap_response.get_json()
+    assert snap["session_id"] == session["session_id"]
 
 
 def test_pause_does_not_consume_runtime_timeout_budget(tmp_path):

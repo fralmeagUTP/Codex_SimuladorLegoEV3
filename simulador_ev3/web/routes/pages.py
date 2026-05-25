@@ -16,6 +16,7 @@ from flask import (
 
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 from simulador_ev3.web.errors import InvalidPayload
+from simulador_ev3.web.redis_support import redis_runtime_state
 
 
 bp = Blueprint("pages", __name__)
@@ -39,7 +40,16 @@ def help_page():
 @bp.get("/healthz")
 def healthz():
     manager = current_app.extensions["session_manager"]
-    return jsonify({"status": "ok", **manager.stats()})
+    return jsonify(
+        {
+            "status": "ok",
+            "worker_id": current_app.extensions.get("worker_id"),
+            "worker_pid": current_app.extensions.get("worker_pid"),
+            "session_manager": manager.diagnostics(),
+            "redis": redis_runtime_state(current_app.config),
+            **manager.stats(),
+        }
+    )
 
 
 @bp.get("/assets/<name>")
