@@ -171,6 +171,8 @@ def test_security_headers_are_enabled_by_default(tmp_path):
     assert res.headers["Referrer-Policy"] == "same-origin"
     assert "default-src 'self'" in res.headers["Content-Security-Policy"]
     assert "frame-ancestors 'none'" in res.headers["Content-Security-Policy"]
+    assert res.headers["X-Worker-Id"].startswith("pid-")
+    assert res.headers["X-Worker-Pid"].isdigit()
 
 
 def test_security_headers_can_be_disabled(tmp_path):
@@ -180,6 +182,8 @@ def test_security_headers_can_be_disabled(tmp_path):
 
     assert "X-Content-Type-Options" not in res.headers
     assert "Content-Security-Policy" not in res.headers
+    assert res.headers["X-Worker-Id"].startswith("pid-")
+    assert res.headers["X-Worker-Pid"].isdigit()
 
 
 def test_simulation_and_world_editor_pages_are_separate(tmp_path):
@@ -396,6 +400,12 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "loadWorldBtn" not in js
     assert "closeSessionOnUnload" in api_js
     assert "keepalive: true" in api_js
+    assert "SESSION_NOT_FOUND" in api_js
+    assert "recoverSession" in api_js
+    assert "withSessionPath" in api_js
+    assert "X-Worker-Id" in api_js
+    assert "X-Worker-Pid" in api_js
+    assert "lastWorkerInfo" in api_js
 
 
 def test_simulation_canvas_preserves_physical_world_scale(tmp_path):

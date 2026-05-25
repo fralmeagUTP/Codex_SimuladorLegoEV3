@@ -22,6 +22,10 @@ def create_app(config: dict | None = None) -> Flask:
     apply_env_overrides(app.config)
     if config:
         app.config.update(config)
+    worker_id = os.environ.get("EV3_WEB_WORKER_ID") or f"pid-{os.getpid()}"
+    worker_pid = str(os.getpid())
+    app.extensions["worker_id"] = worker_id
+    app.extensions["worker_pid"] = worker_pid
 
     session_manager = SessionManager(app.config)
     app.extensions["session_manager"] = session_manager
@@ -46,22 +50,23 @@ def create_app(config: dict | None = None) -> Flask:
         }
 
     @app.after_request
-    def _security_headers(response):
-        if not app.config.get("ENABLE_SECURITY_HEADERS", True):
-            return response
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "same-origin")
-        response.headers.setdefault(
-            "Content-Security-Policy",
-            "default-src 'self'; "
-            "connect-src 'self'; "
-            "img-src 'self' data:; "
-            "script-src 'self'; "
-            "style-src 'self'; "
-            "base-uri 'self'; "
-            "frame-ancestors 'none'",
-        )
+    def _response_headers(response):
+        response.headers.setdefault("X-Worker-Id", worker_id)
+        response.headers.setdefault("X-Worker-Pid", worker_pid)
+        if app.config.get("ENABLE_SECURITY_HEADERS", True):
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+            response.headers.setdefault("X-Frame-Options", "DENY")
+            response.headers.setdefault("Referrer-Policy", "same-origin")
+            response.headers.setdefault(
+                "Content-Security-Policy",
+                "default-src 'self'; "
+                "connect-src 'self'; "
+                "img-src 'self' data:; "
+                "script-src 'self'; "
+                "style-src 'self'; "
+                "base-uri 'self'; "
+                "frame-ancestors 'none'",
+            )
         return response
 
     @app.errorhandler(WebError)

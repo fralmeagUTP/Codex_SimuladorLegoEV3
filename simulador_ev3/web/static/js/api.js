@@ -1,6 +1,8 @@
 window.EV3Api = (() => {
   let sessionId = null;
   let ownerToken = null;
+  let sessionRecoveryPromise = null;
+  let lastWorkerInfo = null;
 
   const rootData = document.documentElement?.dataset?.ev3BasePath || "";
   const basePath = rootData === "/" ? "" : rootData.replace(/\/+$/, "");
@@ -12,7 +14,12 @@ window.EV3Api = (() => {
     return `${basePath}/${path}`;
   }
 
-  async function request(path, options = {}) {
+  function withSessionPath(path, newSessionId) {
+    if (!path || !newSessionId) return path;
+    return path.replace(/^\/api\/sessions\/[^/]+/i, `/api/sessions/${newSessionId}`);
+  }
+
+  async function rawRequest(path, options = {}) {
     const headers = Object.assign({}, options.headers || {});
     if (!(options.body instanceof FormData)) {
       headers["Content-Type"] = "application/json";
@@ -21,15 +28,59 @@ window.EV3Api = (() => {
       headers["X-Session-Token"] = ownerToken;
     }
     const response = await fetch(resolvePath(path), Object.assign({}, options, { headers }));
+    const workerId = response.headers.get("X-Worker-Id");
+    const workerPid = response.headers.get("X-Worker-Pid");
+    if (workerId || workerPid) {
+      lastWorkerInfo = { workerId: workerId || null, workerPid: workerPid || null };
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message = data.error?.message || `HTTP ${response.status}`;
       const error = new Error(message);
       error.status = response.status;
       error.code = data.error?.code || null;
+      error.workerId = workerId || null;
+      error.workerPid = workerPid || null;
+      if (error.workerId || error.workerPid) {
+        const workerLabel = [
+          error.workerId ? `worker=${error.workerId}` : null,
+          error.workerPid ? `pid=${error.workerPid}` : null,
+        ].filter(Boolean).join(", ");
+        error.message = `${message} [${workerLabel}]`;
+      }
       throw error;
     }
     return data;
+  }
+
+  async function recoverSession() {
+    if (sessionRecoveryPromise) return sessionRecoveryPromise;
+    sessionRecoveryPromise = (async () => {
+      const data = await rawRequest("/api/sessions", {
+        method: "POST",
+        body: JSON.stringify({ reuse: true }),
+      });
+      sessionId = data.session_id;
+      ownerToken = data.owner_token;
+      return data;
+    })();
+    try {
+      return await sessionRecoveryPromise;
+    } finally {
+      sessionRecoveryPromise = null;
+    }
+  }
+
+  async function request(path, options = {}) {
+    try {
+      return await rawRequest(path, options);
+    } catch (error) {
+      const isSessionRoute = /^\/api\/sessions(\/|$)/i.test(path);
+      const canRecover = !isSessionRoute && error?.status === 404 && error?.code === "SESSION_NOT_FOUND";
+      if (!canRecover) throw error;
+      await recoverSession();
+      return await rawRequest(withSessionPath(path, sessionId), options);
+    }
   }
 
   async function createSession(options = {}) {
@@ -73,6 +124,7 @@ window.EV3Api = (() => {
 
   return {
     get sessionId() { return sessionId; },
+    get lastWorkerInfo() { return lastWorkerInfo; },
     createSession,
     closeSession,
     closeSessionOnUnload,
