@@ -423,7 +423,8 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "api.createSession()" in js
     assert "api.closeSessionOnUnload()" in js
     assert "recoveryFailures" in js
-    assert "setInterval(refreshSnapshot, 250)" in js
+    assert "const POLLING_INTERVAL_MS = 700" in js
+    assert "setInterval(refreshSnapshot, POLLING_INTERVAL_MS)" in js
     assert "scheduleStreamRetry()" in js
     assert "api.createSession({ reuse: true })" in js
     assert "setInterval(refreshSnapshot, 120)" not in js
@@ -443,6 +444,8 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "MAX_SESSION_RECOVERY_ATTEMPTS = 4" in api_js
     assert "singleFlight(" in api_js
     assert "requestWithPolicy(" in api_js
+    assert "timeoutMs: 1200" in api_js
+    assert "NETWORK_TIMEOUT" in api_js
     assert "TRANSIENT_HTTP_STATUS" in api_js
     assert "request_id: randomRequestId()" in api_js
     assert "ev3-session-recovered" in api_js

@@ -157,6 +157,7 @@
   let recoveringSession = false;
   let autoResetInProgress = false;
   let suppressStoppedAutoReset = false;
+  let snapshotRequestInFlight = false;
   let recoveryFailures = 0;
   let autocompleteItems = [];
   let autocompleteSelected = 0;
@@ -164,6 +165,10 @@
   let currentScriptName = "editor_actual.py";
   let executionMenuLocked = false;
   const STREAM_BOOTSTRAP_TIMEOUT_MS = 2500;
+  const POLLING_INTERVAL_MS = 700;
+  const STREAM_RETRY_DELAY_MS = 5000;
+  const SNAPSHOT_STALE_MS = 3000;
+  const AUTO_RESET_ON_FINISH = false;
   const MAX_SPEAKER_DURATION_MS = 3000;
   let audioContext = null;
   let audioUnlocked = false;
@@ -300,7 +305,7 @@
     if (currentStatus === "running") {
       suppressStoppedAutoReset = false;
     }
-    if (currentStatus === "stopped" && !autoResetInProgress && !suppressStoppedAutoReset) {
+    if (AUTO_RESET_ON_FINISH && currentStatus === "stopped" && !autoResetInProgress && !suppressStoppedAutoReset) {
       void performStopAndReset({ automatic: true });
     }
     updateControlStates();
@@ -1390,6 +1395,8 @@
 
   async function refreshSnapshot() {
     if (!api.sessionId) return;
+    if (snapshotRequestInFlight) return;
+    snapshotRequestInFlight = true;
     try {
       const data = await api.snapshot();
       setStatus(data.status);
@@ -1409,6 +1416,8 @@
         return;
       }
       log(err.message);
+    } finally {
+      snapshotRequestInFlight = false;
     }
   }
 
@@ -1497,7 +1506,7 @@
       streamRetryTimer = null;
       if (!usingPollingFallback || recoveringSession) return;
       startSnapshotStream();
-    }, 2500);
+    }, STREAM_RETRY_DELAY_MS);
   }
 
   function startPollingFallback() {
@@ -1509,7 +1518,7 @@
       stream = null;
     }
     usingPollingFallback = true;
-    timer = setInterval(refreshSnapshot, 250);
+    timer = setInterval(refreshSnapshot, POLLING_INTERVAL_MS);
     refreshSnapshot();
     scheduleStreamRetry();
   }
@@ -1534,7 +1543,7 @@
       if (recoveringSession || autoResetInProgress) return;
       if (currentStatus !== "running") return;
       const staleMs = Date.now() - lastSnapshotAtMs;
-      if (lastSnapshotAtMs > 0 && staleMs < 2200) return;
+      if (lastSnapshotAtMs > 0 && staleMs < SNAPSHOT_STALE_MS) return;
       if (!usingPollingFallback) {
         startPollingFallback();
       }
