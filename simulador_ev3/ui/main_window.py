@@ -94,6 +94,8 @@ class EV3SimulatorApp(tk.Tk):
         self._hover_robot_pos: Optional[tuple[float, float]] = None
         self._world_editor_window = None
         self._manual_window = None
+        self._about_window = None
+        self._about_images: list[tk.PhotoImage] = []
         self._editor_world_placements: list[dict] = []
         self._debug_active = False
         self._execution_menu_locked = False
@@ -161,7 +163,9 @@ class EV3SimulatorApp(tk.Tk):
         worlds_menu.add_command(label="Cargar mundo JSON...", command=self._cmd_load_world)
         worlds_menu.add_command(label="Editor de mundos...", command=self._cmd_open_world_editor)
         worlds_menu.add_separator()
-        self._populate_worlds_menu(worlds_menu)
+        preset_worlds_menu = tk.Menu(worlds_menu, tearoff=0)
+        self._populate_worlds_menu(preset_worlds_menu)
+        worlds_menu.add_cascade(label="Mundos preestablecidos", menu=preset_worlds_menu)
         menubar.add_cascade(label="Mundos", menu=worlds_menu)
 
         # MenÃº Escenarios (mundo + ejemplo)
@@ -203,7 +207,7 @@ class EV3SimulatorApp(tk.Tk):
             return False
         messagebox.showinfo(
             "Ejecucion en curso",
-            "Opciones de menu bloqueadas durante la ejecucion. Usa Resetear para habilitarlas.",
+            "Opciones de menu bloqueadas durante la ejecucion. Usa Detener y reiniciar para habilitarlas.",
         )
         return True
 
@@ -401,8 +405,7 @@ class EV3SimulatorApp(tk.Tk):
         tk.Button(run_group, text="Ejecutar", command=self._cmd_run_from_editor).pack(side=tk.LEFT, padx=2)
         tk.Button(run_group, text="Pausar", command=self._cmd_pause).pack(side=tk.LEFT, padx=2)
         tk.Button(run_group, text="Reanudar", command=self._cmd_resume).pack(side=tk.LEFT, padx=2)
-        tk.Button(run_group, text="Finalizar", command=self._cmd_stop).pack(side=tk.LEFT, padx=2)
-        tk.Button(run_group, text="Resetear", command=self._cmd_reset).pack(side=tk.LEFT, padx=2)
+        tk.Button(run_group, text="Detener y reiniciar", command=self._cmd_stop_and_reset).pack(side=tk.LEFT, padx=2)
 
         pose_group = tk.Frame(bar, bg="#ECEFF1")
         pose_group.pack(side=tk.RIGHT, anchor="e")
@@ -686,6 +689,13 @@ class EV3SimulatorApp(tk.Tk):
         self._telemetry_panel.reset()
         self._activate_placement_mode()
 
+    def _cmd_stop_and_reset(self) -> None:
+        """Paridad web: detiene la ejecucion actual y reinicia la simulacion."""
+        if self._service.is_running:
+            self._service.stop(reason="manual_stop_and_reset")
+        self._cmd_reset()
+        self._editor.set_status("Ejecucion finalizada. Simulacion reiniciada.", "#2E7D32")
+
     # ------------------------------------------------------------------
     # Comandos de la UI
     # ------------------------------------------------------------------
@@ -846,6 +856,8 @@ class EV3SimulatorApp(tk.Tk):
             self._load_editor_visual_data(path)
             self._refresh_world_canvas()
             self._activate_placement_mode()
+            self._refresh_placement_bar()
+            self._editor.set_status(f"Mundo cargado: {Path(path).name}", "#2E7D32")
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Error al cargar mundo", str(exc))
 
@@ -951,19 +963,153 @@ class EV3SimulatorApp(tk.Tk):
         self._editor_world_placements = parsed
 
     def _cmd_about(self) -> None:
-        messagebox.showinfo(
-            "Acerca de",
+        try:
+            if self._about_window is not None and self._about_window.winfo_exists():
+                self._about_window.lift()
+                self._about_window.focus_force()
+                return
+        except Exception:  # noqa: BLE001
+            self._about_window = None
+
+        win = tk.Toplevel(self)
+        self._about_window = win
+        self._about_images = []
+        win.title("Acerca de")
+        win.geometry("620x560")
+        win.minsize(580, 500)
+        win.configure(bg="#ECEFF1")
+        win.transient(self)
+        win.grab_set()
+
+        header = tk.Frame(win, bg="#F8FBFF", bd=1, relief=tk.SOLID, highlightthickness=0)
+        header.pack(fill=tk.X, padx=12, pady=(12, 0))
+        tk.Label(
+            header,
+            text="Acerca de",
+            bg="#F8FBFF",
+            fg="#1D2D44",
+            font=("Segoe UI", 12, "bold"),
+            anchor="w",
+            padx=10,
+            pady=8,
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True)
+        tk.Button(header, text="X", width=4, command=win.destroy).pack(side=tk.RIGHT, padx=8, pady=6)
+
+        body = tk.Frame(win, bg="#F8FBFF", bd=1, relief=tk.SOLID, highlightthickness=0)
+        body.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+
+        intro = (
             "Simulador LEGO Mindstorms EV3 basado en la libreria Pybricks\n"
             "Version 1.3.4\n\n"
             "Desarrollado por:\n"
             "  - Francisco Alejandro Medina Aguirre\n"
             "  - Jimy Alexander Cortés Osorio\n\n"
-            "Grupos de investigacion vinculados:\n"
-            "  - Nyquist\n"
-            "  - Robotica Aplicada\n\n"
-            "Institucion de apoyo academico:\n"
-            "  - Universidad Tecnologica de Pereira (UTP)\n",
+            "Aliados academicos:\n"
+            "  - Grupo Nyquist\n"
+            "  - Robotica Aplicada\n"
+            "  - Universidad Tecnologica de Pereira (UTP)\n"
         )
+        tk.Label(
+            body,
+            text=intro,
+            justify=tk.LEFT,
+            anchor="w",
+            bg="#F8FBFF",
+            fg="#21344D",
+            font=("Segoe UI", 10),
+            padx=10,
+            pady=10,
+        ).pack(fill=tk.X)
+
+        cards = tk.Frame(body, bg="#F8FBFF")
+        cards.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+
+        self._add_about_group_card(
+            cards,
+            "simulador_ev3/assets/Logo_Nyquist.jpg",
+            "Grupo Nyquist",
+            "Lineas UTP: analisis y procesamiento de senales 1D/2D, comunicaciones inalambricas, "
+            "procesamiento digital de senales, protocolos y redes de comunicacion, seguridad TIC y educacion.",
+        )
+        self._add_about_group_card(
+            cards,
+            "simulador_ev3/assets/Logo_Robotica_Aplicada.jpg",
+            "Robotica Aplicada",
+            "Lineas UTP: instrumentacion electronica y transmision de datos, instrumentacion fisica y simulacion "
+            "de procesos industriales, reconocimiento de voz, tratamiento de senales y vision artificial.",
+        )
+        self._add_about_group_card(
+            cards,
+            "simulador_ev3/assets/utp_logo.png",
+            "Universidad Tecnologica de Pereira",
+            "Institucion academica de apoyo al proyecto en formacion e investigacion aplicada.",
+        )
+
+        footer = tk.Frame(body, bg="#F8FBFF")
+        footer.pack(fill=tk.X, padx=10, pady=(0, 10))
+        tk.Button(footer, text="Aceptar", width=12, command=win.destroy).pack(side=tk.RIGHT)
+
+    def _add_about_group_card(self, parent: tk.Widget, image_rel_path: str, title: str, desc: str) -> None:
+        card = tk.Frame(parent, bg="#FFFFFF", bd=1, relief=tk.SOLID, highlightthickness=0)
+        card.pack(fill=tk.X, pady=5)
+
+        icon_box = tk.Frame(card, bg="#FFFFFF")
+        icon_box.pack(side=tk.LEFT, padx=8, pady=8)
+
+        image_path = Path(image_rel_path)
+        logo = self._load_about_logo(image_path, 52, 52)
+        if logo is not None:
+            self._about_images.append(logo)
+            tk.Label(icon_box, image=logo, bg="#FFFFFF").pack()
+        else:
+            tk.Label(
+                icon_box,
+                text="Logo",
+                width=6,
+                height=3,
+                bg="#E6ECF3",
+                fg="#35506F",
+                font=("Segoe UI", 9, "bold"),
+            ).pack()
+
+        text_box = tk.Frame(card, bg="#FFFFFF")
+        text_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8), pady=8)
+        tk.Label(
+            text_box,
+            text=title,
+            bg="#FFFFFF",
+            fg="#102A45",
+            font=("Segoe UI", 10, "bold"),
+            anchor="w",
+            justify=tk.LEFT,
+        ).pack(fill=tk.X)
+        tk.Label(
+            text_box,
+            text=desc,
+            bg="#FFFFFF",
+            fg="#2D425C",
+            font=("Segoe UI", 9),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=470,
+        ).pack(fill=tk.X, pady=(2, 0))
+
+    @staticmethod
+    def _load_about_logo(path: Path, target_w: int, target_h: int) -> tk.PhotoImage | None:
+        try:
+            resolved = path if path.is_absolute() else (Path(__file__).resolve().parents[2] / path)
+            if not resolved.exists():
+                return None
+            image = tk.PhotoImage(file=str(resolved))
+            w = max(1, image.width())
+            h = max(1, image.height())
+            scale = max(w / max(1, target_w), h / max(1, target_h), 1)
+            factor = int(scale)
+            if factor > 1:
+                image = image.subsample(factor, factor)
+            return image
+        except Exception:  # noqa: BLE001
+            return None
 
     def _cmd_user_manual(self) -> None:
         """Abre el manual de uso en una ventana con scroll."""
