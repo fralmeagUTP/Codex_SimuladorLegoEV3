@@ -361,10 +361,18 @@ dd {
   min-height: 90px;
   border: 2px solid #667;
   background: #dbe8d4;
-  color: #111;
-  font-family: Consolas, monospace;
   padding: 8px;
-  white-space: pre-wrap;
+  overflow: auto;
+}
+
+.brick-screen-canvas {
+  display: block;
+  width: 100%;
+  max-width: 356px;
+  aspect-ratio: 178 / 128;
+  margin: 0 auto;
+  background: #dbe8d4;
+  image-rendering: pixelated;
 }
 
 .menu-bar {
@@ -460,6 +468,25 @@ dd {
 .menu-empty {
   display: block;
   color: #64748b;
+}
+
+.menu-subgroup {
+  border-top: 1px solid #c7d2de;
+}
+
+.menu-subtoggle {
+  width: 100%;
+  text-align: left;
+  font-weight: 600;
+}
+
+.menu-sublist {
+  display: flex;
+  flex-direction: column;
+}
+
+.menu-sublist button {
+  padding-left: 18px;
 }
 
 .menu-bar a {
@@ -1736,6 +1763,10 @@ html[data-theme="dark"] .menu-empty {
   color: #9eb4d0;
 }
 
+html[data-theme="dark"] .menu-subgroup {
+  border-top-color: #2f4666;
+}
+
 html[data-theme="dark"] .app-brand,
 html[data-theme="dark"] .brand-mark {
   color: #d7e6ff;
@@ -1839,6 +1870,20 @@ html[data-theme="dark"] .asset-properties-form button {
 
 html[data-theme="dark"] .telemetry-state {
   color: #4dd082;
+}
+
+html[data-theme="dark"] .sim-telemetry-pane dd,
+html[data-theme="dark"] .sim-telemetry-pane #motors,
+html[data-theme="dark"] .sim-telemetry-pane #sensors,
+html[data-theme="dark"] .telemetry-mini-list dd,
+html[data-theme="dark"] .motor-metrics,
+html[data-theme="dark"] .sensor-type {
+  color: #e6eefb;
+}
+
+html[data-theme="dark"] .telemetry-mini-list dt,
+html[data-theme="dark"] .motor-metrics b {
+  color: #a8bfdc;
 }
 
 html[data-theme="dark"] .selection-readout,

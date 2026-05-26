@@ -187,6 +187,7 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
     screen_raw = brick_dict.get("screen")
     screen_out = {
         "lines": [],
+        "draw_ops": [],
         "width_px": 178,
         "height_px": 128,
         "width_mm": 36.0,
@@ -197,6 +198,9 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
     }
     if isinstance(screen_raw, dict):
         screen_out["lines"] = [str(ln) for ln in screen_raw.get("lines", [])]
+        screen_out["draw_ops"] = [
+            dict(op) for op in screen_raw.get("draw_ops", []) if isinstance(op, dict)
+        ]
         for key in (
             "width_px",
             "height_px",

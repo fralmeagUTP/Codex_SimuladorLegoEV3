@@ -25,22 +25,37 @@ def main():
     ev3.screen.clear()
     ev3.screen.print("17: gyro rumbo")
 
-    gyro.reset_angle(0)
-    timer = StopWatch()
-    kp = 2.0
-    next_report_ms = 0
+    def ciclo_correccion(ciclo: int, desvio_turn_rate: float) -> None:
+        # 1) Provocamos una desviacion visible para que la correccion se note.
+        ev3.screen.print("Desvio", ciclo)
+        robot.drive(140, desvio_turn_rate)
+        wait(1200)
+        robot.stop()
+        wait(200)
 
-    # Avanza intentando mantener heading 0 deg.
-    while timer.time() < 6000:
-        error_deg = gyro.angle()
-        turn_rate = -kp * error_deg
-        robot.drive(140, turn_rate)
+        # 2) Corregimos rumbo usando el desvio acumulado como error inicial.
+        timer = StopWatch()
+        kp = 3.0
+        next_report_ms = 0
 
-        if timer.time() >= next_report_ms:
-            ev3.screen.print("ang", gyro.angle(), "spd", gyro.speed())
-            next_report_ms += 1200
+        ev3.screen.print("Corrigiendo", ciclo)
+        ev3.screen.print("ang_ini", gyro.angle())
+        while timer.time() < 4000:
+            error_deg = gyro.angle()
+            turn_rate = -kp * error_deg
+            robot.drive(140, turn_rate)
 
-        wait(20)
+            if timer.time() >= next_report_ms:
+                ev3.screen.print("ang", gyro.angle(), "corr", int(turn_rate))
+                next_report_ms += 1000
+
+            wait(20)
+
+        robot.stop()
+        wait(300)
+
+    ciclo_correccion(1, 70)
+    ciclo_correccion(2, -70)
 
     robot.stop()
     ev3.screen.print("Reset y giro")

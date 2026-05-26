@@ -50,12 +50,10 @@ _WORLDS_DIR = resolve_worlds_dir()
 _MANUAL_PATH = resolve_manual_path()
 
 _SCENARIOS: list[tuple[str, str, str]] = [
-    ("Seguidor de línea", "01_linea_negra.json", "11_siguelineas_basico.py"),
-    ("Ultrasonido + obstáculos", "02_obstaculos_beacon.json", "15_esquiva_obstaculos.py"),
-    ("Test pantalla/altavoz", "02_obstaculos_beacon.json", "02_intro_pantalla_altavoz.py"),
-    ("Gyro: corrección de rumbo", "03_gyro_rumbo.json", "17_gyro_correccion_rumbo.py"),
-    ("IR beacon: seguimiento", "04_beacon_ir.json", "18_infrarrojo_beacon_seguidor.py"),
-    ("DriveBase curva y estado", "05_curvas_estado.json", "21_drivebase_curva_estado.py"),
+    ("Seguidor de línea", "01_linea_negra_basica.json", "11_siguelineas_basico.py"),
+    ("Ultrasonido + obstáculos", "05_obstaculos_baliza_ir.json", "15_esquiva_obstaculos.py"),
+    ("Test pantalla/altavoz", "05_obstaculos_baliza_ir.json", "02_intro_pantalla_altavoz.py"),
+    ("Radar 360 ultrasonido", "12_radar_ultrasonido_360.json", "23_radar_ultrasonido_5grados.py"),
 ]
 
 # Periodo del tick en ms (â‰ˆ50 Hz)
@@ -1050,4 +1048,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

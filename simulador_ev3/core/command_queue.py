@@ -56,6 +56,10 @@ class CommandType(Enum):
     # Ladrillo EV3 — Pantalla
     DISPLAY_TEXT      = auto()   # screen.print(text)      — no bloqueante
     SCREEN_CLEAR      = auto()   # screen.clear()          — no bloqueante
+    SCREEN_PIXEL      = auto()   # screen.draw_pixel(x,y)
+    SCREEN_LINE       = auto()   # screen.draw_line(x1,y1,x2,y2)
+    SCREEN_CIRCLE     = auto()   # screen.draw_circle(x,y,r)
+    SCREEN_BOX        = auto()   # screen.draw_box(x,y,w,h)
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +191,79 @@ class SimulationCommand:
     @classmethod
     def screen_clear(cls) -> "SimulationCommand":
         return cls(CommandType.SCREEN_CLEAR, blocking=False)
+
+    @classmethod
+    def screen_pixel(cls, x: int, y: int, color: int = 1) -> "SimulationCommand":
+        return cls(
+            CommandType.SCREEN_PIXEL,
+            params={"x": int(x), "y": int(y), "color": int(color)},
+            blocking=False,
+        )
+
+    @classmethod
+    def screen_line(
+        cls,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        color: int = 1,
+    ) -> "SimulationCommand":
+        return cls(
+            CommandType.SCREEN_LINE,
+            params={
+                "x1": int(x1),
+                "y1": int(y1),
+                "x2": int(x2),
+                "y2": int(y2),
+                "color": int(color),
+            },
+            blocking=False,
+        )
+
+    @classmethod
+    def screen_circle(
+        cls,
+        x: int,
+        y: int,
+        r: int,
+        color: int = 1,
+        fill: bool = False,
+    ) -> "SimulationCommand":
+        return cls(
+            CommandType.SCREEN_CIRCLE,
+            params={
+                "x": int(x),
+                "y": int(y),
+                "r": int(r),
+                "color": int(color),
+                "fill": bool(fill),
+            },
+            blocking=False,
+        )
+
+    @classmethod
+    def screen_box(
+        cls,
+        x: int,
+        y: int,
+        w: int,
+        h: int,
+        color: int = 1,
+        fill: bool = False,
+    ) -> "SimulationCommand":
+        return cls(
+            CommandType.SCREEN_BOX,
+            params={
+                "x": int(x),
+                "y": int(y),
+                "w": int(w),
+                "h": int(h),
+                "color": int(color),
+                "fill": bool(fill),
+            },
+            blocking=False,
+        )
 
     def signal_done(self) -> None:
         """El Engine llama a este método cuando el comando bloqueante termina."""

@@ -28,7 +28,7 @@ Esta guia propone un orden didactico para usar los ejemplos del simulador.
 3. `13_colision_controlada.py`: prueba controlada de impacto.
 4. `14_navegacion_hasta_pared.py`: navegacion por condicion de distancia.
 5. `15_esquiva_obstaculos.py`: comportamiento evasivo.
-6. `16_resolver_laberinto.py`: prioridad de eventos en entorno cerrado.
+6. `16_resolver_laberinto.py`: resolver laberinto con regla de mano derecha mejorada (sondeo lateral, anti-oscilacion y recuperacion de atascos).
 
 ## Etapa 5 - Funciones avanzadas soportadas por el emulador
 
@@ -41,9 +41,8 @@ Esta guia propone un orden didactico para usar los ejemplos del simulador.
 
 ## Mundos sugeridos
 
-1. `01_linea_negra.json`: ideal para color y siguelineas.
-2. `02_obstaculos_beacon.json`: obstaculos generales y pruebas de reaccion.
-3. `03_gyro_rumbo.json`: pasillo para giro y rumbo con gyro.
-4. `04_beacon_ir.json`: seguimiento de beacon infrarrojo.
-5. `05_curvas_estado.json`: pruebas de curvas y odometria.
-
+1. `01_linea_negra_basica.json`: ideal para color y siguelineas.
+2. `05_obstaculos_baliza_ir.json`: obstaculos generales y pruebas de reaccion.
+3. `06_pasillo_gyro_rumbo.json`: pasillo para giro y rumbo con gyro.
+4. `07_laberinto_v1.json`: primer laberinto para navegacion reactiva.
+5. `12_radar_ultrasonido_360.json`: mundo recomendado para el radar 360.

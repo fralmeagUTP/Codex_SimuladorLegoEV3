@@ -10,23 +10,19 @@
     },
     "obstacles": [
       {
-        "name": "bloque_central",
-        "vertices": [[900, 700], [1100, 700], [1100, 1300], [900, 1300]]
+        "name": "bloque_superior",
+        "vertices": [[900, 250], [1100, 250], [1100, 450], [900, 450]]
       },
       {
-        "name": "bloque_superior_izq",
-        "vertices": [[300, 250], [500, 250], [500, 450], [300, 450]]
-      },
-      {
-        "name": "bloque_inferior_der",
-        "vertices": [[1500, 1450], [1700, 1450], [1700, 1650], [1500, 1650]]
+        "name": "bloque_inferior",
+        "vertices": [[900, 1450], [1100, 1450], [1100, 1650], [900, 1650]]
       }
     ],
     "beacons": [
       {
         "name": "beacon_objetivo",
         "x_mm": 1700.0,
-        "y_mm": 300.0,
+        "y_mm": 1000.0,
         "channel": 1
       }
     ]
@@ -37,12 +33,9 @@
     "world_width_cells": 20,
     "world_height_cells": 20,
     "placements": [
-      {"id": "wall_0001", "asset_key": "wall_64x64_b", "x": 288, "y": 224, "rotation": 0},
-      {"id": "wall_0002", "asset_key": "wall_64x64_b", "x": 288, "y": 288, "rotation": 0},
-      {"id": "wall_0003", "asset_key": "wall_64x64_b", "x": 288, "y": 352, "rotation": 0},
-
-      {"id": "wall_0004", "asset_key": "wall_64x64_a", "x": 96, "y": 96, "rotation": 0},
-      {"id": "wall_0005", "asset_key": "wall_64x64_c", "x": 480, "y": 448, "rotation": 0}
+      {"id": "wall_0001", "asset_key": "wall_64x64_b", "x": 288, "y": 64, "rotation": 0},
+      {"id": "wall_0002", "asset_key": "wall_64x64_b", "x": 288, "y": 448, "rotation": 0},
+      {"id": "robot_0001", "asset_key": "robot_ev3_32x32", "x": 32, "y": 288, "rotation": 0}
     ]
   }
 }

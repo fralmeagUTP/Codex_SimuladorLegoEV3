@@ -61,33 +61,23 @@
   const scenarios = {
     line: {
       label: "Seguidor de linea",
-      world: "01_linea_negra.json",
+      world: "01_linea_negra_basica.json",
       example: "11_siguelineas_basico.py",
     },
     ultrasonic: {
       label: "Ultrasonido + obstaculos",
-      world: "02_obstaculos_beacon.json",
+      world: "05_obstaculos_baliza_ir.json",
       example: "15_esquiva_obstaculos.py",
     },
     brick: {
       label: "Test pantalla/altavoz",
-      world: "02_obstaculos_beacon.json",
+      world: "05_obstaculos_baliza_ir.json",
       example: "02_intro_pantalla_altavoz.py",
     },
-    gyro: {
-      label: "Gyro: correccion de rumbo",
-      world: "03_gyro_rumbo.json",
-      example: "17_gyro_correccion_rumbo.py",
-    },
-    beacon: {
-      label: "IR beacon: seguimiento",
-      world: "04_beacon_ir.json",
-      example: "18_infrarrojo_beacon_seguidor.py",
-    },
-    curve: {
-      label: "DriveBase curva y estado",
-      world: "05_curvas_estado.json",
-      example: "21_drivebase_curva_estado.py",
+    radar: {
+      label: "Radar 360 ultrasonido",
+      world: "12_radar_ultrasonido_360.json",
+      example: "23_radar_ultrasonido_5grados.py",
     },
   };
   const autocompleteWords = [
@@ -168,7 +158,7 @@
   const POLLING_INTERVAL_MS = 700;
   const STREAM_RETRY_DELAY_MS = 5000;
   const SNAPSHOT_STALE_MS = 3000;
-  const AUTO_RESET_ON_FINISH = false;
+  const AUTO_RESET_ON_FINISH = true;
   const MAX_SPEAKER_DURATION_MS = 3000;
   let audioContext = null;
   let audioUnlocked = false;
@@ -712,8 +702,8 @@
   function sensorUnit(key) {
     return {
       distance_mm: " cm",
-      angle: " Â°",
-      speed: " Â°/s",
+      angle: " °",
+      speed: " °/s",
     }[key] || "";
   }
 
@@ -730,7 +720,7 @@
       : null;
     const normalizedText = normalizedAngle === null
       ? "--"
-      : `${formatTelemetryNumber(normalizedAngle)} Â°`;
+      : `${formatTelemetryNumber(normalizedAngle)} °`;
     return `
       <article class="telemetry-card motor-card">
         <div class="telemetry-card-title">
@@ -738,8 +728,8 @@
           <span class="telemetry-state">${state}</span>
         </div>
         <div class="motor-metrics">
-          <span><b>Vel.</b> ${formatTelemetryNumber(motor.speed)} Â°/s</span>
-          <span><b>Angulo</b> ${formatTelemetryNumber(motor.angle)} Â°</span>
+          <span><b>Vel.</b> ${formatTelemetryNumber(motor.speed)} °/s</span>
+          <span><b>Angulo</b> ${formatTelemetryNumber(motor.angle)} °</span>
           <span><b>Angulo 0-360</b> ${normalizedText}</span>
         </div>
       </article>
@@ -1360,15 +1350,44 @@
       if (worldFileInput) worldFileInput.value = "";
       worldFileInput?.click();
     }));
+
+    const presetsGroup = document.createElement("div");
+    presetsGroup.className = "menu-subgroup";
+    const presetsToggle = document.createElement("button");
+    presetsToggle.type = "button";
+    presetsToggle.className = "menu-subtoggle";
+    presetsToggle.setAttribute("aria-expanded", "false");
+    presetsToggle.textContent = "Mundos preestablecidos ▸";
+
+    const presetsList = document.createElement("div");
+    presetsList.className = "menu-sublist hidden";
+
+    presetsToggle.addEventListener("click", () => {
+      const expanded = !presetsList.classList.contains("hidden");
+      if (expanded) {
+        presetsList.classList.add("hidden");
+        presetsToggle.setAttribute("aria-expanded", "false");
+        presetsToggle.textContent = "Mundos preestablecidos ▸";
+      } else {
+        presetsList.classList.remove("hidden");
+        presetsToggle.setAttribute("aria-expanded", "true");
+        presetsToggle.textContent = "Mundos preestablecidos ▾";
+      }
+    });
+
     for (const item of data.worlds) {
-      worldsMenu.appendChild(menuButton(item.name, () => loadWorldByName(item.name)));
+      presetsList.appendChild(menuButton(item.name, () => loadWorldByName(item.name)));
     }
     if (!data.worlds.length) {
       const empty = document.createElement("span");
       empty.className = "menu-empty";
       empty.textContent = "No hay mundos";
-      worldsMenu.appendChild(empty);
+      presetsList.appendChild(empty);
     }
+
+    presetsGroup.appendChild(presetsToggle);
+    presetsGroup.appendChild(presetsList);
+    worldsMenu.appendChild(presetsGroup);
   }
 
   function menuButton(label, action) {
@@ -1391,6 +1410,23 @@
       return;
     }
     await loadWorldByName(worldName);
+  }
+
+  function robotStartFromLoadedWorld(world) {
+    const spec = world?.editor_spec;
+    const placements = Array.isArray(spec?.placements) ? spec.placements : [];
+    const robotPlacement = placements.find((item) => String(item?.asset_key || "").includes("robot")) || null;
+    if (!robotPlacement) return null;
+    const gridSizePx = Number(spec?.grid_size_px || 32);
+    const mmPerPx = 100 / Math.max(1, gridSizePx);
+    const xPx = Number(robotPlacement.x ?? robotPlacement.x_px ?? 0);
+    const yPx = Number(robotPlacement.y ?? robotPlacement.y_px ?? 0);
+    const thetaDeg = Number(robotPlacement.rotation ?? robotPlacement.theta_deg ?? 0);
+    return {
+      x_mm: xPx * mmPerPx + 50,
+      y_mm: yPx * mmPerPx + 50,
+      theta_deg: ((thetaDeg % 360) + 360) % 360,
+    };
   }
 
   async function refreshSnapshot() {
@@ -1632,7 +1668,7 @@
       <dt>Tiempo</dt><dd>${snapshot.sim_time_s}s</dd>
       <dt>X</dt><dd>${formatDistanceCm(robot.x_mm, 1)} cm</dd>
       <dt>Y</dt><dd>${formatDistanceCm(robot.y_mm, 1)} cm</dd>
-      <dt>Theta</dt><dd>${formatTelemetryNumber(robot.theta_deg)} Â°</dd>
+      <dt>Theta</dt><dd>${formatTelemetryNumber(robot.theta_deg)} °</dd>
       <dt>Colision</dt><dd>${snapshot.colliding ? "si" : "no"}</dd>
     `;
     const motors = document.getElementById("motors");
@@ -1647,6 +1683,72 @@
       : '<p class="telemetry-empty">Sin sensores</p>';
   }
 
+  function renderScreenCanvas(canvas, screenData) {
+    if (!(canvas instanceof HTMLCanvasElement)) return;
+
+    const widthPx = Math.max(1, Number(screenData?.width_px || 178));
+    const heightPx = Math.max(1, Number(screenData?.height_px || 128));
+    const lines = Array.isArray(screenData?.lines) ? screenData.lines.map((ln) => String(ln)) : [];
+    const drawOps = Array.isArray(screenData?.draw_ops) ? screenData.draw_ops : [];
+
+    if (canvas.width !== widthPx) canvas.width = widthPx;
+    if (canvas.height !== heightPx) canvas.height = heightPx;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.save();
+    ctx.clearRect(0, 0, widthPx, heightPx);
+    ctx.fillStyle = "#dbe8d4";
+    ctx.fillRect(0, 0, widthPx, heightPx);
+
+    ctx.strokeStyle = "#cfd9bf";
+    ctx.lineWidth = 1;
+    for (let y = 0; y < heightPx; y += 3) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(widthPx, y + 0.5);
+      ctx.stroke();
+    }
+
+    for (const op of drawOps) {
+      const kind = String(op?.op || "").toLowerCase();
+      const color = Number(op?.color ?? 1) ? "#111111" : "#dbe8d4";
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 1;
+
+      if (kind === "pixel") {
+        ctx.fillRect(Number(op.x) || 0, Number(op.y) || 0, 1, 1);
+      } else if (kind === "line") {
+        ctx.beginPath();
+        ctx.moveTo((Number(op.x1) || 0) + 0.5, (Number(op.y1) || 0) + 0.5);
+        ctx.lineTo((Number(op.x2) || 0) + 0.5, (Number(op.y2) || 0) + 0.5);
+        ctx.stroke();
+      } else if (kind === "circle") {
+        ctx.beginPath();
+        ctx.arc(Number(op.x) || 0, Number(op.y) || 0, Math.max(0, Number(op.r) || 0), 0, Math.PI * 2);
+        if (op.fill) ctx.fill();
+        else ctx.stroke();
+      } else if (kind === "box") {
+        const x = Number(op.x) || 0;
+        const y = Number(op.y) || 0;
+        const w = Math.max(0, Number(op.w) || 0);
+        const h = Math.max(0, Number(op.h) || 0);
+        if (op.fill) ctx.fillRect(x, y, w, h);
+        else ctx.strokeRect(x + 0.5, y + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
+      }
+    }
+
+    ctx.fillStyle = "#111111";
+    ctx.font = "12px 'Courier New', monospace";
+    ctx.textBaseline = "top";
+    for (let i = 0; i < lines.length && i < 8; i += 1) {
+      ctx.fillText(lines[i], 4, 4 + (i * 14));
+    }
+    ctx.restore();
+  }
+
   function updateBrick(snapshot) {
     if (!snapshot?.brick) return;
     const led = document.getElementById("led");
@@ -1658,8 +1760,11 @@
     }[snapshot.brick.led] || "#c9ced6";
     const ledText = document.getElementById("ledText");
     if (ledText) ledText.textContent = snapshot.brick.led || "Apagado";
-    const lines = snapshot.brick.screen?.lines || [];
-    document.getElementById("screen").textContent = lines.join("\n");
+    const screenCanvas = document.getElementById("screen");
+    if (screenCanvas instanceof HTMLCanvasElement) {
+      const screenData = snapshot.brick.screen || {};
+      renderScreenCanvas(screenCanvas, screenData);
+    }
     const speaker = snapshot.brick.speaker;
     const speakerEl = document.getElementById("speaker");
     if (!speakerEl) return;
@@ -1802,11 +1907,14 @@
     if (guardMenuAction()) return;
     try {
       const data = await api.loadWorld(name);
-      currentWorld = data.world;
+      currentWorld = data.world || currentWorld;
       if (statusWorld) statusWorld.textContent = name;
-      robotStart = null;
-      showRobotStartMarker = false;
+      robotStart = robotStartFromLoadedWorld(currentWorld);
+      robotStartPreview = null;
+      showRobotStartMarker = Boolean(robotStart);
       updateRobotStartReadout();
+      await refreshSnapshot();
+      redrawCanvas();
       log("");
     } catch (err) {
       log(err.message);
@@ -1858,7 +1966,7 @@
     }
     robotStartReadout.textContent =
       `X ${formatDistanceCm(pose.x_mm, 1)} cm, Y ${formatDistanceCm(pose.y_mm, 1)} cm, ` +
-      `theta ${pose.theta_deg.toFixed(0)} Â°`;
+      `theta ${pose.theta_deg.toFixed(0)} °`;
   }
 
   async function applyRobotStart(point) {

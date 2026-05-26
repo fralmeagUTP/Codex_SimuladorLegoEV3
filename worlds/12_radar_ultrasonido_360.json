@@ -1,0 +1,929 @@
+{
+  "version": 1,
+  "world": {
+    "width_mm": 4000.0,
+    "height_mm": 4000.0,
+    "surface": {
+      "cell_size_mm": 12.5,
+      "default_color": "WHITE",
+      "cells": []
+    },
+    "obstacles": [
+      {
+        "name": "wall:wall_64x64_b:wall_0002",
+        "vertices": [
+          [
+            1900.0,
+            600.0
+          ],
+          [
+            2100.0,
+            600.0
+          ],
+          [
+            2100.0,
+            800.0
+          ],
+          [
+            1900.0,
+            800.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0003",
+        "vertices": [
+          [
+            1700.0,
+            800.0
+          ],
+          [
+            1900.0,
+            800.0
+          ],
+          [
+            1900.0,
+            1000.0
+          ],
+          [
+            1700.0,
+            1000.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0020",
+        "vertices": [
+          [
+            2100.0,
+            800.0
+          ],
+          [
+            2300.0,
+            800.0
+          ],
+          [
+            2300.0,
+            1000.0
+          ],
+          [
+            2100.0,
+            1000.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0004",
+        "vertices": [
+          [
+            1500.0,
+            1000.0
+          ],
+          [
+            1700.0,
+            1000.0
+          ],
+          [
+            1700.0,
+            1200.0
+          ],
+          [
+            1500.0,
+            1200.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0021",
+        "vertices": [
+          [
+            2300.0,
+            1000.0
+          ],
+          [
+            2500.0,
+            1000.0
+          ],
+          [
+            2500.0,
+            1200.0
+          ],
+          [
+            2300.0,
+            1200.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0005",
+        "vertices": [
+          [
+            1300.0,
+            1200.0
+          ],
+          [
+            1500.0,
+            1200.0
+          ],
+          [
+            1500.0,
+            1400.0
+          ],
+          [
+            1300.0,
+            1400.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0022",
+        "vertices": [
+          [
+            2500.0,
+            1200.0
+          ],
+          [
+            2700.0,
+            1200.0
+          ],
+          [
+            2700.0,
+            1400.0
+          ],
+          [
+            2500.0,
+            1400.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0006",
+        "vertices": [
+          [
+            1100.0,
+            1400.0
+          ],
+          [
+            1300.0,
+            1400.0
+          ],
+          [
+            1300.0,
+            1600.0
+          ],
+          [
+            1100.0,
+            1600.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0023",
+        "vertices": [
+          [
+            2700.0,
+            1400.0
+          ],
+          [
+            2900.0,
+            1400.0
+          ],
+          [
+            2900.0,
+            1600.0
+          ],
+          [
+            2700.0,
+            1600.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0007",
+        "vertices": [
+          [
+            900.0,
+            1600.0
+          ],
+          [
+            1100.0,
+            1600.0
+          ],
+          [
+            1100.0,
+            1800.0
+          ],
+          [
+            900.0,
+            1800.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0024",
+        "vertices": [
+          [
+            2900.0,
+            1600.0
+          ],
+          [
+            3100.0,
+            1600.0
+          ],
+          [
+            3100.0,
+            1800.0
+          ],
+          [
+            2900.0,
+            1800.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0008",
+        "vertices": [
+          [
+            700.0,
+            1800.0
+          ],
+          [
+            900.0,
+            1800.0
+          ],
+          [
+            900.0,
+            2000.0
+          ],
+          [
+            700.0,
+            2000.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0025",
+        "vertices": [
+          [
+            3100.0,
+            1800.0
+          ],
+          [
+            3300.0,
+            1800.0
+          ],
+          [
+            3300.0,
+            2000.0
+          ],
+          [
+            3100.0,
+            2000.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0009",
+        "vertices": [
+          [
+            900.0,
+            2000.0
+          ],
+          [
+            1100.0,
+            2000.0
+          ],
+          [
+            1100.0,
+            2200.0
+          ],
+          [
+            900.0,
+            2200.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0019",
+        "vertices": [
+          [
+            2900.0,
+            2000.0
+          ],
+          [
+            3100.0,
+            2000.0
+          ],
+          [
+            3100.0,
+            2200.0
+          ],
+          [
+            2900.0,
+            2200.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0010",
+        "vertices": [
+          [
+            1100.0,
+            2200.0
+          ],
+          [
+            1300.0,
+            2200.0
+          ],
+          [
+            1300.0,
+            2400.0
+          ],
+          [
+            1100.0,
+            2400.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0018",
+        "vertices": [
+          [
+            2700.0,
+            2200.0
+          ],
+          [
+            2900.0,
+            2200.0
+          ],
+          [
+            2900.0,
+            2400.0
+          ],
+          [
+            2700.0,
+            2400.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0011",
+        "vertices": [
+          [
+            1300.0,
+            2400.0
+          ],
+          [
+            1500.0,
+            2400.0
+          ],
+          [
+            1500.0,
+            2600.0
+          ],
+          [
+            1300.0,
+            2600.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0017",
+        "vertices": [
+          [
+            2500.0,
+            2400.0
+          ],
+          [
+            2700.0,
+            2400.0
+          ],
+          [
+            2700.0,
+            2600.0
+          ],
+          [
+            2500.0,
+            2600.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0012",
+        "vertices": [
+          [
+            1500.0,
+            2600.0
+          ],
+          [
+            1700.0,
+            2600.0
+          ],
+          [
+            1700.0,
+            2800.0
+          ],
+          [
+            1500.0,
+            2800.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0016",
+        "vertices": [
+          [
+            2300.0,
+            2600.0
+          ],
+          [
+            2500.0,
+            2600.0
+          ],
+          [
+            2500.0,
+            2800.0
+          ],
+          [
+            2300.0,
+            2800.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0013",
+        "vertices": [
+          [
+            1700.0,
+            2800.0
+          ],
+          [
+            1900.0,
+            2800.0
+          ],
+          [
+            1900.0,
+            3000.0
+          ],
+          [
+            1700.0,
+            3000.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0015",
+        "vertices": [
+          [
+            2100.0,
+            2800.0
+          ],
+          [
+            2300.0,
+            2800.0
+          ],
+          [
+            2300.0,
+            3000.0
+          ],
+          [
+            2100.0,
+            3000.0
+          ]
+        ]
+      },
+      {
+        "name": "wall:wall_64x64_b:wall_0014",
+        "vertices": [
+          [
+            1900.0,
+            3000.0
+          ],
+          [
+            2100.0,
+            3000.0
+          ],
+          [
+            2100.0,
+            3200.0
+          ],
+          [
+            1900.0,
+            3200.0
+          ]
+        ]
+      }
+    ],
+    "beacons": []
+  },
+  "editor_objects": {
+    "world": {
+      "width_mm": 4000.0,
+      "height_mm": 4000.0
+    },
+    "walls": [
+      {
+        "id": "wall_0002",
+        "type": "wall",
+        "x_mm": 1900.0,
+        "y_mm": 600.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0003",
+        "type": "wall",
+        "x_mm": 1700.0,
+        "y_mm": 800.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0020",
+        "type": "wall",
+        "x_mm": 2100.0,
+        "y_mm": 800.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0004",
+        "type": "wall",
+        "x_mm": 1500.0,
+        "y_mm": 1000.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0021",
+        "type": "wall",
+        "x_mm": 2300.0,
+        "y_mm": 1000.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0005",
+        "type": "wall",
+        "x_mm": 1300.0,
+        "y_mm": 1200.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0022",
+        "type": "wall",
+        "x_mm": 2500.0,
+        "y_mm": 1200.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0006",
+        "type": "wall",
+        "x_mm": 1100.0,
+        "y_mm": 1400.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0023",
+        "type": "wall",
+        "x_mm": 2700.0,
+        "y_mm": 1400.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0007",
+        "type": "wall",
+        "x_mm": 900.0,
+        "y_mm": 1600.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0024",
+        "type": "wall",
+        "x_mm": 2900.0,
+        "y_mm": 1600.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0008",
+        "type": "wall",
+        "x_mm": 700.0,
+        "y_mm": 1800.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0025",
+        "type": "wall",
+        "x_mm": 3100.0,
+        "y_mm": 1800.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0009",
+        "type": "wall",
+        "x_mm": 900.0,
+        "y_mm": 2000.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0019",
+        "type": "wall",
+        "x_mm": 2900.0,
+        "y_mm": 2000.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0010",
+        "type": "wall",
+        "x_mm": 1100.0,
+        "y_mm": 2200.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0018",
+        "type": "wall",
+        "x_mm": 2700.0,
+        "y_mm": 2200.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0011",
+        "type": "wall",
+        "x_mm": 1300.0,
+        "y_mm": 2400.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0017",
+        "type": "wall",
+        "x_mm": 2500.0,
+        "y_mm": 2400.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0012",
+        "type": "wall",
+        "x_mm": 1500.0,
+        "y_mm": 2600.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0016",
+        "type": "wall",
+        "x_mm": 2300.0,
+        "y_mm": 2600.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0013",
+        "type": "wall",
+        "x_mm": 1700.0,
+        "y_mm": 2800.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0015",
+        "type": "wall",
+        "x_mm": 2100.0,
+        "y_mm": 2800.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      },
+      {
+        "id": "wall_0014",
+        "type": "wall",
+        "x_mm": 1900.0,
+        "y_mm": 3000.0,
+        "width_mm": 200.0,
+        "height_mm": 200.0,
+        "rotation_deg": 0
+      }
+    ],
+    "lines": [],
+    "zones": [],
+    "objects": []
+  },
+  "editor_spec": {
+    "schema_version": 1,
+    "grid_size_px": 32,
+    "world_width_cells": 40,
+    "world_height_cells": 40,
+    "placements": [
+      {
+        "id": "wall_0002",
+        "asset_key": "wall_64x64_b",
+        "x": 608,
+        "y": 192,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0003",
+        "asset_key": "wall_64x64_b",
+        "x": 544,
+        "y": 256,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0020",
+        "asset_key": "wall_64x64_b",
+        "x": 672,
+        "y": 256,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0004",
+        "asset_key": "wall_64x64_b",
+        "x": 480,
+        "y": 320,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0021",
+        "asset_key": "wall_64x64_b",
+        "x": 736,
+        "y": 320,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0005",
+        "asset_key": "wall_64x64_b",
+        "x": 416,
+        "y": 384,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0022",
+        "asset_key": "wall_64x64_b",
+        "x": 800,
+        "y": 384,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0006",
+        "asset_key": "wall_64x64_b",
+        "x": 352,
+        "y": 448,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0023",
+        "asset_key": "wall_64x64_b",
+        "x": 864,
+        "y": 448,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0007",
+        "asset_key": "wall_64x64_b",
+        "x": 288,
+        "y": 512,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0024",
+        "asset_key": "wall_64x64_b",
+        "x": 928,
+        "y": 512,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0008",
+        "asset_key": "wall_64x64_b",
+        "x": 224,
+        "y": 576,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0025",
+        "asset_key": "wall_64x64_b",
+        "x": 992,
+        "y": 576,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0009",
+        "asset_key": "wall_64x64_b",
+        "x": 288,
+        "y": 640,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0019",
+        "asset_key": "wall_64x64_b",
+        "x": 928,
+        "y": 640,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0010",
+        "asset_key": "wall_64x64_b",
+        "x": 352,
+        "y": 704,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0018",
+        "asset_key": "wall_64x64_b",
+        "x": 864,
+        "y": 704,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0011",
+        "asset_key": "wall_64x64_b",
+        "x": 416,
+        "y": 768,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0017",
+        "asset_key": "wall_64x64_b",
+        "x": 800,
+        "y": 768,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0012",
+        "asset_key": "wall_64x64_b",
+        "x": 480,
+        "y": 832,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0016",
+        "asset_key": "wall_64x64_b",
+        "x": 736,
+        "y": 832,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0013",
+        "asset_key": "wall_64x64_b",
+        "x": 544,
+        "y": 896,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0015",
+        "asset_key": "wall_64x64_b",
+        "x": 672,
+        "y": 896,
+        "rotation": 0
+      },
+      {
+        "id": "wall_0014",
+        "asset_key": "wall_64x64_b",
+        "x": 608,
+        "y": 960,
+        "rotation": 0
+      },
+      {
+        "id": "robot_0036",
+        "asset_key": "robot_ev3_32x32",
+        "x": 608,
+        "y": 576,
+        "rotation": 0
+      }
+    ]
+  }
+}

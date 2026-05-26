@@ -1,6 +1,6 @@
 # Simulador EV3 Pybricks
 
-Version actual: 1.3.2
+Version actual: 1.3.3
 
 Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyecto incluye aplicacion de escritorio Tkinter y aplicacion web Flask para ejecutar scripts, editar mundos 2D y visualizar telemetria del robot.
 
@@ -13,7 +13,7 @@ Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyect
 ## Estado del repositorio
 
 - Rama publicada: `main`
-- Version objetivo en GitHub: `1.3.2`
+- Version objetivo en GitHub: `1.3.3`
 - Interfaz web: incluida desde la version `1.3.0`
 - Interfaz escritorio Tkinter: legado en mantenimiento
 
@@ -29,6 +29,7 @@ Compatibilidad: el codigo mantiene fallback a `Documentos/Ejemplos` y `Documento
 
 - Ejecucion de scripts Python estilo Pybricks.
 - Simulacion 2D de robot EV3, motores, sensores, LED, pantalla LCD y altavoz.
+- Pantalla EV3 monocroma 178x128 con texto y primitivas de dibujo (`draw_pixel`, `draw_line`, `draw_circle`, `draw_box`).
 - Editor de mundos con robot, muros, lineas, zonas y pisos.
 - Carga/guardado de mundos JSON.
 - Simulacion web multi-sesion con Flask.
@@ -69,6 +70,19 @@ Detener:
 .\.venv\Scripts\python.exe -m simulador_ev3.ui.main_window
 ```
 
+## Pantalla EV3 simulada
+
+La pantalla del brick ya no es solo textual. El simulador soporta dos niveles de salida:
+
+- Texto con `ev3.screen.print(...)` y `ev3.screen.clear()`.
+- Dibujo monocromo en coordenadas LCD reales (`178 x 128`) con:
+  - `ev3.screen.draw_pixel(x, y)`
+  - `ev3.screen.draw_line(x1, y1, x2, y2)`
+  - `ev3.screen.draw_circle(x, y, r, fill=False)`
+  - `ev3.screen.draw_box(x, y, w, h, fill=False)`
+
+El ejemplo `23_radar_ultrasonido_5grados.py` usa esta API para dibujar el radar como geometria real en la LCD, en lugar de una rejilla ASCII.
+
 ## Documentacion
 
 - Manual de uso: `Documentos/MANUAL_DE_USO.md`
@@ -86,6 +100,17 @@ Detener:
 ```
 
 Ultima validacion documentada: `565 passed`.
+
+Validacion tecnica reciente (2026-05-25):
+- `tests/core/test_command_queue.py` + `tests/core/test_simulation_engine.py` + `tests/application/test_application.py` + `tests/pybricks_api/test_pybricks_api.py`: `169 passed`.
+- `tests/web/test_web_app.py`: `73 passed`.
+- E2E Playwright focalizadas:
+  - `test_simulation_gutter_breakpoints_and_robot_start`: `passed`.
+  - `test_world_editor_builds_valid_world_and_exposes_simulation_link`: `passed`.
+
+Cambios destacados 1.3.3:
+- Carga de mundos en web: al abrir un mundo se respeta y visualiza de inmediato la pose preestablecida del robot.
+- Mejora del ejemplo `16_resolver_laberinto.py` con logica de exploracion mas robusta para laberintos de pasillo.
 
 Para validacion completa por bloques, usar `Documentos/CHECKLIST_QA_RELEASE.md`.
 

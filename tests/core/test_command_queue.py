@@ -106,6 +106,43 @@ class TestSimulationCommandCreation:
         assert cmd.cmd_type == CommandType.SCREEN_CLEAR
         assert cmd.blocking is False
 
+    def test_screen_pixel_no_blocking(self):
+        cmd = SimulationCommand.screen_pixel(10, 20, color=1)
+        assert cmd.cmd_type == CommandType.SCREEN_PIXEL
+        assert cmd.params["x"] == 10
+        assert cmd.params["y"] == 20
+        assert cmd.params["color"] == 1
+        assert cmd.blocking is False
+
+    def test_screen_line_no_blocking(self):
+        cmd = SimulationCommand.screen_line(1, 2, 3, 4, color=0)
+        assert cmd.cmd_type == CommandType.SCREEN_LINE
+        assert cmd.params["x1"] == 1
+        assert cmd.params["y1"] == 2
+        assert cmd.params["x2"] == 3
+        assert cmd.params["y2"] == 4
+        assert cmd.params["color"] == 0
+        assert cmd.blocking is False
+
+    def test_screen_circle_no_blocking(self):
+        cmd = SimulationCommand.screen_circle(50, 60, 10, color=1, fill=True)
+        assert cmd.cmd_type == CommandType.SCREEN_CIRCLE
+        assert cmd.params["x"] == 50
+        assert cmd.params["y"] == 60
+        assert cmd.params["r"] == 10
+        assert cmd.params["fill"] is True
+        assert cmd.blocking is False
+
+    def test_screen_box_no_blocking(self):
+        cmd = SimulationCommand.screen_box(5, 6, 7, 8, color=1, fill=False)
+        assert cmd.cmd_type == CommandType.SCREEN_BOX
+        assert cmd.params["x"] == 5
+        assert cmd.params["y"] == 6
+        assert cmd.params["w"] == 7
+        assert cmd.params["h"] == 8
+        assert cmd.params["fill"] is False
+        assert cmd.blocking is False
+
 
 class TestSimulationCommandBlocking:
     def test_signal_done_sets_event(self):

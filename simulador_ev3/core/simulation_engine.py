@@ -181,6 +181,10 @@ class SimulationEngine:
             CommandType.PLAY_SOUND:      self._handle_play_sound,
             CommandType.DISPLAY_TEXT:    self._handle_display_text,
             CommandType.SCREEN_CLEAR:    self._handle_screen_clear,
+            CommandType.SCREEN_PIXEL:    self._handle_screen_pixel,
+            CommandType.SCREEN_LINE:     self._handle_screen_line,
+            CommandType.SCREEN_CIRCLE:   self._handle_screen_circle,
+            CommandType.SCREEN_BOX:      self._handle_screen_box,
         }
 
         # Comandos bloqueantes activos (esperando signal_done)
@@ -492,6 +496,41 @@ class SimulationEngine:
 
     def _handle_screen_clear(self, cmd: SimulationCommand) -> None:
         self._brick.screen.cmd_clear()
+
+    def _handle_screen_pixel(self, cmd: SimulationCommand) -> None:
+        self._brick.screen.cmd_draw_pixel(
+            x=int(cmd.params.get("x", 0)),
+            y=int(cmd.params.get("y", 0)),
+            color=int(cmd.params.get("color", 1)),
+        )
+
+    def _handle_screen_line(self, cmd: SimulationCommand) -> None:
+        self._brick.screen.cmd_draw_line(
+            x1=int(cmd.params.get("x1", 0)),
+            y1=int(cmd.params.get("y1", 0)),
+            x2=int(cmd.params.get("x2", 0)),
+            y2=int(cmd.params.get("y2", 0)),
+            color=int(cmd.params.get("color", 1)),
+        )
+
+    def _handle_screen_circle(self, cmd: SimulationCommand) -> None:
+        self._brick.screen.cmd_draw_circle(
+            x=int(cmd.params.get("x", 0)),
+            y=int(cmd.params.get("y", 0)),
+            r=int(cmd.params.get("r", 0)),
+            color=int(cmd.params.get("color", 1)),
+            fill=bool(cmd.params.get("fill", False)),
+        )
+
+    def _handle_screen_box(self, cmd: SimulationCommand) -> None:
+        self._brick.screen.cmd_draw_box(
+            x=int(cmd.params.get("x", 0)),
+            y=int(cmd.params.get("y", 0)),
+            w=int(cmd.params.get("w", 0)),
+            h=int(cmd.params.get("h", 0)),
+            color=int(cmd.params.get("color", 1)),
+            fill=bool(cmd.params.get("fill", False)),
+        )
 
     # ------------------------------------------------------------------
     # Sensores

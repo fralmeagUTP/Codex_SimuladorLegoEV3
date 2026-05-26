@@ -228,6 +228,7 @@ class SimulationSession:
         with self._lock:
             self._service.load_world_file(path)
             self._sync_editor_from_world_file(path)
+            self._latest_snapshot = None
             self._loaded_world_name = name
             self._status = "ready" if self._status == "created" else self._status
             self._push_event("world", self.current_world())
@@ -250,6 +251,7 @@ class SimulationSession:
         with self._lock:
             self._service.load_world_file(tmp_path)
             self._sync_editor_from_world_file(tmp_path)
+            self._latest_snapshot = None
             self._loaded_world_name = None
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
@@ -271,6 +273,7 @@ class SimulationSession:
             self._service.load_blank_world(width_mm=w_mm, height_mm=h_mm)
             self._editor.reset_formal_world(w_cells, h_cells)
             self._world_has_editor_spec = True
+            self._latest_snapshot = None
             self._loaded_world_name = None
             self._status = "ready" if self._status == "created" else self._status
             self._push_event("world", self.current_world())
@@ -912,6 +915,11 @@ def _safe_world_filename(name: str) -> str:
         raise InvalidPayload("Nombre de mundo invalido.")
     if raw.lower().endswith(".json"):
         raw = raw[:-5]
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", raw):
-        raise InvalidPayload("Use solo letras, numeros, guion y guion bajo.")
+    if len(raw) > 96:
+        raise InvalidPayload("El nombre del mundo es demasiado largo.")
+    # Permite nombres didacticos con espacios/acentos sin perder seguridad de ruta.
+    if not re.fullmatch(r"[0-9A-Za-z_ \-().áéíóúÁÉÍÓÚñÑ]+", raw):
+        raise InvalidPayload(
+            "Use solo letras, numeros, espacios y estos simbolos: _ - ( ) ."
+        )
     return f"{raw}.json"

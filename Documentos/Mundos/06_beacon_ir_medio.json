@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "world": {
+    "width_mm": 2000.0,
+    "height_mm": 2000.0,
+    "surface": {
+      "cell_size_mm": 50.0,
+      "default_color": "WHITE",
+      "cells": []
+    },
+    "obstacles": [
+      {
+        "name": "columna_superior",
+        "vertices": [[800, 200], [1000, 200], [1000, 700], [800, 700]]
+      },
+      {
+        "name": "columna_inferior",
+        "vertices": [[1000, 1300], [1200, 1300], [1200, 1800], [1000, 1800]]
+      },
+      {
+        "name": "bloque_intermedio",
+        "vertices": [[1350, 800], [1550, 800], [1550, 1200], [1350, 1200]]
+      }
+    ],
+    "beacons": [
+      {
+        "name": "beacon_objetivo_medio",
+        "x_mm": 1800.0,
+        "y_mm": 1000.0,
+        "channel": 1
+      }
+    ]
+  },
+  "editor_spec": {
+    "schema_version": 1,
+    "grid_size_px": 32,
+    "world_width_cells": 20,
+    "world_height_cells": 20,
+    "placements": [
+      {"id": "wall_0001", "asset_key": "wall_64x64_b", "x": 256, "y": 64, "rotation": 0},
+      {"id": "wall_0002", "asset_key": "wall_64x64_b", "x": 256, "y": 128, "rotation": 0},
+      {"id": "wall_0003", "asset_key": "wall_64x64_b", "x": 256, "y": 192, "rotation": 0},
+      {"id": "wall_0004", "asset_key": "wall_64x64_b", "x": 320, "y": 384, "rotation": 0},
+      {"id": "wall_0005", "asset_key": "wall_64x64_b", "x": 320, "y": 448, "rotation": 0},
+      {"id": "wall_0006", "asset_key": "wall_64x64_a", "x": 448, "y": 256, "rotation": 0},
+      {"id": "wall_0007", "asset_key": "wall_64x64_a", "x": 448, "y": 320, "rotation": 0},
+      {"id": "robot_0001", "asset_key": "robot_ev3_32x32", "x": 32, "y": 288, "rotation": 0}
+    ]
+  }
+}

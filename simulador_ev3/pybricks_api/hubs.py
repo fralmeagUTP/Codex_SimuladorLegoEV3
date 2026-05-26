@@ -86,6 +86,23 @@ class _Screen:
         """Limpia la pantalla."""
         self._q.put(SimulationCommand.screen_clear())
 
+    def draw_pixel(self, x: int, y: int, color: int = 1) -> None:
+        """Dibuja un pixel monocromo en coordenadas LCD (178x128)."""
+        self._q.put(SimulationCommand.screen_pixel(x, y, color=color))
+
+    # Alias habitual en algunos ejemplos comunitarios.
+    def pixel(self, x: int, y: int, color: int = 1) -> None:
+        self.draw_pixel(x, y, color=color)
+
+    def draw_line(self, x1: int, y1: int, x2: int, y2: int, color: int = 1) -> None:
+        self._q.put(SimulationCommand.screen_line(x1, y1, x2, y2, color=color))
+
+    def draw_circle(self, x: int, y: int, r: int, color: int = 1, fill: bool = False) -> None:
+        self._q.put(SimulationCommand.screen_circle(x, y, r, color=color, fill=fill))
+
+    def draw_box(self, x: int, y: int, w: int, h: int, color: int = 1, fill: bool = False) -> None:
+        self._q.put(SimulationCommand.screen_box(x, y, w, h, color=color, fill=fill))
+
 
 class _Buttons:
     """ev3.buttons — botones físicos."""

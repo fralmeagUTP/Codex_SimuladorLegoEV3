@@ -20,17 +20,17 @@
 
   <section class="world-editor-shell">
     <section class="world-editor-toolbar">
-      <button id="newWorldBtn">Nuevo</button>
-      <button id="openWorldBtn">Abrir</button>
-      <button id="saveWorldBtn">Guardar</button>
-      <button id="exportWorldBtn">Guardar como</button>
+      <button id="newWorldBtn" title="Crear un mundo nuevo">Nuevo</button>
+      <button id="openWorldBtn" title="Abrir mundo desde archivo JSON">Abrir</button>
+      <button id="saveWorldBtn" title="Guardar mundo en el servidor">Guardar</button>
+      <button id="exportWorldBtn" title="Descargar mundo como archivo JSON">Guardar como</button>
       <span class="toolbar-separator"></span>
-      <button id="moveAssetBtn">Seleccionar</button>
-      <button id="deleteAssetBtn">Eliminar</button>
-      <button id="rotateAssetBtn">Rotar</button>
-      <button id="duplicateAssetBtn">Duplicar</button>
-      <button id="validateWorldBtn">Validar</button>
-      <button id="applyWorldBtn">Aplicar</button>
+      <button id="moveAssetBtn" title="Seleccionar y mover asset">Seleccionar</button>
+      <button id="deleteAssetBtn" title="Eliminar asset seleccionado">Eliminar</button>
+      <button id="rotateAssetBtn" title="Rotar 90 grados el asset seleccionado">Rotar</button>
+      <button id="duplicateAssetBtn" title="Duplicar asset seleccionado">Duplicar</button>
+      <button id="validateWorldBtn" title="Validar reglas del mundo">Validar</button>
+      <button id="applyWorldBtn" title="Aplicar mundo al simulador">Aplicar</button>
       <span class="toolbar-separator"></span>
       <label for="assetSelect" class="visually-hidden">Asset</label>
       <select id="assetSelect" class="hidden" aria-hidden="true"></select>
@@ -43,11 +43,11 @@
       <input id="worldWidthInput" type="number" min="1" max="160" value="40">
       <label for="worldHeightInput">Alto (celdas):</label>
       <input id="worldHeightInput" type="number" min="1" max="160" value="40">
-      <button id="applyWorldSizeBtn">Aplicar tamano</button>
+      <button id="applyWorldSizeBtn" title="Aplicar nuevo ancho y alto del mundo">Aplicar tamano</button>
       <label for="robotThetaInput">Theta robot:</label>
       <input id="robotThetaInput" type="number" value="0" step="15" min="0" max="359">
-      <button id="placeRobotStartBtn">Colocar robot</button>
-      <button id="clearRobotStartBtn">Limpiar marca</button>
+      <button id="placeRobotStartBtn" title="Definir pose inicial del robot con clic en el mapa">Colocar robot</button>
+      <button id="clearRobotStartBtn" title="Quitar la marca de pose inicial">Limpiar marca</button>
       <button id="worldMapZoomInBtn" type="button" title="Acercar mapa">+</button>
       <button id="worldMapZoomOutBtn" type="button" title="Alejar mapa">-</button>
       <button id="worldMapZoomResetBtn" type="button" title="Ajustar vista">[]</button>
@@ -72,7 +72,7 @@
           <input id="assetYInput" type="number" step="32">
           <label for="assetRotationInput">Rotacion</label>
           <input id="assetRotationInput" type="number" step="90">
-          <button id="applyAssetPropertiesBtn" type="submit">Aplicar propiedades</button>
+          <button id="applyAssetPropertiesBtn" type="submit" title="Guardar cambios de propiedades del asset">Aplicar propiedades</button>
         </form>
         <h2>Pose inicial</h2>
         <div id="robotStartReadout" class="selection-readout">Pose no fijada</div>

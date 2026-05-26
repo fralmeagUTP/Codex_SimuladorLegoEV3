@@ -355,8 +355,10 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "11_siguelineas_basico.py",
         "15_esquiva_obstaculos.py",
         "02_intro_pantalla_altavoz.py",
-        "01_linea_negra.json",
-        "02_obstaculos_beacon.json",
+        "23_radar_ultrasonido_5grados.py",
+        "01_linea_negra_basica.json",
+        "05_obstaculos_baliza_ir.json",
+        "12_radar_ultrasonido_360.json",
         "downloadScript",
         "showSaveFilePicker",
         "scriptFileInput.addEventListener",
@@ -488,7 +490,7 @@ def test_world_editor_can_link_saved_world_to_simulation(tmp_path):
     assert 'params.get("world")' in simulation_js
     assert "api.saveEditorWorld" in editor_js
     assert "setSimulateSavedWorldLink(savedFileName)" in editor_js
-    assert "setWorldNameLabel(inferredName)" in editor_js
+    assert "setActiveWorldName(inferredName)" in editor_js
     assert "api.updateAsset" in editor_js
     assert "dragPlacement" in editor_js
     assert "mousedown" in editor_js
@@ -1446,6 +1448,28 @@ def test_save_editor_world_rejects_unsafe_name(tmp_path):
     )
 
     assert res.status_code == 400
+
+
+def test_save_editor_world_preserves_human_friendly_name(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+
+    client.post(
+        f"/api/sessions/{session['session_id']}/editor/world/place",
+        json={"asset_key": "robot_ev3_32x32", "x": 0, "y": 0, "rotation": 0},
+        headers=headers,
+    )
+    raw_name = "09 Laberinto v3 Ñ"
+    res = client.post(
+        f"/api/sessions/{session['session_id']}/editor/world/save",
+        json={"name": raw_name},
+        headers=headers,
+    )
+
+    assert res.status_code == 200
+    assert res.get_json()["name"] == f"{raw_name}.json"
+    assert (tmp_path / f"{raw_name}.json").exists()
 
 
 def test_set_robot_start_endpoint_updates_snapshot(tmp_path):

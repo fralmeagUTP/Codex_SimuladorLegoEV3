@@ -34,9 +34,7 @@
           <button type="button" data-scenario="line">Seguidor de linea</button>
           <button type="button" data-scenario="ultrasonic">Ultrasonido + obstaculos</button>
           <button type="button" data-scenario="brick">Test pantalla/altavoz</button>
-          <button type="button" data-scenario="gyro">Gyro: correccion de rumbo</button>
-          <button type="button" data-scenario="beacon">IR beacon: seguimiento</button>
-          <button type="button" data-scenario="curve">DriveBase curva y estado</button>
+          <button type="button" data-scenario="radar">Radar 360 ultrasonido</button>
         </div>
       </div>
       <div class="menu-group">
@@ -120,7 +118,9 @@
                 <div class="speaker-row">Altavoz: <span id="speaker" class="speaker-status">Inactivo</span></div>
               </div>
               <h3>Pantalla LCD</h3>
-              <div id="screen" class="brick-screen"></div>
+              <div class="brick-screen">
+                <canvas id="screen" class="brick-screen-canvas" width="178" height="128"></canvas>
+              </div>
             </section>
           </aside>
         </section>

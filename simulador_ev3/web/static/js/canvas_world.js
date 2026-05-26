@@ -224,7 +224,7 @@ window.EV3Canvas = (() => {
       drawRobotStartMarker(ctx, editorState.robotStart, view);
     }
 
-    const followPose = snapshot?.robot || editorState.robotStart || null;
+    const followPose = snapshot?.robot || (editorState.followRobotStart ? editorState.robotStart : null);
     centerPaneOnPose(canvas, world, followPose);
   }
 
@@ -372,7 +372,16 @@ window.EV3Canvas = (() => {
     if (!spec?.placements) return;
     const gridSize = spec.grid_size_px || GRID_SIZE_PX;
     const mmPerPx = CELL_SIZE_MM / gridSize;
+    const normalPlacements = [];
+    const robotPlacements = [];
     for (const placement of spec.placements) {
+      const key = placement.asset_key || "";
+      if (String(key).includes("robot")) robotPlacements.push(placement);
+      else normalPlacements.push(placement);
+    }
+    const orderedPlacements = [...normalPlacements, ...robotPlacements];
+
+    for (const placement of orderedPlacements) {
       const key = placement.asset_key;
       if (hidePlacedRobots && key?.includes("robot")) {
         continue;

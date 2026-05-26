@@ -30,7 +30,29 @@ window.EV3Api = (() => {
     if (ownerToken) {
       headers["X-Session-Token"] = ownerToken;
     }
-    const response = await fetch(resolvePath(path), Object.assign({}, options, { headers }));
+    const timeoutMs = Number.isFinite(options.timeoutMs) ? Number(options.timeoutMs) : 0;
+    const fetchOptions = Object.assign({}, options, { headers });
+    delete fetchOptions.timeoutMs;
+    let abortTimer = null;
+    if (timeoutMs > 0 && typeof AbortController !== "undefined") {
+      const controller = new AbortController();
+      fetchOptions.signal = controller.signal;
+      abortTimer = setTimeout(() => controller.abort(), timeoutMs);
+    }
+    let response;
+    try {
+      response = await fetch(resolvePath(path), fetchOptions);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        const timeoutError = new Error(`Timeout HTTP (${timeoutMs} ms)`);
+        timeoutError.code = "NETWORK_TIMEOUT";
+        timeoutError.status = 0;
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      if (abortTimer) clearTimeout(abortTimer);
+    }
     const workerId = response.headers.get("X-Worker-Id");
     const workerPid = response.headers.get("X-Worker-Pid");
     if (workerId || workerPid) {
@@ -263,7 +285,8 @@ window.EV3Api = (() => {
       () => requestWithPolicy(`/api/sessions/${sessionId}/snapshot`, {
         method: "POST",
         body: "{}",
-      }, { retries: 2, baseDelayMs: 100 }),
+        timeoutMs: 1200,
+      }, { retries: 1, baseDelayMs: 120 }),
     ),
     listExamples: () => request("/api/examples"),
     getExample: (name) => request(`/api/examples/${encodeURIComponent(name)}`),

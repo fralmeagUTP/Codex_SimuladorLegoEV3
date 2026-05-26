@@ -32,6 +32,7 @@
   let moveMode = false;
   let robotStartMode = false;
   let robotStart = null;
+  let activeWorldBaseName = "";
   let placementPreview = null;
   let dragPlacement = null;
   let suppressNextClick = false;
@@ -73,7 +74,7 @@
       const button = document.createElement("button");
       button.type = "button";
       button.className = "asset-tool";
-      button.title = item.key;
+      button.title = assetTooltip(item);
       button.dataset.assetKey = item.key;
       const img = document.createElement("img");
       img.src = api.resolvePath(`/assets/${encodeURIComponent(assetImageFile(item.key))}`);
@@ -107,6 +108,21 @@
     return "F";
   }
 
+  function assetTooltip(item) {
+    const key = String(item?.key || "");
+    const type = String(item?.type || "");
+    if (type === "robot") return "Robot EV3 (pose inicial)";
+    if (type === "wall") return `Muro: ${key}`;
+    if (type === "line") return `Linea de seguimiento: ${key}`;
+    if (type === "zone") {
+      if (key.includes("green")) return "Zona color verde";
+      if (key.includes("red")) return "Zona color roja";
+      return "Zona color blanca";
+    }
+    if (type === "floor") return `Piso/base: ${key}`;
+    return key;
+  }
+
   function syncAssetPalette() {
     for (const button of assetPalette.querySelectorAll(".asset-tool")) {
       button.classList.toggle("tool-active", button.dataset.assetKey === assetSelect.value);
@@ -118,6 +134,8 @@
     const height = Number.parseInt(worldHeightInput?.value || String(DEFAULT_WORLD_CELLS), 10);
     const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
     setEditorWorld(data.world);
+    await hydrateRobotStartFromSnapshotIfMissing();
+    await ensureRobotVisibleOnEditor();
     showValidation(data.validation);
   }
 
@@ -126,7 +144,42 @@
     if (worldWidthInput) worldWidthInput.value = world.world_width_cells || DEFAULT_WORLD_CELLS;
     if (worldHeightInput) worldHeightInput.value = world.world_height_cells || DEFAULT_WORLD_CELLS;
     currentWorld = editorWorldToRenderWorld(world);
+    robotStart = robotStartFromEditorWorld(world);
+    if (!robotStart) {
+      // Fallback visible inmediato al abrir mundos sin placement de robot.
+      robotStart = defaultRobotPoseForWorld(world);
+    }
+    if (robotStart && robotThetaInput) {
+      robotThetaInput.value = String(Math.round(robotStart.theta_deg || 0));
+    }
+    updateRobotStartReadout();
     drawEditor();
+  }
+
+  async function hydrateRobotStartFromSnapshotIfMissing() {
+    if (robotStart) return;
+    try {
+      const data = await api.snapshot();
+      const robot = data?.snapshot?.robot;
+      if (!robot) return;
+      const xMm = Number(robot.x_mm);
+      const yMm = Number(robot.y_mm);
+      const theta = Number(robot.theta_deg);
+      if (!Number.isFinite(xMm) || !Number.isFinite(yMm) || !Number.isFinite(theta)) return;
+      robotStart = {
+        x_mm: xMm,
+        y_mm: yMm,
+        theta_deg: ((theta % 360) + 360) % 360,
+      };
+      if (robotThetaInput) {
+        robotThetaInput.value = String(Math.round(robotStart.theta_deg));
+      }
+      await upsertRobotPlacementFromPose(robotStart);
+      updateRobotStartReadout();
+      drawEditor();
+    } catch (_err) {
+      // Fallback visual; no interrumpe flujo del editor.
+    }
   }
 
   function editorWorldToRenderWorld(world) {
@@ -146,6 +199,7 @@
       selectedPlacementId: selectedPlacement?.id || null,
       placementPreview,
       robotStart,
+      followRobotStart: false,
     });
   }
 
@@ -216,6 +270,167 @@
       `${robotStart.theta_deg.toFixed(0)} °`;
   }
 
+  function robotPlacementFromEditorWorld(world) {
+    const placements = Array.isArray(world?.placements) ? world.placements : [];
+    return placements.find((item) => String(item?.asset_key || "").includes("robot")) || null;
+  }
+
+  function defaultRobotPoseForWorld(world) {
+    const widthCells = Number(world?.world_width_cells || DEFAULT_WORLD_CELLS);
+    const heightCells = Number(world?.world_height_cells || DEFAULT_WORLD_CELLS);
+    const theta = Number(robotThetaInput?.value || 0);
+    return {
+      x_mm: Math.max(0, widthCells * 50),
+      y_mm: Math.max(0, heightCells * 50),
+      theta_deg: ((theta % 360) + 360) % 360,
+    };
+  }
+
+  function robotStartFromEditorWorld(world) {
+    const placement = robotPlacementFromEditorWorld(world);
+    if (!placement) return null;
+    const gridSizePx = Number(world?.grid_size_px || 32);
+    const mmPerPx = 100 / Math.max(1, gridSizePx);
+    const xPx = Number(placement.x ?? placement.x_px ?? 0);
+    const yPx = Number(placement.y ?? placement.y_px ?? 0);
+    const theta = Number(placement.rotation || 0);
+    return {
+      x_mm: xPx * mmPerPx + 50,
+      y_mm: yPx * mmPerPx + 50,
+      theta_deg: ((theta % 360) + 360) % 360,
+    };
+  }
+
+  function robotPlacementOriginFromPose(pose) {
+    if (!currentWorld || !pose || !editorWorld) return null;
+    const gridSize = Number(editorWorld.grid_size_px || 32);
+    const mmPerPx = 100 / Math.max(1, gridSize);
+    const worldWidthPx = Math.round((currentWorld.width_mm / 100) * gridSize);
+    const worldHeightPx = Math.round((currentWorld.height_mm / 100) * gridSize);
+    const cellPx = gridSize;
+    const centerXPx = Number(pose.x_mm) / mmPerPx;
+    const centerYPx = Number(pose.y_mm) / mmPerPx;
+    const x = Math.round(centerXPx - (cellPx / 2));
+    const y = Math.round(centerYPx - (cellPx / 2));
+    const candidate = {
+      x: Math.max(0, Math.min(x, Math.max(0, worldWidthPx - cellPx))),
+      y: Math.max(0, Math.min(y, Math.max(0, worldHeightPx - cellPx))),
+    };
+    return snapRobotOriginToNearestFreeCell(candidate, gridSize, worldWidthPx, worldHeightPx);
+  }
+
+  function assetSpanCells(assetKey, rotation = 0) {
+    let size = { w: 2, h: 2 };
+    if (String(assetKey || "").includes("robot")) size = { w: 1, h: 1 };
+    else if (String(assetKey || "").includes("zone")) size = { w: 4, h: 4 };
+    else if (String(assetKey || "").includes("floor")) size = { w: 8, h: 8 };
+    if (Math.abs(Number(rotation) || 0) % 180 === 90) {
+      return { w: size.h, h: size.w };
+    }
+    return size;
+  }
+
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function robotOriginCollidesWithWall(origin, gridSizePx) {
+    const placements = Array.isArray(editorWorld?.placements) ? editorWorld.placements : [];
+    const robotRect = { x: origin.x, y: origin.y, w: gridSizePx, h: gridSizePx };
+    for (const p of placements) {
+      const key = String(p?.asset_key || "");
+      if (!key.includes("wall")) continue;
+      const span = assetSpanCells(key, Number(p?.rotation || 0));
+      const xPx = Number(p?.x ?? p?.x_px ?? 0);
+      const yPx = Number(p?.y ?? p?.y_px ?? 0);
+      const wallRect = {
+        x: xPx,
+        y: yPx,
+        w: span.w * gridSizePx,
+        h: span.h * gridSizePx,
+      };
+      if (rectsOverlap(robotRect, wallRect)) return true;
+    }
+    return false;
+  }
+
+  function snapRobotOriginToNearestFreeCell(origin, gridSizePx, worldWidthPx, worldHeightPx) {
+    const clampOrigin = (x, y) => ({
+      x: Math.max(0, Math.min(x, Math.max(0, worldWidthPx - gridSizePx))),
+      y: Math.max(0, Math.min(y, Math.max(0, worldHeightPx - gridSizePx))),
+    });
+    const base = clampOrigin(origin.x, origin.y);
+    if (!robotOriginCollidesWithWall(base, gridSizePx)) return base;
+
+    const maxRadius = Math.max(
+      1,
+      Math.ceil(Math.max(worldWidthPx, worldHeightPx) / Math.max(1, gridSizePx)),
+    );
+    for (let r = 1; r <= maxRadius; r += 1) {
+      for (let dx = -r; dx <= r; dx += 1) {
+        for (let dy = -r; dy <= r; dy += 1) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+          const candidate = clampOrigin(
+            base.x + dx * gridSizePx,
+            base.y + dy * gridSizePx,
+          );
+          if (!robotOriginCollidesWithWall(candidate, gridSizePx)) {
+            return candidate;
+          }
+        }
+      }
+    }
+    return base;
+  }
+
+  async function upsertRobotPlacementFromPose(pose) {
+    if (!editorWorld || !currentWorld || !pose) return;
+    const origin = robotPlacementOriginFromPose(pose);
+    if (!origin) return;
+    const rotation = ((Number(pose.theta_deg || 0) % 360) + 360) % 360;
+    const existing = robotPlacementFromEditorWorld(editorWorld);
+    const payload = {
+      asset_key: "robot_ev3_32x32",
+      x: origin.x,
+      y: origin.y,
+      rotation,
+    };
+    const data = existing
+      ? await api.updateAsset({ id: existing.id, ...payload })
+      : await api.placeAsset(payload);
+    setEditorWorld(data.world);
+    showValidation(data.validation);
+  }
+
+  async function ensureRobotPlacementPersisted() {
+    if (!robotStart) return;
+    await upsertRobotPlacementFromPose(robotStart);
+  }
+
+  async function ensureRobotVisibleOnEditor() {
+    if (!editorWorld || !currentWorld) return;
+    const existing = robotPlacementFromEditorWorld(editorWorld);
+    if (existing) {
+      if (!robotStart) {
+        robotStart = robotStartFromEditorWorld(editorWorld);
+        if (robotStart && robotThetaInput) {
+          robotThetaInput.value = String(Math.round(robotStart.theta_deg || 0));
+        }
+        updateRobotStartReadout();
+        drawEditor();
+      }
+      return;
+    }
+    const fallbackPose = robotStart || defaultRobotPoseForWorld(editorWorld);
+    robotStart = fallbackPose;
+    await upsertRobotPlacementFromPose(fallbackPose);
+    if (robotThetaInput) {
+      robotThetaInput.value = String(Math.round(fallbackPose.theta_deg || 0));
+    }
+    updateRobotStartReadout();
+    drawEditor();
+  }
+
   function showValidation(validation) {
     if (!validation) return;
     const errors = validation.errors || [];
@@ -246,7 +461,14 @@
     worldNameLabel.textContent = text || "sin nombre";
   }
 
+  function setActiveWorldName(name) {
+    const base = stripJsonExtension(name);
+    activeWorldBaseName = String(base || "").trim();
+    setWorldNameLabel(activeWorldBaseName);
+  }
+
   function currentWorldName() {
+    if (activeWorldBaseName) return activeWorldBaseName;
     if (!worldNameLabel) return "";
     const value = (worldNameLabel.textContent || "").trim();
     return value === "sin nombre" ? "" : value;
@@ -275,6 +497,7 @@
   }
 
   async function saveWorldOnServer() {
+    await ensureRobotPlacementPersisted();
     const currentName = currentWorldName();
     const suggested = currentName || "mundo_ev3_web";
     const rawName = window.prompt("Nombre del mundo para guardar en servidor", suggested);
@@ -290,13 +513,14 @@
     const result = await api.saveEditorWorld(trimmed);
     const savedFileName = String(result.name || "").trim();
     const displayName = stripJsonExtension(savedFileName || trimmed);
-    setWorldNameLabel(displayName);
+    setActiveWorldName(displayName);
     setSimulateSavedWorldLink(savedFileName);
     log(`Mundo guardado en servidor: ${savedFileName}`);
   }
 
   async function downloadWorldAsFile() {
     if (!editorWorld) return;
+    await ensureRobotPlacementPersisted();
     const baseName = currentWorldName() || "mundo_ev3_web";
     const suggestedName = baseName.toLowerCase().endsWith(".json") ? baseName : `${baseName}.json`;
     const worldJson = JSON.stringify(editorWorld, null, 2);
@@ -346,7 +570,9 @@
       const height = Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10);
       const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
       setEditorWorld(data.world);
-      setWorldNameLabel("");
+      await hydrateRobotStartFromSnapshotIfMissing();
+      await ensureRobotVisibleOnEditor();
+      setActiveWorldName("");
       setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
@@ -362,7 +588,9 @@
         Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10),
       );
       setEditorWorld(data.world);
-      setWorldNameLabel("");
+      await hydrateRobotStartFromSnapshotIfMissing();
+      await ensureRobotVisibleOnEditor();
+      setActiveWorldName("");
       setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
@@ -430,6 +658,7 @@
 
   canvas.addEventListener("mousedown", (event) => {
     if (!currentWorld || robotStartMode) return;
+    if (assetSelect.value) return;
     const clicked = window.EV3Canvas.findPlacementAt(canvas, event.clientX, event.clientY, currentWorld);
     if (!clicked) return;
     const editorPoint = window.EV3Canvas.canvasToEditor(canvas, event.clientX, event.clientY, currentWorld);
@@ -481,6 +710,7 @@
           theta_deg: theta,
         });
         robotStart = { x_mm: point.xMm, y_mm: point.yMm, theta_deg: theta };
+        await upsertRobotPlacementFromPose(robotStart);
         updateRobotStartReadout();
         setRobotStartMode(false);
         drawEditor();
@@ -511,12 +741,12 @@
       }
       return;
     }
-    if (clicked) {
-      placementPreview = null;
-      updateSelection(clicked);
-      return;
-    }
     if (!assetSelect.value) {
+      if (clicked) {
+        placementPreview = null;
+        updateSelection(clicked);
+        return;
+      }
       placementPreview = null;
       updateSelection(null);
       return;
@@ -524,12 +754,22 @@
     const point = window.EV3Canvas.canvasToEditor(canvas, event.clientX, event.clientY, currentWorld);
     const origin = window.EV3Canvas.placementOriginForAsset(assetSelect.value, point, currentWorld, 0);
     try {
-      const data = await api.placeAsset({
-        asset_key: assetSelect.value,
-        x: origin.x,
-        y: origin.y,
-        rotation: 0,
-      });
+      const placingRobot = String(assetSelect.value || "").includes("robot");
+      const existingRobot = placingRobot ? robotPlacementFromEditorWorld(editorWorld) : null;
+      const data = existingRobot
+        ? await api.updateAsset({
+            id: existingRobot.id,
+            asset_key: existingRobot.asset_key,
+            x: origin.x,
+            y: origin.y,
+            rotation: Number(robotThetaInput.value || existingRobot.rotation || 0),
+          })
+        : await api.placeAsset({
+            asset_key: assetSelect.value,
+            x: origin.x,
+            y: origin.y,
+            rotation: 0,
+          });
       placementPreview = null;
       setEditorWorld(data.world);
       updateSelection(data.placement);
@@ -555,6 +795,7 @@
     robotStart.theta_deg = Number(robotThetaInput.value || 0);
     try {
       await api.setRobotStart(robotStart);
+      await upsertRobotPlacementFromPose(robotStart);
       updateRobotStartReadout();
       drawEditor();
     } catch (err) {
@@ -654,8 +895,11 @@
         : world;
       const data = await api.importEditorWorld(importPayload);
       setEditorWorld(data.world);
-      const inferredName = stripJsonExtension(world?.name || world?.world_name || file.name);
-      setWorldNameLabel(inferredName);
+      await hydrateRobotStartFromSnapshotIfMissing();
+      await ensureRobotVisibleOnEditor();
+      // Priorizar el nombre real del archivo abierto por el usuario.
+      const inferredName = stripJsonExtension(file.name || world?.name || world?.world_name);
+      setActiveWorldName(inferredName);
       setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
@@ -668,6 +912,7 @@
 
   document.getElementById("applyWorldBtn").addEventListener("click", async () => {
     try {
+      await ensureRobotPlacementPersisted();
       await api.applyEditorWorld();
       log("Mundo validado y listo para simulacion.");
     } catch (err) {

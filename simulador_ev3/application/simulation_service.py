@@ -36,6 +36,7 @@ from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
 from simulador_ev3.runtime.runtime_controller import ControllerState, RuntimeController
 from simulador_ev3.domain.world.world_model import WorldModel
+from simulador_ev3.domain.world.beacon_model import BeaconModel
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.domain.editor.world_editor_model import (
@@ -249,19 +250,26 @@ class SimulationService:
         try:
             raw = json.loads(src.read_text(encoding="utf-8"))
             if isinstance(raw, dict):
+                wrapped_beacons = self._extract_beacons_from_wrapped_world(raw)
                 if isinstance(raw.get("editor_spec"), dict):
                     svc = WorldEditorService()
                     svc.load_json(src)
                     self._normalize_loaded_world_size_for_simulation(svc)
                     robot_start = self._extract_robot_start_from_editor_spec(raw["editor_spec"])
-                    return svc.to_world_model(), robot_start
+                    world = svc.to_world_model()
+                    if wrapped_beacons:
+                        world.beacons = wrapped_beacons
+                    return world, robot_start
 
                 if all(key in raw for key in ("schema_version", "world_width_cells", "world_height_cells", "placements")):
                     svc = WorldEditorService()
                     svc._formal_world = svc.load(json.dumps(raw, ensure_ascii=False))
                     self._normalize_loaded_world_size_for_simulation(svc)
                     robot_start = self._extract_robot_start_from_editor_spec(raw)
-                    return svc.to_world_model(), robot_start
+                    world = svc.to_world_model()
+                    if wrapped_beacons:
+                        world.beacons = wrapped_beacons
+                    return world, robot_start
 
                 if isinstance(raw.get("editor_objects"), dict):
                     svc = WorldEditorService()
@@ -277,6 +285,31 @@ class SimulationService:
         except Exception:  # noqa: BLE001
             pass
         return WorldRepository.load(src), None
+
+    def _extract_beacons_from_wrapped_world(self, raw: dict) -> list[BeaconModel]:
+        world_block = raw.get("world")
+        if not isinstance(world_block, dict):
+            return []
+        beacon_items = world_block.get("beacons")
+        if not isinstance(beacon_items, list):
+            return []
+
+        parsed: list[BeaconModel] = []
+        for item in beacon_items:
+            if not isinstance(item, dict):
+                continue
+            try:
+                parsed.append(
+                    BeaconModel(
+                        x_mm=float(item["x_mm"]),
+                        y_mm=float(item["y_mm"]),
+                        channel=int(item.get("channel", 1)),
+                        name=str(item.get("name", "beacon")),
+                    )
+                )
+            except Exception:  # noqa: BLE001
+                continue
+        return parsed
 
     def _normalize_loaded_world_size_for_simulation(self, svc: WorldEditorService) -> None:
         """Preserve authored editor-world size; do not crop legacy maps silently."""

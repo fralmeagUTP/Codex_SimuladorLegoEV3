@@ -170,6 +170,7 @@ class BrickPanel(tk.Frame):
         state = self._default_screen_state()
         if isinstance(screen_data, dict):
             state["lines"] = [str(ln) for ln in screen_data.get("lines", [])]
+            state["draw_ops"] = [dict(op) for op in screen_data.get("draw_ops", []) if isinstance(op, dict)]
             state["width_px"] = int(screen_data.get("width_px", state["width_px"]))
             state["height_px"] = int(screen_data.get("height_px", state["height_px"]))
             state["backlight_leds"] = int(
@@ -250,6 +251,61 @@ class BrickPanel(tk.Frame):
                 outline=_LCD_LED_OFF,
             )
 
+        def px_to_canvas_x(px: float) -> float:
+            p = max(0.0, min(float(logical_w - 1), float(px)))
+            return x0 + (p * scale)
+
+        def px_to_canvas_y(py: float) -> float:
+            p = max(0.0, min(float(logical_h - 1), float(py)))
+            return y0 + (p * scale)
+
+        for op in self._screen_state.get("draw_ops", []):
+            kind = str(op.get("op", "")).lower()
+            color = _LCD_FG if int(op.get("color", 1)) else _LCD_BG
+            if kind == "pixel":
+                x = px_to_canvas_x(op.get("x", 0))
+                y = px_to_canvas_y(op.get("y", 0))
+                r = max(1.0, scale * 0.6)
+                canvas.create_rectangle(x - r, y - r, x + r, y + r, fill=color, outline="")
+            elif kind == "line":
+                canvas.create_line(
+                    px_to_canvas_x(op.get("x1", 0)),
+                    px_to_canvas_y(op.get("y1", 0)),
+                    px_to_canvas_x(op.get("x2", 0)),
+                    px_to_canvas_y(op.get("y2", 0)),
+                    fill=color,
+                    width=max(1, int(round(scale * 0.9))),
+                )
+            elif kind == "circle":
+                cx = px_to_canvas_x(op.get("x", 0))
+                cy = px_to_canvas_y(op.get("y", 0))
+                radius = max(0.0, float(op.get("r", 0)) * scale)
+                fill = color if bool(op.get("fill", False)) else ""
+                canvas.create_oval(
+                    cx - radius,
+                    cy - radius,
+                    cx + radius,
+                    cy + radius,
+                    outline=color,
+                    fill=fill,
+                    width=max(1, int(round(scale * 0.8))),
+                )
+            elif kind == "box":
+                x = px_to_canvas_x(op.get("x", 0))
+                y = px_to_canvas_y(op.get("y", 0))
+                w = max(0.0, float(op.get("w", 0)) * scale)
+                h = max(0.0, float(op.get("h", 0)) * scale)
+                fill = color if bool(op.get("fill", False)) else ""
+                canvas.create_rectangle(
+                    x,
+                    y,
+                    x + w,
+                    y + h,
+                    outline=color,
+                    fill=fill,
+                    width=max(1, int(round(scale * 0.8))),
+                )
+
         # Texto de la pantalla (hasta 8 lineas visibles), escalado al tamano real.
         # Al derivar desde disp_h evitamos texto diminuto cuando el canvas crece.
         line_step = max(10.0, disp_h / 8.3)
@@ -273,6 +329,7 @@ class BrickPanel(tk.Frame):
     def _default_screen_state() -> dict:
         return {
             "lines": [],
+            "draw_ops": [],
             "width_px": 178,
             "height_px": 128,
             "backlight_leds": 4,

@@ -450,6 +450,31 @@ class TestEV3BrickAPI:
         items = self.eng.command_queue.drain()
         assert any(c.cmd_type == CommandType.SCREEN_CLEAR for c in items)
 
+    def test_screen_draw_pixel_enqueues_command(self):
+        self.ev3.screen.draw_pixel(10, 20)
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.SCREEN_PIXEL for c in items)
+
+    def test_screen_pixel_alias_enqueues_command(self):
+        self.ev3.screen.pixel(11, 22)
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.SCREEN_PIXEL for c in items)
+
+    def test_screen_draw_line_enqueues_command(self):
+        self.ev3.screen.draw_line(0, 0, 50, 60)
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.SCREEN_LINE for c in items)
+
+    def test_screen_draw_circle_enqueues_command(self):
+        self.ev3.screen.draw_circle(60, 40, 20, fill=True)
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.SCREEN_CIRCLE for c in items)
+
+    def test_screen_draw_box_enqueues_command(self):
+        self.ev3.screen.draw_box(5, 6, 30, 20, fill=False)
+        items = self.eng.command_queue.drain()
+        assert any(c.cmd_type == CommandType.SCREEN_BOX for c in items)
+
     def test_buttons_pressed_returns_list(self):
         result = self.ev3.buttons.pressed()
         assert isinstance(result, list)

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
+from simulador_ev3.core.command_queue import SimulationCommand
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.persistence.world_repository import WorldRepository
@@ -100,6 +101,15 @@ class TestSnapshotDTO:
         assert "screen" in dto.brick
         assert "speaker" in dto.brick
         assert "buttons" in dto.brick
+
+    def test_screen_draw_ops_are_preserved(self):
+        eng = make_engine()
+        eng.command_queue.put(SimulationCommand.screen_pixel(10, 20, color=1))
+        snap = eng.update()
+        dto = SnapshotDTO.from_snapshot(snap)
+        ops = dto.brick["screen"].get("draw_ops", [])
+        assert len(ops) == 1
+        assert ops[0].get("op") == "pixel"
 
     def test_to_dict_is_json_serializable(self):
         import json

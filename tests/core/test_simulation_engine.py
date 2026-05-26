@@ -110,6 +110,20 @@ class TestDisplayCommands:
         snap = eng.update()
         assert snap.brick["screen"]["lines"] == []
 
+    def test_screen_draw_ops_appear_in_snapshot(self):
+        eng = make_engine()
+        eng.command_queue.put(SimulationCommand.screen_pixel(10, 20, color=1))
+        eng.command_queue.put(SimulationCommand.screen_line(0, 0, 30, 40, color=1))
+        eng.command_queue.put(SimulationCommand.screen_circle(50, 60, 8, color=1, fill=False))
+        eng.command_queue.put(SimulationCommand.screen_box(5, 6, 7, 8, color=1, fill=True))
+        snap = eng.update()
+        ops = snap.brick["screen"].get("draw_ops", [])
+        assert len(ops) == 4
+        assert ops[0]["op"] == "pixel"
+        assert ops[1]["op"] == "line"
+        assert ops[2]["op"] == "circle"
+        assert ops[3]["op"] == "box"
+
 
 # ---------------------------------------------------------------------------
 # Comandos — Altavoz
