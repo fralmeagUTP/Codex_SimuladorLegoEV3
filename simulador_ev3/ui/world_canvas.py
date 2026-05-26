@@ -215,11 +215,10 @@ class WorldCanvas(tk.Canvas):
             if len(self._trail) > 2:
                 self._draw_trail()
 
-        if self._show_sensor_beams:
-            self._draw_sensor_beams(dto, rx, ry, th)
-
         # Dibujar robot
         self._draw_robot(rx, ry, th, dto.colliding, color_sensor_reflection)
+        if self._show_sensor_beams:
+            self._draw_sensor_beams(dto, rx, ry, th)
         if self._follow_robot:
             self._center_view_on_mm(rx, ry)
 
