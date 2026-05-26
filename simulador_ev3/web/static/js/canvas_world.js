@@ -31,6 +31,9 @@ window.EV3Canvas = (() => {
   const DEFAULT_WORLD_MM = 4000;
   const ROBOT_WIDTH_MM = 110;
   const ROBOT_HEIGHT_MM = 70;
+  const FRONT_SENSOR_OFFSET_MM = 70;
+  const ULTRASONIC_MAX_MM = 2500;
+  const IR_MAX_MM = 700;
   const TRAIL_TELEPORT_THRESHOLD_MM = 150;
   const FOLLOW_EDGE_MARGIN_RATIO = 0.45;
   const FOLLOW_CENTER_X = 0.5;
@@ -217,6 +220,9 @@ window.EV3Canvas = (() => {
 
     updateTrail(snapshot?.robot, snapshot?.tick);
     drawTrail(ctx, trail, view);
+    if (snapshot?.robot && editorState.showSensorBeams !== false) {
+      drawSensorBeams(ctx, snapshot, view);
+    }
     if (snapshot?.robot) {
       drawRobot(ctx, snapshot.robot, view, snapshot.colliding);
     }
@@ -226,6 +232,67 @@ window.EV3Canvas = (() => {
 
     const followPose = snapshot?.robot || (editorState.followRobotStart ? editorState.robotStart : null);
     centerPaneOnPose(canvas, world, followPose);
+  }
+
+  function drawSensorBeams(ctx, snapshot, view) {
+    const robot = snapshot?.robot;
+    const sensors = Array.isArray(snapshot?.sensors) ? snapshot.sensors : [];
+    if (!robot || !sensors.length) return;
+
+    const thetaRad = ((Number(robot.theta_deg) || 0) * Math.PI) / 180;
+    const sxMm = (Number(robot.x_mm) || 0) + Math.cos(thetaRad) * FRONT_SENSOR_OFFSET_MM;
+    const syMm = (Number(robot.y_mm) || 0) + Math.sin(thetaRad) * FRONT_SENSOR_OFFSET_MM;
+
+    for (const sensor of sensors) {
+      const type = String(sensor?.type || "").toLowerCase();
+      const data = sensor?.data && typeof sensor.data === "object" ? sensor.data : {};
+      if (type.includes("ultrasonic")) {
+        const dist = clamp(Number(data.distance_mm), 0, ULTRASONIC_MAX_MM);
+        drawSensorCone(ctx, view, sxMm, syMm, thetaRad, dist || ULTRASONIC_MAX_MM, 12, "rgba(0, 188, 212, 0.16)", "#00acc1");
+      } else if (type.includes("infrared")) {
+        const proximity = clamp(Number(data.proximity), 0, 100);
+        const dist = (proximity / 100) * IR_MAX_MM;
+        drawSensorCone(ctx, view, sxMm, syMm, thetaRad, dist || IR_MAX_MM, 8, "rgba(255, 111, 0, 0.14)", "#ff8f00");
+      }
+    }
+  }
+
+  function drawSensorCone(ctx, view, sxMm, syMm, angleRad, distMm, halfDeg, fill, stroke) {
+    const start = toCanvas(view, sxMm, syMm);
+    const left = toCanvas(
+      view,
+      sxMm + Math.cos(angleRad - (halfDeg * Math.PI) / 180) * distMm,
+      syMm + Math.sin(angleRad - (halfDeg * Math.PI) / 180) * distMm,
+    );
+    const right = toCanvas(
+      view,
+      sxMm + Math.cos(angleRad + (halfDeg * Math.PI) / 180) * distMm,
+      syMm + Math.sin(angleRad + (halfDeg * Math.PI) / 180) * distMm,
+    );
+    const front = toCanvas(
+      view,
+      sxMm + Math.cos(angleRad) * distMm,
+      syMm + Math.sin(angleRad) * distMm,
+    );
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(left.x, left.y);
+    ctx.lineTo(right.x, right.y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(front.x, front.y);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
   }
 
   function resetTrail(robot = null) {

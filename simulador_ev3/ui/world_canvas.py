@@ -80,6 +80,9 @@ _ASSET_LAYER_ORDER = {
 }
 _ROBOT_WIDTH_MM = 110.0
 _ROBOT_HEIGHT_MM = 70.0
+_FRONT_SENSOR_OFFSET_MM = 70.0
+_ULTRASONIC_MAX_MM = 2500.0
+_IR_MAX_MM = 700.0
 _ROBOT_DRAW_W_PX = max(1, int(round(_ROBOT_WIDTH_MM * _PX_PER_MM)))
 _ROBOT_DRAW_H_PX = max(1, int(round(_ROBOT_HEIGHT_MM * _PX_PER_MM)))
 _ROBOT_ROT_STEP_DEG = 2
@@ -152,6 +155,7 @@ class WorldCanvas(tk.Canvas):
         self._px_per_mm = _PX_PER_MM
         self._follow_robot = True
         self._show_editor_robot_asset = True
+        self._show_sensor_beams = True
         self._follow_pad_x_px = 0.0
         self._follow_pad_y_px = 0.0
 
@@ -211,6 +215,9 @@ class WorldCanvas(tk.Canvas):
             if len(self._trail) > 2:
                 self._draw_trail()
 
+        if self._show_sensor_beams:
+            self._draw_sensor_beams(dto, rx, ry, th)
+
         # Dibujar robot
         self._draw_robot(rx, ry, th, dto.colliding, color_sensor_reflection)
         if self._follow_robot:
@@ -238,6 +245,9 @@ class WorldCanvas(tk.Canvas):
 
     def set_robot_follow_enabled(self, enabled: bool) -> None:
         self._follow_robot = bool(enabled)
+
+    def set_sensor_beams_enabled(self, enabled: bool) -> None:
+        self._show_sensor_beams = bool(enabled)
 
     def zoom_in(self) -> float:
         return self._set_zoom_factor(self._zoom_factor + _ZOOM_STEP)
@@ -1082,6 +1092,93 @@ class WorldCanvas(tk.Canvas):
             outline=_COLOR_SENSOR_MARKER_OUTLINE,
             width=1,
         )
+
+    def _draw_sensor_beams(self, dto: SnapshotDTO, rx: float, ry: float, theta_deg: float) -> None:
+        sensors = getattr(dto, "sensors", []) or []
+        if not isinstance(sensors, list):
+            return
+
+        theta_rad = math.radians(theta_deg)
+        sx_mm = rx + math.cos(theta_rad) * _FRONT_SENSOR_OFFSET_MM
+        sy_mm = ry + math.sin(theta_rad) * _FRONT_SENSOR_OFFSET_MM
+        sx_px, sy_px = self._mm_to_px(sx_mm, sy_mm)
+
+        for sensor in sensors:
+            if not isinstance(sensor, dict):
+                continue
+            sensor_type = str(sensor.get("type", "")).lower()
+            data = sensor.get("data")
+            if not isinstance(data, dict):
+                data = {}
+
+            if "ultrasonic" in sensor_type:
+                distance_mm = float(data.get("distance_mm", _ULTRASONIC_MAX_MM) or _ULTRASONIC_MAX_MM)
+                distance_mm = max(0.0, min(_ULTRASONIC_MAX_MM, distance_mm))
+                self._draw_sensor_cone(
+                    sx_px,
+                    sy_px,
+                    theta_rad,
+                    distance_mm if distance_mm > 0 else _ULTRASONIC_MAX_MM,
+                    half_angle_deg=12.0,
+                    fill="#B2EBF2",
+                    outline="#00ACC1",
+                )
+            elif "infrared" in sensor_type:
+                proximity = float(data.get("proximity", 100) or 100)
+                proximity = max(0.0, min(100.0, proximity))
+                distance_mm = (proximity / 100.0) * _IR_MAX_MM
+                self._draw_sensor_cone(
+                    sx_px,
+                    sy_px,
+                    theta_rad,
+                    distance_mm if distance_mm > 0 else _IR_MAX_MM,
+                    half_angle_deg=8.0,
+                    fill="#FFE0B2",
+                    outline="#FB8C00",
+                )
+
+    def _draw_sensor_cone(
+        self,
+        sx_px: float,
+        sy_px: float,
+        theta_rad: float,
+        distance_mm: float,
+        *,
+        half_angle_deg: float,
+        fill: str,
+        outline: str,
+    ) -> None:
+        scale_x, scale_y = self._get_transform()
+        distance_px = distance_mm * ((scale_x + scale_y) / 2.0)
+        half = math.radians(half_angle_deg)
+
+        left_x = sx_px + math.cos(theta_rad - half) * distance_px
+        left_y = sy_px + math.sin(theta_rad - half) * distance_px
+        right_x = sx_px + math.cos(theta_rad + half) * distance_px
+        right_y = sy_px + math.sin(theta_rad + half) * distance_px
+        front_x = sx_px + math.cos(theta_rad) * distance_px
+        front_y = sy_px + math.sin(theta_rad) * distance_px
+
+        cone = self.create_polygon(
+            sx_px,
+            sy_px,
+            left_x,
+            left_y,
+            right_x,
+            right_y,
+            fill=fill,
+            outline=outline,
+            width=1,
+        )
+        ray = self.create_line(
+            sx_px,
+            sy_px,
+            front_x,
+            front_y,
+            fill=outline,
+            width=2,
+        )
+        self._robot_items.extend([cone, ray])
 
     @staticmethod
     def _extract_color_sensor_reflection(dto: SnapshotDTO) -> Optional[float]:

@@ -679,6 +679,17 @@ dd {
   font-size: 12px;
 }
 
+#toggleSensorBeamsBtn {
+  width: auto;
+  min-width: 84px;
+  padding: 0 8px;
+}
+
+.map-tools button.is-active {
+  background: #dbefff;
+  border-color: #8fb4de;
+}
+
 .sim-map-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1882,6 +1893,12 @@ html[data-theme="dark"] .world-editor-toolbar button,
 html[data-theme="dark"] .world-size-bar button {
   background: #1d2f49;
   color: #e4ecf9;
+}
+
+html[data-theme="dark"] .map-tools button.is-active {
+  background: #2b4a66;
+  border-color: #4f7aa1;
+  color: #eaf4ff;
 }
 
 html[data-theme="dark"] .sim-control-bar .run-button {

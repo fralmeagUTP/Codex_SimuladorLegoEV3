@@ -295,6 +295,18 @@ class EV3SimulatorApp(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 8), pady=6)
         map_tools = tk.Frame(map_header, bg="#FFFFFF")
         map_tools.pack(side=tk.RIGHT, padx=(0, 8), pady=4)
+        self._sensor_beams_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(
+            map_tools,
+            text="Haces sensores",
+            variable=self._sensor_beams_var,
+            command=self._on_toggle_sensor_beams,
+            bg="#FFFFFF",
+            activebackground="#FFFFFF",
+            fg="#1D2D44",
+            selectcolor="#E3F2FD",
+            font=("Segoe UI", 8),
+        ).pack(side=tk.LEFT, padx=(0, 6))
         tk.Button(
             map_tools,
             text="+",
@@ -333,6 +345,7 @@ class EV3SimulatorApp(tk.Tk):
         canvas_view.pack(fill=tk.BOTH, expand=True)
 
         self._canvas = WorldCanvas(canvas_view, world_w_mm=ww, world_h_mm=wh)
+        self._canvas.set_sensor_beams_enabled(self._sensor_beams_var.get())
         y_scroll = tk.Scrollbar(canvas_view, orient=tk.VERTICAL, command=self._canvas.yview)
         x_scroll = tk.Scrollbar(canvas_view, orient=tk.HORIZONTAL, command=self._canvas.xview)
         self._canvas.configure(xscrollcommand=x_scroll.set, yscrollcommand=y_scroll.set)
@@ -680,6 +693,10 @@ class EV3SimulatorApp(tk.Tk):
 
     def _cmd_map_zoom_reset(self) -> None:
         self._canvas.fit_to_view()
+
+    def _on_toggle_sensor_beams(self) -> None:
+        if hasattr(self, "_canvas") and self._canvas is not None:
+            self._canvas.set_sensor_beams_enabled(bool(self._sensor_beams_var.get()))
 
     def _cmd_reset(self) -> None:
         self._service.reset()

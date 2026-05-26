@@ -34,6 +34,7 @@
   const mapZoomInBtn = document.getElementById("mapZoomInBtn");
   const mapZoomOutBtn = document.getElementById("mapZoomOutBtn");
   const mapZoomResetBtn = document.getElementById("mapZoomResetBtn");
+  const toggleSensorBeamsBtn = document.getElementById("toggleSensorBeamsBtn");
   const aboutMenuBtn = document.getElementById("aboutMenuBtn");
   const aboutDialog = document.getElementById("aboutDialog");
   const aboutDialogBackdrop = document.getElementById("aboutDialogBackdrop");
@@ -158,6 +159,9 @@
   let loadedWorldNames = new Set();
   let currentScriptName = "editor_actual.py";
   let executionMenuLocked = false;
+  const initialSensorBeamsFlag =
+    String(document?.documentElement?.dataset?.ev3SensorBeamsEnabled || "true").toLowerCase() !== "false";
+  let showSensorBeams = initialSensorBeamsFlag;
   const STREAM_BOOTSTRAP_TIMEOUT_MS = 2500;
   const POLLING_INTERVAL_MS = 700;
   const STREAM_RETRY_DELAY_MS = 5000;
@@ -1646,7 +1650,14 @@
     window.EV3Canvas.draw(canvas, latestSnapshot, currentWorld, {
       hidePlacedRobots: true,
       robotStart: robotStartMode ? robotStartPreview : (showRobotStartMarker ? robotStart : null),
+      showSensorBeams,
     });
+  }
+
+  function syncSensorBeamsButton() {
+    if (!toggleSensorBeamsBtn) return;
+    toggleSensorBeamsBtn.textContent = showSensorBeams ? "Haces ON" : "Haces OFF";
+    toggleSensorBeamsBtn.classList.toggle("is-active", showSensorBeams);
   }
 
   function applyMapZoom(action) {
@@ -1662,6 +1673,15 @@
   }
 
   window.addEventListener("ev3-assets-loaded", redrawCanvas);
+
+  if (toggleSensorBeamsBtn) {
+    toggleSensorBeamsBtn.addEventListener("click", () => {
+      showSensorBeams = !showSensorBeams;
+      syncSensorBeamsButton();
+      redrawCanvas();
+    });
+    syncSensorBeamsButton();
+  }
 
   function updateTelemetry(snapshot) {
     const telemetry = document.getElementById("telemetry");

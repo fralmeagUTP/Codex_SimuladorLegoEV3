@@ -44,6 +44,7 @@ class DefaultWebConfig:
     FILE_MIRROR_ENABLED = True
     FILE_MIRROR_DIR = Path(tempfile.gettempdir()) / "ev3web_session_mirror"
     UI_FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
+    SENSOR_BEAMS_ENABLED = True
     DEBUGSTATE_V2_ENABLED = True
     WEB_DEBUGSTATE_V2 = True
     TK_DEBUGSTATE_V2 = True
@@ -78,6 +79,7 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "FILE_MIRROR_ENABLED": lambda value: _parse_bool(value),
     "FILE_MIRROR_DIR": Path,
     "UI_FIT_PADDING_RATIO": float,
+    "SENSOR_BEAMS_ENABLED": lambda value: _parse_bool(value),
     "DEBUGSTATE_V2_ENABLED": lambda value: _parse_bool(value),
     "WEB_DEBUGSTATE_V2": lambda value: _parse_bool(value),
     "TK_DEBUGSTATE_V2": lambda value: _parse_bool(value),
