@@ -975,7 +975,8 @@ class EV3SimulatorApp(tk.Tk):
         self._about_window = win
         self._about_images = []
         win.title("Acerca de")
-        win.geometry("620x560")
+        win.geometry("620x700")
+        win.minsize(620, 680)
         win.minsize(580, 500)
         win.configure(bg="#ECEFF1")
         win.transient(self)
@@ -1026,14 +1027,14 @@ class EV3SimulatorApp(tk.Tk):
 
         self._add_about_group_card(
             cards,
-            "simulador_ev3/assets/Logo_Nyquist.jpg",
+            "simulador_ev3/assets/Logo_Nyquist.png",
             "Grupo Nyquist",
             "Lineas UTP: analisis y procesamiento de senales 1D/2D, comunicaciones inalambricas, "
             "procesamiento digital de senales, protocolos y redes de comunicacion, seguridad TIC y educacion.",
         )
         self._add_about_group_card(
             cards,
-            "simulador_ev3/assets/Logo_Robotica_Aplicada.jpg",
+            "simulador_ev3/assets/Logo_Robotica_Aplicada.png",
             "Robotica Aplicada",
             "Lineas UTP: instrumentacion electronica y transmision de datos, instrumentacion fisica y simulacion "
             "de procesos industriales, reconocimiento de voz, tratamiento de senales y vision artificial.",
