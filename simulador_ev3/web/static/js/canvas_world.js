@@ -251,7 +251,7 @@ window.EV3Canvas = (() => {
         drawSensorCone(ctx, view, sxMm, syMm, thetaRad, dist || ULTRASONIC_MAX_MM, 12, "rgba(0, 188, 212, 0.16)", "#00acc1");
       } else if (type.includes("infrared")) {
         const proximity = clamp(Number(data.proximity), 0, 100);
-        const dist = (proximity / 100) * IR_MAX_MM;
+        const dist = ((100 - proximity) / 100) * IR_MAX_MM;
         drawSensorCone(ctx, view, sxMm, syMm, thetaRad, dist || IR_MAX_MM, 8, "rgba(255, 111, 0, 0.14)", "#ff8f00");
       }
     }

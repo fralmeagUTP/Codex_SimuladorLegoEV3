@@ -1126,7 +1126,7 @@ class WorldCanvas(tk.Canvas):
             elif "infrared" in sensor_type:
                 proximity = float(data.get("proximity", 100) or 100)
                 proximity = max(0.0, min(100.0, proximity))
-                distance_mm = (proximity / 100.0) * _IR_MAX_MM
+                distance_mm = ((100.0 - proximity) / 100.0) * _IR_MAX_MM
                 self._draw_sensor_cone(
                     sx_px,
                     sy_px,

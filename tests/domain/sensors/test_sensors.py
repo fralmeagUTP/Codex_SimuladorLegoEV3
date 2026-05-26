@@ -212,7 +212,7 @@ class TestInfraredSensor:
         d_far = sensor.distance()
         sensor.update(100.0, 1000.0, 0.0, world)    # cerca
         d_near = sensor.distance()
-        assert d_near <= d_far
+        assert d_near >= d_far
 
     def test_beacon_no_beacon_returns_zeros(self, world_open: WorldModel) -> None:
         sensor = InfraredSensorModel()

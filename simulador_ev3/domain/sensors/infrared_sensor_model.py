@@ -69,8 +69,9 @@ class InfraredSensorModel:
             angle_rad=robot_theta,
             max_dist_mm=MAX_IR_DISTANCE * 10,  # 700 mm máx
         )
-        # Escalar a 0-100
-        self._proximity = min(100, int(dist_mm / (MAX_IR_DISTANCE * 10) * 100))
+        # Escalar invertido a 0-100: 100=cerca, 0=lejos/sin deteccion.
+        ratio = min(1.0, max(0.0, dist_mm / (MAX_IR_DISTANCE * 10)))
+        self._proximity = max(0, min(100, int(round((1.0 - ratio) * 100))))
 
     # ------------------------------------------------------------------ #
     # API de lectura — MODO PROXIMITY
@@ -80,7 +81,7 @@ class InfraredSensorModel:
         """
         Proximidad al obstáculo más cercano en unidades 0-100.
         Equivale a InfraredSensor.distance() de Pybricks.
-        100 = sin obstáculo en rango.
+        100 = muy cerca, 0 = lejos o fuera de rango.
         """
         return self._proximity
 

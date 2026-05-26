@@ -393,7 +393,7 @@ class InfraredSensor:
         ctx.engine.attach_sensor(str(port), self._model)
 
     def distance(self) -> int:
-        """Proximidad en 0-100 (0=muy cerca, 100=lejos o nada)."""
+        """Proximidad en 0-100 (100=muy cerca, 0=lejos o nada)."""
         return self._model.distance()
 
     def reflection(self) -> int:
