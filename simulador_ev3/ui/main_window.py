@@ -953,11 +953,16 @@ class EV3SimulatorApp(tk.Tk):
     def _cmd_about(self) -> None:
         messagebox.showinfo(
             "Acerca de",
-            "Simulador Lego mindstorms EV3 basado en la librería Pybricks\n"
-            "Versión 1.0\n\n"
-            "Desarrollado por: \n "
-            "\t\tFrancisco Alejandro Medina\n"
-            "\t\tJimmy Alexander Cortez\n",
+            "Simulador LEGO Mindstorms EV3 basado en la libreria Pybricks\n"
+            "Version 1.3.4\n\n"
+            "Desarrollado por:\n"
+            "  - Francisco Alejandro Medina Aguirre\n"
+            "  - Jimy Alexander Cortés Osorio\n\n"
+            "Grupos de investigacion vinculados:\n"
+            "  - Nyquist\n"
+            "  - Robotica Aplicada\n\n"
+            "Institucion de apoyo academico:\n"
+            "  - Universidad Tecnologica de Pereira (UTP)\n",
         )
 
     def _cmd_user_manual(self) -> None:

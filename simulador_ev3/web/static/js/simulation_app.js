@@ -41,11 +41,15 @@
   const aboutDialogCloseBtn = document.getElementById("aboutDialogCloseBtn");
   const aboutDialogOkBtn = document.getElementById("aboutDialogOkBtn");
   const ABOUT_MESSAGE =
-    "Simulador Lego mindstorms EV3 basado en la libreria Pybricks\n"
-    + "Version 1.0\n\n"
+    "Simulador LEGO Mindstorms EV3 basado en la libreria Pybricks\n"
+    + "Version 1.3.4\n\n"
     + "Desarrollado por:\n"
-    + "\t\tFrancisco Alejandro Medina\n"
-    + "\t\tJimmy Alexander Cortez\n";
+    + "\t\tFrancisco Alejandro Medina Aguirre\n"
+    + "\t\tJimy Alexander Cortés Osorio\n\n"
+    + "Aliados academicos:\n"
+    + "\t- Grupo Nyquist\n"
+    + "\t- Robotica Aplicada\n"
+    + "\t- Universidad Tecnologica de Pereira (UTP)\n";
 
   if (!statusProgram) {
     const editorShell = document.querySelector(".code-editor-shell");
