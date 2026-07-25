@@ -1,1 +1,1 @@
-﻿# tests/domain\brick
+# tests/domain\brick

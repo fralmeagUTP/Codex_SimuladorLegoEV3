@@ -4,10 +4,9 @@ test_led_model.py
 Tests unitarios para LedModel y EV3BrickModel.
 """
 
-import pytest
-from simulador_ev3.domain.brick.led_model import LedModel, LedColor
+from simulador_ev3.domain.brick.buttons_model import Button, ButtonsModel
 from simulador_ev3.domain.brick.ev3brick_model import EV3BrickModel
-from simulador_ev3.domain.brick.buttons_model import ButtonsModel, Button
+from simulador_ev3.domain.brick.led_model import LedColor, LedModel
 from simulador_ev3.domain.brick.screen_buffer import (
     MAX_LINES,
     SCREEN_HEIGHT_PX,
@@ -15,10 +14,10 @@ from simulador_ev3.domain.brick.screen_buffer import (
     ScreenBuffer,
 )
 
-
 # ------------------------------------------------------------------ #
 # LedModel
 # ------------------------------------------------------------------ #
+
 
 class TestLedModel:
     def test_initial_state_is_off(self) -> None:
@@ -42,7 +41,7 @@ class TestLedModel:
     def test_cmd_on_with_off_color_turns_off(self) -> None:
         led = LedModel()
         led.cmd_on(LedColor.RED)
-        led.cmd_on(LedColor.OFF)   # pasar OFF como color apaga el LED
+        led.cmd_on(LedColor.OFF)  # pasar OFF como color apaga el LED
         assert not led.is_on
 
     def test_to_dict_structure(self) -> None:
@@ -56,6 +55,7 @@ class TestLedModel:
 # ------------------------------------------------------------------ #
 # ButtonsModel
 # ------------------------------------------------------------------ #
+
 
 class TestButtonsModel:
     def test_no_buttons_pressed_initially(self) -> None:
@@ -80,13 +80,14 @@ class TestButtonsModel:
         buttons = ButtonsModel()
         buttons.press(Button.LEFT)
         result = buttons.pressed_buttons()
-        result.add(Button.RIGHT)   # no debe afectar al modelo
+        result.add(Button.RIGHT)  # no debe afectar al modelo
         assert not buttons.is_pressed(Button.RIGHT)
 
 
 # ------------------------------------------------------------------ #
 # ScreenBuffer
 # ------------------------------------------------------------------ #
+
 
 class TestScreenBuffer:
     def test_initial_screen_empty(self) -> None:
@@ -128,6 +129,7 @@ class TestScreenBuffer:
 # EV3BrickModel
 # ------------------------------------------------------------------ #
 
+
 class TestEV3BrickModel:
     def test_default_construction(self) -> None:
         brick = EV3BrickModel()
@@ -149,6 +151,7 @@ class TestEV3BrickModel:
         # update con dt=0.02 s → 20 ms consumidos, quedan 20 ms
         brick.update(dt=0.02)
         from simulador_ev3.domain.brick.speaker_model import SpeakerState
+
         assert brick.speaker.state == SpeakerState.BEEPING
         # segundo update → queda en 0 ms → IDLE
         brick.update(dt=0.02)

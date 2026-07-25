@@ -940,6 +940,14 @@
     applyMapZoom("reset");
   });
 
+  window.addEventListener("pagehide", () => {
+    api.closeSessionOnUnload();
+  });
+
+  window.addEventListener("beforeunload", () => {
+    api.closeSessionOnUnload();
+  });
+
   try {
     await init();
   } catch (err) {

@@ -1,27 +1,29 @@
 # Simulador EV3 Pybricks
 
-Version actual: 1.3.4
+Version actual: 1.4.0 (fuente unica: `simulador_ev3/_version.py`)
 
 Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyecto incluye aplicacion de escritorio Tkinter y aplicacion web Flask para ejecutar scripts, editar mundos 2D y visualizar telemetria del robot.
 
 ## Estado de interfaces
 
-- Frontend principal: Web Flask (`/` y `/worlds`).
-- Frontend legado: Tkinter (`simulador_ev3/ui`) en modo mantenimiento correctivo.
-- Politica de evolucion: nuevas funcionalidades primero en web; en escritorio solo correcciones necesarias de compatibilidad.
+- Web Flask: simulacion (`/`), editor de mundos (`/worlds`) y ayuda (`/help`).
+- Escritorio Tkinter: simulacion local, editor, mundos, telemetria y brick virtual.
+- Ambas interfaces consumen el contrato de sesion compartido y mantienen paridad
+  funcional de simulacion, perfiles, trazas y depuracion. La Web es la referencia
+  visual; Tkinter conserva pequenas diferencias propias de controles nativos.
 
 ## Estado del repositorio
 
 - Rama publicada: `main`
-- Version objetivo en GitHub: `1.3.4`
+- Version objetivo en GitHub: `1.4.0`
 - Interfaz web: incluida desde la version `1.3.0`
-- Interfaz escritorio Tkinter: legado en mantenimiento
+- Interfaz escritorio Tkinter: soportada para uso local Windows
 
 ## Estructura estandar de recursos
 
 - Ejemplos compartidos: `examples/`
 - Mundos compartidos: `worlds/`
-- Documentacion: `Documentos/` (legacy, en proceso de migracion a `docs/`)
+- Documentacion e indice: `Documentos/INDICE_DOCUMENTACION.md`
 
 Compatibilidad: el codigo mantiene fallback a `Documentos/Ejemplos` y `Documentos/Mundos` para no romper despliegues existentes.
 
@@ -36,11 +38,17 @@ Compatibilidad: el codigo mantiene fallback a `Documentos/Ejemplos` y `Documento
 - Debug web con breakpoints, step y continue.
 - Resaltado de linea actual en modo depuracion web.
 - Boton unico `Detener y reiniciar` para salida consistente de ejecucion.
-- Auto-reinicio de estado al finalizar scripts para evitar sesiones colgadas.
-- Evidencia visual automatizada para la web.
-- Pruebas unitarias, integracion, E2E Playwright y smoke de release.
+- Estado final visible y reinicio explicito de simulacion.
+- Evidencia visual reproducible de Web y Tkinter.
+- Pruebas unitarias, integracion, contrato, UI, E2E Playwright, carga y release.
 
 ## Uso rapido web
+
+Requisito: Python 3.11 o superior. Instalar dependencias antes de iniciar:
+
+```powershell
+py -3.12 -m pip install -r requirements.txt
+```
 
 ```powershell
 .\scripts\start_web.cmd
@@ -64,10 +72,29 @@ Detener:
 .\scripts\stop_web.cmd
 ```
 
+### Configuracion segura de produccion
+
+El modo local conserva sus valores educativos por defecto. Para desplegar la web en produccion, configura el entorno y usa HTTPS:
+
+```powershell
+$env:EV3_WEB_APP_ENV = "production"
+$env:EV3_WEB_SECRET_KEY = "reemplaza-por-un-secreto-unico-de-al-menos-32-caracteres"
+$env:EV3_WEB_SCRIPT_MAX_RUNTIME_S = "30"
+$env:EV3_WEB_SESSION_COOKIE_SECURE = "true"
+```
+
+El servidor rechaza el arranque si falta una clave segura, si el tiempo maximo por script no es positivo o si las cookies no estan marcadas para HTTPS. No publiques la clave en el repositorio.
+
 ## Uso rapido escritorio
 
 ```powershell
 .\.venv\Scripts\python.exe -m simulador_ev3.ui.main_window
+```
+
+Si no existe `.venv`, usar el interprete instalado compatible:
+
+```powershell
+py -3.12 -m simulador_ev3.ui.main_window
 ```
 
 ## Pantalla EV3 simulada
@@ -85,8 +112,13 @@ El ejemplo `23_radar_ultrasonido_5grados.py` usa esta API para dibujar el radar 
 
 ## Documentacion
 
+- Indice y estado documental: `Documentos/INDICE_DOCUMENTACION.md`
 - Manual de uso: `Documentos/MANUAL_DE_USO.md`
 - Guia web Windows: `Documentos/GUIA_WEB_FLASK_WINDOWS.md`
+- Guia despliegue Linux: `Documentos/GUIA_DESPLIEGUE_LINUX.md`
+- Arquitectura C4: `Documentos/ARQUITECTURA_C4.md`
+- Diferencias simulador-robot: `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md`
+- Controles de calidad: `Documentos/CONTROLES_CALIDAD.md`
 - Roadmap: `ROADMAP.md`
 - Checklist QA: `Documentos/CHECKLIST_QA_RELEASE.md`
 - Evidencia QA: `Documentos/EVIDENCIA_QA_RELEASE_2026-05-20.md`
@@ -96,21 +128,21 @@ El ejemplo `23_radar_ultrasonido_5grados.py` usa esta API para dibujar el radar 
 ## Pruebas recomendadas
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\web tests\e2e tests\application
+py -3.12 -m pytest -q
+py -3.12 -m ruff check simulador_ev3 tests
+py -3.12 -m mypy
 ```
 
-Ultima validacion documentada: `565 passed`.
+Ultima validacion actual: **689 pruebas aprobadas** y 71.50% de cobertura el
+2026-07-24, junto con Ruff, Mypy, Bandit y Pip-Audit sin fallos. Este resultado
+es evidencia fechada; volver a ejecutar los comandos anteriores para obtener el estado vigente. Para el detalle
+de pruebas, cobertura, E2E y analisis de seguridad ver `docs/testing/` y
+`Documentos/CONTROLES_CALIDAD.md`.
 
-Validacion tecnica reciente (2026-05-25):
-- `tests/core/test_command_queue.py` + `tests/core/test_simulation_engine.py` + `tests/application/test_application.py` + `tests/pybricks_api/test_pybricks_api.py`: `169 passed`.
-- `tests/web/test_web_app.py`: `73 passed`.
-- E2E Playwright focalizadas:
-  - `test_simulation_gutter_breakpoints_and_robot_start`: `passed`.
-  - `test_world_editor_builds_valid_world_and_exposes_simulation_link`: `passed`.
-
-Cambios destacados 1.3.4:
-- Carga de mundos en web: al abrir un mundo se respeta y visualiza de inmediato la pose preestablecida del robot.
-- Mejora del ejemplo `16_resolver_laberinto.py` con logica de exploracion mas robusta para laberintos de pasillo.
+Cambios destacados 1.4.0:
+- Worker aislado, contrato de sesion compartido y recuperacion de ejecuciones.
+- Paridad visual y funcional reforzada entre Web y Tkinter.
+- Observabilidad, calidad continua, documentacion operativa y 689 pruebas en entorno limpio.
 
 Para validacion completa por bloques, usar `Documentos/CHECKLIST_QA_RELEASE.md`.
 

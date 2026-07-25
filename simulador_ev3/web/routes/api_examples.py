@@ -6,7 +6,6 @@ from flask import Blueprint, current_app, jsonify
 
 from simulador_ev3.web.routes.helpers import safe_child
 
-
 bp = Blueprint("api_examples", __name__, url_prefix="/api")
 
 

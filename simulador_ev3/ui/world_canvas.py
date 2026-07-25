@@ -13,6 +13,7 @@ mundo completo (world_width_mm × world_height_mm) siempre sea visible.
 No depende directamente de la capa de dominio; sólo consume SnapshotDTO
 y la configuración de la pista (WorldConfig, Fase 8).
 """
+
 from __future__ import annotations
 
 import math
@@ -28,21 +29,21 @@ from simulador_ev3.domain.editor.world_editor_model import (
     normalize_asset_key,
 )
 from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.ui_design_tokens import tokens_for_theme
 from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
-
 # Colores del canvas
-_BG           = "#F0F0F0"
-_OBSTACLE     = "#37474F"
+_BG = "#F0F0F0"
+_OBSTACLE = "#37474F"
 _OBSTACLE_OUTLINE = "#102027"
-_HEADING      = "#1565C0"     # flecha de dirección
-_TRAIL        = "#90CAF9"     # rastro opcional
-_GRID         = "#CCCCCC"
+_HEADING = "#1565C0"  # flecha de dirección
+_TRAIL = "#90CAF9"  # rastro opcional
+_GRID = "#CCCCCC"
 _SURFACE_BLACK = "#1A1A1A"
 _SURFACE_WHITE = "#F5F5F5"
-_SURFACE_RED   = "#E53935"
+_SURFACE_RED = "#E53935"
 _SURFACE_GREEN = "#43A047"
-_SURFACE_BLUE  = "#1E88E5"
+_SURFACE_BLUE = "#1E88E5"
 _SURFACE_YELLOW = "#FDD835"
 _SURFACE_BROWN = "#8D6E63"
 _WALL_STYLE = {
@@ -90,14 +91,14 @@ _COLOR_SENSOR_OFFSET_MM = 60.0
 _COLOR_SENSOR_MARKER_OUTLINE = "#FFB300"
 
 # Paleta robot tipo EV3 (aproximada)
-_ROBOT_BODY      = "#D9DDE3"
-_ROBOT_BODY_TOP  = "#C7CDD6"
-_ROBOT_OUTLINE   = "#5E6773"
+_ROBOT_BODY = "#D9DDE3"
+_ROBOT_BODY_TOP = "#C7CDD6"
+_ROBOT_OUTLINE = "#5E6773"
 _ROBOT_COLLISION = "#D32F2F"
-_ROBOT_WHEEL     = "#1F1F1F"
-_ROBOT_SENSOR    = "#2B2B2B"
+_ROBOT_WHEEL = "#1F1F1F"
+_ROBOT_SENSOR = "#2B2B2B"
 _ROBOT_SENSOR_EYE = "#8E9AAF"
-_ROBOT_BUTTON    = "#E53935"
+_ROBOT_BUTTON = "#E53935"
 _ROBOT_SCREEN_FRAME = "#8D939D"
 _ROBOT_SCREEN_GLASS = "#C8E6D0"
 _ROBOT_DPAD = "#AEB4BD"
@@ -118,8 +119,8 @@ _ZOOM_STEP = 0.15
 _FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
 
 # Colores del modo de colocación
-_PLACEMENT_GHOST  = "#4FC3F7"   # contorno fantasma al mover el ratón
-_PLACEMENT_MARKER = "#FF6F00"   # marcador de posición seleccionada
+_PLACEMENT_GHOST = "#4FC3F7"  # contorno fantasma al mover el ratón
+_PLACEMENT_MARKER = "#FF6F00"  # marcador de posición seleccionada
 _FOLLOW_EDGE_MARGIN_RATIO = 0.45
 
 
@@ -140,7 +141,7 @@ class WorldCanvas(tk.Canvas):
         parent: tk.Widget,
         world_w_mm: float = _DEFAULT_WORLD_W,
         world_h_mm: float = _DEFAULT_WORLD_H,
-        show_trail: bool  = True,
+        show_trail: bool = True,
         **kwargs,
     ) -> None:
         kwargs.setdefault("bg", _BG)
@@ -148,14 +149,17 @@ class WorldCanvas(tk.Canvas):
         kwargs.setdefault("highlightbackground", "#AAAAAA")
         super().__init__(parent, **kwargs)
 
-        self._world_w  = world_w_mm
-        self._world_h  = world_h_mm
+        self._world_w = world_w_mm
+        self._world_h = world_h_mm
         self._show_trail = show_trail
         self._zoom_factor = 1.0
         self._px_per_mm = _PX_PER_MM
         self._follow_robot = True
         self._show_editor_robot_asset = True
         self._show_sensor_beams = True
+        self._canvas_background = _BG
+        self._grid_color = _GRID
+        self._canvas_border = "#B0BEC5"
         self._follow_pad_x_px = 0.0
         self._follow_pad_y_px = 0.0
 
@@ -194,6 +198,21 @@ class WorldCanvas(tk.Canvas):
     # ------------------------------------------------------------------
     # API pública
     # ------------------------------------------------------------------
+
+    def set_theme(self, theme: str) -> None:
+        """Aplica al mapa los fondos y la rejilla semanticos de la Web."""
+
+        tokens = tokens_for_theme(theme)
+        is_dark = str(theme).strip().lower() == "dark"
+        self._canvas_background = tokens.background if is_dark else tokens.surface
+        self._grid_color = "#213149" if is_dark else "#D9E4EF"
+        self._canvas_border = tokens.border
+        self.configure(bg=self._canvas_background, highlightbackground=tokens.border)
+        self._draw_background()
+        self._redraw_surface()
+        self._redraw_obstacles()
+        self._redraw_editor_assets()
+        self._redraw_placement_marker()
 
     def update_from_dto(self, dto: SnapshotDTO) -> None:
         """
@@ -336,13 +355,13 @@ class WorldCanvas(tk.Canvas):
                       el cursor sobre el canvas.
         """
         self._placement_mode = True
-        self._placement_cb   = callback
+        self._placement_cb = callback
         self._placement_hover_cb = hover_callback
         self._placement_dragging = False
         self.config(cursor="crosshair")
-        self.bind("<Motion>",    self._on_placement_hover)
-        self.bind("<Leave>",     self._on_placement_leave)
-        self.bind("<Button-1>",  self._on_placement_click)
+        self.bind("<Motion>", self._on_placement_hover)
+        self.bind("<Leave>", self._on_placement_leave)
+        self.bind("<Button-1>", self._on_placement_click)
         self.bind("<B1-Motion>", self._on_placement_drag)
         self.bind("<ButtonRelease-1>", self._on_placement_release)
         self.bind("<MouseWheel>", self._on_placement_wheel)
@@ -350,7 +369,7 @@ class WorldCanvas(tk.Canvas):
     def disable_placement_mode(self) -> None:
         """Desactiva el modo de colocación y limpia los elementos visuales."""
         self._placement_mode = False
-        self._placement_cb   = None
+        self._placement_cb = None
         self._placement_hover_cb = None
         self._placement_hover_pos = None
         self._placement_dragging = False
@@ -433,9 +452,7 @@ class WorldCanvas(tk.Canvas):
             return
 
         step_deg = 5.0 if delta > 0 else -5.0
-        self._placement_theta_deg = self._normalize_theta(
-            self._placement_theta_deg + step_deg
-        )
+        self._placement_theta_deg = self._normalize_theta(self._placement_theta_deg + step_deg)
         self._redraw_placement_marker()
         self._notify_placement_changed()
 
@@ -458,8 +475,13 @@ class WorldCanvas(tk.Canvas):
         )
         fx, fy = self._rotate_point(cx, cy, hw * 0.65, 0.0, theta_deg)
         self.create_line(
-            cx, cy, fx, fy,
-            fill=_PLACEMENT_GHOST, width=2, arrow=tk.LAST,
+            cx,
+            cy,
+            fx,
+            fy,
+            fill=_PLACEMENT_GHOST,
+            width=2,
+            arrow=tk.LAST,
             tags="placement_ghost",
         )
 
@@ -477,18 +499,24 @@ class WorldCanvas(tk.Canvas):
         )
         r = 9
         self.create_oval(
-            px - r, py - r, px + r, py + r,
-            fill=_PLACEMENT_MARKER, outline="#BF360C", width=2,
+            px - r,
+            py - r,
+            px + r,
+            py + r,
+            fill=_PLACEMENT_MARKER,
+            outline="#BF360C",
+            width=2,
             tags="placement_marker",
         )
         ext = r * 1.7
-        self.create_line(px - ext, py, px + ext, py,
-                         fill="#BF360C", width=2, tags="placement_marker")
-        self.create_line(px, py - ext, px, py + ext,
-                         fill="#BF360C", width=2, tags="placement_marker")
+        self.create_line(px - ext, py, px + ext, py, fill="#BF360C", width=2, tags="placement_marker")
+        self.create_line(px, py - ext, px, py + ext, fill="#BF360C", width=2, tags="placement_marker")
         fx, fy = self._rotate_point(px, py, hw * 1.68, 0.0, self._placement_theta_deg)
         self.create_line(
-            px, py, fx, fy,
+            px,
+            py,
+            fx,
+            fy,
             fill="#BF360C",
             width=3,
             arrow=tk.LAST,
@@ -556,10 +584,7 @@ class WorldCanvas(tk.Canvas):
         hh = (_ROBOT_H_MM / 2) * sy
         cx, cy = self._mm_to_px(x_mm, y_mm)
         corners_local = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)]
-        corners_world = [
-            self._rotate_point(cx, cy, lx, ly, theta_deg)
-            for lx, ly in corners_local
-        ]
+        corners_world = [self._rotate_point(cx, cy, lx, ly, theta_deg) for lx, ly in corners_local]
         flat = [coord for point in corners_world for coord in point]
         return flat, cx, cy, hw, hh
 
@@ -599,28 +624,27 @@ class WorldCanvas(tk.Canvas):
         self.delete("bg")
         world_w_px = self._world_w * self._px_per_mm
         world_h_px = self._world_h * self._px_per_mm
-        self.create_rectangle(0, 0, world_w_px, world_h_px, fill=_BG, outline="", tags="bg")
+        self.create_rectangle(0, 0, world_w_px, world_h_px, fill=self._canvas_background, outline="", tags="bg")
         x0, y0 = self._mm_to_px(0.0, 0.0)
         x1, y1 = self._mm_to_px(self._world_w, self._world_h)
-        self.create_rectangle(x0, y0, x1, y1, fill="", outline="#B0BEC5", tags="bg")
+        self.create_rectangle(x0, y0, x1, y1, fill="", outline=self._canvas_border, tags="bg")
 
         step_mm = CELL_SIZE_MM
         steps_x = int(self._world_w / step_mm)
         steps_h = int(self._world_h / step_mm)
         for i in range(1, steps_x):
             px, _ = self._mm_to_px(i * step_mm, 0)
-            self.create_line(px, y0, px, y1, fill=_GRID, tags="bg")
+            self.create_line(px, y0, px, y1, fill=self._grid_color, tags="bg")
         for j in range(1, steps_h):
             _, py = self._mm_to_px(0, j * step_mm)
-            self.create_line(x0, py, x1, py, fill=_GRID, tags="bg")
+            self.create_line(x0, py, x1, py, fill=self._grid_color, tags="bg")
 
     def _draw_trail(self) -> None:
         self.delete("trail")
         if len(self._trail) >= 2:
             trail_px = [self._mm_to_px(x_mm, y_mm) for (x_mm, y_mm) in self._trail]
             flat = [c for pt in trail_px for c in pt]
-            self.create_line(*flat, fill=_TRAIL, width=2, tags="trail",
-                             smooth=True)
+            self.create_line(*flat, fill=_TRAIL, width=2, tags="trail", smooth=True)
 
     def _load_robot_sprite(self) -> None:
         """Carga el sprite del robot y lo ajusta a 32x23 px."""
@@ -744,7 +768,9 @@ class WorldCanvas(tk.Canvas):
 
     def _draw_robot(
         self,
-        x_mm: float, y_mm: float, theta_deg: float,
+        x_mm: float,
+        y_mm: float,
+        theta_deg: float,
         colliding: bool,
         color_sensor_reflection: Optional[float] = None,
     ) -> None:
@@ -989,8 +1015,7 @@ class WorldCanvas(tk.Canvas):
         # Flecha de heading (desde centro hacia frente)
         arrow_len = min(hw, hh) * 0.9
         fx, fy = rot(arrow_len, 0)
-        arrow = self.create_line(cx, cy, fx, fy, fill=_HEADING, width=2,
-                                 arrow=tk.LAST, arrowshape=(10, 12, 4))
+        arrow = self.create_line(cx, cy, fx, fy, fill=_HEADING, width=2, arrow=tk.LAST, arrowshape=(10, 12, 4))
         sensor_marker = self._draw_color_sensor_marker(
             x_mm,
             y_mm,
@@ -1214,9 +1239,7 @@ class WorldCanvas(tk.Canvas):
                 obs["y_mm"] + obs["height_mm"],
             )
             fill, outline = _obstacle_style_from_name(str(obs.get("name", "")))
-            item = self.create_rectangle(
-                x1, y1, x2, y2, fill=fill, outline=outline
-            )
+            item = self.create_rectangle(x1, y1, x2, y2, fill=fill, outline=outline)
             self._obstacle_items.append(item)
 
     def _redraw_surface(self) -> None:
@@ -1252,7 +1275,10 @@ class WorldCanvas(tk.Canvas):
             if color_name == "WHITE":
                 outline = "#E0E0E0"
             item = self.create_rectangle(
-                x1, y1, x2, y2,
+                x1,
+                y1,
+                x2,
+                y2,
                 fill=fill,
                 outline=outline,
             )
@@ -1312,14 +1338,10 @@ class WorldCanvas(tk.Canvas):
                     fill, outline = "#EF5350", "#C62828"
                 elif "green" in asset_key:
                     fill, outline = "#66BB6A", "#2E7D32"
-                self._asset_items.append(
-                    self.create_rectangle(px0, py0, px1, py1, fill=fill, outline=outline, width=2)
-                )
+                self._asset_items.append(self.create_rectangle(px0, py0, px1, py1, fill=fill, outline=outline, width=2))
             elif spec.asset_type in {"line", "wall"}:
                 fill, outline = ("#111111", "") if spec.asset_type == "line" else ("#37474F", "#102027")
-                self._asset_items.append(
-                    self.create_rectangle(px0, py0, px1, py1, fill=fill, outline=outline, width=1)
-                )
+                self._asset_items.append(self.create_rectangle(px0, py0, px1, py1, fill=fill, outline=outline, width=1))
 
     def _editor_asset_sort_key(self, placement: dict) -> tuple[int, int, int]:
         asset_key = normalize_asset_key(str(placement.get("asset_key", "")))
@@ -1392,12 +1414,8 @@ class WorldCanvas(tk.Canvas):
         world_h_px = int(round(self._world_h * self._px_per_mm))
         view_w_px = max(1.0, float(self.winfo_width() or 1))
         view_h_px = max(1.0, float(self.winfo_height() or 1))
-        self._follow_pad_x_px = (
-            view_w_px * _FOLLOW_EDGE_MARGIN_RATIO if world_w_px > view_w_px else 0.0
-        )
-        self._follow_pad_y_px = (
-            view_h_px * _FOLLOW_EDGE_MARGIN_RATIO if world_h_px > view_h_px else 0.0
-        )
+        self._follow_pad_x_px = view_w_px * _FOLLOW_EDGE_MARGIN_RATIO if world_w_px > view_w_px else 0.0
+        self._follow_pad_y_px = view_h_px * _FOLLOW_EDGE_MARGIN_RATIO if world_h_px > view_h_px else 0.0
         self.configure(
             scrollregion=(
                 -self._follow_pad_x_px,

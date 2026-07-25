@@ -10,16 +10,17 @@ EV3Brick expone los sub-sistemas del ladrillo:
 Todos los comandos se envían al CommandQueue del engine.
 Las lecturas (botones) leen del modelo de dominio directamente.
 """
+
 from __future__ import annotations
 
 from simulador_ev3.core.command_queue import SimulationCommand
 from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.pybricks_api.parameters import Button, Color
 
-
 # ---------------------------------------------------------------------------
 # Sub-objetos del ladrillo
 # ---------------------------------------------------------------------------
+
 
 class _Light:
     """ev3.light — LED de estado."""
@@ -31,8 +32,8 @@ class _Light:
         """Enciende el LED con el color dado."""
         # Mapeo Color Pybricks → nombre LedColor del dominio
         _map = {
-            Color.RED:    "RED",
-            Color.GREEN:  "GREEN",
+            Color.RED: "RED",
+            Color.GREEN: "GREEN",
             Color.ORANGE: "ORANGE",
             Color.YELLOW: "YELLOW",
         }
@@ -52,8 +53,8 @@ class _Speaker:
     def beep(
         self,
         frequency: float = 440.0,
-        duration: float  = 100.0,
-        volume: int      = 50,
+        duration: float = 100.0,
+        volume: int = 50,
     ) -> None:
         """Emite un tono."""
         self._q.put(
@@ -109,15 +110,15 @@ class _Buttons:
 
     def pressed(self) -> list[Button]:
         """Lista de botones actualmente presionados (siempre [] en sim)."""
-        ctx = PybricksContext.get_current()
-        pressed = ctx.engine._brick.buttons.pressed_buttons
+        PybricksContext.get_current()
         # ButtonsModel usa Button del dominio; aquí mapeamos al enum Pybricks
-        return []   # Extensión futura: mapear correctamente
+        return []  # Extensión futura: mapear correctamente
 
 
 # ---------------------------------------------------------------------------
 # EV3Brick
 # ---------------------------------------------------------------------------
+
 
 class EV3Brick:
     """
@@ -132,8 +133,8 @@ class EV3Brick:
 
     def __init__(self) -> None:
         ctx = PybricksContext.get_current()
-        q   = ctx.command_queue
-        self.light   = _Light(q)
+        q = ctx.command_queue
+        self.light = _Light(q)
         self.speaker = _Speaker(q)
-        self.screen  = _Screen(q)
+        self.screen = _Screen(q)
         self.buttons = _Buttons()

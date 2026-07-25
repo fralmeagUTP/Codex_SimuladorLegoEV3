@@ -1,7 +1,7 @@
 # ROADMAP - Simulador EV3 Pybricks
 
-Estado actualizado: 2026-05-20  
-Version publicada: 1.3.0  
+Estado actualizado: 2026-07-23
+Version publicada: 1.4.0
 Repositorio: `fralmeagUTP/Codex_SimuladorLegoEV3`
 
 ## Estado General

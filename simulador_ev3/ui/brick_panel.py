@@ -8,15 +8,17 @@ Muestra en tiempo real:
 
 Actualizacion: llamar a update_from_dto(dto) en cada tick.
 """
+
 from __future__ import annotations
 
 import tkinter as tk
 from typing import Optional
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS
 
 # Paleta de colores LED
-_LED_COLORS: dict[str, str] = {
+_LED_COLORS: dict[str | None, str] = {
     "RED": "#F44336",
     "GREEN": "#4CAF50",
     "ORANGE": "#FF9800",
@@ -25,9 +27,9 @@ _LED_COLORS: dict[str, str] = {
 }
 
 # Paleta general del panel
-_BRICK_BG = "#FFFFFF"
-_LABEL_FG = "#1F2F46"
-_DIVIDER = "#E3E9F1"
+_BRICK_BG = LIGHT_TOKENS.surface
+_LABEL_FG = LIGHT_TOKENS.text
+_DIVIDER = LIGHT_TOKENS.border
 
 # Paleta de LCD EV3 simulado (monocromo)
 _LCD_FRAME = "#4F585F"
@@ -36,8 +38,8 @@ _LCD_FG = "#111111"
 _LCD_SCANLINE = "#D7DFCA"
 _LCD_LED_ON = "#F8F8EF"
 _LCD_LED_OFF = "#A4AA95"
-_LCD_CANVAS_W = 423  # +30% respecto a 325
-_LCD_CANVAS_H = 304  # +30% respecto a 234
+_LCD_CANVAS_W = 300
+_LCD_CANVAS_H = 216
 
 
 class BrickPanel(tk.Frame):
@@ -89,18 +91,15 @@ class BrickPanel(tk.Frame):
             anchor=tk.W,
             padx=12,
         ).pack(fill=tk.X, pady=(8, 0))
-        self._build_led()
+        status_row = tk.Frame(self, bg=_BRICK_BG)
+        status_row.pack(fill=tk.X, padx=12, pady=8)
+        self._build_led(status_row)
+        self._build_speaker(status_row)
         tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
         self._build_screen()
-        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
-        self._build_speaker()
 
-    def _build_led(self) -> None:
-        row = tk.Frame(self, bg=_BRICK_BG)
-        row.pack(fill=tk.X, padx=12, pady=8)
-        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(
-            side=tk.LEFT
-        )
+    def _build_led(self, row: tk.Widget) -> None:
+        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(side=tk.LEFT)
         self._led_canvas = tk.Canvas(
             row,
             width=24,
@@ -142,11 +141,9 @@ class BrickPanel(tk.Frame):
         self._screen_canvas.bind("<Configure>", self._on_screen_resize)
         self._render_screen()
 
-    def _build_speaker(self) -> None:
-        row = tk.Frame(self, bg=_BRICK_BG)
-        row.pack(fill=tk.X, padx=12, pady=8)
+    def _build_speaker(self, row: tk.Widget) -> None:
         tk.Label(row, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(
-            side=tk.LEFT
+            side=tk.LEFT, padx=(24, 0)
         )
         self._speaker_label = tk.Label(
             row,
@@ -173,9 +170,7 @@ class BrickPanel(tk.Frame):
             state["draw_ops"] = [dict(op) for op in screen_data.get("draw_ops", []) if isinstance(op, dict)]
             state["width_px"] = int(screen_data.get("width_px", state["width_px"]))
             state["height_px"] = int(screen_data.get("height_px", state["height_px"]))
-            state["backlight_leds"] = int(
-                screen_data.get("backlight_leds", state["backlight_leds"])
-            )
+            state["backlight_leds"] = int(screen_data.get("backlight_leds", state["backlight_leds"]))
         elif isinstance(screen_data, str):
             state["lines"] = screen_data.splitlines() or [screen_data]
         elif screen_data:
@@ -231,7 +226,7 @@ class BrickPanel(tk.Frame):
 
         # Scanlines para dar sensacion de matriz monocromo
         scan_step = max(2, int(round(scale * 2.5)))
-        y = int(y0)
+        y: float = float(int(y0))
         while y <= int(y1):
             canvas.create_line(x0, y, x1, y, fill=_LCD_SCANLINE)
             y += scan_step

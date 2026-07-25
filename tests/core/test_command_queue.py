@@ -11,10 +11,10 @@ from simulador_ev3.core.command_queue import (
     SimulationCommand,
 )
 
-
 # ---------------------------------------------------------------------------
 # SimulationCommand
 # ---------------------------------------------------------------------------
+
 
 class TestSimulationCommandCreation:
     def test_motor_run_no_blocking(self):
@@ -61,6 +61,7 @@ class TestSimulationCommandCreation:
     def test_db_stop_no_blocking(self):
         cmd = SimulationCommand.db_stop()
         assert cmd.cmd_type == CommandType.DB_STOP
+        assert cmd.params["stop_mode"] == "COAST"
         assert not cmd.blocking
 
     def test_db_straight_is_blocking(self):
@@ -168,7 +169,6 @@ class TestSimulationCommandBlocking:
 
     def test_signal_done_from_another_thread(self):
         cmd = SimulationCommand.db_turn(90)
-        results = []
 
         def signal():
             time.sleep(0.05)
@@ -184,6 +184,7 @@ class TestSimulationCommandBlocking:
 # ---------------------------------------------------------------------------
 # CommandQueue
 # ---------------------------------------------------------------------------
+
 
 class TestCommandQueue:
     def test_put_and_drain(self):

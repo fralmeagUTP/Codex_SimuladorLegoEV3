@@ -14,9 +14,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, List
 
-
-MAX_LINES = 8   # líneas visibles en modo texto (fuente predeterminada EV3)
-MAX_COLS  = 22  # caracteres por línea aprox.
+MAX_LINES = 8  # líneas visibles en modo texto (fuente predeterminada EV3)
+MAX_COLS = 22  # caracteres por línea aprox.
 SCREEN_WIDTH_PX = 178
 SCREEN_HEIGHT_PX = 128
 SCREEN_WIDTH_MM = 36.0
@@ -109,7 +108,7 @@ class ScreenBuffer:
             self._append_line("")
             return
         for i in range(0, len(line), MAX_COLS):
-            self._append_line(line[i:i + MAX_COLS])
+            self._append_line(line[i : i + MAX_COLS])
 
     def _append_line(self, line: str) -> None:
         self._lines.append(line[:MAX_COLS])

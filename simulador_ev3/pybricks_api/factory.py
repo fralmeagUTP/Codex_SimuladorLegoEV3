@@ -8,7 +8,6 @@ import types
 
 from simulador_ev3.pybricks_api._context import PybricksContext
 
-
 _PYBRICKS_SUBMODULES = (
     "pybricks",
     "pybricks.hubs",

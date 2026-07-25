@@ -35,13 +35,13 @@ class GyroSensorModel:
     port_name: str = "S2"
 
     # Estado actualizado cada tick
-    _angle_deg:      float = field(default=0.0, init=False, repr=False)
-    _speed_deg_s:    float = field(default=0.0, init=False, repr=False)
-    _offset_deg:     float = field(default=0.0, init=False, repr=False)   # reset calibrado
+    _angle_deg: float = field(default=0.0, init=False, repr=False)
+    _speed_deg_s: float = field(default=0.0, init=False, repr=False)
+    _offset_deg: float = field(default=0.0, init=False, repr=False)  # reset calibrado
 
     # Theta anterior para calcular velocidad
     _prev_theta_rad: float = field(default=0.0, init=False, repr=False)
-    _initialized:    bool  = field(default=False, init=False, repr=False)
+    _initialized: bool = field(default=False, init=False, repr=False)
 
     # ------------------------------------------------------------------ #
     # Actualización — llamada por SimulationEngine cada tick
@@ -57,7 +57,7 @@ class GyroSensorModel:
         """
         if not self._initialized:
             self._prev_theta_rad = robot_theta_rad
-            self._initialized    = True
+            self._initialized = True
 
         # Velocidad angular: diferencia de theta / dt
         delta_theta = robot_theta_rad - self._prev_theta_rad
@@ -69,8 +69,8 @@ class GyroSensorModel:
         else:
             self._speed_deg_s = 0.0
 
-        raw_angle        = math.degrees(robot_theta_rad)
-        self._angle_deg  = raw_angle - self._offset_deg
+        raw_angle = math.degrees(robot_theta_rad)
+        self._angle_deg = raw_angle - self._offset_deg
         self._prev_theta_rad = robot_theta_rad
 
     # ------------------------------------------------------------------ #
@@ -97,7 +97,7 @@ class GyroSensorModel:
         Equivale a GyroSensor.reset_angle() de Pybricks.
         """
         self._offset_deg = math.degrees(self._prev_theta_rad) - angle
-        self._angle_deg  = float(angle)
+        self._angle_deg = float(angle)
 
     # ------------------------------------------------------------------ #
     # Serialización
@@ -105,13 +105,10 @@ class GyroSensorModel:
 
     def to_dict(self) -> dict:
         return {
-            "angle_deg":   self.angle(),
+            "angle_deg": self.angle(),
             "speed_deg_s": self.speed(),
-            "port":        self.port_name,
+            "port": self.port_name,
         }
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"GyroSensorModel(port={self.port_name!r}, "
-            f"angle={self.angle()}°, speed={self.speed()}°/s)"
-        )
+        return f"GyroSensorModel(port={self.port_name!r}, angle={self.angle()}°, speed={self.speed()}°/s)"

@@ -5,17 +5,20 @@ DriveBase encapsula el movimiento diferencial del robot.
 Los métodos straight() y turn() bloquean el ScriptThread hasta que
 el SimulationEngine señala la finalización vía threading.Event.
 """
+
 from __future__ import annotations
 
 import math
 import threading
 import time
 
+# Motor se importa tardíamente para evitar importación circular
+from typing import TYPE_CHECKING
+
 from simulador_ev3.core.command_queue import SimulationCommand
 from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.pybricks_api.parameters import Stop
-# Motor se importa tardíamente para evitar importación circular
-from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from simulador_ev3.pybricks_api.ev3devices import Motor
 
@@ -45,7 +48,7 @@ class DriveBase:
         # (los valores se conservan del SimEngineConfig si no se llama settings)
         db = ctx.engine._drivebase
         db.wheel_diameter_mm = float(wheel_diameter)
-        db.axle_track_mm     = float(axle_track)
+        db.axle_track_mm = float(axle_track)
 
     # ------------------------------------------------------------------
     # Comandos no bloqueantes
@@ -63,11 +66,11 @@ class DriveBase:
 
     def stop(self) -> None:
         """Detiene el DriveBase (coast)."""
-        self._queue.put(SimulationCommand.db_stop())
+        self._queue.put(SimulationCommand.db_stop("COAST"))
 
     def brake(self) -> None:
-        """Frena el DriveBase (aproximado como stop inmediato)."""
-        self._queue.put(SimulationCommand.db_stop())
+        """Frena el DriveBase activamente."""
+        self._queue.put(SimulationCommand.db_stop("BRAKE"))
 
     # ------------------------------------------------------------------
     # Comandos bloqueantes
@@ -87,7 +90,7 @@ class DriveBase:
             then:     Modo de parada al finalizar.
             wait:     Si True, bloquea hasta completar.
         """
-        cmd = SimulationCommand.db_straight(distance)
+        cmd = SimulationCommand.db_straight(distance, stop_mode=then.name)
         if wait:
             # timeout: tiempo estimado + 5 s
             ctx = PybricksContext.get_current()
@@ -111,10 +114,10 @@ class DriveBase:
             then:  Modo de parada al finalizar.
             wait:  Si True, bloquea hasta completar.
         """
-        cmd = SimulationCommand.db_turn(angle)
+        cmd = SimulationCommand.db_turn(angle, stop_mode=then.name)
         if wait:
-            ctx   = PybricksContext.get_current()
-            rate  = ctx.engine._drivebase.profile.turn_rate
+            ctx = PybricksContext.get_current()
+            rate = ctx.engine._drivebase.profile.turn_rate
             est_s = abs(angle) / max(abs(rate), 1) + 5.0
             self._queue.put_and_wait(cmd, timeout=est_s)
         else:
@@ -166,16 +169,18 @@ class DriveBase:
 
     def settings(
         self,
-        straight_speed: float     = 200.0,
+        straight_speed: float = 200.0,
         straight_acceleration: float = 200.0,
-        turn_rate: float          = 90.0,
-        turn_acceleration: float  = 90.0,
+        turn_rate: float = 90.0,
+        turn_acceleration: float = 90.0,
     ) -> None:
         """Ajusta los parámetros de velocidad/aceleración del DriveBase."""
         self._queue.put(
             SimulationCommand.db_settings(
-                straight_speed, straight_acceleration,
-                turn_rate, turn_acceleration,
+                straight_speed,
+                straight_acceleration,
+                turn_rate,
+                turn_acceleration,
             )
         )
 
@@ -184,7 +189,7 @@ class DriveBase:
         from simulador_ev3.domain.robot.drivebase_model import DriveState
 
         ctx = PybricksContext.get_current()
-        return ctx.engine._drivebase.state == DriveState.IDLE
+        return ctx.engine._drivebase.state in (DriveState.IDLE, DriveState.BRAKE, DriveState.HOLD)
 
     def stalled(self) -> bool:
         """Deteccion aproximada de estancamiento del drivebase."""
@@ -221,10 +226,7 @@ class DriveBase:
 
     def _apply_stop_mode(self, then: Stop) -> None:
         """Aplica modo de parada al terminar maniobras sinteticas."""
-        if then == Stop.BRAKE:
-            self.brake()
-            return
-        self.stop()
+        self._queue.put(SimulationCommand.db_stop(then.name))
 
     # ------------------------------------------------------------------
     # Lecturas de odometría
@@ -235,13 +237,14 @@ class DriveBase:
         Distancia total recorrida en mm desde el último reset_distance().
         Aproximación: posición euclidiana absoluta del robot.
         """
-        ctx  = PybricksContext.get_current()
+        ctx = PybricksContext.get_current()
         pose = ctx.engine.robot.pose
-        return (pose.x ** 2 + pose.y ** 2) ** 0.5
+        return (pose.x**2 + pose.y**2) ** 0.5
 
     def angle(self) -> float:
         """Ángulo total girado en grados desde el último reset_angle()."""
         import math
+
         ctx = PybricksContext.get_current()
         return math.degrees(ctx.engine.robot.pose.theta)
 

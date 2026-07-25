@@ -212,6 +212,8 @@ class Placement:
             "asset_key": normalize_asset_key(self.asset_key),
             "x": int(self.x_px),
             "y": int(self.y_px),
+            "x_px": int(self.x_px),
+            "y_px": int(self.y_px),
             "rotation": int(self.rotation),
         }
 

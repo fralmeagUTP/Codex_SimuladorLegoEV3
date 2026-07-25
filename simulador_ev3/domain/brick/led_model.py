@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional
 
 
 class LedColor(Enum):
@@ -25,9 +24,10 @@ class LedColor(Enum):
     Colores soportados por el LED del brick EV3.
     Refleja los valores de pybricks.parameters.Color relevantes al LED.
     """
-    OFF    = auto()
-    RED    = auto()
-    GREEN  = auto()
+
+    OFF = auto()
+    RED = auto()
+    GREEN = auto()
     ORANGE = auto()
     YELLOW = auto()
 
@@ -42,7 +42,7 @@ class LedModel:
         _color:   Color actual del LED (LedColor.OFF si apagado).
     """
 
-    _is_on: bool     = field(default=False, init=False, repr=False)
+    _is_on: bool = field(default=False, init=False, repr=False)
     _color: LedColor = field(default=LedColor.OFF, init=False, repr=False)
 
     # ------------------------------------------------------------------ #

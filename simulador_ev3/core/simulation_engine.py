@@ -21,7 +21,6 @@ El Engine NO gestiona su propio thread; eso corresponde a RuntimeController
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -32,12 +31,13 @@ from simulador_ev3.core.event_bus import (
     EVENT_SIMULATION_STOPPED,
     EventBus,
 )
+from simulador_ev3.core.simulation_profile import resolve_profile
 from simulador_ev3.domain.brick.ev3brick_model import EV3BrickModel
 from simulador_ev3.domain.brick.led_model import LedColor
-from simulador_ev3.domain.robot.drivebase_model import DriveBaseModel, AccelerationProfile
-from simulador_ev3.domain.robot.motor_model import MotorModel, StopMode, MotorState
-from simulador_ev3.domain.robot.port_manager import PortManager, DeviceCategory
-from simulador_ev3.domain.robot.robot_model import RobotModel, Pose
+from simulador_ev3.domain.robot.drivebase_model import AccelerationProfile, DriveBaseModel
+from simulador_ev3.domain.robot.motor_model import MotorModel, MotorState, StopMode
+from simulador_ev3.domain.robot.port_manager import DeviceCategory, PortManager
+from simulador_ev3.domain.robot.robot_model import Pose, RobotModel
 from simulador_ev3.domain.sensors.color_sensor_model import ColorSensorModel
 from simulador_ev3.domain.sensors.gyro_sensor_model import GyroSensorModel
 from simulador_ev3.domain.sensors.infrared_sensor_model import InfraredSensorModel
@@ -46,10 +46,10 @@ from simulador_ev3.domain.sensors.ultrasonic_sensor_model import UltrasonicSenso
 from simulador_ev3.domain.world.world_model import WorldModel
 from simulador_ev3.infrastructure.audio_output import create_audio_output
 
-
 # ---------------------------------------------------------------------------
 # Snapshot inmutable de estado completo
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class RobotSnapshot:
@@ -70,7 +70,7 @@ class MotorSnapshot:
 class SensorSnapshot:
     port: str
     sensor_type: str
-    data: dict            # valores específicos del sensor
+    data: dict  # valores específicos del sensor
 
 
 @dataclass(frozen=True)
@@ -79,12 +79,13 @@ class StateSnapshot:
     Foto inmutable del estado completo del simulador en un instante dado.
     La UI y la telemetría leen únicamente este objeto.
     """
+
     tick: int
     sim_time_s: float
     robot: RobotSnapshot
     motors: tuple[MotorSnapshot, ...]
     sensors: tuple[SensorSnapshot, ...]
-    brick: dict           # to_dict() de EV3BrickModel
+    brick: dict  # to_dict() de EV3BrickModel
     colliding: bool
 
 
@@ -92,33 +93,38 @@ class StateSnapshot:
 # Configuración del Engine
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SimEngineConfig:
     """Parámetros iniciales del simulador."""
+
     # Geometría del mundo (mm)
-    world_width_mm: float  = 2000.0
+    world_width_mm: float = 2000.0
     world_height_mm: float = 2000.0
 
     # Posición inicial del robot
-    robot_x0_mm: float    = 200.0
-    robot_y0_mm: float    = 200.0
+    robot_x0_mm: float = 200.0
+    robot_y0_mm: float = 200.0
     robot_theta0_deg: float = 0.0
 
     # DriveBase — valores por defecto compatibles con Pybricks
-    wheel_diameter_mm: float  = 56.0
-    axle_track_mm: float      = 114.0
-    straight_speed: float     = 200.0        # mm/s
-    straight_accel: float     = 200.0        # mm/s²
-    turn_rate: float          = 90.0         # deg/s
-    turn_accel: float         = 90.0         # deg/s²
+    wheel_diameter_mm: float = 56.0
+    axle_track_mm: float = 114.0
+    straight_speed: float = 200.0  # mm/s
+    straight_accel: float = 200.0  # mm/s²
+    turn_rate: float = 90.0  # deg/s
+    turn_accel: float = 90.0  # deg/s²
 
     # Radio del robot para detección de colisiones (mm)
-    robot_radius_mm: float   = 75.0
+    robot_radius_mm: float = 75.0
+    simulation_profile: str = "ideal"
+    calibration: dict[str, float] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
 # Motor de simulación
 # ---------------------------------------------------------------------------
+
 
 class SimulationEngine:
     """
@@ -137,7 +143,7 @@ class SimulationEngine:
     """
 
     TICK_RATE_HZ: float = 50.0
-    DT: float = 1.0 / TICK_RATE_HZ   # 0.02 s
+    DT: float = 1.0 / TICK_RATE_HZ  # 0.02 s
 
     def __init__(
         self,
@@ -146,15 +152,16 @@ class SimulationEngine:
         event_bus: Optional[EventBus] = None,
     ) -> None:
         self._cfg = config or SimEngineConfig()
+        self._profile = resolve_profile(self._cfg.simulation_profile, self._cfg.calibration)
         self._queue = command_queue or CommandQueue()
-        self._bus   = event_bus   or EventBus()
+        self._bus = event_bus or EventBus()
 
         # Estado interno
-        self._tick: int      = 0
+        self._tick: int = 0
         self._sim_time: float = 0.0
-        self._running: bool  = False
+        self._running: bool = False
         self._colliding: bool = False
-        self._drivebase_source: str = "idle"   # idle | command | tank
+        self._drivebase_source: str = "idle"  # idle | command | tank
 
         # Última colisión bloqueante (para no mover el robot si hay colisión)
         self._collision_blocked: bool = False
@@ -165,26 +172,26 @@ class SimulationEngine:
 
         # Tabla de handlers de comandos
         self._handlers: dict[CommandType, object] = {
-            CommandType.MOTOR_RUN:       self._handle_motor_run,
-            CommandType.MOTOR_RUN_TIME:  self._handle_motor_run_time,
+            CommandType.MOTOR_RUN: self._handle_motor_run,
+            CommandType.MOTOR_RUN_TIME: self._handle_motor_run_time,
             CommandType.MOTOR_RUN_ANGLE: self._handle_motor_run_angle,
-            CommandType.MOTOR_STOP:      self._handle_motor_stop,
-            CommandType.MOTOR_BRAKE:     self._handle_motor_brake,
-            CommandType.MOTOR_HOLD:      self._handle_motor_hold,
-            CommandType.DB_DRIVE:        self._handle_db_drive,
-            CommandType.DB_STOP:         self._handle_db_stop,
-            CommandType.DB_STRAIGHT:     self._handle_db_straight,
-            CommandType.DB_TURN:         self._handle_db_turn,
-            CommandType.DB_SETTINGS:     self._handle_db_settings,
-            CommandType.LED_ON:          self._handle_led_on,
-            CommandType.LED_OFF:         self._handle_led_off,
-            CommandType.PLAY_SOUND:      self._handle_play_sound,
-            CommandType.DISPLAY_TEXT:    self._handle_display_text,
-            CommandType.SCREEN_CLEAR:    self._handle_screen_clear,
-            CommandType.SCREEN_PIXEL:    self._handle_screen_pixel,
-            CommandType.SCREEN_LINE:     self._handle_screen_line,
-            CommandType.SCREEN_CIRCLE:   self._handle_screen_circle,
-            CommandType.SCREEN_BOX:      self._handle_screen_box,
+            CommandType.MOTOR_STOP: self._handle_motor_stop,
+            CommandType.MOTOR_BRAKE: self._handle_motor_brake,
+            CommandType.MOTOR_HOLD: self._handle_motor_hold,
+            CommandType.DB_DRIVE: self._handle_db_drive,
+            CommandType.DB_STOP: self._handle_db_stop,
+            CommandType.DB_STRAIGHT: self._handle_db_straight,
+            CommandType.DB_TURN: self._handle_db_turn,
+            CommandType.DB_SETTINGS: self._handle_db_settings,
+            CommandType.LED_ON: self._handle_led_on,
+            CommandType.LED_OFF: self._handle_led_off,
+            CommandType.PLAY_SOUND: self._handle_play_sound,
+            CommandType.DISPLAY_TEXT: self._handle_display_text,
+            CommandType.SCREEN_CLEAR: self._handle_screen_clear,
+            CommandType.SCREEN_PIXEL: self._handle_screen_pixel,
+            CommandType.SCREEN_LINE: self._handle_screen_line,
+            CommandType.SCREEN_CIRCLE: self._handle_screen_circle,
+            CommandType.SCREEN_BOX: self._handle_screen_box,
         }
 
         # Comandos bloqueantes activos (esperando signal_done)
@@ -208,9 +215,9 @@ class SimulationEngine:
 
         # DriveBase (motores B y C por defecto en EV3 con oruga)
         profile = AccelerationProfile(
-            straight_speed=cfg.straight_speed,
+            straight_speed=cfg.straight_speed * self._profile.traction_scale,
             straight_acceleration=cfg.straight_accel,
-            turn_rate=cfg.turn_rate,
+            turn_rate=cfg.turn_rate * self._profile.traction_scale,
             turn_acceleration=cfg.turn_accel,
         )
         self._drivebase = DriveBaseModel(
@@ -242,9 +249,7 @@ class SimulationEngine:
 
         # Sensores — se exponen como dict por puerto S1-S4
         # Por defecto ningún sensor está conectado (None)
-        self._sensors: dict[str, Optional[object]] = {
-            "S1": None, "S2": None, "S3": None, "S4": None
-        }
+        self._sensors: dict[str, Optional[object]] = {"S1": None, "S2": None, "S3": None, "S4": None}
 
     # ------------------------------------------------------------------
     # API externa
@@ -278,16 +283,24 @@ class SimulationEngine:
     def sim_time_s(self) -> float:
         return self._sim_time
 
+    @property
+    def drivebase_profile(self) -> AccelerationProfile:
+        """Perfil cinemático efectivo después de aplicar el perfil de simulación."""
+        return self._drivebase.profile
+
     def attach_sensor(
         self,
         port: str,
-        sensor: "TouchSensorModel | UltrasonicSensorModel | ColorSensorModel "
-                "| GyroSensorModel | InfraredSensorModel",
+        sensor: "TouchSensorModel | UltrasonicSensorModel | ColorSensorModel | GyroSensorModel | InfraredSensorModel",
     ) -> None:
         """Conecta un modelo de sensor al puerto S1-S4."""
         if port not in self._sensors:
             raise ValueError(f"Puerto de sensor inválido: '{port}'. Use S1-S4.")
         self._sensors[port] = sensor
+        if isinstance(sensor, UltrasonicSensorModel):
+            sensor.noise_mm = self._profile.ultrasonic_noise_mm
+        elif isinstance(sensor, ColorSensorModel):
+            sensor.reflection_noise = self._profile.color_reflection_noise
         self._port_manager.register(port, sensor, DeviceCategory.SENSOR)
 
     def detach_sensor(self, port: str) -> None:
@@ -369,8 +382,8 @@ class SimulationEngine:
         self._publish_sensor_events()
 
         # 10. Snapshot
-        self._tick       += 1
-        self._sim_time   += dt
+        self._tick += 1
+        self._sim_time += dt
         return self._build_snapshot()
 
     # ------------------------------------------------------------------
@@ -381,7 +394,7 @@ class SimulationEngine:
         for cmd in commands:
             handler = self._handlers.get(cmd.cmd_type)
             if handler:
-                handler(cmd)    # type: ignore[operator]
+                handler(cmd)  # type: ignore[operator]
                 if cmd.blocking:
                     self._pending_blocking.append(cmd)
 
@@ -437,15 +450,23 @@ class SimulationEngine:
         self._drivebase_source = "command"
 
     def _handle_db_stop(self, cmd: SimulationCommand) -> None:
-        self._drivebase.cmd_stop()
+        stop_mode = self._parse_stop_mode(cmd.params.get("stop_mode", "COAST"))
+        if stop_mode == StopMode.HOLD:
+            self._drivebase.cmd_hold()
+        elif stop_mode == StopMode.BRAKE:
+            self._drivebase.cmd_brake()
+        else:
+            self._drivebase.cmd_stop()
         self._drivebase_source = "idle"
 
     def _handle_db_straight(self, cmd: SimulationCommand) -> None:
-        self._drivebase.cmd_straight(cmd.params["distance_mm"])
+        self._drivebase.cmd_straight(
+            cmd.params["distance_mm"], self._parse_stop_mode(cmd.params.get("stop_mode", "HOLD"))
+        )
         self._drivebase_source = "command"
 
     def _handle_db_turn(self, cmd: SimulationCommand) -> None:
-        self._drivebase.cmd_turn(cmd.params["angle_deg"])
+        self._drivebase.cmd_turn(cmd.params["angle_deg"], self._parse_stop_mode(cmd.params.get("stop_mode", "HOLD")))
         self._drivebase_source = "command"
 
     def _handle_db_settings(self, cmd: SimulationCommand) -> None:
@@ -537,11 +558,11 @@ class SimulationEngine:
     # ------------------------------------------------------------------
 
     def _update_sensors(self, dt: float) -> None:
-        rx    = self._robot.pose.x
-        ry    = self._robot.pose.y
-        theta = self._robot.pose.theta   # radianes
+        rx = self._robot.pose.x
+        ry = self._robot.pose.y
+        theta = self._robot.pose.theta  # radianes
 
-        for port, sensor in self._sensors.items():
+        for _port, sensor in self._sensors.items():
             if sensor is None:
                 continue
             if isinstance(sensor, TouchSensorModel):
@@ -679,19 +700,17 @@ class SimulationEngine:
         self._pending_blocking = still_pending
 
     def _is_cmd_complete(self, cmd: SimulationCommand) -> bool:
-        from simulador_ev3.domain.robot.motor_model import MotorState
         from simulador_ev3.domain.robot.drivebase_model import DriveState
+        from simulador_ev3.domain.robot.motor_model import MotorState
 
         if cmd.cmd_type in (CommandType.DB_STRAIGHT, CommandType.DB_TURN):
-            return self._drivebase.state == DriveState.IDLE
+            return self._drivebase.state in (DriveState.IDLE, DriveState.BRAKE, DriveState.HOLD)
 
         if cmd.cmd_type in (CommandType.MOTOR_RUN_TIME, CommandType.MOTOR_RUN_ANGLE):
             motor = self._get_motor(cmd.port)
             if motor is None:
                 return True
-            return motor.state in (
-                MotorState.IDLE, MotorState.BRAKE, MotorState.HOLD
-            )
+            return motor.state in (MotorState.IDLE, MotorState.BRAKE, MotorState.HOLD)
 
         return True  # comandos no bloqueantes nunca deberían llegar aquí
 
@@ -700,7 +719,7 @@ class SimulationEngine:
     # ------------------------------------------------------------------
 
     def _build_snapshot(self) -> StateSnapshot:
-        pose      = self._robot.pose
+        pose = self._robot.pose
         theta_deg = math.degrees(pose.theta)
 
         motor_snaps = tuple(
@@ -754,7 +773,7 @@ class SimulationEngine:
         mapping = {
             "COAST": StopMode.COAST,
             "BRAKE": StopMode.BRAKE,
-            "HOLD":  StopMode.HOLD,
+            "HOLD": StopMode.HOLD,
         }
         return mapping.get(name.upper(), StopMode.BRAKE)
 
@@ -767,7 +786,7 @@ class SimulationEngine:
         for cmd in self._pending_blocking:
             cmd.signal_done()
         self._pending_blocking.clear()
-        self._tick       = 0
-        self._sim_time   = 0.0
-        self._colliding  = False
+        self._tick = 0
+        self._sim_time = 0.0
+        self._colliding = False
         self._build_models()

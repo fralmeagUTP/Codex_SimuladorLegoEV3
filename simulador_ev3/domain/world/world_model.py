@@ -18,9 +18,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from simulador_ev3.domain.world.surface_model  import SurfaceModel, SurfaceColor
+from simulador_ev3.domain.world.beacon_model import BeaconModel
 from simulador_ev3.domain.world.obstacle_model import ObstacleModel
-from simulador_ev3.domain.world.beacon_model   import BeaconModel
+from simulador_ev3.domain.world.surface_model import SurfaceModel
 
 
 @dataclass
@@ -36,12 +36,12 @@ class WorldModel:
         beacons:   Lista inicial de balizas IR.
     """
 
-    width_mm:  float = 2000.0
+    width_mm: float = 2000.0
     height_mm: float = 2000.0
 
-    surface:   SurfaceModel          = field(default_factory=SurfaceModel)
-    obstacles: List[ObstacleModel]   = field(default_factory=list)
-    beacons:   List[BeaconModel]     = field(default_factory=list)
+    surface: SurfaceModel = field(default_factory=SurfaceModel)
+    obstacles: List[ObstacleModel] = field(default_factory=list)
+    beacons: List[BeaconModel] = field(default_factory=list)
 
     # ------------------------------------------------------------------ #
     # Gestión de obstáculos
@@ -91,16 +91,24 @@ class WorldModel:
                        Con 0 es colisión puntual exacta.
         """
         # Límites del escenario
-        if (x_mm - radius_mm < 0 or x_mm + radius_mm > self.width_mm or
-                y_mm - radius_mm < 0 or y_mm + radius_mm > self.height_mm):
+        if (
+            x_mm - radius_mm < 0
+            or x_mm + radius_mm > self.width_mm
+            or y_mm - radius_mm < 0
+            or y_mm + radius_mm > self.height_mm
+        ):
             return True
 
         # Colisión con obstáculos
         for obs in self.obstacles:
             min_x, min_y, max_x, max_y = obs.aabb
             # Verificación rápida de bounding box
-            if (x_mm + radius_mm < min_x or x_mm - radius_mm > max_x or
-                    y_mm + radius_mm < min_y or y_mm - radius_mm > max_y):
+            if (
+                x_mm + radius_mm < min_x
+                or x_mm - radius_mm > max_x
+                or y_mm + radius_mm < min_y
+                or y_mm - radius_mm > max_y
+            ):
                 continue
             if obs.contains_point(x_mm, y_mm):
                 return True
@@ -108,6 +116,7 @@ class WorldModel:
             if radius_mm > 0:
                 for angle_deg in range(0, 360, 45):
                     import math
+
                     a = math.radians(angle_deg)
                     px = x_mm + radius_mm * math.cos(a)
                     py = y_mm + radius_mm * math.sin(a)
@@ -136,21 +145,17 @@ class WorldModel:
             Distancia en mm al primer obstáculo, máximo max_dist_mm.
         """
         import math
+
         dx = math.cos(angle_rad)
         dy = math.sin(angle_rad)
 
         min_dist = max_dist_mm
 
         # Bordes del mundo como cuatro segmentos
-        world_obstacle = ObstacleModel.from_rect(
-            0, 0, self.width_mm, self.height_mm, name="_world_border"
-        )
+        ObstacleModel.from_rect(0, 0, self.width_mm, self.height_mm, name="_world_border")
         # Para el borde del mundo usamos la distancia al borde más cercano
         # en la dirección del rayo (simple cálculo paramétrico)
-        for t_candidate in _ray_vs_world_bounds(
-            ox, oy, dx, dy,
-            self.width_mm, self.height_mm, max_dist_mm
-        ):
+        for t_candidate in _ray_vs_world_bounds(ox, oy, dx, dy, self.width_mm, self.height_mm, max_dist_mm):
             if t_candidate is not None and t_candidate < min_dist:
                 min_dist = t_candidate
 
@@ -173,10 +178,14 @@ class WorldModel:
 # Utilidad privada: rayo vs bordes del mundo
 # ------------------------------------------------------------------ #
 
+
 def _ray_vs_world_bounds(
-    ox: float, oy: float,
-    dx: float, dy: float,
-    width: float, height: float,
+    ox: float,
+    oy: float,
+    dx: float,
+    dy: float,
+    width: float,
+    height: float,
     max_dist: float,
 ) -> list[float | None]:
     """
@@ -186,11 +195,11 @@ def _ray_vs_world_bounds(
     results: list[float | None] = []
 
     # Borde izquierdo  x=0        (válido si el rayo apunta a x<0)
-    results.append(_ray_vs_vertical(ox, oy, dx, dy, 0.0,    0.0, height))
+    results.append(_ray_vs_vertical(ox, oy, dx, dy, 0.0, 0.0, height))
     # Borde derecho    x=width
-    results.append(_ray_vs_vertical(ox, oy, dx, dy, width,  0.0, height))
+    results.append(_ray_vs_vertical(ox, oy, dx, dy, width, 0.0, height))
     # Borde inferior   y=0
-    results.append(_ray_vs_horizontal(ox, oy, dx, dy, 0.0,    0.0, width))
+    results.append(_ray_vs_horizontal(ox, oy, dx, dy, 0.0, 0.0, width))
     # Borde superior   y=height
     results.append(_ray_vs_horizontal(ox, oy, dx, dy, height, 0.0, width))
 
@@ -198,10 +207,13 @@ def _ray_vs_world_bounds(
 
 
 def _ray_vs_vertical(
-    ox: float, oy: float,
-    dx: float, dy: float,
+    ox: float,
+    oy: float,
+    dx: float,
+    dy: float,
     x_line: float,
-    y_min: float, y_max: float,
+    y_min: float,
+    y_max: float,
 ) -> float | None:
     if abs(dx) < 1e-10:
         return None
@@ -215,10 +227,13 @@ def _ray_vs_vertical(
 
 
 def _ray_vs_horizontal(
-    ox: float, oy: float,
-    dx: float, dy: float,
+    ox: float,
+    oy: float,
+    dx: float,
+    dy: float,
     y_line: float,
-    x_min: float, x_max: float,
+    x_min: float,
+    x_max: float,
 ) -> float | None:
     if abs(dy) < 1e-10:
         return None

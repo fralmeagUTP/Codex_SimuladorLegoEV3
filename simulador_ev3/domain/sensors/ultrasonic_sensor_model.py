@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from simulador_ev3.domain.world.world_model import WorldModel
 
 
-MAX_DISTANCE_MM = 2500.0    # rango máximo del sensor EV3
+MAX_DISTANCE_MM = 2500.0  # rango máximo del sensor EV3
 
 
 @dataclass
@@ -39,14 +39,15 @@ class UltrasonicSensorModel:
                        0 = apunta al frente, π/2 = apunta a la izquierda.
     """
 
-    port_name:     str   = "S4"
-    offset_x_mm:  float = 70.0   # montado al frente
-    offset_y_mm:  float = 0.0
-    angle_offset: float = 0.0    # radianes
+    port_name: str = "S4"
+    offset_x_mm: float = 70.0  # montado al frente
+    offset_y_mm: float = 0.0
+    angle_offset: float = 0.0  # radianes
+    noise_mm: float = 0.0
 
     # Estado interno
     _distance_mm: float = field(default=MAX_DISTANCE_MM, init=False, repr=False)
-    _presence:    bool  = field(default=False,            init=False, repr=False)
+    _presence: bool = field(default=False, init=False, repr=False)
 
     # ------------------------------------------------------------------ #
     # Actualización — llamada por SimulationEngine cada tick
@@ -73,11 +74,13 @@ class UltrasonicSensorModel:
         # Dirección del rayo
         ray_angle = robot_theta + self.angle_offset
 
-        self._distance_mm = world.ray_cast(
-            ox=sx, oy=sy,
+        distance = world.ray_cast(
+            ox=sx,
+            oy=sy,
             angle_rad=ray_angle,
             max_dist_mm=MAX_DISTANCE_MM,
         )
+        self._distance_mm = max(0.0, min(MAX_DISTANCE_MM, distance + self.noise_mm * math.sin(sx + sy)))
 
     # ------------------------------------------------------------------ #
     # API de lectura
@@ -101,12 +104,9 @@ class UltrasonicSensorModel:
     def to_dict(self) -> dict:
         return {
             "distance_mm": int(self._distance_mm),
-            "presence":    self._presence,
-            "port":        self.port_name,
+            "presence": self._presence,
+            "port": self.port_name,
         }
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"UltrasonicSensorModel(port={self.port_name!r}, "
-            f"distance={int(self._distance_mm)}mm)"
-        )
+        return f"UltrasonicSensorModel(port={self.port_name!r}, distance={int(self._distance_mm)}mm)"

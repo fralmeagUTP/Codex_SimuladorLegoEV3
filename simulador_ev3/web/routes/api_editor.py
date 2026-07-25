@@ -8,7 +8,6 @@ from simulador_ev3.domain.editor.world_editor_model import DEFAULT_WORLD_CELLS
 from simulador_ev3.web.routes.helpers import get_manager, json_body, require_session
 from simulador_ev3.web.services.simulation_session import asset_catalog_dict
 
-
 bp = Blueprint("api_editor", __name__, url_prefix="/api")
 
 
@@ -40,9 +39,9 @@ def create_editor_world(session_id: str):
         _sync_metadata(session_id)
         return jsonify(result)
     result = require_session(session_id).create_editor_world(
-            data.get("width_cells", DEFAULT_WORLD_CELLS),
-            data.get("height_cells", DEFAULT_WORLD_CELLS),
-        )
+        data.get("width_cells", DEFAULT_WORLD_CELLS),
+        data.get("height_cells", DEFAULT_WORLD_CELLS),
+    )
     _sync_metadata(session_id)
     return jsonify(result)
 

@@ -3,6 +3,7 @@
 En Windows usa `winsound.Beep`; en otros entornos usa un backend nulo
 para no romper la simulación.
 """
+
 from __future__ import annotations
 
 import threading

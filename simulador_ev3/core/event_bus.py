@@ -32,15 +32,17 @@ logger = logging.getLogger(__name__)
 
 EVENT_SIMULATION_STARTED = "simulation_started"
 EVENT_SIMULATION_STOPPED = "simulation_stopped"
-EVENT_RUNTIME_ERROR      = "runtime_error"
-EVENT_SENSOR_UPDATED     = "sensor_updated"
+EVENT_RUNTIME_ERROR = "runtime_error"
+EVENT_SENSOR_UPDATED = "sensor_updated"
 
-VALID_EVENTS: frozenset[str] = frozenset({
-    EVENT_SIMULATION_STARTED,
-    EVENT_SIMULATION_STOPPED,
-    EVENT_RUNTIME_ERROR,
-    EVENT_SENSOR_UPDATED,
-})
+VALID_EVENTS: frozenset[str] = frozenset(
+    {
+        EVENT_SIMULATION_STARTED,
+        EVENT_SIMULATION_STOPPED,
+        EVENT_RUNTIME_ERROR,
+        EVENT_SENSOR_UPDATED,
+    }
+)
 
 # Tipo de handler
 EventHandler = Callable[[str, dict], None]
@@ -50,6 +52,7 @@ EventHandler = Callable[[str, dict], None]
 # ---------------------------------------------------------------------------
 # EventBus
 # ---------------------------------------------------------------------------
+
 
 class EventBus:
     """
@@ -170,7 +173,4 @@ class EventBus:
 
     def _validate_event(self, event: str) -> None:
         if self._strict and event not in VALID_EVENTS:
-            raise ValueError(
-                f"Evento desconocido: '{event}'. "
-                f"Eventos válidos: {sorted(VALID_EVENTS)}"
-            )
+            raise ValueError(f"Evento desconocido: '{event}'. Eventos válidos: {sorted(VALID_EVENTS)}")

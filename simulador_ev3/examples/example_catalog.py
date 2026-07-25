@@ -1,4 +1,5 @@
 """Catálogo de scripts de ejemplo del simulador EV3."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,10 +25,7 @@ class ExampleCatalog:
     def list_examples(self) -> list[ExampleInfo]:
         if not self._dir.exists():
             return []
-        return [
-            ExampleInfo(name=path.name, path=path)
-            for path in sorted(self._dir.glob("*.py"))
-        ]
+        return [ExampleInfo(name=path.name, path=path) for path in sorted(self._dir.glob("*.py"))]
 
     def read_example(self, name_or_path: str) -> str:
         path = Path(name_or_path)

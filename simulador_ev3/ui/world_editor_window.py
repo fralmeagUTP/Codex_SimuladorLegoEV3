@@ -9,7 +9,7 @@ from __future__ import annotations
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.domain.editor.world_editor_model import (
@@ -31,7 +31,7 @@ class WorldEditorWindow(tk.Toplevel):
 
     def __init__(
         self,
-        parent: tk.Widget,
+        parent: Any,
         on_world_saved: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__(parent)

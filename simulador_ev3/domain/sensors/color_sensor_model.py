@@ -43,13 +43,14 @@ class ColorSensorModel:
         offset_y_mm:  Desplazamiento lateral.
     """
 
-    port_name:    str   = "S3"
-    offset_x_mm: float = 60.0   # ligeramente al frente
+    port_name: str = "S3"
+    offset_x_mm: float = 60.0  # ligeramente al frente
     offset_y_mm: float = 0.0
+    reflection_noise: float = 0.0
 
     # Estado interno actualizado cada tick
-    _color:       SurfaceColor = field(default=SurfaceColor.WHITE, init=False, repr=False)
-    _reflectance: float        = field(default=95.0,               init=False, repr=False)
+    _color: SurfaceColor = field(default=SurfaceColor.WHITE, init=False, repr=False)
+    _reflectance: float = field(default=95.0, init=False, repr=False)
 
     # ------------------------------------------------------------------ #
     # Actualización — llamada por SimulationEngine cada tick
@@ -73,6 +74,7 @@ class ColorSensorModel:
         sy = robot_y + self.offset_x_mm * sin_t + self.offset_y_mm * cos_t
 
         self._color, self._reflectance = world.surface.query(sx, sy)
+        self._reflectance = max(0.0, min(100.0, self._reflectance + self.reflection_noise * math.sin(sx + sy)))
 
     # ------------------------------------------------------------------ #
     # API de lectura — MODO COLOR
@@ -119,13 +121,10 @@ class ColorSensorModel:
 
     def to_dict(self) -> dict:
         return {
-            "color":       self._color.name,
+            "color": self._color.name,
             "reflectance": int(round(self._reflectance)),
-            "port":        self.port_name,
+            "port": self.port_name,
         }
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"ColorSensorModel(port={self.port_name!r}, "
-            f"color={self._color.name}, ref={int(self._reflectance)}%)"
-        )
+        return f"ColorSensorModel(port={self.port_name!r}, color={self._color.name}, ref={int(self._reflectance)}%)"

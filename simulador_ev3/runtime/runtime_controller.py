@@ -29,8 +29,6 @@ from enum import Enum, auto
 from typing import Optional
 
 from simulador_ev3.core.event_bus import (
-    EVENT_SIMULATION_STARTED,
-    EVENT_SIMULATION_STOPPED,
     EventBus,
 )
 from simulador_ev3.core.simulation_engine import SimulationEngine, StateSnapshot
@@ -39,9 +37,9 @@ from simulador_ev3.runtime.runtime_sandbox import RuntimeSandbox, SandboxState
 
 
 class ControllerState(Enum):
-    IDLE    = auto()
+    IDLE = auto()
     RUNNING = auto()
-    PAUSED  = auto()
+    PAUSED = auto()
     STOPPED = auto()
 
 
@@ -66,32 +64,32 @@ class RuntimeController:
     def __init__(
         self,
         engine: SimulationEngine,
-        bus: Optional[EventBus]           = None,
+        bus: Optional[EventBus] = None,
         policy: Optional[ExecutionPolicy] = None,
-        tick_rate_hz: float               = 50.0,
+        tick_rate_hz: float = 50.0,
     ) -> None:
-        self._engine       = engine
-        self._bus          = bus or engine.event_bus
-        self._policy       = policy or ExecutionPolicy()
-        self._dt           = 1.0 / tick_rate_hz
-        self._state        = ControllerState.IDLE
+        self._engine = engine
+        self._bus = bus or engine.event_bus
+        self._policy = policy or ExecutionPolicy()
+        self._dt = 1.0 / tick_rate_hz
+        self._state = ControllerState.IDLE
 
         # Hilos
         self._engine_thread: Optional[threading.Thread] = None
-        self._sandbox: Optional[RuntimeSandbox]          = None
+        self._sandbox: Optional[RuntimeSandbox] = None
 
         # Señales
-        self._stop_flag    = threading.Event()
-        self._pause_flag   = threading.Event()   # set = pausado
+        self._stop_flag = threading.Event()
+        self._pause_flag = threading.Event()  # set = pausado
 
         # Código de usuario
-        self._source_code: Optional[str]         = None
-        self._pybricks_modules: dict             = {}
-        self._debug_mode: bool                   = False
-        self._debug_step_mode: bool              = False
-        self._debug_breakpoints: set[int]        = set()
-        self._debug_watches: list[str]           = []
-        self._debug_cb                           = None
+        self._source_code: Optional[str] = None
+        self._pybricks_modules: dict = {}
+        self._debug_mode: bool = False
+        self._debug_step_mode: bool = False
+        self._debug_breakpoints: set[int] = set()
+        self._debug_watches: list[str] = []
+        self._debug_cb = None
 
         # Callback opcional que la UI puede registrar para recibir snapshots
         self._snapshot_cb = None
@@ -221,6 +219,7 @@ class RuntimeController:
             # pybricks.tools.wait() pueda interrumpirse al pulsar Stop.
             try:
                 from simulador_ev3.pybricks_api._context import PybricksContext
+
                 PybricksContext.get_current().stop_event = self._sandbox.stop_event
             except Exception:  # noqa: BLE001
                 pass
@@ -302,7 +301,7 @@ class RuntimeController:
         if self._state not in (ControllerState.RUNNING, ControllerState.PAUSED):
             return None
         if self._pause_flag.is_set():
-            return None   # pausado → no actualizar
+            return None  # pausado → no actualizar
 
         snap = self._engine.update(self._dt)
         if self._snapshot_cb:
@@ -352,10 +351,14 @@ class RuntimeController:
         El sandbox llama aquí cuando el ScriptThread termina (éxito o error).
         Si el script termina de forma natural → detenemos el engine también.
         """
-        if (self._sandbox and
-                self._sandbox.state in (SandboxState.FINISHED, SandboxState.ERROR)):
-            reason = "script_finished" if self._sandbox.state == SandboxState.FINISHED \
-                     else "script_error"
+        if self._sandbox and self._sandbox.state in (SandboxState.FINISHED, SandboxState.ERROR, SandboxState.TIMED_OUT):
+            reason = (
+                "script_finished"
+                if self._sandbox.state == SandboxState.FINISHED
+                else "script_timed_out"
+                if self._sandbox.state == SandboxState.TIMED_OUT
+                else "script_error"
+            )
 
             # Si terminó sin error, dejamos una ventana de ~1 tick para que
             # comandos no bloqueantes encolados al final (p.ej. screen.print)

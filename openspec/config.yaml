@@ -1,0 +1,4 @@
+schema: spec-driven
+
+# Las especificaciones base describen el comportamiento implementado en este repositorio.
+# Todo trabajo nuevo DEBERÁ proponerse en openspec/changes/<identificador-cambio> antes de modificar código.

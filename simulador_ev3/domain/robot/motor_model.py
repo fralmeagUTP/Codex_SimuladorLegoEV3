@@ -27,25 +27,26 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional
 
 
 class MotorState(Enum):
     """Estados operativos posibles de un motor EV3."""
-    IDLE      = auto()   # detenido, sin torque
-    RUN       = auto()   # velocidad constante indefinida
-    RUN_TIME  = auto()   # velocidad durante tiempo_ms milisegundos simulados
-    RUN_ANGLE = auto()   # gira rotation_angle grados
-    HOLD      = auto()   # mantiene posición con torque
-    BRAKE     = auto()   # frena activamente → transiciona a IDLE
+
+    IDLE = auto()  # detenido, sin torque
+    RUN = auto()  # velocidad constante indefinida
+    RUN_TIME = auto()  # velocidad durante tiempo_ms milisegundos simulados
+    RUN_ANGLE = auto()  # gira rotation_angle grados
+    HOLD = auto()  # mantiene posición con torque
+    BRAKE = auto()  # frena activamente → transiciona a IDLE
 
 
 # Tabla de modos de detención al completar un comando
 class StopMode(Enum):
     """Cómo debe quedar el motor al completar un movimiento con límite."""
-    COAST  = auto()   # sin torque (→ IDLE)
-    BRAKE  = auto()   # frena activamente (→ IDLE tras brake)
-    HOLD   = auto()   # mantiene posición (→ HOLD)
+
+    COAST = auto()  # sin torque (→ IDLE)
+    BRAKE = auto()  # frena activamente (→ IDLE tras brake)
+    HOLD = auto()  # mantiene posición (→ HOLD)
 
 
 @dataclass
@@ -67,16 +68,16 @@ class MotorModel:
 
     port_name: str
 
-    _speed: float             = field(default=0.0,  init=False, repr=False)
-    _angle: float             = field(default=0.0,  init=False, repr=False)
-    _power: float             = field(default=0.0,  init=False, repr=False)
+    _speed: float = field(default=0.0, init=False, repr=False)
+    _angle: float = field(default=0.0, init=False, repr=False)
+    _power: float = field(default=0.0, init=False, repr=False)
 
-    state: MotorState         = field(default=MotorState.IDLE, init=False)
+    state: MotorState = field(default=MotorState.IDLE, init=False)
 
-    _target_speed: float      = field(default=0.0,  init=False, repr=False)
-    _remaining_time_ms: float = field(default=0.0,  init=False, repr=False)
-    _remaining_angle: float   = field(default=0.0,  init=False, repr=False)
-    _then: StopMode           = field(default=StopMode.COAST, init=False, repr=False)
+    _target_speed: float = field(default=0.0, init=False, repr=False)
+    _remaining_time_ms: float = field(default=0.0, init=False, repr=False)
+    _remaining_angle: float = field(default=0.0, init=False, repr=False)
+    _then: StopMode = field(default=StopMode.COAST, init=False, repr=False)
 
     # ------------------------------------------------------------------ #
     # Propiedades de lectura (SAD §14)
@@ -107,8 +108,8 @@ class MotorModel:
         Transición: cualquier estado → RUN.
         """
         self._target_speed = float(speed)
-        self._power        = min(100.0, abs(speed) / 10.0)
-        self.state         = MotorState.RUN
+        self._power = min(100.0, abs(speed) / 10.0)
+        self.state = MotorState.RUN
 
     def cmd_stop(self) -> None:
         """
@@ -116,8 +117,8 @@ class MotorModel:
         Transición: cualquier estado → IDLE.
         """
         self._target_speed = 0.0
-        self._power        = 0.0
-        self.state         = MotorState.IDLE
+        self._power = 0.0
+        self.state = MotorState.IDLE
 
     def cmd_brake(self) -> None:
         """
@@ -125,8 +126,8 @@ class MotorModel:
         Transición: cualquier estado → BRAKE → IDLE (en el próximo tick).
         """
         self._target_speed = 0.0
-        self._power        = 0.0
-        self.state         = MotorState.BRAKE
+        self._power = 0.0
+        self.state = MotorState.BRAKE
 
     def cmd_hold(self) -> None:
         """
@@ -134,8 +135,8 @@ class MotorModel:
         Transición: cualquier estado → HOLD.
         """
         self._target_speed = 0.0
-        self._power        = 10.0  # potencia mínima de holding
-        self.state         = MotorState.HOLD
+        self._power = 10.0  # potencia mínima de holding
+        self.state = MotorState.HOLD
 
     def cmd_run_time(
         self,
@@ -147,11 +148,11 @@ class MotorModel:
         Gira a `speed` durante `time_ms` milisegundos simulados.
         Transición: cualquier estado → RUN_TIME.
         """
-        self._target_speed      = float(speed)
+        self._target_speed = float(speed)
         self._remaining_time_ms = float(time_ms)
-        self._then              = then
-        self._power             = min(100.0, abs(speed) / 10.0)
-        self.state              = MotorState.RUN_TIME
+        self._then = then
+        self._power = min(100.0, abs(speed) / 10.0)
+        self.state = MotorState.RUN_TIME
 
     def cmd_run_angle(
         self,
@@ -167,12 +168,12 @@ class MotorModel:
         if rotation_angle == 0:
             return
         # Asegura que la velocidad tenga el mismo signo que el ángulo
-        effective_speed         = abs(speed) * math.copysign(1.0, rotation_angle)
-        self._target_speed      = effective_speed
-        self._remaining_angle   = abs(float(rotation_angle))
-        self._then              = then
-        self._power             = min(100.0, abs(speed) / 10.0)
-        self.state              = MotorState.RUN_ANGLE
+        effective_speed = abs(speed) * math.copysign(1.0, rotation_angle)
+        self._target_speed = effective_speed
+        self._remaining_angle = abs(float(rotation_angle))
+        self._then = then
+        self._power = min(100.0, abs(speed) / 10.0)
+        self.state = MotorState.RUN_ANGLE
 
     # ------------------------------------------------------------------ #
     # Evolución temporal — llamado por SimulationEngine.update()
@@ -193,7 +194,7 @@ class MotorModel:
             self._power = 0.0
 
         elif self.state == MotorState.RUN:
-            self._speed  = self._target_speed
+            self._speed = self._target_speed
             self._angle += self._speed * dt
 
         elif self.state == MotorState.HOLD:
@@ -204,14 +205,14 @@ class MotorModel:
             # Frena en un tick y pasa a IDLE
             self._speed = 0.0
             self._power = 0.0
-            self.state  = MotorState.IDLE
-            completed   = True
+            self.state = MotorState.IDLE
+            completed = True
 
         elif self.state == MotorState.RUN_TIME:
-            self._speed              = self._target_speed
-            dt_ms                    = dt * 1000.0
-            advance_ms               = min(dt_ms, self._remaining_time_ms)
-            self._angle             += self._speed * (advance_ms / 1000.0)
+            self._speed = self._target_speed
+            dt_ms = dt * 1000.0
+            advance_ms = min(dt_ms, self._remaining_time_ms)
+            self._angle += self._speed * (advance_ms / 1000.0)
             self._remaining_time_ms -= advance_ms
 
             if self._remaining_time_ms <= 0.0:
@@ -219,10 +220,10 @@ class MotorModel:
                 completed = True
 
         elif self.state == MotorState.RUN_ANGLE:
-            self._speed     = self._target_speed
-            step            = abs(self._speed) * dt
-            advance         = min(step, self._remaining_angle)
-            self._angle    += math.copysign(advance, self._speed)
+            self._speed = self._target_speed
+            step = abs(self._speed) * dt
+            advance = min(step, self._remaining_angle)
+            self._angle += math.copysign(advance, self._speed)
             self._remaining_angle -= advance
 
             if self._remaining_angle <= 0.0:
@@ -237,7 +238,7 @@ class MotorModel:
 
     def _apply_stop_mode(self, mode: StopMode) -> None:
         """Aplica el modo de parada al finalizar un movimiento acotado."""
-        self._target_speed    = 0.0
+        self._target_speed = 0.0
         self._remaining_angle = 0.0
         self._remaining_time_ms = 0.0
 

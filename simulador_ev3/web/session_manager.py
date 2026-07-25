@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import secrets
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -37,6 +38,7 @@ class SessionManager:
 
     def __init__(self, config: dict[str, Any], metadata_store: Any | None = None) -> None:
         self._lock = threading.RLock()
+        self._capacity_changed = threading.Condition(self._lock)
         self._sessions: dict[str, SessionRecord] = {}
         self._metadata_store = metadata_store
         self._session_backend = str(config.get("SESSION_BACKEND", "memory")).strip().lower() or "memory"
@@ -52,42 +54,52 @@ class SessionManager:
             "sessions_recovered_from_mirror": 0,
             "session_recovery_failures": 0,
         }
-        self._idle_timeout = timedelta(
-            minutes=int(config.get("SESSION_IDLE_TIMEOUT_MIN", 30))
-        )
+        self._idle_timeout = timedelta(minutes=int(config.get("SESSION_IDLE_TIMEOUT_MIN", 30)))
         self._max_active = int(config.get("MAX_ACTIVE_SESSIONS", 20))
         self._max_running = int(config.get("MAX_RUNNING_SIMULATIONS", 8))
         self._script_max_runtime_s = float(config.get("SCRIPT_MAX_RUNTIME_S", 30.0))
         self._config = config
 
-    def create_session(self, *, evict_inactive: bool = False) -> tuple[str, str]:
+    def create_session(
+        self,
+        *,
+        evict_inactive: bool = False,
+        wait_timeout_s: float = 0.0,
+    ) -> tuple[str, str]:
+        timeout_s = max(0.0, float(wait_timeout_s))
+        deadline = time.monotonic() + timeout_s if timeout_s > 0 else 0.0
         with self._lock:
-            self.cleanup_expired()
-            if evict_inactive and len(self._sessions) >= self._max_active:
-                self._evict_oldest_inactive_locked()
-            if len(self._sessions) >= self._max_active:
-                raise CapacityExceeded("Se alcanzo el limite de sesiones activas.")
-
-            session_id = str(uuid.uuid4())
-            owner_token = secrets.token_urlsafe(32)
-            session = SimulationSession(
-                session_id=session_id,
-                config=self._config,
-                max_runtime_s=self._script_max_runtime_s,
-            )
-            now = _utcnow()
-            self._sessions[session_id] = SessionRecord(
-                session_id=session_id,
-                owner_token_hash=_hash_token(owner_token),
-                created_at=now,
-                last_seen_at=now,
-                session=session,
-            )
-            mirrored = self._mirror_upsert_locked(self._sessions[session_id])
-            if self._is_redis_primary and not mirrored:
-                self._mark_degraded_locked("redis_mirror_write_failed_create")
-            self._bump_counter_locked("sessions_created")
-            return session_id, owner_token
+            while True:
+                self.cleanup_expired()
+                if evict_inactive and len(self._sessions) >= self._max_active:
+                    self._evict_oldest_inactive_locked()
+                if len(self._sessions) < self._max_active:
+                    session_id = str(uuid.uuid4())
+                    owner_token = secrets.token_urlsafe(32)
+                    session = SimulationSession(
+                        session_id=session_id,
+                        config=self._config,
+                        max_runtime_s=self._script_max_runtime_s,
+                    )
+                    now = _utcnow()
+                    self._sessions[session_id] = SessionRecord(
+                        session_id=session_id,
+                        owner_token_hash=_hash_token(owner_token),
+                        created_at=now,
+                        last_seen_at=now,
+                        session=session,
+                    )
+                    mirrored = self._mirror_upsert_locked(self._sessions[session_id])
+                    if self._is_redis_primary and not mirrored:
+                        self._mark_degraded_locked("redis_mirror_write_failed_create")
+                    self._bump_counter_locked("sessions_created")
+                    return session_id, owner_token
+                if timeout_s <= 0:
+                    raise CapacityExceeded("Se alcanzo el limite de sesiones activas.")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise CapacityExceeded("Se alcanzo el limite de sesiones activas.")
+                self._capacity_changed.wait(timeout=min(remaining, 1.0))
 
     def get_session(
         self,
@@ -137,6 +149,7 @@ class SessionManager:
             if self._is_redis_primary and not deleted:
                 self._mark_degraded_locked("redis_mirror_delete_failed_close")
             self._bump_counter_locked("sessions_closed")
+            self._capacity_changed.notify_all()
         record.session.close()
 
     def cleanup_expired(self) -> int:
@@ -146,6 +159,8 @@ class SessionManager:
                 if self._is_expired(record):
                     expired.append(record)
                     self._sessions.pop(session_id, None)
+            if expired:
+                self._capacity_changed.notify_all()
         for record in expired:
             deleted = self._mirror_delete(record.session_id)
             if self._is_redis_primary and not deleted:
@@ -164,10 +179,7 @@ class SessionManager:
     def evict_oldest_running(self) -> bool:
         """Stop and remove the oldest running session to free one execution slot."""
         with self._lock:
-            candidates = [
-                record for record in self._sessions.values()
-                if record.session.status == "running"
-            ]
+            candidates = [record for record in self._sessions.values() if record.session.status == "running"]
             if not candidates:
                 return False
             oldest = min(candidates, key=lambda record: record.last_seen_at)
@@ -175,6 +187,7 @@ class SessionManager:
             deleted = self._mirror_delete_locked(oldest.session_id)
             if self._is_redis_primary and not deleted:
                 self._mark_degraded_locked("redis_mirror_delete_failed_evict_running")
+            self._capacity_changed.notify_all()
         oldest.session.close()
         return True
 
@@ -187,6 +200,19 @@ class SessionManager:
                 "max_running_simulations": self._max_running,
                 **self._counters,
             }
+
+    def worker_stats(self) -> dict[str, int | float]:
+        """Agrega diagnósticos públicos de workers sin exponer sesiones internas."""
+        with self._lock:
+            diagnostics = [record.session.worker_diagnostics() for record in self._sessions.values()]
+        return {
+            "active_workers": sum(int(item.get("worker_alive", 0)) for item in diagnostics),
+            "worker_cpu_seconds": round(sum(float(item.get("cpu_s", 0.0)) for item in diagnostics), 6),
+            "worker_memory_bytes": sum(int(item.get("memory_bytes", 0)) for item in diagnostics),
+            "worker_peak_memory_bytes": sum(int(item.get("peak_memory_bytes", 0)) for item in diagnostics),
+            "worker_event_queue_depth": sum(int(item.get("event_queue_depth", 0)) for item in diagnostics),
+            "worker_last_tick_total": sum(int(item.get("last_tick", 0)) for item in diagnostics),
+        }
 
     def diagnostics(self) -> dict[str, Any]:
         with self._lock:
@@ -220,15 +246,13 @@ class SessionManager:
         return _utcnow() - record.last_seen_at > self._idle_timeout
 
     def _evict_oldest_inactive_locked(self) -> None:
-        candidates = [
-            record for record in self._sessions.values()
-            if record.session.status != "running"
-        ]
+        candidates = [record for record in self._sessions.values() if record.session.status != "running"]
         if not candidates:
             return
         oldest = min(candidates, key=lambda record: record.last_seen_at)
         self._sessions.pop(oldest.session_id, None)
         self._mirror_delete_locked(oldest.session_id)
+        self._capacity_changed.notify_all()
         oldest.session.close()
 
     def _bump_counter_locked(self, key: str, amount: int = 1) -> None:

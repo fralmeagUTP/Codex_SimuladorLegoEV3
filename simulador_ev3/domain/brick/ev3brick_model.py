@@ -18,10 +18,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from simulador_ev3.domain.brick.led_model     import LedModel
+from simulador_ev3.domain.brick.buttons_model import ButtonsModel
+from simulador_ev3.domain.brick.led_model import LedModel
+from simulador_ev3.domain.brick.screen_buffer import ScreenBuffer
 from simulador_ev3.domain.brick.speaker_model import SpeakerModel
-from simulador_ev3.domain.brick.screen_buffer  import ScreenBuffer
-from simulador_ev3.domain.brick.buttons_model  import ButtonsModel
 
 
 @dataclass
@@ -36,10 +36,10 @@ class EV3BrickModel:
         buttons: Modelo de los botones físicos.
     """
 
-    light:   LedModel     = field(default_factory=LedModel)
+    light: LedModel = field(default_factory=LedModel)
     speaker: SpeakerModel = field(default_factory=SpeakerModel)
-    screen:  ScreenBuffer  = field(default_factory=ScreenBuffer)
-    buttons: ButtonsModel  = field(default_factory=ButtonsModel)
+    screen: ScreenBuffer = field(default_factory=ScreenBuffer)
+    buttons: ButtonsModel = field(default_factory=ButtonsModel)
 
     # ------------------------------------------------------------------ #
     # Evolución temporal — llamado por SimulationEngine.update()
@@ -64,15 +64,11 @@ class EV3BrickModel:
             dict con las claves: led, speaker, screen, buttons
         """
         return {
-            "led":     self.light.to_dict(),
+            "led": self.light.to_dict(),
             "speaker": self.speaker.to_dict(),
-            "screen":  self.screen.to_dict(),
+            "screen": self.screen.to_dict(),
             "buttons": self.buttons.to_dict(),
         }
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"EV3BrickModel("
-            f"led={self.light!r}, "
-            f"speaker={self.speaker!r})"
-        )
+        return f"EV3BrickModel(led={self.light!r}, speaker={self.speaker!r})"

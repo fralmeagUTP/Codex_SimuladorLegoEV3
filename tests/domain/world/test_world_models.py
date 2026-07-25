@@ -5,16 +5,18 @@ Tests unitarios para SurfaceModel, ObstacleModel, BeaconModel y WorldModel.
 """
 
 import math
-import pytest
-from simulador_ev3.domain.world.surface_model  import SurfaceModel, SurfaceColor
-from simulador_ev3.domain.world.obstacle_model import ObstacleModel
-from simulador_ev3.domain.world.beacon_model   import BeaconModel
-from simulador_ev3.domain.world.world_model    import WorldModel
 
+import pytest
+
+from simulador_ev3.domain.world.beacon_model import BeaconModel
+from simulador_ev3.domain.world.obstacle_model import ObstacleModel
+from simulador_ev3.domain.world.surface_model import SurfaceColor, SurfaceModel
+from simulador_ev3.domain.world.world_model import WorldModel
 
 # ================================================================== #
 # SurfaceModel
 # ================================================================== #
+
 
 class TestSurfaceModel:
     def test_default_background_is_white(self) -> None:
@@ -25,7 +27,7 @@ class TestSurfaceModel:
     def test_set_cell_and_query(self) -> None:
         s = SurfaceModel(cell_size_mm=50.0)
         s.set_cell(0, 0, SurfaceColor.BLACK)
-        color, ref = s.query(10.0, 10.0)     # dentro de celda (0,0)
+        color, ref = s.query(10.0, 10.0)  # dentro de celda (0,0)
         assert color == SurfaceColor.BLACK
 
     def test_reflectance_black_is_low(self) -> None:
@@ -70,6 +72,7 @@ class TestSurfaceModel:
 # ================================================================== #
 # ObstacleModel
 # ================================================================== #
+
 
 class TestObstacleModel:
     def test_from_rect_creates_4_vertices(self) -> None:
@@ -116,6 +119,7 @@ class TestObstacleModel:
 # BeaconModel
 # ================================================================== #
 
+
 class TestBeaconModel:
     def test_invalid_channel_raises(self) -> None:
         with pytest.raises(ValueError):
@@ -132,7 +136,7 @@ class TestBeaconModel:
 
     def test_relative_heading_front_is_zero(self) -> None:
         b = BeaconModel(x_mm=500, y_mm=0, channel=1)
-        heading = b.relative_heading(0, 0, robot_theta=0.0)   # apunta +X
+        heading = b.relative_heading(0, 0, robot_theta=0.0)  # apunta +X
         assert heading == 0
 
     def test_relative_heading_left_is_positive(self) -> None:
@@ -145,6 +149,7 @@ class TestBeaconModel:
 # ================================================================== #
 # WorldModel
 # ================================================================== #
+
 
 class TestWorldModel:
     def test_default_world_created(self) -> None:

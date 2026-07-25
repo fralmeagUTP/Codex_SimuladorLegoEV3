@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
     from simulador_ev3.domain.world.world_model import WorldModel
 
 
-MAX_IR_DISTANCE = 70.0   # distancia real máxima en cm → escalada a 0-100
+MAX_IR_DISTANCE = 70.0  # distancia real máxima en cm → escalada a 0-100
 
 
 @dataclass
@@ -36,12 +36,12 @@ class InfraredSensorModel:
         offset_y_mm:  Desplazamiento lateral (mm).
     """
 
-    port_name:    str   = "S2"
+    port_name: str = "S2"
     offset_x_mm: float = 70.0
     offset_y_mm: float = 0.0
 
     # Estado interno
-    _proximity:  int  = field(default=0, init=False, repr=False)
+    _proximity: int = field(default=0, init=False, repr=False)
 
     # ------------------------------------------------------------------ #
     # Actualización — llamada por SimulationEngine cada tick
@@ -65,7 +65,8 @@ class InfraredSensorModel:
         sy = robot_y + self.offset_x_mm * sin_t + self.offset_y_mm * cos_t
 
         dist_mm = world.ray_cast(
-            ox=sx, oy=sy,
+            ox=sx,
+            oy=sy,
             angle_rad=robot_theta,
             max_dist_mm=MAX_IR_DISTANCE * 10,  # 700 mm máx
         )
@@ -89,9 +90,9 @@ class InfraredSensorModel:
     # API de lectura — MODO BEACON
     # ------------------------------------------------------------------ #
 
-    def beacon(self, channel: int, world: "WorldModel",
-               robot_x: float, robot_y: float,
-               robot_theta: float) -> Tuple[int, int]:
+    def beacon(
+        self, channel: int, world: "WorldModel", robot_x: float, robot_y: float, robot_theta: float
+    ) -> Tuple[int, int]:
         """
         Retorna (distancia_relativa, heading_relativo) de la baliza en `channel`.
         Equivale a InfraredSensor.beacon(channel) de Pybricks.
@@ -116,7 +117,4 @@ class InfraredSensorModel:
         return {"proximity": self._proximity, "port": self.port_name}
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"InfraredSensorModel(port={self.port_name!r}, "
-            f"proximity={self._proximity})"
-        )
+        return f"InfraredSensorModel(port={self.port_name!r}, proximity={self._proximity})"

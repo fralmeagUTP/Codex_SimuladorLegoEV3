@@ -15,30 +15,24 @@ Responsabilidades:
   4. Convertir cada StateSnapshot en SnapshotDTO y notificar callbacks de UI.
   5. Publicar errores de runtime a los callbacks de UI.
 """
+
 from __future__ import annotations
 
-import threading
+import json
 import math
+import threading
 from pathlib import Path
 from typing import Callable, Optional
-import json
 
+from simulador_ev3.application.simulation_trace import SimulationTrace
+from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.core.event_bus import (
     EVENT_RUNTIME_ERROR,
-    EVENT_SIMULATION_STARTED,
     EVENT_SIMULATION_STOPPED,
 )
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
-from simulador_ev3.domain.robot.robot_model import Pose
-from simulador_ev3.pybricks_api.factory import PybricksFactory
-from simulador_ev3.persistence.world_repository import WorldRepository
-from simulador_ev3.application.world_editor_service import WorldEditorService
-from simulador_ev3.runtime.execution_policy import ExecutionPolicy
-from simulador_ev3.runtime.runtime_controller import ControllerState, RuntimeController
-from simulador_ev3.domain.world.world_model import WorldModel
-from simulador_ev3.domain.world.beacon_model import BeaconModel
-
-from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.core.simulation_profile import resolve_profile
 from simulador_ev3.domain.editor.world_editor_model import (
     CELL_SIZE_MM,
     DEFAULT_WORLD_CELLS,
@@ -47,16 +41,22 @@ from simulador_ev3.domain.editor.world_editor_model import (
     MAX_WORLD_PIXELS,
     get_asset_spec,
 )
-
+from simulador_ev3.domain.robot.robot_model import Pose
+from simulador_ev3.domain.world.beacon_model import BeaconModel
+from simulador_ev3.domain.world.world_model import WorldModel
+from simulador_ev3.persistence.world_repository import WorldRepository
+from simulador_ev3.pybricks_api.factory import PybricksFactory
+from simulador_ev3.runtime.execution_policy import ExecutionPolicy
+from simulador_ev3.runtime.runtime_controller import ControllerState, RuntimeController
 
 # Tipo de callback: recibe SnapshotDTO en cada tick
 SnapshotCallback = Callable[[SnapshotDTO], None]
 # Tipo de callback de error: recibe dict {"error": str, "traceback": str}
-ErrorCallback    = Callable[[dict], None]
+ErrorCallback = Callable[[dict], None]
 # Tipo de callback de estado: recibe str ("started" | "stopped" | "error")
-StatusCallback   = Callable[[str], None]
+StatusCallback = Callable[[str], None]
 # Tipo de callback de depuracion: recibe dict {"line": int}
-DebugCallback    = Callable[[dict], None]
+DebugCallback = Callable[[dict], None]
 
 
 class SimulationService:
@@ -89,20 +89,20 @@ class SimulationService:
         policy: Optional[ExecutionPolicy] = None,
         tick_rate_hz: float = 50.0,
     ) -> None:
-        self._config       = config or SimEngineConfig()
-        self._policy       = policy or ExecutionPolicy(max_runtime_s=0)
+        self._config = config or SimEngineConfig()
+        self._policy = policy or ExecutionPolicy(max_runtime_s=0)
         self._tick_rate_hz = tick_rate_hz
 
         # Se construyen en _rebuild()
-        self._engine:     Optional[SimulationEngine]  = None
+        self._engine: Optional[SimulationEngine] = None
         self._controller: Optional[RuntimeController] = None
-        self._stop_event: Optional[threading.Event]   = None
+        self._stop_event: Optional[threading.Event] = None
 
         # Callbacks de UI
         self._snapshot_cb: Optional[SnapshotCallback] = None
-        self._error_cb:    Optional[ErrorCallback]    = None
-        self._status_cb:   Optional[StatusCallback]   = None
-        self._debug_cb:    Optional[DebugCallback]    = None
+        self._error_cb: Optional[ErrorCallback] = None
+        self._status_cb: Optional[StatusCallback] = None
+        self._debug_cb: Optional[DebugCallback] = None
 
         # Script actual
         self._source_code: Optional[str] = None
@@ -110,6 +110,8 @@ class SimulationService:
         self._debug_breakpoints: set[int] = set()
         self._debug_watches: list[str] = []
         self._latest_debug_event: dict | None = None
+        self._trace = SimulationTrace()
+        self._trace_recording = False
 
         # Construir la infraestructura inicial
         self._rebuild()
@@ -133,6 +135,79 @@ class SimulationService:
         self._debug_cb = cb
         if self._controller:
             self._controller.set_debug_callback(self._on_debug_event)
+
+    @property
+    def engine_config(self) -> SimEngineConfig:
+        """Configuracion actual del motor para los adaptadores de interfaz."""
+        return self._config
+
+    @property
+    def debug_configuration(self) -> dict[str, object]:
+        """Configuración pública de depuración para adaptadores de interfaz."""
+        return {"breakpoints": sorted(self._debug_breakpoints), "watches": list(self._debug_watches)}
+
+    def world_visual_data(self) -> dict:
+        """DTO de mundo para renderizado sin exponer atributos privados de dominio."""
+        world = self._engine.world if self._engine is not None else None
+        if world is None:
+            return {"name": "Basico", "width_mm": 0.0, "height_mm": 0.0, "surface_cells": [], "obstacles": []}
+        cell_size = world.surface.cell_size_mm
+        return {
+            "name": getattr(world, "name", "Basico"),
+            "width_mm": world.width_mm,
+            "height_mm": world.height_mm,
+            "surface_cells": [
+                {"x_mm": col * cell_size, "y_mm": row * cell_size, "size_mm": cell_size, "color": cell.color.name}
+                for col, row, cell in world.surface.iter_defined_cells()
+            ],
+            "obstacles": [
+                {
+                    "x_mm": obstacle.aabb[0],
+                    "y_mm": obstacle.aabb[1],
+                    "width_mm": obstacle.aabb[2] - obstacle.aabb[0],
+                    "height_mm": obstacle.aabb[3] - obstacle.aabb[1],
+                    "name": getattr(obstacle, "name", "obstacle"),
+                }
+                for obstacle in world.obstacles
+            ],
+        }
+
+    def set_simulation_profile(self, profile: str, calibration: dict[str, float] | None = None) -> None:
+        """Cambia el perfil antes de ejecutar y reconstruye el motor de forma segura."""
+        if self.is_running:
+            raise RuntimeError("No se puede cambiar el perfil durante una simulacion activa.")
+        resolve_profile(profile, calibration)
+        self._config.simulation_profile = str(profile).lower()
+        self._config.calibration = dict(calibration or {})
+        self._rebuild()
+
+    def start_trace(self) -> None:
+        self._trace.clear()
+        self._trace_recording = True
+
+    def stop_trace(self) -> None:
+        self._trace_recording = False
+
+    def export_trace(self, format: str = "json") -> str:
+        if format == "json":
+            return self._trace.to_json()
+        if format == "csv":
+            return self._trace.to_csv()
+        raise ValueError("format debe ser json o csv")
+
+    def import_trace(self, payload: str) -> SimulationTrace:
+        return SimulationTrace.from_json(payload)
+
+    def step_tick(self) -> SnapshotDTO:
+        """Avanza exactamente un tick fuera de una ejecución continua."""
+        if self.is_running or self._engine is None:
+            raise RuntimeError("El paso de tick requiere una simulacion detenida.")
+        dto = SnapshotDTO.from_snapshot(self._engine.update(1 / self._tick_rate_hz))
+        if self._trace_recording:
+            self._trace.record(dto.to_dict())
+        if self._snapshot_cb:
+            self._snapshot_cb(dto)
+        return dto
 
     def set_debug_breakpoints(self, breakpoints: set[int]) -> None:
         self._debug_breakpoints = {int(line) for line in breakpoints if int(line) > 0}
@@ -215,7 +290,8 @@ class SimulationService:
                 f"Tamano recibido: {world.width_mm:.0f}x{world.height_mm:.0f} mm."
             )
         self._loaded_world = world
-        self._engine.set_world(world)
+        if self._engine is not None:
+            self._engine.set_world(world)
         if robot_start is not None:
             x_mm, y_mm, theta_deg = robot_start
             self.set_robot_start(x_mm, y_mm, theta_deg)
@@ -238,14 +314,26 @@ class SimulationService:
             width_mm=target_w,
             height_mm=target_h,
         )
-        setattr(world, "name", "Mundo en blanco")
         self._loaded_world = world
-        self._engine.set_world(world)
+        if self._engine is not None:
+            self._engine.set_world(world)
         self._notify_status("world_loaded")
 
-    def _load_world_with_editor_physics(
-        self, path: str | Path
-    ) -> tuple[WorldModel, tuple[float, float, float] | None]:
+    def apply_world_model(self, world: WorldModel) -> None:
+        """Activa un mundo ya validado por el editor mediante una API pública."""
+        if self.is_running:
+            self.stop(reason="world_change")
+        self._loaded_world = world
+        if self._engine is not None:
+            self._engine.set_world(world)
+        self._notify_status("world_loaded")
+
+    @property
+    def current_world_model(self) -> WorldModel | None:
+        """Mundo activo para DTOs de aplicación, sin filtrar el engine privado."""
+        return self._engine.world if self._engine is not None else None
+
+    def _load_world_with_editor_physics(self, path: str | Path) -> tuple[WorldModel, tuple[float, float, float] | None]:
         src = Path(path)
         try:
             raw = json.loads(src.read_text(encoding="utf-8"))
@@ -261,7 +349,9 @@ class SimulationService:
                         world.beacons = wrapped_beacons
                     return world, robot_start
 
-                if all(key in raw for key in ("schema_version", "world_width_cells", "world_height_cells", "placements")):
+                if all(
+                    key in raw for key in ("schema_version", "world_width_cells", "world_height_cells", "placements")
+                ):
                     svc = WorldEditorService()
                     svc._formal_world = svc.load(json.dumps(raw, ensure_ascii=False))
                     self._normalize_loaded_world_size_for_simulation(svc)
@@ -319,9 +409,7 @@ class SimulationService:
         if world.world_height_cells < 1:
             world.world_height_cells = DEFAULT_WORLD_CELLS
 
-    def _extract_robot_start_from_editor_spec(
-        self, editor_spec: dict
-    ) -> tuple[float, float, float] | None:
+    def _extract_robot_start_from_editor_spec(self, editor_spec: dict) -> tuple[float, float, float] | None:
         placements = editor_spec.get("placements")
         if not isinstance(placements, list):
             return None
@@ -338,8 +426,8 @@ class SimulationService:
             if spec is None or spec.asset_type != "robot":
                 continue
 
-            x_px = int(item.get("x_px", item.get("x", 0)))
-            y_px = int(item.get("y_px", item.get("y", 0)))
+            x_px = int(item.get("x_px", item.get("x", 0)) or 0)
+            y_px = int(item.get("y_px", item.get("y", 0)) or 0)
             rotation = int(item.get("rotation", 0)) % 360
             width_cells = spec.width_cells
             height_cells = spec.height_cells
@@ -369,6 +457,10 @@ class SimulationService:
         if self._controller and self._controller.state == ControllerState.STOPPED:
             PybricksFactory.cleanup()
             self._rebuild()
+
+        assert self._engine is not None
+        assert self._controller is not None
+        assert self._stop_event is not None
 
         if self._loaded_world is not None:
             self._engine.set_world(self._loaded_world)
@@ -436,13 +528,11 @@ class SimulationService:
 
     @property
     def is_running(self) -> bool:
-        return (self._controller is not None
-                and self._controller.state == ControllerState.RUNNING)
+        return self._controller is not None and self._controller.state == ControllerState.RUNNING
 
     @property
     def is_paused(self) -> bool:
-        return (self._controller is not None
-                and self._controller.state == ControllerState.PAUSED)
+        return self._controller is not None and self._controller.state == ControllerState.PAUSED
 
     @property
     def controller_state(self) -> Optional[ControllerState]:
@@ -478,7 +568,7 @@ class SimulationService:
 
     def _rebuild(self) -> None:
         """Crea un engine + controller frescos."""
-        self._engine     = SimulationEngine(config=self._config)
+        self._engine = SimulationEngine(config=self._config)
         if self._loaded_world is not None:
             self._engine.set_world(self._loaded_world)
         self._stop_event = threading.Event()
@@ -493,18 +583,16 @@ class SimulationService:
         self._controller.set_debug_callback(self._on_debug_event)
         self._controller.set_debug_breakpoints(self._debug_breakpoints)
         self._controller.set_debug_watches(self._debug_watches)
-        self._engine.event_bus.subscribe(
-            EVENT_RUNTIME_ERROR, self._on_runtime_error
-        )
-        self._engine.event_bus.subscribe(
-            EVENT_SIMULATION_STOPPED, self._on_simulation_stopped
-        )
+        self._engine.event_bus.subscribe(EVENT_RUNTIME_ERROR, self._on_runtime_error)
+        self._engine.event_bus.subscribe(EVENT_SIMULATION_STOPPED, self._on_simulation_stopped)
 
     def _on_snapshot(self, snapshot) -> None:
         """Callback que el RuntimeController invoca en cada tick."""
+        dto = SnapshotDTO.from_snapshot(snapshot)
+        if self._trace_recording:
+            self._trace.record(dto.to_dict())
         if self._snapshot_cb:
             try:
-                dto = SnapshotDTO.from_snapshot(snapshot)
                 self._snapshot_cb(dto)
             except Exception:  # noqa: BLE001
                 pass
@@ -516,12 +604,18 @@ class SimulationService:
                 self._error_cb(payload)
             except Exception:  # noqa: BLE001
                 pass
-        self._notify_status("error")
+        message = str((payload or {}).get("error", "")).lower()
+        self._notify_status("timed_out" if "tiempo maximo" in message else "error")
 
     def _on_simulation_stopped(self, event: str, payload: dict) -> None:
         """Callback recibido cuando el controller detiene el engine internamente."""
         reason = str((payload or {}).get("reason", ""))
-        if reason == "script_error":
+        if reason in {"script_error", "script_timed_out"}:
+            return
+        # Una finalizacion natural conserva el ultimo estado observable del
+        # robot/brick. Las interfaces deciden cuando el usuario lo reinicia.
+        if reason == "script_finished":
+            self._notify_status("finished")
             return
         self._notify_status("stopped")
 

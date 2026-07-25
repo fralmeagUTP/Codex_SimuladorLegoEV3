@@ -1,19 +1,20 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from io import BytesIO
 from pathlib import Path
 
 import pytest
 
+from simulador_ev3 import __version__
+from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.web.app import create_app
 from simulador_ev3.web.errors import CapacityExceeded
-from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.web.session_manager import SessionCleanupWorker, SessionManager
 from simulador_ev3.web.wsgi import app as wsgi_app
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -57,6 +58,7 @@ def test_index_page_references_existing_static_assets(tmp_path):
     static_paths = re.findall(r'/(static/[^"\']+)', html)
 
     assert res.status_code == 200
+    assert f'data-ev3-app-version="{__version__}"' in html
     assert static_paths
     for path in static_paths:
         asset = client.get(f"/{path}")
@@ -127,10 +129,39 @@ def test_web_scripts_do_not_timeout_by_default(tmp_path):
     assert app.config["SCRIPT_MAX_RUNTIME_S"] == 0.0
 
 
+def test_production_configuration_rejects_unsafe_defaults(tmp_path):
+    with pytest.raises(RuntimeError, match="Configuracion de produccion invalida"):
+        create_app(
+            {
+                "TESTING": True,
+                "APP_ENV": "production",
+                "WORLDS_DIR": tmp_path,
+                "EXAMPLES_DIR": tmp_path,
+            }
+        )
+
+
+def test_production_configuration_accepts_required_security_values(tmp_path):
+    app = create_app(
+        {
+            "TESTING": True,
+            "APP_ENV": "production",
+            "SECRET_KEY": "clave-de-produccion-segura-con-32-caracteres",
+            "SCRIPT_MAX_RUNTIME_S": 30.0,
+            "SESSION_COOKIE_SECURE": True,
+            "WORLDS_DIR": tmp_path,
+            "EXAMPLES_DIR": tmp_path,
+        }
+    )
+
+    assert app.config["APP_ENV"] == "production"
+
+
 def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     worlds_dir = tmp_path / "worlds_env"
     examples_dir = tmp_path / "examples_env"
     monkeypatch.setenv("EV3_WEB_SECRET_KEY", "secret-from-env")
+    monkeypatch.setenv("EV3_WEB_APP_ENV", "development")
     monkeypatch.setenv("EV3_WEB_WORLDS_DIR", str(worlds_dir))
     monkeypatch.setenv("EV3_WEB_EXAMPLES_DIR", str(examples_dir))
     monkeypatch.setenv("EV3_WEB_MAX_ACTIVE_SESSIONS", "7")
@@ -150,6 +181,7 @@ def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     app = create_app({"TESTING": True})
 
     assert app.config["SECRET_KEY"] == "secret-from-env"
+    assert app.config["APP_ENV"] == "development"
     assert app.config["WORLDS_DIR"] == worlds_dir
     assert app.config["EXAMPLES_DIR"] == examples_dir
     assert app.config["MAX_ACTIVE_SESSIONS"] == 7
@@ -175,6 +207,7 @@ def test_healthz_includes_worker_session_and_redis_diagnostics(tmp_path):
     assert res.status_code == 200
     payload = res.get_json()
     assert payload["status"] == "ok"
+    assert payload["version"] == __version__
     assert str(payload["worker_id"]).startswith("pid-")
     assert str(payload["worker_pid"]).isdigit()
     assert payload["session_manager"]["session_backend"] == "memory"
@@ -186,6 +219,48 @@ def test_healthz_includes_worker_session_and_redis_diagnostics(tmp_path):
     assert payload["session_manager"]["metadata_mirror"]["driver"] == "file"
     assert payload["redis"]["backend"] == "memory"
     assert payload["redis"]["enabled"] is False
+
+
+def test_metrics_exposes_request_and_latency_counters(tmp_path):
+    client = make_client(tmp_path)
+
+    client.get("/healthz")
+    response = client.get("/metrics")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["requests_total"] >= 1
+    assert payload["responses_5xx"] == 0
+    assert payload["average_duration_ms"] >= 0
+
+
+def test_metrics_supports_prometheus_text_format(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.get("/metrics?format=prometheus")
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/plain"
+    assert "ev3_http_requests_total" in response.get_data(as_text=True)
+    assert "ev3_active_sessions" in response.get_data(as_text=True)
+    assert "ev3_worker_memory_bytes" in response.get_data(as_text=True)
+
+
+def test_request_trace_id_is_propagated_to_response(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.get("/healthz", headers={"X-Trace-Id": "trace-contract-1"})
+
+    assert response.headers["X-Trace-Id"] == "trace-contract-1"
+
+
+def test_operations_dashboard_is_available(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.get("/operations")
+
+    assert response.status_code == 200
+    assert b"Estado operativo" in response.data
 
 
 def test_explicit_config_wins_over_environment(monkeypatch, tmp_path):
@@ -268,9 +343,9 @@ def test_simulation_and_world_editor_pages_are_separate(tmp_path):
     assert 'id="worldMapZoomResetBtn"' in worlds
     assert 'id="runBtn"' not in worlds
     assert 'id="codeEditor"' not in worlds
-    assert 'window.EV3Canvas.zoomIn(canvas)' in world_editor_js
-    assert 'window.EV3Canvas.zoomOut(canvas)' in world_editor_js
-    assert 'window.EV3Canvas.fitToView(canvas, currentWorld)' in world_editor_js
+    assert "window.EV3Canvas.zoomIn(canvas)" in world_editor_js
+    assert "window.EV3Canvas.zoomOut(canvas)" in world_editor_js
+    assert "window.EV3Canvas.fitToView(canvas, currentWorld)" in world_editor_js
 
 
 def test_simulation_page_exposes_tk_style_menus(tmp_path):
@@ -334,7 +409,7 @@ def test_theme_controls_and_assets_are_available_across_pages(tmp_path):
     assert menu_js.status_code == 200
     assert "data-theme-choice" in simulation
     assert "data-theme-choice" in worlds
-    assert 'data-theme-select' in help_page
+    assert "data-theme-select" in help_page
     assert "theme_manager.js?v=" in simulation
     assert "theme_manager.js?v=" in worlds
     assert "theme_manager.js?v=" in help_page
@@ -350,6 +425,7 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
 
     js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
     api_js = client.get("/static/js/api.js").get_data(as_text=True)
+    speaker_audio = client.get("/static/js/speaker_audio.js").get_data(as_text=True)
 
     for expected in (
         "11_siguelineas_basico.py",
@@ -361,7 +437,6 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "12_radar_ultrasonido_360.json",
         "downloadScript",
         "showSaveFilePicker",
-        "scriptFileInput.addEventListener",
         "worldFileInput",
         "uploadWorld(file)",
         "Cargar mundo desde tu equipo",
@@ -386,9 +461,6 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "handleEditorPairs",
         "insertAtCursor",
         "speaker.duration_ms",
-        "AudioContext || window.webkitAudioContext",
-        "playSpeakerTone",
-        "bindAudioUnlockGesture",
         "autocompleteCandidates",
         "inferVariableTypes",
         "showAutocomplete",
@@ -396,7 +468,7 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "updateSyntaxHighlight",
         "handleGlobalShortcuts",
         "event.ctrlKey || event.metaKey",
-        "window.addEventListener(\"keydown\", handleGlobalShortcuts, true)",
+        'window.addEventListener("keydown", handleGlobalShortcuts, true)',
         "syntax-kw",
         "function updateControlStates()",
         "if (data.debug)",
@@ -405,7 +477,7 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "runBtn.disabled = !canStart",
         "pauseBtn.disabled = !isRunning",
         "resumeBtn.disabled = !isEffectivelyPaused",
-        "stopBtn.disabled = status === \"created\"",
+        'stopBtn.disabled = status === "created"',
         "placeRobotStartBtn.disabled = isBusy",
         "window.EV3Canvas.resetTrail();",
         "latestSnapshot = null",
@@ -422,10 +494,19 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "if (guardMenuAction()) return;",
     ):
         assert expected in js
+    file_input_js = client.get("/static/js/file_input_controller.js").get_data(as_text=True)
+    assert "EV3FileInputController.bind" in js
+    assert 'input?.addEventListener("change"' in file_input_js
+    for expected in ("AudioContext || window.webkitAudioContext", "handleSpeaker", "bindUnlockGesture"):
+        assert expected in speaker_audio
     assert "api.createSession()" in js
-    assert "api.closeSessionOnUnload()" in js
+    lifecycle_js = client.get("/static/js/page_lifecycle_controller.js").get_data(as_text=True)
+    assert "EV3PageLifecycleController.bind" in js
+    assert "closeSession();" in lifecycle_js
     assert "recoveryFailures" in js
-    assert "const POLLING_INTERVAL_MS = 700" in js
+    assert "const configuredPollingIntervalMs = Number.parseInt(" in js
+    assert "const POLLING_INTERVAL_MS = Number.isFinite(configuredPollingIntervalMs)" in js
+    assert "const SSE_ENABLED =" in js
     assert "setInterval(refreshSnapshot, POLLING_INTERVAL_MS)" in js
     assert "scheduleStreamRetry()" in js
     assert "api.createSession({ reuse: true })" in js
@@ -444,6 +525,10 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "recoverSession" in api_js
     assert "withSessionPath" in api_js
     assert "MAX_SESSION_RECOVERY_ATTEMPTS = 4" in api_js
+    assert "MAX_SESSION_FORBIDDEN_RECOVERY_ATTEMPTS = 1" in api_js
+    assert "SESSION_FORBIDDEN" in api_js
+    assert "DEFAULT_SESSION_CREATE_WAIT_MS" in api_js
+    assert "wait_ms: Math.floor(createWaitMs)" in api_js
     assert "singleFlight(" in api_js
     assert "requestWithPolicy(" in api_js
     assert "timeoutMs: 1200" in api_js
@@ -454,7 +539,7 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "X-Worker-Id" in api_js
     assert "X-Worker-Pid" in api_js
     assert "lastWorkerInfo" in api_js
-    assert "window.addEventListener(\"ev3-session-recovered\"" in js
+    assert 'window.addEventListener("ev3-session-recovered"' in lifecycle_js
 
 
 def test_simulation_canvas_preserves_physical_world_scale(tmp_path):
@@ -717,14 +802,16 @@ def test_map_zoom_buttons_are_present_and_wired(tmp_path):
 
     html = client.get("/").get_data(as_text=True)
     js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    world_controller_js = client.get("/static/js/world_view_controller.js").get_data(as_text=True)
     canvas_js = client.get("/static/js/canvas_world.js").get_data(as_text=True)
 
     assert 'id="mapZoomInBtn"' in html
     assert 'id="mapZoomOutBtn"' in html
     assert 'id="mapZoomResetBtn"' in html
-    assert 'window.EV3Canvas.zoomIn(canvas)' in js
-    assert 'window.EV3Canvas.zoomOut(canvas)' in js
-    assert 'window.EV3Canvas.fitToView(canvas, currentWorld)' in js
+    assert "EV3WorldViewController.create" in js
+    assert "window.EV3Canvas.zoomIn(canvas)" in world_controller_js
+    assert "window.EV3Canvas.zoomOut(canvas)" in world_controller_js
+    assert "window.EV3Canvas.fitToView(canvas, state.world)" in world_controller_js
     assert "function zoomIn(canvas)" in canvas_js
     assert "function zoomOut(canvas)" in canvas_js
     assert "function resetZoom(canvas)" in canvas_js
@@ -762,7 +849,7 @@ def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
     assert "worldHeightPx - heightPx" in canvas_js
     assert "function placementMoveTarget" in canvas_js
     assert "function drawPlacementPreview" in canvas_js
-    assert 'ctx.setLineDash([2, 2])' in canvas_js
+    assert "ctx.setLineDash([2, 2])" in canvas_js
     assert 'ctx.strokeStyle = "#006CFF"' in canvas_js
     assert "placementMoveTarget," in canvas_js
     assert "placementOriginForAsset(assetSelect.value" in editor_js
@@ -930,7 +1017,7 @@ def test_active_session_limit_is_enforced(tmp_path):
         manager.create_session()
 
 
-def test_api_session_creation_evicts_oldest_inactive_at_capacity(tmp_path):
+def test_api_session_creation_returns_429_at_capacity_without_eviction(tmp_path):
     client = make_client_with_config(tmp_path, MAX_ACTIVE_SESSIONS=2)
 
     first = client.post("/api/sessions").get_json()
@@ -938,16 +1025,54 @@ def test_api_session_creation_evicts_oldest_inactive_at_capacity(tmp_path):
     third = client.post("/api/sessions")
     manager = client.application.extensions["session_manager"]
 
-    assert third.status_code == 201
+    assert third.status_code == 429
+    assert third.get_json()["error"]["code"] == "CAPACITY_EXCEEDED"
+    assert third.headers.get("Retry-After") == "2"
     assert manager.stats()["active_sessions"] == 2
-    assert client.get(
-        f"/api/sessions/{first['session_id']}",
-        headers=auth_headers(first),
-    ).status_code == 404
-    assert client.get(
-        f"/api/sessions/{second['session_id']}",
-        headers=auth_headers(second),
-    ).status_code == 200
+    assert (
+        client.get(
+            f"/api/sessions/{first['session_id']}",
+            headers=auth_headers(first),
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            f"/api/sessions/{second['session_id']}",
+            headers=auth_headers(second),
+        ).status_code
+        == 200
+    )
+
+
+def test_api_session_creation_wait_ms_can_queue_until_capacity_frees(tmp_path):
+    client = make_client_with_config(tmp_path, MAX_ACTIVE_SESSIONS=1)
+    first = client.post("/api/sessions").get_json()
+    manager = client.application.extensions["session_manager"]
+
+    def delayed_release():
+        time.sleep(0.08)
+        manager.close_session(first["session_id"], first["owner_token"])
+
+    releaser = threading.Thread(target=delayed_release, daemon=True)
+    releaser.start()
+    started_at = time.monotonic()
+    second = client.post("/api/sessions", json={"wait_ms": 1200})
+    elapsed_s = time.monotonic() - started_at
+    releaser.join(timeout=1.0)
+
+    assert second.status_code == 201
+    assert elapsed_s >= 0.05
+    assert manager.stats()["active_sessions"] == 1
+
+
+def test_api_session_creation_wait_ms_invalid_payload_returns_400(tmp_path):
+    client = make_client_with_config(tmp_path, MAX_ACTIVE_SESSIONS=1)
+    client.post("/api/sessions")
+    res = client.post("/api/sessions", json={"wait_ms": "abc"})
+
+    assert res.status_code == 400
+    assert res.get_json()["error"]["code"] == "INVALID_PAYLOAD"
 
 
 def test_running_simulation_limit_is_enforced(tmp_path):
@@ -982,16 +1107,24 @@ def test_running_simulation_limit_is_enforced(tmp_path):
 
     try:
         assert first_start.status_code == 200
-        assert second_start.status_code == 200
-        # Politica actual: se desaloja la sesion en ejecucion mas antigua para liberar cupo.
-        assert client.get(
-            f"/api/sessions/{a['session_id']}",
-            headers=auth_headers(a),
-        ).status_code == 404
-        assert client.get(
-            f"/api/sessions/{b['session_id']}",
-            headers=auth_headers(b),
-        ).status_code == 200
+        assert second_start.status_code == 429
+        assert second_start.get_json()["error"]["code"] == "CAPACITY_EXCEEDED"
+        assert second_start.headers.get("Retry-After") == "2"
+        # Politica actual: no se desaloja otra sesion; se devuelve capacidad excedida.
+        assert (
+            client.get(
+                f"/api/sessions/{a['session_id']}",
+                headers=auth_headers(a),
+            ).status_code
+            == 200
+        )
+        assert (
+            client.get(
+                f"/api/sessions/{b['session_id']}",
+                headers=auth_headers(b),
+            ).status_code
+            == 200
+        )
     finally:
         client.post(f"/api/sessions/{a['session_id']}/stop", headers=auth_headers(a))
         client.post(f"/api/sessions/{b['session_id']}/stop", headers=auth_headers(b))
@@ -1080,6 +1213,23 @@ def test_snapshot_endpoint_accepts_post_for_proxy_compatibility(tmp_path):
     assert snap["session_id"] == session["session_id"]
 
 
+def test_snapshot_contract_has_sequence_and_new_generation_after_reset(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sid = session["session_id"]
+
+    before = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()
+    reset = client.post(f"/api/sessions/{sid}/reset", headers=headers)
+    after = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()
+
+    assert reset.status_code == 200
+    assert before["sequence"] >= 0
+    assert before["snapshot"]["snapshot_version"] == 1
+    assert before["snapshot"]["snapshot_generation"] == 0
+    assert after["snapshot"]["snapshot_generation"] == 1
+
+
 def test_pause_does_not_consume_runtime_timeout_budget(tmp_path):
     client = make_client_with_config(tmp_path, SCRIPT_MAX_RUNTIME_S=1.0)
     session = client.post("/api/sessions").get_json()
@@ -1110,14 +1260,22 @@ def test_pause_does_not_consume_runtime_timeout_budget(tmp_path):
     client.post(f"/api/sessions/{sid}/stop", headers=headers)
 
 
-def test_finished_script_updates_web_status_to_stopped(tmp_path):
+def test_finished_script_updates_web_status_and_preserves_final_brick_state(tmp_path):
     client = make_client_with_config(tmp_path, SCRIPT_MAX_RUNTIME_S=2.0)
     session = client.post("/api/sessions").get_json()
     headers = auth_headers(session)
 
     client.post(
         f"/api/sessions/{session['session_id']}/script",
-        json={"source": "from pybricks.tools import wait\nwait(100)\n"},
+        json={
+            "source": (
+                "from pybricks.hubs import EV3Brick\n"
+                "from pybricks.tools import wait\n"
+                "ev3 = EV3Brick()\n"
+                "ev3.speaker.beep(880, 1000, 70)\n"
+                "wait(100)\n"
+            )
+        },
         headers=headers,
     )
     client.post(f"/api/sessions/{session['session_id']}/start", json={}, headers=headers)
@@ -1130,10 +1288,38 @@ def test_finished_script_updates_web_status_to_stopped(tmp_path):
             headers=headers,
         ).get_json()
         status = payload["status"]
-        if status == "stopped":
+        if status == "finished":
             break
 
-    assert status == "stopped"
+    assert status == "finished"
+    assert payload["snapshot"]["brick"]["speaker"]["freq"] == 880
+
+
+def test_runtime_timeout_is_reported_as_terminal_timed_out_state(tmp_path):
+    client = make_client_with_config(tmp_path, SCRIPT_MAX_RUNTIME_S=0.1)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+
+    client.post(
+        f"/api/sessions/{session['session_id']}/script",
+        json={"source": "from pybricks.tools import wait\nwhile True:\n    wait(10)\n"},
+        headers=headers,
+    )
+    client.post(f"/api/sessions/{session['session_id']}/start", json={}, headers=headers)
+
+    status = "running"
+    for _ in range(30):
+        time.sleep(0.05)
+        payload = client.get(
+            f"/api/sessions/{session['session_id']}/snapshot",
+            headers=headers,
+        ).get_json()
+        status = payload["status"]
+        if status == "timed_out":
+            break
+
+    assert status == "timed_out"
+    assert "tiempo maximo" in payload["error"]["error"].lower()
 
 
 def test_editor_assets_and_validation(tmp_path):
@@ -1169,9 +1355,7 @@ def test_editor_move_rotate_duplicate_and_delete_asset(tmp_path):
         json={"id": placed["id"], "x": 96, "y": 128},
         headers=headers,
     ).get_json()
-    moved_placement = next(
-        item for item in moved["world"]["placements"] if item["id"] == placed["id"]
-    )
+    moved_placement = next(item for item in moved["world"]["placements"] if item["id"] == placed["id"])
     assert moved_placement["x"] == 96
     assert moved_placement["y"] == 128
 
@@ -1180,9 +1364,7 @@ def test_editor_move_rotate_duplicate_and_delete_asset(tmp_path):
         json={"id": placed["id"], "delta_deg": 90},
         headers=headers,
     ).get_json()
-    rotated_placement = next(
-        item for item in rotated["world"]["placements"] if item["id"] == placed["id"]
-    )
+    rotated_placement = next(item for item in rotated["world"]["placements"] if item["id"] == placed["id"])
     assert rotated_placement["rotation"] == 90
 
     updated = client.post(
@@ -1383,10 +1565,7 @@ def test_import_line_surface_world_into_editor_without_out_of_bounds(tmp_path):
     session = client.post("/api/sessions").get_json()
     headers = auth_headers(session)
 
-    cells = [
-        {"col": col, "row": 4, "color": "BLACK", "reflectance": 5.0}
-        for col in range(40)
-    ]
+    cells = [{"col": col, "row": 4, "color": "BLACK", "reflectance": 5.0} for col in range(40)]
     sim_world = {
         "version": 1,
         "world": {
@@ -1939,4 +2118,3 @@ def test_load_saved_world_in_new_session_keeps_editor_spec_for_rendering(tmp_pat
     data = loaded.get_json()
     assert data["world"]["editor_spec"]["placements"]
     assert data["world"]["editor_spec"]["placements"][0]["asset_key"] == "line_64_64_hor"
-

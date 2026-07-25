@@ -12,7 +12,6 @@ from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.pybricks_api.factory import PybricksFactory
 from simulador_ev3.runtime.runtime_controller import ControllerState
 
-
 ROOT_DIR = Path(__file__).resolve().parents[2]
 EXAMPLES_DIR = ROOT_DIR / "Documentos" / "Ejemplos"
 WORLDS_DIR = ROOT_DIR / "Documentos" / "Mundos"
@@ -117,18 +116,12 @@ ev3.light.off()
     assert snapshots, "No se recibieron snapshots de telemetria"
 
     saw_motor_activity = any(
-        abs(motor["speed"]) > 1.0
-        for snap in snapshots
-        for motor in snap.motors
-        if motor["port"] in {"A", "B", "C"}
+        abs(motor["speed"]) > 1.0 for snap in snapshots for motor in snap.motors if motor["port"] in {"A", "B", "C"}
     )
     assert saw_motor_activity
 
     sensor_ports = {
-        sensor["port"]
-        for snap in snapshots
-        for sensor in snap.sensors
-        if sensor.get("type") and sensor["type"] != "-"
+        sensor["port"] for snap in snapshots for sensor in snap.sensors if sensor.get("type") and sensor["type"] != "-"
     }
     assert {"S1", "S2", "S3", "S4"}.issubset(sensor_ports)
 

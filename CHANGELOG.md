@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.4.0 - 2026-07-24
+
+- Incorporado contrato de sesion versionado y worker aislado como ruta normal
+  para Web y Tkinter, con recuperacion documentada.
+- Modernizada la paridad funcional y visual de ambas interfaces: controles,
+  temas, depuracion, perfiles, trazas, telemetria y evidencia reproducible.
+- Anadidas metricas Prometheus, trazas correlacionadas, CI multiplataforma,
+  pruebas de carga y despliegue Linux sin privilegios.
+- Ampliada la conformidad Pybricks y las misiones evaluables.
+- Renovada la documentacion de arquitectura, seguridad, configuracion,
+  operacion, pruebas y contribucion; la evidencia actual registra 689 pruebas.
+
+## v1.3.4 - 2026-07-23
+
+- Unificada la versión distribuible en el paquete, la web, Tkinter y `/healthz`.
+- Agregados estados terminales `finished` y `timed_out` con conservación del snapshot final.
+- Versionado el contrato de snapshots y el catálogo de paridad Web/Tkinter.
+
 ## v1.3.2 - 2026-05-24
 
 - Corregidos flujos de ejecucion web para evitar estados colgados y mejorar respuesta al finalizar script.

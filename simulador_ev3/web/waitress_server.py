@@ -11,13 +11,12 @@ from simulador_ev3.web.wsgi import app
 def main() -> None:
     try:
         from waitress import serve
-    except ImportError:
+    except ImportError as error:
         print(
-            "Falta instalar Waitress. Ejecuta: "
-            ".\\.venv\\Scripts\\python.exe -m pip install -e .[web-prod]",
+            "Falta instalar Waitress. Ejecuta: .\\.venv\\Scripts\\python.exe -m pip install -e .[web-prod]",
             file=sys.stderr,
         )
-        raise SystemExit(1)
+        raise SystemExit(1) from error
 
     host = os.environ.get("EV3_WEB_HOST", "127.0.0.1")
     port = int(os.environ.get("EV3_WEB_PORT", "5050"))

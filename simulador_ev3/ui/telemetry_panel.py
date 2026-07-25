@@ -7,17 +7,19 @@ Muestra en cada tick:
   - Estado de sensores S1/S2/S3/S4
   - Tiempo de simulacion
 """
+
 from __future__ import annotations
 
 import tkinter as tk
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS
 
-_BG = "#FFFFFF"
-_HDR_BG = "#FFFFFF"
-_HDR_FG = "#1D2D44"
-_VAL_FG = "#1F2F46"
-_COL_FG = "#D32F2F"
+_BG = LIGHT_TOKENS.surface
+_HDR_BG = LIGHT_TOKENS.surface
+_HDR_FG = LIGHT_TOKENS.text
+_VAL_FG = LIGHT_TOKENS.text
+_COL_FG = LIGHT_TOKENS.danger
 _MONO = ("Segoe UI", 9)
 _LABEL = ("Segoe UI", 9)
 _BOLD = ("Segoe UI", 9, "bold")
@@ -27,19 +29,20 @@ _EMPTY = "-"
 def _mm_to_cm(value: float) -> float:
     return float(value) / 10.0
 
+
 _MOTOR_PORTS = ("A", "B", "C", "D")
 _SENSOR_PORTS = ("S1", "S2", "S3", "S4")
 
 
 def _apply_scrollbar_style(sb: tk.Scrollbar) -> None:
     sb.configure(
-        bg="#D4DDE8",
+        bg=LIGHT_TOKENS.border,
         activebackground="#B8C7DA",
-        troughcolor="#F8FBFF",
+        troughcolor=LIGHT_TOKENS.surface_muted,
         relief=tk.RAISED,
         bd=1,
         highlightthickness=1,
-        highlightbackground="#D4DDE8",
+        highlightbackground=LIGHT_TOKENS.border,
     )
 
 
@@ -54,6 +57,8 @@ class TelemetryPanel(tk.Frame):
 
         self._motor_vars: dict[str, dict[str, tk.StringVar]] = {}
         self._sensor_vars: dict[str, dict[str, tk.StringVar]] = {}
+        self._motor_frames: dict[str, tk.LabelFrame] = {}
+        self._sensor_frames: dict[str, tk.LabelFrame] = {}
 
         self._scroll_canvas = tk.Canvas(self, bg=_BG, highlightthickness=0)
         self._scrollbar = tk.Scrollbar(
@@ -68,9 +73,7 @@ class TelemetryPanel(tk.Frame):
         self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self._content = tk.Frame(self._scroll_canvas, bg=_BG)
-        self._canvas_window = self._scroll_canvas.create_window(
-            (0, 0), window=self._content, anchor=tk.NW
-        )
+        self._canvas_window = self._scroll_canvas.create_window((0, 0), window=self._content, anchor=tk.NW)
 
         self._content.bind("<Configure>", self._on_content_configure)
         self._scroll_canvas.bind("<Configure>", self._on_canvas_configure)
@@ -111,6 +114,8 @@ class TelemetryPanel(tk.Frame):
         self._var_time.set(_EMPTY)
         self._var_col.set("OK")
         self._lbl_col.configure(fg=_VAL_FG)
+        self._set_visible_motor_ports(set())
+        self._set_visible_sensor_ports(set())
 
     # ------------------------------------------------------------------
     # Build
@@ -118,35 +123,47 @@ class TelemetryPanel(tk.Frame):
 
     def _build(self) -> None:
         _header(self._content, "Telemetria")
-        self._build_robot_section()
-        _separator(self._content)
-        self._build_motors_section()
-        _separator(self._content)
-        self._build_sensors_section()
-        _separator(self._content)
-        self._build_time_section()
+        columns = tk.Frame(self._content, bg=_BG)
+        columns.pack(fill=tk.X)
+        robot_column = tk.Frame(columns, bg=_BG)
+        motors_column = tk.Frame(columns, bg=_BG)
+        sensors_column = tk.Frame(columns, bg=_BG)
+        robot_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        motors_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sensors_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-    def _build_robot_section(self) -> None:
-        _header(self._content, "Robot")
-        grid = tk.Frame(self._content, bg=_BG)
+        self._build_robot_section(robot_column)
+        self._build_time_section(robot_column)
+        self._build_motors_section(motors_column)
+        self._build_sensors_section(sensors_column)
+
+    def _build_robot_section(self, parent: tk.Widget) -> None:
+        _header(parent, "Robot")
+        grid = tk.Frame(parent, bg=_BG)
         grid.pack(fill=tk.X)
         self._var_x = _row(grid, "X (cm):", 0)
         self._var_y = _row(grid, "Y (cm):", 1)
         self._var_theta = _row(grid, "Theta (°):", 2)
         self._var_col = tk.StringVar(value="OK")
-        tk.Label(grid, text="Colision:", bg=_BG, font=_LABEL).grid(
-            row=3, column=0, sticky=tk.W
-        )
-        self._lbl_col = tk.Label(
-            grid, textvariable=self._var_col, bg=_BG, font=_MONO, fg=_VAL_FG
-        )
+        tk.Label(grid, text="Colision:", bg=_BG, font=_LABEL).grid(row=3, column=0, sticky=tk.W)
+        self._lbl_col = tk.Label(grid, textvariable=self._var_col, bg=_BG, font=_MONO, fg=_VAL_FG)
         self._lbl_col.grid(row=3, column=1, sticky=tk.W)
 
-    def _build_motors_section(self) -> None:
-        _header(self._content, "Motores")
+    def _build_motors_section(self, parent: tk.Widget) -> None:
+        _header(parent, "Motores")
+        self._motors_container = tk.Frame(parent, bg=_BG)
+        self._motors_container.pack(fill=tk.X)
+        self._motors_empty = tk.Label(
+            self._motors_container,
+            text="Sin motores",
+            bg=_BG,
+            fg=LIGHT_TOKENS.text_muted,
+            font=_LABEL,
+        )
+        self._motors_empty.pack(anchor=tk.W, padx=10, pady=3)
         for port in _MOTOR_PORTS:
-            grp = tk.LabelFrame(self._content, text=port, bg=_BG, font=_LABEL, pady=2)
-            grp.pack(fill=tk.X, padx=4, pady=2)
+            grp = tk.LabelFrame(self._motors_container, text=port, bg=_BG, font=_LABEL, pady=2)
+            self._motor_frames[port] = grp
             self._motor_vars[port] = {
                 "speed": _row(grp, "Vel (°/s):", 0),
                 "angle": _row(grp, "Ang (°):", 1),
@@ -154,19 +171,28 @@ class TelemetryPanel(tk.Frame):
                 "state": _row(grp, "Estado:", 3),
             }
 
-    def _build_sensors_section(self) -> None:
-        _header(self._content, "Sensores")
+    def _build_sensors_section(self, parent: tk.Widget) -> None:
+        _header(parent, "Sensores")
+        self._sensors_container = tk.Frame(parent, bg=_BG)
+        self._sensors_container.pack(fill=tk.X)
+        self._sensors_empty = tk.Label(
+            self._sensors_container,
+            text="Sin sensores",
+            bg=_BG,
+            fg=LIGHT_TOKENS.text_muted,
+            font=_LABEL,
+        )
+        self._sensors_empty.pack(anchor=tk.W, padx=10, pady=3)
         for port in _SENSOR_PORTS:
-            grp = tk.LabelFrame(self._content, text=port, bg=_BG, font=_LABEL, pady=2)
-            grp.pack(fill=tk.X, padx=4, pady=2)
+            grp = tk.LabelFrame(self._sensors_container, text=port, bg=_BG, font=_LABEL, pady=2)
+            self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
                 "type": _row(grp, "Tipo:", 0),
                 "value": _row(grp, "Valor:", 1),
             }
 
-    def _build_time_section(self) -> None:
-        _header(self._content, "Tiempo")
-        grid = tk.Frame(self._content, bg=_BG)
+    def _build_time_section(self, parent: tk.Widget) -> None:
+        grid = tk.Frame(parent, bg=_BG)
         grid.pack(fill=tk.X)
         self._var_tick = _row(grid, "Tick:", 0)
         self._var_time = _row(grid, "Tiempo:", 1)
@@ -181,7 +207,7 @@ class TelemetryPanel(tk.Frame):
     def _on_canvas_configure(self, event) -> None:
         self._scroll_canvas.itemconfigure(self._canvas_window, width=event.width)
 
-    def _bind_mousewheel_recursive(self, widget: tk.Widget) -> None:
+    def _bind_mousewheel_recursive(self, widget: tk.Misc) -> None:
         widget.bind("<MouseWheel>", self._on_panel_mousewheel)
         widget.bind("<Button-4>", self._on_panel_mousewheel)
         widget.bind("<Button-5>", self._on_panel_mousewheel)
@@ -217,14 +243,14 @@ class TelemetryPanel(tk.Frame):
             self._lbl_col.configure(fg=_VAL_FG)
 
     def _update_motors(self, motors: list[dict]) -> None:
-        for vars_by_key in self._motor_vars.values():
-            vars_by_key["speed"].set(_EMPTY)
-            vars_by_key["angle"].set(_EMPTY)
-            vars_by_key["state"].set(_EMPTY)
+        for motor_values in self._motor_vars.values():
+            motor_values["speed"].set(_EMPTY)
+            motor_values["angle"].set(_EMPTY)
+            motor_values["state"].set(_EMPTY)
 
         for motor in motors:
             port = str(motor.get("port", "")).upper()
-            vars_by_key = self._motor_vars.get(port)
+            vars_by_key: dict[str, tk.StringVar] | None = self._motor_vars.get(port)
             if vars_by_key is None:
                 continue
 
@@ -240,15 +266,37 @@ class TelemetryPanel(tk.Frame):
                 vars_by_key["angle_norm"].set(f"{normalized:.1f}°")
             if state is not None:
                 vars_by_key["state"].set(str(state))
+        self._set_visible_motor_ports(
+            {
+                str(motor.get("port", "")).upper()
+                for motor in motors
+                if str(motor.get("port", "")).upper() in _MOTOR_PORTS
+            }
+        )
+
+    def _set_visible_motor_ports(self, ports: set[str]) -> None:
+        for port, frame in self._motor_frames.items():
+            if port in ports:
+                frame.pack(fill=tk.X, padx=4, pady=2)
+            else:
+                forget = getattr(frame, "pack_forget", None)
+                if callable(forget):
+                    forget()
+        if ports:
+            forget_empty = getattr(self._motors_empty, "pack_forget", None)
+            if callable(forget_empty):
+                forget_empty()
+        else:
+            self._motors_empty.pack(anchor=tk.W, padx=10, pady=3)
 
     def _update_sensors(self, sensors: list[dict]) -> None:
-        for vars_by_key in self._sensor_vars.values():
-            vars_by_key["type"].set(_EMPTY)
-            vars_by_key["value"].set(_EMPTY)
+        for sensor_values in self._sensor_vars.values():
+            sensor_values["type"].set(_EMPTY)
+            sensor_values["value"].set(_EMPTY)
 
         for sensor in sensors:
             port = str(sensor.get("port", "")).upper()
-            vars_by_key = self._sensor_vars.get(port)
+            vars_by_key: dict[str, tk.StringVar] | None = self._sensor_vars.get(port)
             if vars_by_key is None:
                 continue
 
@@ -266,6 +314,28 @@ class TelemetryPanel(tk.Frame):
                 vars_by_key["value"].set(", ".join(parts)[:40] if parts else _EMPTY)
             else:
                 vars_by_key["value"].set(str(val)[:40])
+        self._set_visible_sensor_ports(
+            {
+                str(sensor.get("port", "")).upper()
+                for sensor in sensors
+                if str(sensor.get("port", "")).upper() in _SENSOR_PORTS
+            }
+        )
+
+    def _set_visible_sensor_ports(self, ports: set[str]) -> None:
+        for port, frame in self._sensor_frames.items():
+            if port in ports:
+                frame.pack(fill=tk.X, padx=4, pady=2)
+            else:
+                forget = getattr(frame, "pack_forget", None)
+                if callable(forget):
+                    forget()
+        if ports:
+            forget_empty = getattr(self._sensors_empty, "pack_forget", None)
+            if callable(forget_empty):
+                forget_empty()
+        else:
+            self._sensors_empty.pack(anchor=tk.W, padx=10, pady=3)
 
     def _update_time(self, dto: SnapshotDTO) -> None:
         self._var_tick.set(str(dto.tick))

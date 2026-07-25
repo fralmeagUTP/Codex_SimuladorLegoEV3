@@ -1,5 +1,8 @@
 # Guia de aprendizaje por etapas (Pybricks + Simulador EV3)
 
+> Estado: actual al 2026-07-24. Version aplicable: `1.4.0`. Esta guia usa los
+> recursos compartidos de `examples/` y `worlds/`, disponibles desde Web y Tkinter.
+
 Esta guia propone un orden didactico para usar los ejemplos del simulador.
 
 ## Etapa 1 - Fundamentos del brick
@@ -46,3 +49,18 @@ Esta guia propone un orden didactico para usar los ejemplos del simulador.
 3. `06_pasillo_gyro_rumbo.json`: pasillo para giro y rumbo con gyro.
 4. `07_laberinto_v1.json`: primer laberinto para navegacion reactiva.
 5. `12_radar_ultrasonido_360.json`: mundo recomendado para el radar 360.
+
+## Evidencia y misiones
+
+Para convertir un ejemplo en una actividad evaluable:
+
+1. Selecciona el ejemplo y el mundo sugerido.
+2. Ejecuta el programa con el perfil de simulacion indicado por el docente.
+3. Inicia el registro desde **Trazas** antes de ejecutar.
+4. Exporta la traza en JSON o CSV al finalizar.
+5. Revisa la evidencia con los criterios de `Documentos/MISIONES_EVALUABLES.md`.
+
+Las trazas contienen el comportamiento simulado y permiten revisar una actividad
+sin depender de la interfaz usada. Antes de trasladar la solucion al robot real,
+consultar `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md` y recalibrar sensores,
+ruedas y umbrales del entorno fisico.

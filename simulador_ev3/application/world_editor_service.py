@@ -20,9 +20,9 @@ from simulador_ev3.domain.editor.world_editor_model import (
     CELL_SIZE_MM,
     DEFAULT_WORLD_MM,
     GRID_SIZE_PX,
-    MAX_WORLD_MM,
     MAX_WORLD_PIXELS,
     SCHEMA_VERSION,
+    Direction,
     EditorWorldModel,
     Placement,
     get_asset_spec,
@@ -512,8 +512,7 @@ class WorldEditorService:
         world = WorldRepository.from_dict(data)
         self._from_world_model(world)
         return src, (
-            "El archivo no tenia metadata del editor. "
-            "Se importaron muros/zonas basicos desde el mundo de simulacion."
+            "El archivo no tenia metadata del editor. Se importaron muros/zonas basicos desde el mundo de simulacion."
         )
 
     def to_editor_dict(self) -> dict[str, Any]:
@@ -655,7 +654,7 @@ class WorldEditorService:
             )
             return
 
-        for p0, p1 in zip(points[:-1], points[1:]):
+        for p0, p1 in zip(points[:-1], points[1:], strict=False):
             _paint_segment(surface, p0[0], p0[1], p1[0], p1[1], width_mm, color)
 
     def _sync_formal_world_from_legacy(self) -> None:
@@ -732,7 +731,7 @@ class WorldEditorService:
 
     def _trace_polyline_cells(self, points: list[list[float]]) -> list[tuple[int, int]]:
         out: set[tuple[int, int]] = set()
-        for p0, p1 in zip(points[:-1], points[1:]):
+        for p0, p1 in zip(points[:-1], points[1:], strict=False):
             x0 = _mm_to_cell(p0[0])
             y0 = _mm_to_cell(p0[1])
             x1 = _mm_to_cell(p1[0])
@@ -865,7 +864,7 @@ class WorldEditorService:
         max_rows = max(1, self._formal_world.world_height_cells)
         tile_mm = 2.0 * CELL_SIZE_MM
 
-        for (col, row), cell in world.surface._grid.items():
+        for col, row, cell in world.surface.iter_defined_cells():
             if cell.color != SurfaceColor.BLACK:
                 continue
             center_x_mm = (float(col) * cs) + (cs / 2.0)
@@ -981,8 +980,8 @@ def _line_asset_from_connectors(connectors: set[str]) -> Optional[str]:
     return None
 
 
-def _rotated_connectors(connectors: frozenset[str], rotation_deg: int) -> set[str]:
-    return {str(d) for d in rotated_connectors(set(connectors), int(rotation_deg))}
+def _rotated_connectors(connectors: frozenset[Direction], rotation_deg: int) -> set[str]:
+    return {str(d) for d in rotated_connectors(connectors, int(rotation_deg))}
 
 
 def _line_endpoint_mm(direction: str, x_mm: float, y_mm: float, w_mm: float, h_mm: float) -> tuple[float, float]:
@@ -1142,7 +1141,7 @@ def _segment_intersects_aabb(
 
     u1 = 0.0
     u2 = 1.0
-    for pi, qi in zip(p, q):
+    for pi, qi in zip(p, q, strict=False):
         if abs(pi) < 1e-12:
             if qi < 0:
                 return False

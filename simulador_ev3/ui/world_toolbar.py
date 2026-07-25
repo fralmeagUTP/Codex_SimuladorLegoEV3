@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import tkinter as tk
-from typing import Callable
+from typing import Any, Callable
 
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 
@@ -34,7 +34,7 @@ class WorldToolbar(tk.Frame):
 
     def __init__(
         self,
-        parent: tk.Widget,
+        parent: Any,
         on_tool_change: Callable[[str], None],
         on_new: Callable[[], None],
         on_open: Callable[[], None],
@@ -104,7 +104,7 @@ class WorldToolbar(tk.Frame):
 
     def _add_tool_button(self, tool_id: str, label: str) -> None:
         icon = self._get_tool_icon(tool_id)
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "command": lambda t=tool_id: self._set_tool(t),
             "bg": _BTN_BG,
             "activebackground": _BTN_ACTIVE,

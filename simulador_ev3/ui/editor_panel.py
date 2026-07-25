@@ -8,31 +8,59 @@ Proporciona:
   • Callback `on_run(source_code: str)` que la ventana principal conecta
     con SimulationService.load_script + start().
 """
+
 from __future__ import annotations
 
 import os
 import re
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
-from typing import Callable, Optional
+from tkinter import filedialog, messagebox
+from typing import Any, Callable, Optional
+
+from simulador_ev3.shared.debug_configuration import normalize_watches
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS
 
 # Palabras clave a resaltar (coloreado muy básico, sin librería externa)
 _KEYWORDS = {
-    "kw":      ("from", "import", "def", "class", "return", "if", "else",
-                 "elif", "for", "while", "in", "not", "and", "or", "True",
-                 "False", "None", "try", "except", "finally", "raise",
-                 "with", "as", "pass", "break", "continue", "lambda"),
-    "builtin": ("print", "len", "range", "str", "int", "float", "list",
-                 "dict", "set", "tuple", "type"),
+    "kw": (
+        "from",
+        "import",
+        "def",
+        "class",
+        "return",
+        "if",
+        "else",
+        "elif",
+        "for",
+        "while",
+        "in",
+        "not",
+        "and",
+        "or",
+        "True",
+        "False",
+        "None",
+        "try",
+        "except",
+        "finally",
+        "raise",
+        "with",
+        "as",
+        "pass",
+        "break",
+        "continue",
+        "lambda",
+    ),
+    "builtin": ("print", "len", "range", "str", "int", "float", "list", "dict", "set", "tuple", "type"),
     "comment": ("#",),
 }
 
 _COLORS = {
-    "kw":      "#79C0FF",
+    "kw": "#79C0FF",
     "builtin": "#D2A8FF",
     "comment": "#7EE787",
-    "string":  "#FFA657",
-    "number":  "#A5D6FF",
+    "string": "#FFA657",
+    "number": "#A5D6FF",
 }
 
 _PLACEHOLDER = """\
@@ -88,16 +116,22 @@ _PYBRICKS_HINTS = (
     "print",
 )
 
-_AUTOCOMPLETE_WORDS = tuple(
-    sorted(set(_KEYWORDS["kw"]) | set(_KEYWORDS["builtin"]) | set(_PYBRICKS_HINTS))
-)
+_AUTOCOMPLETE_WORDS = tuple(sorted(set(_KEYWORDS["kw"]) | set(_KEYWORDS["builtin"]) | set(_PYBRICKS_HINTS)))
 
 _CONTEXT_HINTS = {
     "EV3Brick": ("screen", "speaker", "light", "buttons"),
     "Port": ("A", "B", "C", "D", "S1", "S2", "S3", "S4"),
     "Color": (
-        "BLACK", "BLUE", "BROWN", "CYAN", "GREEN",
-        "ORANGE", "PURPLE", "RED", "WHITE", "YELLOW",
+        "BLACK",
+        "BLUE",
+        "BROWN",
+        "CYAN",
+        "GREEN",
+        "ORANGE",
+        "PURPLE",
+        "RED",
+        "WHITE",
+        "YELLOW",
     ),
     "Stop": ("BRAKE", "COAST", "HOLD"),
     "Direction": ("CLOCKWISE", "COUNTERCLOCKWISE"),
@@ -133,23 +167,26 @@ class EditorPanel(tk.Frame):
     def __init__(
         self,
         parent: tk.Widget,
-        on_run:  Optional[Callable[[str], None]] = None,
+        on_run: Optional[Callable[[str], None]] = None,
         on_debug: Optional[Callable[[str], None]] = None,
         on_debug_step: Optional[Callable[[], None]] = None,
         on_debug_continue: Optional[Callable[[], None]] = None,
         on_breakpoints_changed: Optional[Callable[[set[int]], None]] = None,
-        on_stop: Optional[Callable[[], None]]    = None,
+        on_watches_changed: Optional[Callable[[list[str]], None]] = None,
+        on_stop: Optional[Callable[[], None]] = None,
         **kwargs,
     ) -> None:
         super().__init__(parent, **kwargs)
-        self._on_run  = on_run
+        self._on_run = on_run
         self._on_debug = on_debug
         self._on_debug_step = on_debug_step
         self._on_debug_continue = on_debug_continue
         self._on_breakpoints_changed = on_breakpoints_changed
+        self._on_watches_changed = on_watches_changed
         self._on_stop = on_stop
         self._debug_line: Optional[int] = None
         self._breakpoints: set[int] = set()
+        self._watches: list[str] = []
         self._ac_popup: Optional[tk.Toplevel] = None
         self._ac_listbox: Optional[tk.Listbox] = None
         self._ac_items: list[str] = []
@@ -215,7 +252,32 @@ class EditorPanel(tk.Frame):
 
     def set_breakpoints(self, breakpoints: set[int]) -> None:
         self._breakpoints = {int(line) for line in breakpoints if int(line) > 0}
+        breakpoints_var = getattr(self, "_breakpoints_var", None)
+        if breakpoints_var is not None:
+            breakpoints_var.set(", ".join(str(line) for line in sorted(self._breakpoints)))
         self._update_linenos()
+
+    def get_watches(self) -> list[str]:
+        """Devuelve las expresiones watch configuradas para la depuración."""
+        return list(self._watches)
+
+    def set_watches(self, watches: list[str]) -> None:
+        """Actualiza watches usando el mismo límite de la interfaz web."""
+        self._watches = normalize_watches(watches)
+        self._watches_var.set(", ".join(self._watches))
+
+    def show_watch_results(self, watches: list[dict]) -> None:
+        """Muestra el resultado de los watches evaluados en la pausa actual."""
+        if not watches:
+            self._watch_results_var.set("Watches: sin datos (pausa para evaluar)")
+            return
+        values: list[str] = []
+        for item in watches:
+            expression = str(item.get("expr", ""))
+            error = item.get("error")
+            result = f"error: {error}" if error else repr(item.get("value"))
+            values.append(f"{expression} = {result}")
+        self._watch_results_var.set("Watches: " + " | ".join(values))
 
     def set_status(self, msg: str, color: str = "black") -> None:
         """Actualiza la barra de estado del editor."""
@@ -232,20 +294,32 @@ class EditorPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build_toolbar(self) -> None:
-        bar = tk.Frame(self, bg="#FFFFFF", padx=6, pady=4)
+        tokens = LIGHT_TOKENS
+        bar = tk.Frame(self, bg=tokens.surface, padx=6, pady=4)
         bar.pack(side=tk.TOP, fill=tk.X)
-        bar.configure(highlightthickness=1, highlightbackground="#D4DDE8")
+        bar.configure(highlightthickness=1, highlightbackground=tokens.border)
 
         title = tk.Label(
             bar,
             text="Editor de codigo",
-            bg="#FFFFFF",
-            fg="#1D2D44",
+            bg=tokens.surface,
+            fg=tokens.text,
             font=("Segoe UI", 10, "bold"),
         )
         title.pack(side=tk.LEFT, padx=(2, 8))
+        tk.Label(
+            bar,
+            text="Python (Pybricks)",
+            bg=tokens.surface,
+            fg=tokens.text,
+            relief=tk.SOLID,
+            bd=1,
+            padx=6,
+            pady=2,
+            font=("Segoe UI", 9),
+        ).pack(side=tk.RIGHT, padx=(8, 2))
 
-        btn_style = {
+        btn_style: dict[str, Any] = {
             "relief": tk.FLAT,
             "padx": 10,
             "pady": 3,
@@ -255,72 +329,100 @@ class EditorPanel(tk.Frame):
             "highlightthickness": 0,
         }
 
-        btn_run = tk.Button(
-            bar, text="▶  Ejecutar",
-            bg="#294C7C", fg="white",
-            command=self._cmd_run,
-            **btn_style,
-        )
-        btn_run.pack(side=tk.LEFT, padx=2)
-
-        btn_stop = tk.Button(
-            bar, text="■  Detener",
-            bg="#FFFFFF", fg="#213858",
-            command=self._cmd_stop,
-            **btn_style,
-        )
-        btn_stop.pack(side=tk.LEFT, padx=2)
+        debug_bar = tk.Frame(self, bg=tokens.surface_muted, padx=6, pady=3)
+        debug_bar.pack(side=tk.TOP, fill=tk.X)
+        debug_bar.configure(highlightthickness=1, highlightbackground=tokens.border)
 
         btn_debug = tk.Button(
-            bar, text="🐞 Depurar",
-            bg="#FFFFFF", fg="#213858",
+            debug_bar,
+            text="Depurar",
+            bg=tokens.surface,
+            fg=tokens.primary_active,
             command=self._cmd_debug,
             **btn_style,
         )
         btn_debug.pack(side=tk.LEFT, padx=2)
 
         btn_step = tk.Button(
-            bar, text="Paso",
-            bg="#FFFFFF", fg="#213858",
+            debug_bar,
+            text="Paso",
+            bg=tokens.surface,
+            fg=tokens.primary_active,
             command=self._cmd_debug_step,
             **btn_style,
         )
         btn_step.pack(side=tk.LEFT, padx=2)
 
         btn_continue = tk.Button(
-            bar, text="Continuar",
-            bg="#FFFFFF", fg="#213858",
+            debug_bar,
+            text="Continuar",
+            bg=tokens.surface,
+            fg=tokens.primary_active,
             command=self._cmd_debug_continue,
             **btn_style,
         )
         btn_continue.pack(side=tk.LEFT, padx=2)
 
-        tk.Frame(bar, width=20, bg="#FFFFFF").pack(side=tk.LEFT)
-
-        btn_open = tk.Button(
-            bar, text="📂 Abrir…",
-            bg="#FFFFFF", fg="#213858",
-            command=self._cmd_open,
-            **btn_style,
+        self._breakpoints_var = tk.StringVar()
+        tk.Label(debug_bar, text="Breakpoints", bg=tokens.surface_muted, fg=tokens.primary_active).pack(
+            side=tk.LEFT, padx=(10, 2)
         )
-        btn_open.pack(side=tk.LEFT, padx=2)
+        breakpoints_entry = tk.Entry(debug_bar, textvariable=self._breakpoints_var, width=10)
+        breakpoints_entry.pack(side=tk.LEFT, padx=2)
+        breakpoints_entry.bind("<FocusOut>", self._on_breakpoints_changed_event)
+        breakpoints_entry.bind("<Return>", self._on_breakpoints_changed_event)
 
-        btn_save = tk.Button(
-            bar, text="💾 Guardar…",
-            bg="#FFFFFF", fg="#213858",
-            command=self._cmd_save,
-            **btn_style,
+        watches_bar = tk.Frame(self, bg=tokens.surface_muted, padx=6, pady=2)
+        watches_bar.pack(side=tk.TOP, fill=tk.X)
+        self._watches_var = tk.StringVar()
+        tk.Label(watches_bar, text="Watches", bg=tokens.surface_muted, fg=tokens.primary_active).pack(
+            side=tk.LEFT, padx=(2, 6)
         )
-        btn_save.pack(side=tk.LEFT, padx=2)
+        watches_entry = tk.Entry(watches_bar, textvariable=self._watches_var)
+        watches_entry.pack(side=tk.LEFT, padx=2, fill=tk.X, expand=True)
+        watches_entry.bind("<FocusOut>", self._on_watches_changed_event)
+        watches_entry.bind("<Return>", self._on_watches_changed_event)
 
-        # Barra de estado
-        self._status_var = tk.StringVar(value="Listo")
+        self._status_var = tk.StringVar(value="sin eventos")
         self._status_lbl = tk.Label(
-            bar, textvariable=self._status_var,
-            bg="#FFFFFF", fg="#385273", anchor=tk.W,
+            watches_bar,
+            textvariable=self._status_var,
+            bg=tokens.surface_muted,
+            fg=tokens.text_muted,
+            anchor=tk.W,
             font=("Consolas", 9),
         )
         self._status_lbl.pack(side=tk.RIGHT, padx=8)
+
+        self._watch_results_var = tk.StringVar(value="Watches: sin configurar")
+        tk.Label(
+            self,
+            textvariable=self._watch_results_var,
+            bg="#F5F8FC",
+            fg="#385273",
+            anchor=tk.W,
+            font=("Consolas", 8),
+            padx=8,
+            pady=2,
+        ).pack(side=tk.TOP, fill=tk.X)
+
+    def _on_watches_changed_event(self, _event=None):
+        parsed = [part.strip() for part in self._watches_var.get().replace("\n", ",").split(",")]
+        self.set_watches(parsed)
+        if self._on_watches_changed:
+            self._on_watches_changed(self.get_watches())
+        return "break" if _event is not None else None
+
+    def _on_breakpoints_changed_event(self, _event=None):
+        parsed = {
+            int(part.strip())
+            for part in self._breakpoints_var.get().replace("\n", ",").split(",")
+            if part.strip().isdigit() and int(part.strip()) > 0
+        }
+        self.set_breakpoints(parsed)
+        if self._on_breakpoints_changed:
+            self._on_breakpoints_changed(self.get_breakpoints())
+        return "break" if _event is not None else None
 
     def _build_editor(self) -> None:
         frame = tk.Frame(self, bg="#FFFFFF")
@@ -328,9 +430,14 @@ class EditorPanel(tk.Frame):
 
         # Numeración de líneas
         self._linenos = tk.Text(
-            frame, width=6, padx=4, takefocus=0,
-            border=0, state=tk.DISABLED,
-            bg="#F8FAFC", fg="#74849A",
+            frame,
+            width=6,
+            padx=4,
+            takefocus=0,
+            border=0,
+            state=tk.DISABLED,
+            bg="#F8FAFC",
+            fg="#74849A",
             font=("Consolas", 10),
         )
         self._linenos.pack(side=tk.LEFT, fill=tk.Y)
@@ -341,9 +448,12 @@ class EditorPanel(tk.Frame):
 
         # Editor principal
         self._text = tk.Text(
-            frame, undo=True, wrap=tk.NONE,
+            frame,
+            undo=True,
+            wrap=tk.NONE,
             font=("Consolas", 10),
-            bg="#FFFFFF", fg="#172033",
+            bg="#FFFFFF",
+            fg="#172033",
             insertbackground="#1B3557",
             selectbackground="#D7E8FA",
             yscrollcommand=self._on_text_vertical_scroll,
@@ -352,11 +462,11 @@ class EditorPanel(tk.Frame):
         self._scroll.configure(command=self._on_vertical_scroll)
 
         # Tags de sintaxis
-        self._text.tag_configure("kw",      foreground=_COLORS["kw"])
+        self._text.tag_configure("kw", foreground=_COLORS["kw"])
         self._text.tag_configure("builtin", foreground=_COLORS["builtin"])
         self._text.tag_configure("comment", foreground=_COLORS["comment"])
-        self._text.tag_configure("string",  foreground=_COLORS["string"])
-        self._text.tag_configure("number",  foreground=_COLORS["number"])
+        self._text.tag_configure("string", foreground=_COLORS["string"])
+        self._text.tag_configure("number", foreground=_COLORS["number"])
         self._text.tag_configure("debug_line", background="#3A2E00")
         self._linenos.tag_configure("breakpoint_dot", foreground="#FF3B30")
         self._linenos.tag_configure(
@@ -498,8 +608,10 @@ class EditorPanel(tk.Frame):
             return None, pref
 
         # Variable directa (left. -> Motor)
-        current_type = base_type
+        current_type: str | None = base_type
         for attr in parts[1:]:
+            if current_type is None:
+                return None, pref
             current_type = _ATTR_TYPE_HINTS.get((current_type, attr))
             if current_type is None:
                 return None, pref
@@ -512,9 +624,19 @@ class EditorPanel(tk.Frame):
         self._highlight()
         self._update_linenos()
         if event.keysym in {
-            "Up", "Down", "Left", "Right", "Escape",
-            "Return", "Tab", "Shift_L", "Shift_R",
-            "Control_L", "Control_R", "Alt_L", "Alt_R",
+            "Up",
+            "Down",
+            "Left",
+            "Right",
+            "Escape",
+            "Return",
+            "Tab",
+            "Shift_L",
+            "Shift_R",
+            "Control_L",
+            "Control_R",
+            "Alt_L",
+            "Alt_R",
         }:
             return
         context_name, ctx_prefix = self._current_completion_context()
@@ -528,7 +650,7 @@ class EditorPanel(tk.Frame):
             return
         self._hide_autocomplete()
 
-    def _on_text_vertical_scroll(self, first: str, last: str) -> None:
+    def _on_text_vertical_scroll(self, first: float, last: float) -> None:
         """Sincroniza scrollbar y gutter cuando el editor se desplaza."""
         self._scroll.set(first, last)
         try:
@@ -837,13 +959,12 @@ class EditorPanel(tk.Frame):
         lines = code.split("\n")
         for ln_idx, line in enumerate(lines):
             row = ln_idx + 1
-            col = 0
 
             # Comentario de línea completa
             stripped = line.lstrip()
             if stripped.startswith("#"):
                 start = f"{row}.0"
-                end   = f"{row}.{len(line)}"
+                end = f"{row}.{len(line)}"
                 self._text.tag_add("comment", start, end)
                 continue
 
@@ -875,7 +996,7 @@ class EditorPanel(tk.Frame):
                         j += 1
                     word = line[i:j]
                     if word in _KEYWORDS["kw"]:
-                        self._text.tag_add("kw",      f"{row}.{i}", f"{row}.{j}")
+                        self._text.tag_add("kw", f"{row}.{i}", f"{row}.{j}")
                     elif word in _KEYWORDS["builtin"]:
                         self._text.tag_add("builtin", f"{row}.{i}", f"{row}.{j}")
                     i = j

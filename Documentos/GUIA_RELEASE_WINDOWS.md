@@ -1,7 +1,7 @@
 # Guia de Release Windows - Escritorio Tkinter
 
-Version documentada: 1.3.0  
-Fecha de actualizacion: 2026-05-20
+Version documentada: 1.4.0
+Fecha de actualizacion: 2026-07-24
 
 Esta guia genera un `.exe` del simulador de escritorio usando `PyInstaller`.
 
@@ -75,7 +75,7 @@ Criterio de aceptacion:
 
 ## 6. Relacion con version web
 
-La version `1.3.0` publica tambien la aplicacion web Flask. No se requiere ejecutable para usar la web; basta con iniciar:
+La version `1.4.0` tambien incluye la aplicacion web Flask. No se requiere ejecutable para usar la web; basta con iniciar:
 
 ```powershell
 .\scripts\start_web.cmd

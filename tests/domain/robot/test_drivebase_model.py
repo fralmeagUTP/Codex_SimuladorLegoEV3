@@ -10,16 +10,17 @@ Valida:
 """
 
 import math
+
 import pytest
+
 from simulador_ev3.domain.robot.drivebase_model import (
     DriveBaseModel,
     DriveState,
-    AccelerationProfile,
 )
+from simulador_ev3.domain.robot.motor_model import StopMode
 
-
-WHEEL_D  = 55.5   # mm — valor nominal EV3 de los ejemplos
-AXLE_T   = 104.0  # mm — valor nominal EV3 de los ejemplos
+WHEEL_D = 55.5  # mm — valor nominal EV3 de los ejemplos
+AXLE_T = 104.0  # mm — valor nominal EV3 de los ejemplos
 
 
 @pytest.fixture
@@ -30,6 +31,7 @@ def drivebase() -> DriveBaseModel:
 # ------------------------------------------------------------------ #
 # Validación de construcción
 # ------------------------------------------------------------------ #
+
 
 class TestConstruction:
     def test_default_state_is_idle(self, drivebase: DriveBaseModel) -> None:
@@ -51,6 +53,7 @@ class TestConstruction:
 # ------------------------------------------------------------------ #
 # Comando drive
 # ------------------------------------------------------------------ #
+
 
 class TestDrive:
     def test_drive_sets_state(self, drivebase: DriveBaseModel) -> None:
@@ -79,6 +82,7 @@ class TestDrive:
 # Comando stop
 # ------------------------------------------------------------------ #
 
+
 class TestStop:
     def test_stop_transitions_to_idle(self, drivebase: DriveBaseModel) -> None:
         drivebase.cmd_drive(200.0, 0.0)
@@ -91,10 +95,18 @@ class TestStop:
         dd, da, completed = drivebase.update(dt=1.0)
         assert dd == 0.0 and da == 0.0
 
+    def test_brake_transitions_to_idle_after_tick(self, drivebase: DriveBaseModel) -> None:
+        drivebase.cmd_drive(200.0, 0.0)
+        drivebase.cmd_brake()
+        assert drivebase.state == DriveState.BRAKE
+        drivebase.update(dt=0.02)
+        assert drivebase.state == DriveState.IDLE
+
 
 # ------------------------------------------------------------------ #
 # Comando straight
 # ------------------------------------------------------------------ #
+
 
 class TestStraight:
     def test_straight_sets_state(self, drivebase: DriveBaseModel) -> None:
@@ -125,10 +137,19 @@ class TestStraight:
                 break
         assert total_dd < 0.0
 
+    def test_straight_holds_after_completion(self, drivebase: DriveBaseModel) -> None:
+        drivebase.cmd_straight(10.0, then=StopMode.HOLD)
+        for _ in range(20):
+            _, _, done = drivebase.update(dt=0.02)
+            if done:
+                break
+        assert drivebase.state == DriveState.HOLD
+
 
 # ------------------------------------------------------------------ #
 # Comando turn
 # ------------------------------------------------------------------ #
+
 
 class TestTurn:
     def test_turn_sets_state(self, drivebase: DriveBaseModel) -> None:
@@ -163,6 +184,7 @@ class TestTurn:
 # ------------------------------------------------------------------ #
 # Comando settings
 # ------------------------------------------------------------------ #
+
 
 class TestSettings:
     def test_settings_updates_profile(self, drivebase: DriveBaseModel) -> None:

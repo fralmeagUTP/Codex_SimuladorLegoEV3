@@ -14,7 +14,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-
 # ---------------------------------------------------------------------------
 # Builtins permitidos en el namespace del script
 # ---------------------------------------------------------------------------
@@ -26,52 +25,104 @@ SAFE_BUILTINS: dict[str, object] = {
     name: __builtins__[name]  # type: ignore[index]
     for name in (
         # Tipos básicos
-        "int", "float", "str", "bool", "bytes", "bytearray",
-        "list", "tuple", "dict", "set", "frozenset",
+        "int",
+        "float",
+        "str",
+        "bool",
+        "bytes",
+        "bytearray",
+        "list",
+        "tuple",
+        "dict",
+        "set",
+        "frozenset",
         # Funciones de utilidad
-        "len", "range", "enumerate", "zip", "map", "filter",
-        "sorted", "reversed", "min", "max", "sum", "abs", "round",
-        "all", "any", "isinstance", "issubclass", "type",
-        "repr", "hash", "id",
+        "len",
+        "range",
+        "enumerate",
+        "zip",
+        "map",
+        "filter",
+        "sorted",
+        "reversed",
+        "min",
+        "max",
+        "sum",
+        "abs",
+        "round",
+        "all",
+        "any",
+        "isinstance",
+        "issubclass",
+        "type",
+        "repr",
+        "hash",
+        "id",
         # E/S de texto (solo stdout dentro del sandbox)
         "print",
         # Constructores / iteradores
-        "iter", "next", "callable",
+        "iter",
+        "next",
+        "callable",
         # Matemáticas básicas
-        "pow", "divmod",
+        "pow",
+        "divmod",
         # Excepciones comunes
-        "Exception", "ValueError", "TypeError", "RuntimeError",
-        "StopIteration", "IndexError", "KeyError", "AttributeError",
-        "NotImplementedError", "ZeroDivisionError", "OverflowError",
+        "Exception",
+        "ValueError",
+        "TypeError",
+        "RuntimeError",
+        "StopIteration",
+        "IndexError",
+        "KeyError",
+        "AttributeError",
+        "NotImplementedError",
+        "ZeroDivisionError",
+        "OverflowError",
         "AssertionError",
         # Otros inocuos
-        "None", "True", "False",
+        "None",
+        "True",
+        "False",
         "object",
     )
-    if name in (
-        __builtins__ if isinstance(__builtins__, dict)  # type: ignore[arg-type]
-        else dir(__builtins__)  # type: ignore[arg-type]
-    )
+    if name in (__builtins__ if isinstance(__builtins__, dict) else dir(__builtins__))
 }
 
 # Lista de módulos cuya importación directa debe bloquearse.
 # El script siempre accede a la API Pybricks a través del namespace inyectado.
-BLOCKED_MODULES: frozenset[str] = frozenset({
-    "os", "os.path", "sys", "subprocess", "socket",
-    "threading", "multiprocessing", "concurrent",
-    "ctypes", "mmap", "signal",
-    "importlib", "imp", "pkgutil",
-    "builtins", "__builtin__",
-    "gc", "tracemalloc", "resource",
-    "pybricks",      # se inyecta el módulo virtual, no el real
-    "ev3dev2",       # alternativa bloqueada
-    "rpyc",
-})
+BLOCKED_MODULES: frozenset[str] = frozenset(
+    {
+        "os",
+        "os.path",
+        "sys",
+        "subprocess",
+        "socket",
+        "threading",
+        "multiprocessing",
+        "concurrent",
+        "ctypes",
+        "mmap",
+        "signal",
+        "importlib",
+        "imp",
+        "pkgutil",
+        "builtins",
+        "__builtin__",
+        "gc",
+        "tracemalloc",
+        "resource",
+        "pybricks",  # se inyecta el módulo virtual, no el real
+        "ev3dev2",  # alternativa bloqueada
+        "rpyc",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # Política de ejecución
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class ExecutionPolicy:
@@ -88,15 +139,11 @@ class ExecutionPolicy:
                         defecto: el script debe usar pybricks.tools.wait).
     """
 
-    max_runtime_s: float                   = 30.0
-    safe_builtins: dict[str, object]       = field(
-        default_factory=lambda: dict(SAFE_BUILTINS)
-    )
-    blocked_modules: frozenset[str]        = field(
-        default_factory=lambda: frozenset(BLOCKED_MODULES)
-    )
-    allow_math: bool                       = True
-    allow_time: bool                       = False
+    max_runtime_s: float = 30.0
+    safe_builtins: dict[str, object] = field(default_factory=lambda: dict(SAFE_BUILTINS))
+    blocked_modules: frozenset[str] = field(default_factory=lambda: frozenset(BLOCKED_MODULES))
+    allow_math: bool = True
+    allow_time: bool = False
 
     def __post_init__(self) -> None:
         if self.max_runtime_s < 0:
@@ -119,7 +166,7 @@ class ExecutionPolicy:
         """
         import builtins as _builtins
         import math as _math
-        import time  as _time
+        import time as _time
 
         allowed_roots: set[str] = set()
         if pybricks_modules and "pybricks" in pybricks_modules:
@@ -164,7 +211,7 @@ class ExecutionPolicy:
 
         ns: dict[str, object] = {
             "__builtins__": safe_builtins,
-            "__name__"    : "__main__",
+            "__name__": "__main__",
         }
 
         if self.allow_math:
@@ -174,6 +221,7 @@ class ExecutionPolicy:
             # Solo expone sleep; el resto es innecesario
             class _TimeMod:
                 sleep = staticmethod(_time.sleep)
+
             ns["time"] = _TimeMod()
 
         if pybricks_modules:

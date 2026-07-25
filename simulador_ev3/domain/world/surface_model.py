@@ -15,7 +15,7 @@ Unidades: mm en el espacio del mundo.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Dict, Tuple
 
@@ -25,34 +25,36 @@ class SurfaceColor(Enum):
     Colores de superficie reconocibles por el ColorSensor.
     Mapea directamente a pybricks.parameters.Color.
     """
-    NONE   = auto()   # sin superficie / fuera de límites
-    WHITE  = auto()
-    BLACK  = auto()
-    RED    = auto()
-    GREEN  = auto()
-    BLUE   = auto()
+
+    NONE = auto()  # sin superficie / fuera de límites
+    WHITE = auto()
+    BLACK = auto()
+    RED = auto()
+    GREEN = auto()
+    BLUE = auto()
     YELLOW = auto()
-    BROWN  = auto()
+    BROWN = auto()
 
 
 # Reflectancia predeterminada por color de superficie (0-100 %)
 _DEFAULT_REFLECTANCE: Dict[SurfaceColor, float] = {
-    SurfaceColor.NONE:   0.0,
-    SurfaceColor.WHITE:  95.0,
-    SurfaceColor.BLACK:   5.0,
-    SurfaceColor.RED:    30.0,
-    SurfaceColor.GREEN:  40.0,
-    SurfaceColor.BLUE:   20.0,
+    SurfaceColor.NONE: 0.0,
+    SurfaceColor.WHITE: 95.0,
+    SurfaceColor.BLACK: 5.0,
+    SurfaceColor.RED: 30.0,
+    SurfaceColor.GREEN: 40.0,
+    SurfaceColor.BLUE: 20.0,
     SurfaceColor.YELLOW: 80.0,
-    SurfaceColor.BROWN:  15.0,
+    SurfaceColor.BROWN: 15.0,
 }
 
 
 @dataclass
 class SurfaceCell:
     """Una celda individual de la grilla de superficie."""
-    color:       SurfaceColor = SurfaceColor.WHITE
-    reflectance: float        = 95.0   # 0-100 %
+
+    color: SurfaceColor = SurfaceColor.WHITE
+    reflectance: float = 95.0  # 0-100 %
 
 
 # Clave de grilla: (columna, fila) en unidades de celda
@@ -82,7 +84,7 @@ class SurfaceModel:
     ) -> None:
         if cell_size_mm <= 0:
             raise ValueError("cell_size_mm debe ser > 0")
-        self.cell_size_mm  = cell_size_mm
+        self.cell_size_mm = cell_size_mm
         self.default_color = default_color
         self._grid: Dict[GridKey, SurfaceCell] = {}
 
@@ -158,8 +160,11 @@ class SurfaceModel:
         _, r = self.query(x_mm, y_mm)
         return r
 
+    def iter_defined_cells(self):
+        """Expone las celdas configuradas sin revelar la estructura interna."""
+        return tuple((col, row, cell) for (col, row), cell in self._grid.items())
+
     def __repr__(self) -> str:  # pragma: no cover
         return (
-            f"SurfaceModel(cell_size={self.cell_size_mm}mm, "
-            f"cells={len(self._grid)}, default={self.default_color.name})"
+            f"SurfaceModel(cell_size={self.cell_size_mm}mm, cells={len(self._grid)}, default={self.default_color.name})"
         )

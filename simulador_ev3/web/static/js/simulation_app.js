@@ -36,14 +36,10 @@
   const mapZoomResetBtn = document.getElementById("mapZoomResetBtn");
   const toggleSensorBeamsBtn = document.getElementById("toggleSensorBeamsBtn");
   const aboutMenuBtn = document.getElementById("aboutMenuBtn");
-  const aboutDialog = document.getElementById("aboutDialog");
-  const aboutDialogBackdrop = document.getElementById("aboutDialogBackdrop");
-  const aboutDialogText = document.getElementById("aboutDialogText");
-  const aboutDialogCloseBtn = document.getElementById("aboutDialogCloseBtn");
-  const aboutDialogOkBtn = document.getElementById("aboutDialogOkBtn");
+  const APP_VERSION = document?.documentElement?.dataset?.ev3AppVersion || "desconocida";
   const ABOUT_MESSAGE =
     "Simulador LEGO Mindstorms EV3 basado en la libreria Pybricks\n"
-    + "Version 1.3.4\n\n"
+    + `Version ${APP_VERSION}\n\n`
     + "Desarrollado por:\n"
     + "\t\tFrancisco Alejandro Medina Aguirre\n"
     + "\t\tJimy Alexander Cortés Osorio\n\n"
@@ -51,6 +47,68 @@
     + "\t- Grupo Nyquist\n"
     + "\t- Robotica Aplicada\n"
     + "\t- Universidad Tecnologica de Pereira (UTP)\n";
+
+  const sessionController = window.EV3SessionController.create({
+    api,
+    onStatus: setStatus,
+    onError: (err) => log(err.message),
+    beforeStart: () => {
+      clearDebugState();
+      hideRobotStartMarker();
+      executionMenuLocked = true;
+    },
+    afterStart: forceStateRefreshAfterStart,
+    onDebug: handleDebug,
+    onBreakpoints: (breakpoints) => setDebugState(`breakpoints: ${breakpoints.join(", ") || "ninguno"}`),
+  });
+
+  const streamHealthController = window.EV3StreamHealthController.create({
+    shouldCheck: () => {
+      if (recoveringSession || autoResetInProgress || currentStatus !== "running") return false;
+      const staleMs = Date.now() - lastSnapshotAtMs;
+      return lastSnapshotAtMs === 0 || staleMs >= SNAPSHOT_STALE_MS;
+    },
+    onStale: () => {
+      if (!usingPollingFallback) startPollingFallback();
+      void refreshSnapshot();
+    },
+  });
+  const snapshotController = window.EV3SnapshotController.create({
+    contractVersion: 1,
+    getState: () => ({
+      generation: latestSnapshotGeneration, tick: latestSnapshotTick, snapshot: latestSnapshot,
+      receivedAtMs: lastSnapshotAtMs, simTimeS: lastSimTimeS,
+    }),
+    setState: (state) => {
+      latestSnapshotGeneration = state.generation;
+      latestSnapshotTick = state.tick;
+      latestSnapshot = state.snapshot;
+      lastSnapshotAtMs = state.receivedAtMs;
+      lastSimTimeS = state.simTimeS;
+    },
+    onUnsupportedVersion: (version) => log(`Version de snapshot no soportada: ${version}`),
+    render: (snapshot) => {
+      updateExecutionIndicator();
+      updateTelemetry(snapshot);
+      updateBrick(snapshot);
+      redrawCanvas();
+    },
+  });
+  const telemetryController = window.EV3TelemetryController.create({
+    formatDistance: formatDistanceCm,
+    formatNumber: formatTelemetryNumber,
+    renderMotor: renderMotorTelemetry,
+    renderSensor: renderSensorTelemetry,
+  });
+  const worldViewController = window.EV3WorldViewController.create({
+    canvas,
+    getViewState: () => ({
+      snapshot: latestSnapshot,
+      world: currentWorld,
+      robotStart: robotStartMode ? robotStartPreview : (showRobotStartMarker ? robotStart : null),
+      showSensorBeams,
+    }),
+  });
 
   if (!statusProgram) {
     const editorShell = document.querySelector(".code-editor-shell");
@@ -144,6 +202,8 @@
   let robotStartPreview = null;
   let showRobotStartMarker = false;
   let latestSnapshot = null;
+  let latestSnapshotGeneration = -1;
+  let latestSnapshotTick = -1;
   let timer = null;
   let stream = null;
   let streamBootstrapTimeout = null;
@@ -157,120 +217,42 @@
   let autocompleteItems = [];
   let autocompleteSelected = 0;
   let loadedWorldNames = new Set();
+  let selectedWorldName = null;
+  let selectedBlankWorld = false;
   let currentScriptName = "editor_actual.py";
   let executionMenuLocked = false;
   const initialSensorBeamsFlag =
     String(document?.documentElement?.dataset?.ev3SensorBeamsEnabled || "true").toLowerCase() !== "false";
   let showSensorBeams = initialSensorBeamsFlag;
   const STREAM_BOOTSTRAP_TIMEOUT_MS = 2500;
-  const POLLING_INTERVAL_MS = 700;
+  const configuredPollingIntervalMs = Number.parseInt(
+    document?.documentElement?.dataset?.ev3PollingIntervalMs || "900",
+    10,
+  );
+  const POLLING_INTERVAL_MS = Number.isFinite(configuredPollingIntervalMs)
+    ? Math.max(250, configuredPollingIntervalMs)
+    : 900;
   const STREAM_RETRY_DELAY_MS = 5000;
   const SNAPSHOT_STALE_MS = 3000;
+  const SNAPSHOT_CONTRACT_VERSION = 1;
+  const SSE_ENABLED =
+    String(document?.documentElement?.dataset?.ev3SseEnabled || "true").toLowerCase() !== "false";
   const AUTO_RESET_ON_FINISH = true;
-  const MAX_SPEAKER_DURATION_MS = 3000;
-  let audioContext = null;
-  let audioUnlocked = false;
-  let lastSpeakerSignature = "";
   let lastSimTimeS = 0;
   let lastSnapshotAtMs = 0;
-  let snapshotWatchdogTimer = null;
   const MENU_LOCK_MESSAGE = "Opciones de menu bloqueadas durante la ejecucion. Usa 'Detener y reiniciar' para habilitarlas.";
-
-  function ensureAudioContext() {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return null;
-    if (!audioContext) {
-      audioContext = new Ctx();
-    }
-    if (audioUnlocked && audioContext.state === "suspended") {
-      audioContext.resume().catch(() => {});
-    }
-    return audioContext;
-  }
-
-  function unlockAudioContext() {
-    audioUnlocked = true;
-    const ctx = ensureAudioContext();
-    if (!ctx) return;
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-  }
-
-  function bindAudioUnlockGesture() {
-    const unlock = () => {
-      unlockAudioContext();
-      window.removeEventListener("pointerdown", unlock, true);
-      window.removeEventListener("keydown", unlock, true);
-    };
-    window.addEventListener("pointerdown", unlock, true);
-    window.addEventListener("keydown", unlock, true);
-  }
-
-  function speakerSignature(speaker) {
-    if (!speaker) return "";
-    const freq = Math.round(Number(speaker.freq || 0));
-    const duration = Math.round(Number(speaker.duration_ms || 0));
-    const volume = Math.round(Number(speaker.volume ?? 50));
-    const stamp = speaker.started_at_ms ?? speaker.started_at ?? speaker.timestamp_ms ?? speaker.tick ?? "";
-    return `${freq}|${duration}|${volume}|${stamp}`;
-  }
-
-  function playSpeakerTone(speaker) {
-    const ctx = ensureAudioContext();
-    if (!ctx || !audioUnlocked) return;
-
-    const freq = Number(speaker?.freq);
-    if (!Number.isFinite(freq) || freq <= 0) return;
-
-    const rawDuration = Number(speaker?.duration_ms);
-    const durationMs = Math.max(
-      10,
-      Math.min(MAX_SPEAKER_DURATION_MS, Number.isFinite(rawDuration) ? rawDuration : 120),
-    );
-    const rawVolume = Number(speaker?.volume);
-    const volume = Number.isFinite(rawVolume) ? rawVolume : 50;
-    const gainTarget = Math.max(0, Math.min(1, volume / 100)) * 0.2;
-
-    const now = ctx.currentTime;
-    const stopAt = now + durationMs / 1000;
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    oscillator.type = "square";
-    oscillator.frequency.setValueAtTime(freq, now);
-
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, gainTarget), now + 0.005);
-    gain.gain.setValueAtTime(Math.max(0.0001, gainTarget), Math.max(now + 0.005, stopAt - 0.02));
-    gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
-
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.start(now);
-    oscillator.stop(stopAt + 0.01);
-    oscillator.onended = () => {
-      oscillator.disconnect();
-      gain.disconnect();
-    };
-  }
+  const liveUpdateController = window.EV3LiveUpdateController.create({
+    sseEnabled: SSE_ENABLED,
+    startStream: startSnapshotStream,
+    startPolling: startPollingFallback,
+    stop: stopLiveUpdates,
+  });
 
   function log(message) {
     consoleEl.textContent = message || "";
   }
 
-  function closeAboutDialog() {
-    aboutDialog?.classList.add("hidden");
-    aboutDialogBackdrop?.classList.add("hidden");
-  }
-
-  function openAboutDialog() {
-    if (aboutDialogText) {
-      aboutDialogText.textContent = ABOUT_MESSAGE;
-    }
-    aboutDialog?.classList.remove("hidden");
-    aboutDialogBackdrop?.classList.remove("hidden");
-  }
+  const aboutDialogController = window.EV3AboutDialog.create(ABOUT_MESSAGE);
 
   function setScriptName(name) {
     if (!name) return;
@@ -285,8 +267,8 @@
   function setStatus(status) {
     currentStatus = status || currentStatus;
     statusEl.textContent = status;
-    const resetDebugVisuals = ["created", "ready", "stopped", "error"].includes(currentStatus);
-    if (["running", "paused", "stopped"].includes(currentStatus)) {
+    const resetDebugVisuals = ["created", "ready", "stopped", "finished", "timed_out", "error"].includes(currentStatus);
+    if (["running", "paused", "stopped", "finished", "timed_out"].includes(currentStatus)) {
       executionMenuLocked = true;
     }
     if (currentStatus === "created") {
@@ -302,9 +284,6 @@
     }
     if (currentStatus === "running") {
       suppressStoppedAutoReset = false;
-    }
-    if (AUTO_RESET_ON_FINISH && currentStatus === "stopped" && !autoResetInProgress && !suppressStoppedAutoReset) {
-      void performStopAndReset({ automatic: true });
     }
     updateControlStates();
   }
@@ -390,7 +369,7 @@
     const isRunning = status === "running";
     const isPaused = status === "paused";
     const isBusy = isRunning || isPaused;
-    const canStart = ["created", "ready", "stopped", "error"].includes(status);
+    const canStart = ["created", "ready", "stopped", "finished", "timed_out", "error"].includes(status);
     const canonicalState = currentDebugState?.debug_state || "";
     const isCanonicalPaused = canonicalState.startsWith("paused_");
     const isEffectivelyPaused = isPaused || isCanonicalPaused || debugPaused;
@@ -1317,7 +1296,7 @@
     setStatus(session.status);
 
     // Priorizar que la simulacion quede operativa de inmediato.
-    startSnapshotStream();
+    liveUpdateController.start();
     void refreshSnapshot();
 
     // Cargar menus en paralelo para no bloquear la interaccion principal.
@@ -1480,6 +1459,10 @@
   }
 
   function startSnapshotStream() {
+    if (!SSE_ENABLED) {
+      startPollingFallback();
+      return;
+    }
     stopLiveUpdates();
     let hasInitialEvent = false;
     try {
@@ -1582,17 +1565,7 @@
   }
 
   function startSnapshotWatchdog() {
-    if (snapshotWatchdogTimer) return;
-    snapshotWatchdogTimer = setInterval(() => {
-      if (recoveringSession || autoResetInProgress) return;
-      if (currentStatus !== "running") return;
-      const staleMs = Date.now() - lastSnapshotAtMs;
-      if (lastSnapshotAtMs > 0 && staleMs < SNAPSHOT_STALE_MS) return;
-      if (!usingPollingFallback) {
-        startPollingFallback();
-      }
-      void refreshSnapshot();
-    }, 1000);
+    streamHealthController.start();
   }
 
   async function forceStateRefreshAfterStart() {
@@ -1620,6 +1593,23 @@
       const session = await api.createSession({ reuse: true });
       recoveryFailures = 0;
       setStatus(session.status);
+      if (selectedWorldName && loadedWorldNames.has(selectedWorldName)) {
+        try {
+          const worldData = await api.loadWorld(selectedWorldName);
+          currentWorld = worldData.world || currentWorld;
+          if (statusWorld) statusWorld.textContent = selectedWorldName;
+        } catch {
+          // Continuar aunque no se pueda rehidratar el mundo seleccionado.
+        }
+      } else if (selectedBlankWorld) {
+        try {
+          const worldData = await api.loadBlankWorld({ width_cells: 40, height_cells: 40 });
+          currentWorld = worldData.world || currentWorld;
+          if (statusWorld) statusWorld.textContent = "Mundo en blanco";
+        } catch {
+          // Continuar aunque falle la restauracion del mundo en blanco.
+        }
+      }
       startSnapshotStream();
       await refreshSnapshot();
     } catch (err) {
@@ -1635,23 +1625,11 @@
   }
 
   function renderSnapshot(snapshot) {
-    latestSnapshot = snapshot;
-    lastSnapshotAtMs = Date.now();
-    if (snapshot && Number.isFinite(Number(snapshot.sim_time_s))) {
-      lastSimTimeS = Number(snapshot.sim_time_s);
-    }
-    updateExecutionIndicator();
-    updateTelemetry(snapshot);
-    updateBrick(snapshot);
-    redrawCanvas();
+    snapshotController.apply(snapshot);
   }
 
   function redrawCanvas() {
-    window.EV3Canvas.draw(canvas, latestSnapshot, currentWorld, {
-      hidePlacedRobots: true,
-      robotStart: robotStartMode ? robotStartPreview : (showRobotStartMarker ? robotStart : null),
-      showSensorBeams,
-    });
+    worldViewController.draw();
   }
 
   function syncSensorBeamsButton() {
@@ -1662,14 +1640,7 @@
 
   function applyMapZoom(action) {
     if (!window.EV3Canvas || !canvas) return;
-    if (action === "in") {
-      window.EV3Canvas.zoomIn(canvas);
-    } else if (action === "out") {
-      window.EV3Canvas.zoomOut(canvas);
-    } else {
-      window.EV3Canvas.fitToView(canvas, currentWorld);
-    }
-    redrawCanvas();
+    worldViewController.zoom(action);
   }
 
   window.addEventListener("ev3-assets-loaded", redrawCanvas);
@@ -1684,27 +1655,7 @@
   }
 
   function updateTelemetry(snapshot) {
-    const telemetry = document.getElementById("telemetry");
-    if (!snapshot) return;
-    const robot = snapshot.robot || {};
-    telemetry.innerHTML = `
-      <dt>Tick</dt><dd>${snapshot.tick}</dd>
-      <dt>Tiempo</dt><dd>${snapshot.sim_time_s}s</dd>
-      <dt>X</dt><dd>${formatDistanceCm(robot.x_mm, 1)} cm</dd>
-      <dt>Y</dt><dd>${formatDistanceCm(robot.y_mm, 1)} cm</dd>
-      <dt>Theta</dt><dd>${formatTelemetryNumber(robot.theta_deg)} °</dd>
-      <dt>Colision</dt><dd>${snapshot.colliding ? "si" : "no"}</dd>
-    `;
-    const motors = document.getElementById("motors");
-    const motorItems = snapshot.motors || [];
-    motors.innerHTML = motorItems.length
-      ? motorItems.map(renderMotorTelemetry).join("")
-      : '<p class="telemetry-empty">Sin motores</p>';
-    const sensors = document.getElementById("sensors");
-    const sensorItems = snapshot.sensors || [];
-    sensors.innerHTML = sensorItems.length
-      ? sensorItems.map(renderSensorTelemetry).join("")
-      : '<p class="telemetry-empty">Sin sensores</p>';
+    telemetryController.render(snapshot);
   }
 
   function renderScreenCanvas(canvas, screenData) {
@@ -1796,84 +1747,48 @@
       speakerEl.textContent =
         `${speaker.freq || 0} Hz, ${Math.round(speaker.duration_ms || 0)} ms, ` +
         `vol ${speaker.volume ?? 50}`;
-      const signature = speakerSignature(speaker);
-      if (signature && signature !== lastSpeakerSignature) {
-        playSpeakerTone(speaker);
-      }
-      lastSpeakerSignature = signature;
+      window.EV3SpeakerAudio.handleSpeaker(speaker);
     } else {
       speakerEl.textContent = "Inactivo";
-      lastSpeakerSignature = "";
+      window.EV3SpeakerAudio.handleSpeaker(null);
     }
   }
 
   runBtn.addEventListener("click", async () => {
-    unlockAudioContext();
-    try {
-      clearDebugState();
-      await api.loadScript(codeEditor.value);
-      const result = await api.start();
-      hideRobotStartMarker();
-      executionMenuLocked = true;
-      setStatus(result.status);
-      await forceStateRefreshAfterStart();
-      log("");
-    } catch (err) {
-      log(err.message);
-    }
+    window.EV3SpeakerAudio.unlock();
+    const result = await sessionController.run(codeEditor.value);
+    if (result) log("");
   });
 
   debugRunBtn.addEventListener("click", async () => {
-    unlockAudioContext();
-    try {
-      clearDebugState();
-      await api.loadScript(codeEditor.value);
-      const result = await api.setBreakpoints(parseBreakpoints());
-      await applyWatchesToSession();
-      setDebugState(`breakpoints: ${result.breakpoints.join(", ") || "ninguno"}`);
-      setStatus((await api.start({ debug: true })).status);
-      executionMenuLocked = true;
-      hideRobotStartMarker();
-      await forceStateRefreshAfterStart();
-      log("");
-    } catch (err) {
-      log(err.message);
-    }
+    window.EV3SpeakerAudio.unlock();
+    const result = await sessionController.debugStart({
+      source: codeEditor.value,
+      breakpoints: parseBreakpoints(),
+      watches: parseWatches(),
+    });
+    if (result) log("");
   });
 
   debugStepBtn.addEventListener("click", async () => {
-    unlockAudioContext();
-    try {
-      if (!["running", "paused"].includes(currentStatus)) {
-        clearDebugState();
-        await api.loadScript(codeEditor.value);
-        await api.setBreakpoints(parseBreakpoints());
-        await applyWatchesToSession();
-        setStatus((await api.start({ debug: true, step_mode: true })).status);
-        executionMenuLocked = true;
-        hideRobotStartMarker();
-        await forceStateRefreshAfterStart();
-      } else {
-        handleDebug(await api.debugStep());
-      }
-    } catch (err) {
-      log(err.message);
-    }
+    window.EV3SpeakerAudio.unlock();
+    await sessionController.debugStep({
+      source: codeEditor.value,
+      breakpoints: parseBreakpoints(),
+      watches: parseWatches(),
+      active: ["running", "paused"].includes(currentStatus),
+    });
   });
 
   debugContinueBtn.addEventListener("click", async () => {
-    try {
-      handleDebug(await api.debugContinue());
-    } catch (err) {
-      log(err.message);
-    }
+    await sessionController.debugContinue();
   });
 
   pauseBtn.addEventListener("click", async () => {
-    try { setStatus((await api.pause()).status); } catch (err) { log(err.message); }
+    await sessionController.pause();
   });
   resumeBtn.addEventListener("click", async () => {
-    try { setStatus((await api.resume()).status); } catch (err) { log(err.message); }
+    await sessionController.resume();
   });
   async function performStopAndReset(options = {}) {
     if (autoResetInProgress) return;
@@ -1886,8 +1801,8 @@
     try {
       const result = await api.reset();
       window.EV3Canvas.resetTrail();
-      latestSnapshot = null;
-      robotStart = null;
+      await refreshSnapshot();
+      robotStart = robotStartFromLoadedWorld(currentWorld) || robotStart;
       robotStartPreview = null;
       showRobotStartMarker = false;
       clearBreakpoints();
@@ -1931,6 +1846,8 @@
     if (guardMenuAction()) return;
     try {
       const data = await api.loadWorld(name);
+      selectedWorldName = name;
+      selectedBlankWorld = false;
       currentWorld = data.world || currentWorld;
       if (statusWorld) statusWorld.textContent = name;
       robotStart = robotStartFromLoadedWorld(currentWorld);
@@ -1949,6 +1866,8 @@
     if (guardMenuAction()) return;
     try {
       const data = await api.loadBlankWorld({ width_cells: 40, height_cells: 40 });
+      selectedWorldName = null;
+      selectedBlankWorld = true;
       currentWorld = data.world || currentWorld;
       if (statusWorld) statusWorld.textContent = "Mundo en blanco";
       robotStart = null;
@@ -2114,9 +2033,7 @@
 
   document.getElementById("openScriptMenuBtn").addEventListener("click", openScriptFromDevice);
 
-  scriptFileInput.addEventListener("change", async () => {
-    const [file] = scriptFileInput.files || [];
-    if (!file) return;
+  window.EV3FileInputController.bind(scriptFileInput, async (file) => {
     try {
       codeEditor.value = await file.text();
       setScriptName(file.name);
@@ -2127,8 +2044,6 @@
       log(`Script cargado: ${file.name}`);
     } catch (err) {
       log(err.message);
-    } finally {
-      scriptFileInput.value = "";
     }
   });
 
@@ -2136,13 +2051,10 @@
     void downloadScript();
   });
 
-  worldFileInput?.addEventListener("change", async () => {
+  window.EV3FileInputController.bind(worldFileInput, async (file) => {
     if (guardMenuAction()) {
-      worldFileInput.value = "";
       return;
     }
-    const [file] = worldFileInput.files || [];
-    if (!file) return;
     try {
       const data = await api.uploadWorld(file);
       currentWorld = data.world || currentWorld;
@@ -2155,23 +2067,18 @@
       log(`Mundo cargado: ${data.loaded_world || file.name}`);
     } catch (err) {
       log(err.message);
-    } finally {
-      worldFileInput.value = "";
     }
   });
 
   aboutMenuBtn?.addEventListener("click", () => {
-    openAboutDialog();
+    aboutDialogController.open();
     log("Simulador EV3 Web - migracion Flask del simulador Tkinter.");
   });
 
-  aboutDialogCloseBtn?.addEventListener("click", closeAboutDialog);
-  aboutDialogOkBtn?.addEventListener("click", closeAboutDialog);
-  aboutDialogBackdrop?.addEventListener("click", closeAboutDialog);
 
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && aboutDialog && !aboutDialog.classList.contains("hidden")) {
-      closeAboutDialog();
+    if (event.key === "Escape" && aboutDialogController.isOpen()) {
+      aboutDialogController.close();
     }
   });
 
@@ -2249,27 +2156,29 @@
     redrawCanvas();
   }, { passive: false });
 
-  codeEditor.addEventListener("input", () => {
+  window.EV3EditorInteractionController.bind(codeEditor, {
+    input: () => {
     syncEditorMetrics();
     renderEditorGutter();
     updateSyntaxHighlight();
     placeAutocompletePopup();
-  });
-  codeEditor.addEventListener("keydown", (event) => {
+    },
+    keydown: (event) => {
     handleAutocompleteKeys(event) || handleEditorTab(event) || handleEditorEnter(event) || handleEditorPairs(event);
-  });
-  codeEditor.addEventListener("keyup", (event) => {
+    },
+    keyup: (event) => {
     placeAutocompletePopup();
     if (event.key === ".") showAutocomplete(true);
-  });
-  codeEditor.addEventListener("blur", () => {
+    },
+    blur: () => {
     window.setTimeout(hideAutocomplete, 120);
-  });
-  codeEditor.addEventListener("scroll", () => {
+    },
+    scroll: () => {
     editorGutter.scrollTop = codeEditor.scrollTop;
     syntaxHighlight.scrollTop = codeEditor.scrollTop;
     syntaxHighlight.scrollLeft = codeEditor.scrollLeft;
     placeAutocompletePopup();
+    },
   });
 
   breakpointsInput.addEventListener("change", parseBreakpoints);
@@ -2292,7 +2201,7 @@
   renderEditorGutter();
   updateSyntaxHighlight();
   updateControlStates();
-  bindAudioUnlockGesture();
+  window.EV3SpeakerAudio.bindUnlockGesture();
   startSnapshotWatchdog();
   window.addEventListener("resize", syncEditorMetrics);
   window.addEventListener("resize", renderEditorGutter);
@@ -2310,24 +2219,23 @@
     });
   }
 
-  window.addEventListener("beforeunload", () => {
-    stopLiveUpdates();
-    api.closeSessionOnUnload();
-  });
-
-  window.addEventListener("ev3-session-recovered", async () => {
-    stopLiveUpdates();
-    startSnapshotStream();
-    try {
+  window.EV3PageLifecycleController.bind({
+    stopLiveUpdates,
+    closeSession: api.closeSessionOnUnload,
+    recoverLiveState: async () => {
+      stopLiveUpdates();
+      startSnapshotStream();
       await refreshSnapshot();
       log("Sesion recuperada. Reconexion de estado en vivo.");
-    } catch {
-      // refreshSnapshot ya gestiona recuperacion y logging.
-    }
+    },
+    onRecoveryError: () => {},
   });
 
   window.addEventListener("keydown", handleGlobalShortcuts, true);
 
+  window.EV3ProfileControls.bind(api, log);
+
+  window.EV3TraceControls.bind(api, log, refreshSnapshot);
   try {
     await init();
   } catch (err) {

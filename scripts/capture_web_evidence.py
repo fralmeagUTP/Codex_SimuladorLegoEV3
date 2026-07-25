@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+import argparse
 import json
 import re
 import socket
@@ -13,9 +14,8 @@ from werkzeug.serving import make_server
 
 from simulador_ev3.web.app import create_app
 
-
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = ROOT / "Documentos" / "EVIDENCIA_WEB_2026-05-20"
+DEFAULT_OUTPUT_DIR = ROOT / "Documentos" / "EVIDENCIA_WEB_2026-05-20"
 
 
 def prepare_evidence_data(base_dir: Path) -> tuple[Path, Path]:
@@ -44,7 +44,9 @@ def prepare_evidence_data(base_dir: Path) -> tuple[Path, Path]:
     examples = {
         "11_siguelineas_basico.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("linea")\n',
         "15_esquiva_obstaculos.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("ultra")\n',
-        "02_intro_pantalla_altavoz.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n',
+        "02_intro_pantalla_altavoz.py": (
+            'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n'
+        ),
         "qa_menu_example.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("menu")\n',
     }
     for name, source in examples.items():
@@ -154,12 +156,12 @@ def assert_canvas_has_blue_preview(page) -> None:
         raise AssertionError(f"no se detecto previsualizacion azul: {metrics}")
 
 
-def capture_layouts(browser, base_url: str) -> list[str]:
+def capture_layouts(browser, base_url: str, output_dir: Path) -> list[str]:
     files: list[str] = []
-    viewports = [(1366, 768), (1570, 900)]
+    viewports = [(1280, 800), (1366, 768), (1570, 900)]
     pages = [
         ("/", "simulacion", ["#worldCanvas", "#codeEditor", "#telemetry", "#screen"]),
-        ("/worlds", "mundos", ["#worldCanvas", "#assetSelect", "#selectedAsset", "#validationStatus"]),
+        ("/worlds", "mundos", ["#worldCanvas", "#assetPalette", "#selectedAsset", "#validationStatus"]),
     ]
 
     for width, height in viewports:
@@ -168,14 +170,14 @@ def capture_layouts(browser, base_url: str) -> list[str]:
         try:
             for path, name, selectors in pages:
                 page.goto(f"{base_url}{path}")
-                expect(page.locator("#sessionStatus")).to_have_text("created")
+                expect(page.locator("#sessionStatus")).to_have_text(re.compile("created|ready"))
                 for selector in selectors:
                     expect(page.locator(selector)).to_be_visible()
                     if selector == "#worldCanvas":
                         assert_world_canvas_matches_tkinter_size(page)
                     else:
                         assert_box_in_viewport(page, selector)
-                target = OUTPUT_DIR / f"{name}_{width}x{height}.png"
+                target = output_dir / f"{name}_{width}x{height}.png"
                 page.screenshot(path=str(target), full_page=True)
                 files.append(str(target.relative_to(ROOT)))
         finally:
@@ -183,19 +185,19 @@ def capture_layouts(browser, base_url: str) -> list[str]:
     return files
 
 
-def capture_feature_flows(browser, base_url: str) -> list[str]:
+def capture_feature_flows(browser, base_url: str, output_dir: Path) -> list[str]:
     files: list[str] = []
     context = browser.new_context(viewport={"width": 1366, "height": 768})
     page = context.new_page()
     try:
         page.goto(f"{base_url}/")
-        expect(page.locator("#sessionStatus")).to_have_text("created")
+        expect(page.locator("#sessionStatus")).to_have_text(re.compile("created|ready"))
 
         page.locator(".menu-trigger", has_text="Ejemplos").hover()
         expect(page.locator("#examplesMenu")).to_contain_text("qa_menu_example.py")
         page.locator("#examplesMenu button", has_text="qa_menu_example.py").click()
         expect(page.locator("#codeEditor")).to_have_value(re.compile("menu"))
-        target = OUTPUT_DIR / "menu_ejemplos_1366x768.png"
+        target = output_dir / "menu_ejemplos_1366x768.png"
         page.screenshot(path=str(target), full_page=True)
         files.append(str(target.relative_to(ROOT)))
 
@@ -210,7 +212,7 @@ def capture_feature_flows(browser, base_url: str) -> list[str]:
         page.locator("#codeEditor").press("End")
         page.locator("#codeEditor").press("Control+Space")
         expect(page.locator("#autocompletePopup")).to_be_visible()
-        target = OUTPUT_DIR / "editor_sintaxis_autocomplete_1366x768.png"
+        target = output_dir / "editor_sintaxis_autocomplete_1366x768.png"
         page.screenshot(path=str(target), full_page=True)
         files.append(str(target.relative_to(ROOT)))
 
@@ -223,24 +225,24 @@ def capture_feature_flows(browser, base_url: str) -> list[str]:
         )
         page.locator("#runBtn").click()
         expect(page.locator("#speaker")).to_contain_text("880")
-        target = OUTPUT_DIR / "brick_altavoz_1366x768.png"
+        target = output_dir / "brick_altavoz_1366x768.png"
         page.screenshot(path=str(target), full_page=True)
         files.append(str(target.relative_to(ROOT)))
 
         page.goto(f"{base_url}/worlds")
-        expect(page.locator("#sessionStatus")).to_have_text("created")
-        page.locator("#assetSelect").select_option("floor_tile_256_a")
+        expect(page.locator("#sessionStatus")).to_have_text(re.compile("created|ready"))
+        page.locator("#assetPalette .asset-tool[data-asset-key='floor_tile_256_a']").click()
         box = page.locator("#worldCanvas").bounding_box()
         if box is None:
             raise AssertionError("worldCanvas no tiene bounding box")
         page.mouse.move(box["x"] + 260, box["y"] + 230)
         expect(page.locator("#cursorReadout")).to_contain_text("Tool: floor_tile_256_a")
         assert_canvas_has_blue_preview(page)
-        target = OUTPUT_DIR / "mundos_previsualizacion_1366x768.png"
+        target = output_dir / "mundos_previsualizacion_1366x768.png"
         page.screenshot(path=str(target), full_page=True)
         files.append(str(target.relative_to(ROOT)))
 
-        page.locator("#assetSelect").select_option("wall_64x64_a")
+        page.locator("#assetPalette .asset-tool[data-asset-key='wall_64x64_a']").click()
         page.mouse.click(box["x"] + 120, box["y"] + 120)
         expect(page.locator("#assetPropertiesForm")).to_be_visible()
         page.locator("#assetKeyInput").select_option("line_64_64_hor")
@@ -249,7 +251,7 @@ def capture_feature_flows(browser, base_url: str) -> list[str]:
         page.locator("#assetRotationInput").fill("180")
         page.locator("#applyAssetPropertiesBtn").click()
         expect(page.locator("#selectedAsset")).to_contain_text("line_64_64_hor")
-        target = OUTPUT_DIR / "mundos_propiedades_1366x768.png"
+        target = output_dir / "mundos_propiedades_1366x768.png"
         page.screenshot(path=str(target), full_page=True)
         files.append(str(target.relative_to(ROOT)))
     finally:
@@ -257,7 +259,7 @@ def capture_feature_flows(browser, base_url: str) -> list[str]:
     return files
 
 
-def capture_two_profiles(browser, base_url: str) -> list[str]:
+def capture_two_profiles(browser, base_url: str, output_dir: Path) -> list[str]:
     files: list[str] = []
     context_a = browser.new_context(viewport={"width": 1366, "height": 768})
     context_b = browser.new_context(viewport={"width": 1366, "height": 768})
@@ -266,33 +268,33 @@ def capture_two_profiles(browser, base_url: str) -> list[str]:
     try:
         page_a.goto(f"{base_url}/")
         page_b.goto(f"{base_url}/")
-        expect(page_a.locator("#sessionStatus")).to_have_text("created")
-        expect(page_b.locator("#sessionStatus")).to_have_text("created")
+        expect(page_a.locator("#sessionStatus")).to_have_text(re.compile("created|ready"))
+        expect(page_b.locator("#sessionStatus")).to_have_text(re.compile("created|ready"))
 
         page_a.locator("#codeEditor").fill(
             "from pybricks.hubs import EV3Brick\n"
             "from pybricks.tools import wait\n"
             "ev3 = EV3Brick()\n"
-            "ev3.screen.print('perfil A')\n"
-            "wait(20)\n"
+            "ev3.speaker.beep(440, 1000, 40)\n"
+            "wait(100)\n"
         )
         page_b.locator("#codeEditor").fill(
             "from pybricks.hubs import EV3Brick\n"
             "from pybricks.tools import wait\n"
             "ev3 = EV3Brick()\n"
-            "ev3.screen.print('perfil B')\n"
-            "wait(20)\n"
+            "ev3.speaker.beep(880, 1000, 40)\n"
+            "wait(100)\n"
         )
         page_a.locator("#runBtn").click()
         page_b.locator("#runBtn").click()
 
-        expect(page_a.locator("#screen")).to_contain_text("perfil A")
-        expect(page_b.locator("#screen")).to_contain_text("perfil B")
-        expect(page_a.locator("#screen")).not_to_contain_text("perfil B")
-        expect(page_b.locator("#screen")).not_to_contain_text("perfil A")
+        expect(page_a.locator("#speaker")).to_contain_text("440")
+        expect(page_b.locator("#speaker")).to_contain_text("880")
+        expect(page_a.locator("#speaker")).not_to_contain_text("880")
+        expect(page_b.locator("#speaker")).not_to_contain_text("440")
 
         for page, name in ((page_a, "perfil_a"), (page_b, "perfil_b")):
-            target = OUTPUT_DIR / f"{name}_sesion_independiente.png"
+            target = output_dir / f"{name}_sesion_independiente.png"
             page.screenshot(path=str(target), full_page=True)
             files.append(str(target.relative_to(ROOT)))
     finally:
@@ -302,14 +304,22 @@ def capture_two_profiles(browser, base_url: str) -> list[str]:
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser(description="Genera evidencia visual reproducible de la interfaz Web.")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="Directorio donde se guardan las capturas.",
+    )
+    output_dir = parser.parse_args().output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
     with LiveServer() as server:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
-                files = capture_layouts(browser, server.url)
-                files.extend(capture_feature_flows(browser, server.url))
-                files.extend(capture_two_profiles(browser, server.url))
+                files = capture_layouts(browser, server.url, output_dir)
+                files.extend(capture_feature_flows(browser, server.url, output_dir))
+                files.extend(capture_two_profiles(browser, server.url, output_dir))
             finally:
                 browser.close()
 
