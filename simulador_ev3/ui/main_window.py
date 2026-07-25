@@ -462,6 +462,10 @@ class EV3SimulatorApp(tk.Tk):
         set_canvas_theme = getattr(canvas, "set_theme", None)
         if callable(set_canvas_theme):
             set_canvas_theme(theme)
+        telemetry = getattr(self, "_telemetry_panel", None)
+        set_telemetry_theme = getattr(telemetry, "set_theme", None)
+        if callable(set_telemetry_theme):
+            set_telemetry_theme(theme)
         self._apply_sim_control_palette(tokens)
         self._apply_header_palette(tokens)
 

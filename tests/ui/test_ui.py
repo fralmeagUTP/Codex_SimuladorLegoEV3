@@ -726,6 +726,15 @@ class TestTelemetryPanel:
         tp = self.TelemetryPanel(mock.MagicMock())
         tp.reset()
 
+    def test_dynamic_telemetry_supports_dark_then_light_theme(self):
+        tp = self.TelemetryPanel(mock.MagicMock())
+
+        tp.set_theme("dark")
+        assert tp._theme == "dark"
+        tp.set_theme("light")
+
+        assert tp._theme == "light"
+
     def test_robot_position_reflected_in_vars(self):
         tp = self.TelemetryPanel(mock.MagicMock())
         dto = _snap()

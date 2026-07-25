@@ -13,7 +13,7 @@ from __future__ import annotations
 import tkinter as tk
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
-from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, ThemeTokens, tokens_for_theme
 
 _BG = LIGHT_TOKENS.surface
 _HDR_BG = LIGHT_TOKENS.surface
@@ -34,15 +34,15 @@ _MOTOR_PORTS = ("A", "B", "C", "D")
 _SENSOR_PORTS = ("S1", "S2", "S3", "S4")
 
 
-def _apply_scrollbar_style(sb: tk.Scrollbar) -> None:
+def _apply_scrollbar_style(sb: tk.Scrollbar, tokens: ThemeTokens = LIGHT_TOKENS) -> None:
     sb.configure(
-        bg=LIGHT_TOKENS.border,
-        activebackground="#B8C7DA",
-        troughcolor=LIGHT_TOKENS.surface_muted,
+        bg=tokens.border,
+        activebackground=tokens.primary_active,
+        troughcolor=tokens.surface_muted,
         relief=tk.RAISED,
         bd=1,
         highlightthickness=1,
-        highlightbackground=LIGHT_TOKENS.border,
+        highlightbackground=tokens.border,
     )
 
 
@@ -59,6 +59,7 @@ class TelemetryPanel(tk.Frame):
         self._sensor_vars: dict[str, dict[str, tk.StringVar]] = {}
         self._motor_frames: dict[str, tk.LabelFrame] = {}
         self._sensor_frames: dict[str, tk.LabelFrame] = {}
+        self._theme = "light"
 
         self._scroll_canvas = tk.Canvas(self, bg=_BG, highlightthickness=0)
         self._scrollbar = tk.Scrollbar(
@@ -116,6 +117,33 @@ class TelemetryPanel(tk.Frame):
         self._lbl_col.configure(fg=_VAL_FG)
         self._set_visible_motor_ports(set())
         self._set_visible_sensor_ports(set())
+
+    def set_theme(self, theme: str) -> None:
+        """Actualiza también las etiquetas creadas dinámicamente por telemetría."""
+        tokens = tokens_for_theme(theme)
+        self._theme = theme
+        self.configure(bg=tokens.surface)
+        self._scroll_canvas.configure(bg=tokens.surface, highlightbackground=tokens.border)
+        self._content.configure(bg=tokens.surface)
+        _apply_scrollbar_style(self._scrollbar, tokens)
+
+        def visit(widget: tk.Misc) -> None:
+            changes: dict[str, str] = {}
+            if isinstance(widget, (tk.Frame, tk.LabelFrame, tk.Label)):
+                changes["bg"] = tokens.surface
+            if isinstance(widget, (tk.Label, tk.LabelFrame)):
+                changes["fg"] = tokens.text
+            if changes:
+                try:
+                    widget.configure(**changes)
+                except tk.TclError:
+                    pass
+            for child in widget.winfo_children():
+                visit(child)
+
+        visit(self._content)
+        collision_color = tokens.danger if self._var_col.get() == "COLISION" else tokens.text
+        self._lbl_col.configure(fg=collision_color)
 
     # ------------------------------------------------------------------
     # Build
@@ -237,10 +265,10 @@ class TelemetryPanel(tk.Frame):
         self._var_theta.set(f"{dto.robot['theta_deg']:.1f}")
         if dto.colliding:
             self._var_col.set("COLISION")
-            self._lbl_col.configure(fg=_COL_FG)
+            self._lbl_col.configure(fg=tokens_for_theme(self._theme).danger)
         else:
             self._var_col.set("OK")
-            self._lbl_col.configure(fg=_VAL_FG)
+            self._lbl_col.configure(fg=tokens_for_theme(self._theme).text)
 
     def _update_motors(self, motors: list[dict]) -> None:
         for motor_values in self._motor_vars.values():
