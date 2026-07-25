@@ -382,7 +382,7 @@ class TelemetryPanel(tk.Frame):
 
 def _header(parent: tk.Widget, text: str, *, primary: bool = False) -> None:
     frame = tk.Frame(parent, bg=_HDR_BG)
-    setattr(frame, "_telemetry_role", "top_header" if primary else "section_header")
+    setattr(frame, "_telemetry_role", "top_header" if primary else "section_header")  # noqa: B010
     frame.pack(fill=tk.X, pady=(0, 0))
     label = tk.Label(
         frame,
@@ -392,7 +392,7 @@ def _header(parent: tk.Widget, text: str, *, primary: bool = False) -> None:
         font=_BOLD,
         anchor=tk.W,
     )
-    setattr(label, "_telemetry_role", "top_header" if primary else "section_header")
+    setattr(label, "_telemetry_role", "top_header" if primary else "section_header")  # noqa: B010
     label.pack(side=tk.LEFT, padx=10, pady=5 if primary else 4)
 
 
@@ -402,7 +402,7 @@ def _card(parent: tk.Widget, title: str) -> tk.LabelFrame:
         font=_BOLD, padx=3, pady=3, relief=tk.SOLID, bd=1,
         highlightthickness=1, highlightbackground=LIGHT_TOKENS.border,
     )
-    setattr(card, "_telemetry_role", "card")
+    setattr(card, "_telemetry_role", "card")  # noqa: B010
     return card
 
 
@@ -413,7 +413,7 @@ def _separator(parent: tk.Widget) -> None:
 def _row(parent: tk.Widget, label: str, row: int) -> tk.StringVar:
     var = tk.StringVar(value=_EMPTY)
     label_widget = tk.Label(parent, text=label, bg=_BG, font=_LABEL, anchor=tk.W)
-    setattr(label_widget, "_telemetry_role", "label")
+    setattr(label_widget, "_telemetry_role", "label")  # noqa: B010
     label_widget.grid(
         row=row,
         column=0,
@@ -429,7 +429,7 @@ def _row(parent: tk.Widget, label: str, row: int) -> tk.StringVar:
         fg=_VAL_FG,
         anchor=tk.W,
     )
-    setattr(value_widget, "_telemetry_role", "value")
+    setattr(value_widget, "_telemetry_role", "value")  # noqa: B010
     value_widget.grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=1)
     return var
 
@@ -438,7 +438,7 @@ def _sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = Fa
     """Fila legible para sensores; permite valores extensos sin truncarlos."""
     var = tk.StringVar(value=_EMPTY)
     label_widget = tk.Label(parent, text=label, bg=_BG, font=_LABEL, anchor=tk.NW)
-    setattr(label_widget, "_telemetry_role", "label")
+    setattr(label_widget, "_telemetry_role", "label")  # noqa: B010
     label_widget.grid(
         row=row, column=0, sticky=tk.NW, padx=8, pady=2
     )
@@ -452,6 +452,6 @@ def _sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = Fa
         justify=tk.LEFT,
         wraplength=190,
     )
-    setattr(value_widget, "_telemetry_role", "value")
+    setattr(value_widget, "_telemetry_role", "value")  # noqa: B010
     value_widget.grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=2)
     return var
