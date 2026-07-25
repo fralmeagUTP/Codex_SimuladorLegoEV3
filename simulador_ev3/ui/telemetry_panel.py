@@ -215,8 +215,8 @@ class TelemetryPanel(tk.Frame):
             grp = tk.LabelFrame(self._sensors_container, text=port, bg=_BG, font=_LABEL, pady=2)
             self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
-                "type": _row(grp, "Tipo:", 0),
-                "value": _row(grp, "Valor:", 1),
+                "type": _sensor_row(grp, "Tipo:", 0),
+                "value": _sensor_row(grp, "Valor:", 1, emphasize=True),
             }
 
     def _build_time_section(self, parent: tk.Widget) -> None:
@@ -339,9 +339,9 @@ class TelemetryPanel(tk.Frame):
                     if key == "distance_mm":
                         continue
                     parts.append(f"{key}={item}")
-                vars_by_key["value"].set(", ".join(parts)[:40] if parts else _EMPTY)
+                vars_by_key["value"].set(", ".join(parts) if parts else _EMPTY)
             else:
-                vars_by_key["value"].set(str(val)[:40])
+                vars_by_key["value"].set(str(val))
         self._set_visible_sensor_ports(
             {
                 str(sensor.get("port", "")).upper()
@@ -380,7 +380,7 @@ def _header(parent: tk.Widget, text: str) -> None:
         fg=_HDR_FG,
         font=_BOLD,
         anchor=tk.W,
-    ).pack(side=tk.LEFT, padx=10, pady=7)
+    ).pack(side=tk.LEFT, padx=10, pady=4)
 
 
 def _separator(parent: tk.Widget) -> None:
@@ -404,4 +404,23 @@ def _row(parent: tk.Widget, label: str, row: int) -> tk.StringVar:
         fg=_VAL_FG,
         anchor=tk.W,
     ).grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=1)
+    return var
+
+
+def _sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = False) -> tk.StringVar:
+    """Fila legible para sensores; permite valores extensos sin truncarlos."""
+    var = tk.StringVar(value=_EMPTY)
+    tk.Label(parent, text=label, bg=_BG, font=_LABEL, anchor=tk.NW).grid(
+        row=row, column=0, sticky=tk.NW, padx=8, pady=2
+    )
+    tk.Label(
+        parent,
+        textvariable=var,
+        bg=_BG,
+        font=_BOLD if emphasize else _MONO,
+        fg=_VAL_FG,
+        anchor=tk.W,
+        justify=tk.LEFT,
+        wraplength=190,
+    ).grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=2)
     return var
