@@ -128,11 +128,22 @@ class TelemetryPanel(tk.Frame):
         _apply_scrollbar_style(self._scrollbar, tokens)
 
         def visit(widget: tk.Misc) -> None:
+            role = str(getattr(widget, "_telemetry_role", ""))
             changes: dict[str, str] = {}
-            if isinstance(widget, (tk.Frame, tk.LabelFrame, tk.Label)):
+            if role == "top_header":
+                changes = {"bg": tokens.primary, "fg": "white"}
+            elif role == "section_header":
+                changes = {"bg": tokens.surface_muted, "fg": tokens.primary}
+            elif role == "card":
+                changes = {"bg": tokens.surface_muted, "fg": tokens.text, "highlightbackground": tokens.border}
+            elif role == "label":
+                changes = {"bg": tokens.surface_muted, "fg": tokens.text_muted}
+            elif role == "value":
+                changes = {"bg": tokens.surface_muted, "fg": tokens.text}
+            elif isinstance(widget, (tk.Frame, tk.LabelFrame, tk.Label)):
                 changes["bg"] = tokens.surface
-            if isinstance(widget, (tk.Label, tk.LabelFrame)):
-                changes["fg"] = tokens.text
+                if isinstance(widget, (tk.Label, tk.LabelFrame)):
+                    changes["fg"] = tokens.text
             if changes:
                 try:
                     widget.configure(**changes)
@@ -150,7 +161,7 @@ class TelemetryPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        _header(self._content, "Telemetria")
+        _header(self._content, "Telemetría en tiempo real", primary=True)
         columns = tk.Frame(self._content, bg=_BG)
         columns.pack(fill=tk.X)
         robot_column = tk.Frame(columns, bg=_BG)
@@ -166,9 +177,8 @@ class TelemetryPanel(tk.Frame):
         self._build_sensors_section(sensors_column)
 
     def _build_robot_section(self, parent: tk.Widget) -> None:
-        _header(parent, "Robot")
-        grid = tk.Frame(parent, bg=_BG)
-        grid.pack(fill=tk.X)
+        grid = _card(parent, "Robot")
+        grid.pack(fill=tk.X, padx=4, pady=4)
         self._var_x = _row(grid, "X (cm):", 0)
         self._var_y = _row(grid, "Y (cm):", 1)
         self._var_theta = _row(grid, "Theta (°):", 2)
@@ -190,7 +200,7 @@ class TelemetryPanel(tk.Frame):
         )
         self._motors_empty.pack(anchor=tk.W, padx=10, pady=3)
         for port in _MOTOR_PORTS:
-            grp = tk.LabelFrame(self._motors_container, text=port, bg=_BG, font=_LABEL, pady=2)
+            grp = _card(self._motors_container, f"Motor {port}")
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
                 "speed": _row(grp, "Vel (°/s):", 0),
@@ -212,7 +222,7 @@ class TelemetryPanel(tk.Frame):
         )
         self._sensors_empty.pack(anchor=tk.W, padx=10, pady=3)
         for port in _SENSOR_PORTS:
-            grp = tk.LabelFrame(self._sensors_container, text=port, bg=_BG, font=_LABEL, pady=2)
+            grp = _card(self._sensors_container, f"Sensor {port}")
             self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
                 "type": _sensor_row(grp, "Tipo:", 0),
@@ -220,8 +230,8 @@ class TelemetryPanel(tk.Frame):
             }
 
     def _build_time_section(self, parent: tk.Widget) -> None:
-        grid = tk.Frame(parent, bg=_BG)
-        grid.pack(fill=tk.X)
+        grid = _card(parent, "Estado")
+        grid.pack(fill=tk.X, padx=4, pady=(0, 4))
         self._var_tick = _row(grid, "Tick:", 0)
         self._var_time = _row(grid, "Tiempo:", 1)
 
@@ -370,17 +380,30 @@ class TelemetryPanel(tk.Frame):
         self._var_time.set(f"{dto.sim_time_s:.3f} s")
 
 
-def _header(parent: tk.Widget, text: str) -> None:
+def _header(parent: tk.Widget, text: str, *, primary: bool = False) -> None:
     frame = tk.Frame(parent, bg=_HDR_BG)
+    setattr(frame, "_telemetry_role", "top_header" if primary else "section_header")
     frame.pack(fill=tk.X, pady=(0, 0))
-    tk.Label(
+    label = tk.Label(
         frame,
         text=text,
         bg=_HDR_BG,
         fg=_HDR_FG,
         font=_BOLD,
         anchor=tk.W,
-    ).pack(side=tk.LEFT, padx=10, pady=4)
+    )
+    setattr(label, "_telemetry_role", "top_header" if primary else "section_header")
+    label.pack(side=tk.LEFT, padx=10, pady=5 if primary else 4)
+
+
+def _card(parent: tk.Widget, title: str) -> tk.LabelFrame:
+    card = tk.LabelFrame(
+        parent, text=title, bg=LIGHT_TOKENS.surface_muted, fg=LIGHT_TOKENS.primary,
+        font=_BOLD, padx=3, pady=3, relief=tk.SOLID, bd=1,
+        highlightthickness=1, highlightbackground=LIGHT_TOKENS.border,
+    )
+    setattr(card, "_telemetry_role", "card")
+    return card
 
 
 def _separator(parent: tk.Widget) -> None:
@@ -389,31 +412,37 @@ def _separator(parent: tk.Widget) -> None:
 
 def _row(parent: tk.Widget, label: str, row: int) -> tk.StringVar:
     var = tk.StringVar(value=_EMPTY)
-    tk.Label(parent, text=label, bg=_BG, font=_LABEL, anchor=tk.W).grid(
+    label_widget = tk.Label(parent, text=label, bg=_BG, font=_LABEL, anchor=tk.W)
+    setattr(label_widget, "_telemetry_role", "label")
+    label_widget.grid(
         row=row,
         column=0,
         sticky=tk.W,
         padx=10,
         pady=1,
     )
-    tk.Label(
+    value_widget = tk.Label(
         parent,
         textvariable=var,
         bg=_BG,
         font=_MONO,
         fg=_VAL_FG,
         anchor=tk.W,
-    ).grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=1)
+    )
+    setattr(value_widget, "_telemetry_role", "value")
+    value_widget.grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=1)
     return var
 
 
 def _sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = False) -> tk.StringVar:
     """Fila legible para sensores; permite valores extensos sin truncarlos."""
     var = tk.StringVar(value=_EMPTY)
-    tk.Label(parent, text=label, bg=_BG, font=_LABEL, anchor=tk.NW).grid(
+    label_widget = tk.Label(parent, text=label, bg=_BG, font=_LABEL, anchor=tk.NW)
+    setattr(label_widget, "_telemetry_role", "label")
+    label_widget.grid(
         row=row, column=0, sticky=tk.NW, padx=8, pady=2
     )
-    tk.Label(
+    value_widget = tk.Label(
         parent,
         textvariable=var,
         bg=_BG,
@@ -422,5 +451,7 @@ def _sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = Fa
         anchor=tk.W,
         justify=tk.LEFT,
         wraplength=190,
-    ).grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=2)
+    )
+    setattr(value_widget, "_telemetry_role", "value")
+    value_widget.grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=2)
     return var
