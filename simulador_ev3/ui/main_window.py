@@ -377,20 +377,9 @@ class EV3SimulatorApp(tk.Tk):
         """Aplica el tema de preferencia a widgets Tk sin alterar su funcionalidad."""
 
         tokens = tokens_for_theme(theme)
-        light = LIGHT_TOKENS
-        palette = {
-            light.background: tokens.background,
-            light.surface: tokens.surface,
-            light.surface_muted: tokens.surface_muted,
-            light.text: tokens.text,
-            light.text_muted: tokens.text_muted,
-            light.primary: tokens.primary,
-            light.primary_active: tokens.primary_active,
-            light.danger: tokens.danger,
-            light.success: tokens.success,
-            light.warning: tokens.warning,
-            light.focus: tokens.focus,
-            light.border: tokens.border,
+        palette = self._theme_palette(tokens)
+        palette.update(
+            {
             "#ECEFF1": tokens.background,
             "#FFFFFF": tokens.surface,
             "#F8FBFF": tokens.surface_muted,
@@ -417,7 +406,18 @@ class EV3SimulatorApp(tk.Tk):
             "#E3F2FD": tokens.surface_muted,
             "#1B5E20": tokens.success,
             "#0D47A1": tokens.focus,
-        }
+            "#D7E8FA": tokens.surface_muted,
+            "#E6ECF3": tokens.surface_muted,
+            "#35506F": tokens.text_muted,
+            "#102A45": tokens.text,
+            "#2D425C": tokens.text_muted,
+            "#1F2933": tokens.text,
+            "#FAFAFA": tokens.surface,
+            "#0B1220": tokens.background,
+            "#E6EDF3": tokens.text,
+            "#1E3A5F": tokens.primary_active,
+            }
+        )
 
         def visit(widget) -> None:
             changes: dict[str, str] = {}
@@ -428,13 +428,23 @@ class EV3SimulatorApp(tk.Tk):
                     changes["bg"] = palette[background_key]
             except Exception:  # noqa: BLE001
                 pass
-            try:
-                foreground = widget.cget("fg")
-                foreground_key = str(foreground).upper()
-                if foreground_key in palette:
-                    changes["fg"] = palette[foreground_key]
-            except Exception:  # noqa: BLE001
-                pass
+            for option in (
+                "fg",
+                "activebackground",
+                "activeforeground",
+                "disabledforeground",
+                "highlightbackground",
+                "insertbackground",
+                "selectbackground",
+                "selectforeground",
+                "troughcolor",
+            ):
+                try:
+                    value_key = str(widget.cget(option)).upper()
+                    if value_key in palette:
+                        changes[option] = palette[value_key]
+                except Exception:  # noqa: BLE001
+                    continue
             if changes:
                 try:
                     widget.configure(**changes)
@@ -454,6 +464,17 @@ class EV3SimulatorApp(tk.Tk):
             set_canvas_theme(theme)
         self._apply_sim_control_palette(tokens)
         self._apply_header_palette(tokens)
+
+    @staticmethod
+    def _theme_palette(tokens: ThemeTokens) -> dict[str, str]:
+        """Mapea las dos paletas conocidas hacia el tema de destino."""
+        palette: dict[str, str] = {}
+        # Mapear ambas paletas conocidas hace que oscuro -> claro sea tan
+        # completo como claro -> oscuro; antes solo se reconocían colores claros.
+        for source in (LIGHT_TOKENS, tokens_for_theme("dark")):
+            for name in ThemeTokens.__dataclass_fields__:
+                palette[str(getattr(source, name)).upper()] = str(getattr(tokens, name))
+        return palette
 
     def _apply_header_palette(self, tokens: ThemeTokens) -> None:
         """Actualiza la barra superior integrada y sus menús desplegables."""
@@ -1401,17 +1422,18 @@ class EV3SimulatorApp(tk.Tk):
         win.geometry("620x700")
         win.minsize(620, 680)
         win.minsize(580, 500)
-        win.configure(bg="#ECEFF1")
+        tokens = tokens_for_theme(self._theme_name)
+        win.configure(bg=tokens.background)
         win.transient(self)
         win.grab_set()
 
-        header = tk.Frame(win, bg="#F8FBFF", bd=1, relief=tk.SOLID, highlightthickness=0)
+        header = tk.Frame(win, bg=tokens.surface_muted, bd=1, relief=tk.SOLID, highlightthickness=0)
         header.pack(fill=tk.X, padx=12, pady=(12, 0))
         tk.Label(
             header,
             text="Acerca de",
-            bg="#F8FBFF",
-            fg="#1D2D44",
+            bg=tokens.surface_muted,
+            fg=tokens.text,
             font=("Segoe UI", 12, "bold"),
             anchor="w",
             padx=10,
@@ -1419,7 +1441,7 @@ class EV3SimulatorApp(tk.Tk):
         ).pack(side=tk.LEFT, fill=tk.X, expand=True)
         tk.Button(header, text="X", width=4, command=win.destroy).pack(side=tk.RIGHT, padx=8, pady=6)
 
-        body = tk.Frame(win, bg="#F8FBFF", bd=1, relief=tk.SOLID, highlightthickness=0)
+        body = tk.Frame(win, bg=tokens.surface_muted, bd=1, relief=tk.SOLID, highlightthickness=0)
         body.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
 
         intro = (
@@ -1438,14 +1460,14 @@ class EV3SimulatorApp(tk.Tk):
             text=intro,
             justify=tk.LEFT,
             anchor="w",
-            bg="#F8FBFF",
-            fg="#21344D",
+            bg=tokens.surface_muted,
+            fg=tokens.text,
             font=("Segoe UI", 10),
             padx=10,
             pady=10,
         ).pack(fill=tk.X)
 
-        cards = tk.Frame(body, bg="#F8FBFF")
+        cards = tk.Frame(body, bg=tokens.surface_muted)
         cards.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
 
         self._add_about_group_card(
@@ -1469,40 +1491,41 @@ class EV3SimulatorApp(tk.Tk):
             "Institucion academica de apoyo al proyecto en formacion e investigacion aplicada.",
         )
 
-        footer = tk.Frame(body, bg="#F8FBFF")
+        footer = tk.Frame(body, bg=tokens.surface_muted)
         footer.pack(fill=tk.X, padx=10, pady=(0, 10))
         tk.Button(footer, text="Aceptar", width=12, command=win.destroy).pack(side=tk.RIGHT)
 
     def _add_about_group_card(self, parent: tk.Widget, image_rel_path: str, title: str, desc: str) -> None:
-        card = tk.Frame(parent, bg="#FFFFFF", bd=1, relief=tk.SOLID, highlightthickness=0)
+        tokens = tokens_for_theme(self._theme_name)
+        card = tk.Frame(parent, bg=tokens.surface, bd=1, relief=tk.SOLID, highlightthickness=0)
         card.pack(fill=tk.X, pady=5)
 
-        icon_box = tk.Frame(card, bg="#FFFFFF")
+        icon_box = tk.Frame(card, bg=tokens.surface)
         icon_box.pack(side=tk.LEFT, padx=8, pady=8)
 
         image_path = Path(image_rel_path)
         logo = self._load_about_logo(image_path, 52, 52)
         if logo is not None:
             self._about_images.append(logo)
-            tk.Label(icon_box, image=logo, bg="#FFFFFF").pack()
+            tk.Label(icon_box, image=logo, bg=tokens.surface).pack()
         else:
             tk.Label(
                 icon_box,
                 text="Logo",
                 width=6,
                 height=3,
-                bg="#E6ECF3",
-                fg="#35506F",
+                bg=tokens.surface_muted,
+                fg=tokens.text_muted,
                 font=("Segoe UI", 9, "bold"),
             ).pack()
 
-        text_box = tk.Frame(card, bg="#FFFFFF")
+        text_box = tk.Frame(card, bg=tokens.surface)
         text_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8), pady=8)
         tk.Label(
             text_box,
             text=title,
-            bg="#FFFFFF",
-            fg="#102A45",
+            bg=tokens.surface,
+            fg=tokens.text,
             font=("Segoe UI", 10, "bold"),
             anchor="w",
             justify=tk.LEFT,
@@ -1510,8 +1533,8 @@ class EV3SimulatorApp(tk.Tk):
         tk.Label(
             text_box,
             text=desc,
-            bg="#FFFFFF",
-            fg="#2D425C",
+            bg=tokens.surface,
+            fg=tokens.text_muted,
             font=("Segoe UI", 9),
             anchor="w",
             justify=tk.LEFT,
@@ -1550,13 +1573,14 @@ class EV3SimulatorApp(tk.Tk):
         win.title("Manual de uso")
         win.geometry("920x680")
         win.minsize(700, 500)
-        win.configure(bg="#ECEFF1")
+        tokens = tokens_for_theme(self._theme_name)
+        win.configure(bg=tokens.background)
 
         header = tk.Label(
             win,
             text="Ayuda y manual de uso - Simulador EV3 Pybricks",
-            bg="#ECEFF1",
-            fg="#0D47A1",
+            bg=tokens.background,
+            fg=tokens.focus,
             anchor="w",
             font=("Segoe UI", 11, "bold"),
             padx=10,
@@ -1564,7 +1588,7 @@ class EV3SimulatorApp(tk.Tk):
         )
         header.pack(side=tk.TOP, fill=tk.X)
 
-        navigation = tk.Frame(win, bg="#ECEFF1", padx=10, pady=8)
+        navigation = tk.Frame(win, bg=tokens.background, padx=10, pady=8)
         navigation.pack(side=tk.TOP, fill=tk.X)
         tk.Button(navigation, text="Crear mundos", command=self._manual_open_worlds).pack(side=tk.LEFT, padx=(0, 6))
         tk.Button(navigation, text="Ir a simulación", command=self._manual_open_simulation).pack(side=tk.LEFT, padx=6)
@@ -1574,8 +1598,8 @@ class EV3SimulatorApp(tk.Tk):
             win,
             wrap=tk.WORD,
             font=("Consolas", 10),
-            bg="#FAFAFA",
-            fg="#1F2933",
+            bg=tokens.surface,
+            fg=tokens.text,
             padx=10,
             pady=8,
         )
