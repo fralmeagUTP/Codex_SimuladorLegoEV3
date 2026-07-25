@@ -203,6 +203,21 @@ class EV3SimulatorApp(tk.Tk):
                 pady=3,
                 font=("Segoe UI", 9),
             )
+            # No depender de la clase de bindings de Menubutton: con algunos
+            # temas/entornos Windows el menú asociado deja de desplegarse.
+            # El post explícito conserva el menú nativo y sus comandos.
+            button.bind(
+                "<Button-1>",
+                lambda _event, item=button, popup=menu: self._post_header_menu(item, popup),  # type: ignore[misc]
+            )
+            button.bind(
+                "<Return>",
+                lambda _event, item=button, popup=menu: self._post_header_menu(item, popup),  # type: ignore[misc]
+            )
+            button.bind(
+                "<space>",
+                lambda _event, item=button, popup=menu: self._post_header_menu(item, popup),  # type: ignore[misc]
+            )
             button.pack(side=tk.LEFT, padx=1)
             self._header_menu_buttons.append(button)
             self._header_menus.append(menu)
@@ -289,6 +304,15 @@ class EV3SimulatorApp(tk.Tk):
         add_menu_button("Ayuda", help_menu)
 
         self._update_menu_lock_state()
+
+    @staticmethod
+    def _post_header_menu(button: tk.Menubutton, menu: tk.Menu) -> str:
+        """Despliega un menú de cabecera de forma fiable en Tkinter/Windows."""
+        if str(button.cget("state")) == str(tk.DISABLED):
+            return "break"
+        button.focus_set()
+        menu.tk_popup(button.winfo_rootx(), button.winfo_rooty() + button.winfo_height())
+        return "break"
 
     def _set_theme(self, theme: str) -> None:
         self._theme_name = save_ui_theme(theme)
