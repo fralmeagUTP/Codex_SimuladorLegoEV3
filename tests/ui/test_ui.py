@@ -762,13 +762,13 @@ class TestTelemetryPanel:
         tp._update_sensors([{"port": "S3", "type": "ColorSensorModel", "value": 61.2}])
         assert tp._sensor_vars["S3"]["type"].get() == "ColorSensorModel"
         assert "61.2" in tp._sensor_vars["S3"]["value"].get()
-        assert tp._sensor_vars["S1"]["type"].get() == "-"
+        assert tp._sensor_vars["S1"]["type"].get() == "Sin conectar"
 
     def test_motors_are_mapped_by_port(self):
         tp = self.TelemetryPanel(mock.MagicMock())
         tp._update_motors([{"port": "B", "speed": 250.0, "angle": 42.5, "state": "RUNNING"}])
         assert tp._motor_vars["B"]["state"].get() == "RUNNING"
-        assert tp._motor_vars["A"]["state"].get() == "-"
+        assert tp._motor_vars["A"]["state"].get() == "Sin conectar"
 
 
 # ===========================================================================

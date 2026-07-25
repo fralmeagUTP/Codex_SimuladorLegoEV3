@@ -103,10 +103,12 @@ class TelemetryPanel(tk.Frame):
         for motor_vars in self._motor_vars.values():
             for value_var in motor_vars.values():
                 value_var.set(_EMPTY)
+            motor_vars["state"].set("Sin conectar")
 
         for sensor_vars in self._sensor_vars.values():
             for value_var in sensor_vars.values():
                 value_var.set(_EMPTY)
+            sensor_vars["type"].set("Sin conectar")
 
         self._var_x.set(_EMPTY)
         self._var_y.set(_EMPTY)
@@ -284,7 +286,8 @@ class TelemetryPanel(tk.Frame):
         for motor_values in self._motor_vars.values():
             motor_values["speed"].set(_EMPTY)
             motor_values["angle"].set(_EMPTY)
-            motor_values["state"].set(_EMPTY)
+            motor_values["angle_norm"].set(_EMPTY)
+            motor_values["state"].set("Sin conectar")
 
         for motor in motors:
             port = str(motor.get("port", "")).upper()
@@ -313,23 +316,16 @@ class TelemetryPanel(tk.Frame):
         )
 
     def _set_visible_motor_ports(self, ports: set[str]) -> None:
-        for port, frame in self._motor_frames.items():
-            if port in ports:
-                frame.pack(fill=tk.X, padx=4, pady=2)
-            else:
-                forget = getattr(frame, "pack_forget", None)
-                if callable(forget):
-                    forget()
-        if ports:
-            forget_empty = getattr(self._motors_empty, "pack_forget", None)
-            if callable(forget_empty):
-                forget_empty()
-        else:
-            self._motors_empty.pack(anchor=tk.W, padx=10, pady=3)
+        del ports
+        forget_empty = getattr(self._motors_empty, "pack_forget", None)
+        if callable(forget_empty):
+            forget_empty()
+        for frame in self._motor_frames.values():
+            frame.pack(fill=tk.X, padx=4, pady=2)
 
     def _update_sensors(self, sensors: list[dict]) -> None:
         for sensor_values in self._sensor_vars.values():
-            sensor_values["type"].set(_EMPTY)
+            sensor_values["type"].set("Sin conectar")
             sensor_values["value"].set(_EMPTY)
 
         for sensor in sensors:
@@ -361,19 +357,12 @@ class TelemetryPanel(tk.Frame):
         )
 
     def _set_visible_sensor_ports(self, ports: set[str]) -> None:
-        for port, frame in self._sensor_frames.items():
-            if port in ports:
-                frame.pack(fill=tk.X, padx=4, pady=2)
-            else:
-                forget = getattr(frame, "pack_forget", None)
-                if callable(forget):
-                    forget()
-        if ports:
-            forget_empty = getattr(self._sensors_empty, "pack_forget", None)
-            if callable(forget_empty):
-                forget_empty()
-        else:
-            self._sensors_empty.pack(anchor=tk.W, padx=10, pady=3)
+        del ports
+        forget_empty = getattr(self._sensors_empty, "pack_forget", None)
+        if callable(forget_empty):
+            forget_empty()
+        for frame in self._sensor_frames.values():
+            frame.pack(fill=tk.X, padx=4, pady=2)
 
     def _update_time(self, dto: SnapshotDTO) -> None:
         self._var_tick.set(str(dto.tick))
