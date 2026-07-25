@@ -10,6 +10,7 @@ from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.application.simulation_session_port import SimulationSessionPort
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.core.simulation_engine import SimEngineConfig
+from simulador_ev3.runtime.execution_policy import ExecutionPolicy
 from simulador_ev3.runtime.isolated_worker import IsolatedRuntimeWorker, worker_isolation_enabled
 
 
@@ -21,7 +22,7 @@ class DesktopSessionAdapter(SimulationSessionPort):
     """
 
     def __init__(self, config: SimEngineConfig) -> None:
-        self._service = SimulationService(config=config)
+        self._service = SimulationService(config=config, policy=ExecutionPolicy())
         self._worker: IsolatedRuntimeWorker | None = None
         self._worker_status = "created"
         if worker_isolation_enabled():
@@ -35,7 +36,11 @@ class DesktopSessionAdapter(SimulationSessionPort):
         self._worker.send(
             "initialize",
             {
-                "execution_policy": {"max_runtime_s": 30, "max_memory_mb": 256, "max_cpu_s": 30},
+                "execution_policy": {
+                    "max_runtime_s": self._service.max_runtime_s,
+                    "max_memory_mb": 256,
+                    "max_cpu_s": 300,
+                },
                 "engine_config": asdict(self._service.engine_config),
             },
         )
@@ -125,6 +130,14 @@ class DesktopSessionAdapter(SimulationSessionPort):
     def set_robot_start(self, x_mm: float, y_mm: float, theta_deg: float | None = None) -> None:
         self._service.set_robot_start(x_mm, y_mm, theta_deg)
         self._mirror("set_robot_start", {"x_mm": x_mm, "y_mm": y_mm, "theta_deg": theta_deg})
+
+    def set_max_runtime_s(self, max_runtime_s: float) -> None:
+        self._service.set_max_runtime_s(max_runtime_s)
+        self._mirror("set_max_runtime", {"max_runtime_s": float(max_runtime_s)})
+
+    @property
+    def max_runtime_s(self) -> float:
+        return self._service.max_runtime_s
 
     def load_world_file(self, path: str | Path) -> None:
         source = Path(path).read_text(encoding="utf-8")

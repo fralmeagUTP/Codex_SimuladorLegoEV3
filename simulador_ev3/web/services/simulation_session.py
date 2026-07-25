@@ -47,6 +47,7 @@ class SimulationSession(SimulationSessionPort):
     ) -> None:
         self.session_id = session_id
         self._config = config
+        self._max_runtime_s = float(max_runtime_s)
         self._lock = threading.RLock()
         self._events_ready = threading.Condition(self._lock)
         self._events: deque[dict[str, Any]] = deque(maxlen=300)
@@ -210,6 +211,21 @@ class SimulationSession(SimulationSessionPort):
             self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
             return self.summary()
+
+    def set_max_runtime_s(self, max_runtime_s: float) -> dict[str, Any]:
+        """Configura el watchdog de la sesion antes de iniciar una ejecucion."""
+        value = float(max_runtime_s)
+        if value < 0 or value not in {0.0, 30.0, 60.0, 120.0, 300.0}:
+            raise InvalidPayload("El tiempo maximo debe ser 30, 60, 120, 300 o 0 (sin limite).")
+        with self._lock:
+            if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
+                raise InvalidSessionState("No se puede cambiar el tiempo maximo durante una simulacion activa.")
+            self._service.set_max_runtime_s(value)
+            self._mirror_worker("set_max_runtime", {"max_runtime_s": value})
+            self._max_runtime_s = value
+            payload = {"max_runtime_s": value, "label": "Sin limite" if value == 0 else f"{value:.0f} s"}
+            self._push_event("runtime_limit", payload)
+            return self.summary() | payload
 
     def set_debug_breakpoints(self, breakpoints: set[int]) -> dict[str, Any]:
         with self._lock:

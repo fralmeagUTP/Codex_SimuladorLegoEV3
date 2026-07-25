@@ -59,6 +59,16 @@
         </div>
       </div>
       <div class="menu-group">
+        <button type="button" class="menu-trigger" aria-haspopup="true">Tiempo máximo</button>
+        <div class="menu-dropdown">
+          <button type="button" data-runtime-limit="30">30 s</button>
+          <button type="button" data-runtime-limit="60">60 s</button>
+          <button type="button" data-runtime-limit="120">120 s</button>
+          <button type="button" data-runtime-limit="300">300 s</button>
+          <button type="button" data-runtime-limit="0">Sin límite</button>
+        </div>
+      </div>
+      <div class="menu-group">
         <button type="button" class="menu-trigger" aria-haspopup="true">Trazas</button>
         <div class="menu-dropdown">
           <button type="button" data-trace-action="start">Iniciar registro</button>
@@ -267,6 +277,7 @@ motor.stop()
 <script src="{{ url_for('static', filename='js/about_dialog.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/trace_controls.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/profile_controls.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/runtime_limit_controls.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/session_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/stream_health_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/snapshot_controller.js', v=asset_version) }}"></script>

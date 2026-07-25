@@ -382,6 +382,10 @@ window.EV3Api = (() => {
     resume: () => request(`/api/sessions/${sessionId}/resume`, { method: "POST", body: "{}" }),
     stop: () => request(`/api/sessions/${sessionId}/stop`, { method: "POST", body: "{}" }),
     reset: () => request(`/api/sessions/${sessionId}/reset`, { method: "POST", body: "{}" }),
+    setRuntimeLimit: (maxRuntimeS) => request(`/api/sessions/${sessionId}/runtime-limit`, {
+      method: "POST",
+      body: JSON.stringify({ max_runtime_s: maxRuntimeS }),
+    }),
     setSimulationProfile: (profile, calibration = {}) => request(`/api/sessions/${sessionId}/simulation-profile`, {
       method: "POST",
       body: JSON.stringify({ profile, calibration }),

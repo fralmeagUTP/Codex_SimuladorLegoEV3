@@ -123,10 +123,10 @@ def test_smoke_web_script_covers_critical_routes():
     assert "ExecutionPolicy Bypass" in wrapper
 
 
-def test_web_scripts_do_not_timeout_by_default(tmp_path):
+def test_web_scripts_use_safe_default_runtime_limit(tmp_path):
     app = create_app({"TESTING": True, "WORLDS_DIR": tmp_path, "EXAMPLES_DIR": tmp_path})
 
-    assert app.config["SCRIPT_MAX_RUNTIME_S"] == 0.0
+    assert app.config["SCRIPT_MAX_RUNTIME_S"] == 120.0
 
 
 def test_production_configuration_rejects_unsafe_defaults(tmp_path):

@@ -416,6 +416,18 @@ def _worker_main(commands, events, session_id: str) -> None:
                 status = "reset"
                 emit("status", {"status": status}, command_id)
                 continue
+            if command_type == "set_max_runtime":
+                try:
+                    max_runtime_s = float(raw.get("payload", {}).get("max_runtime_s"))
+                    if max_runtime_s < 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    emit("error", {"code": "IPC_RUNTIME_LIMIT_INVALID"}, command_id)
+                    continue
+                if service is not None:
+                    service.set_max_runtime_s(max_runtime_s)
+                emit("runtime_limit", {"max_runtime_s": max_runtime_s}, command_id)
+                continue
             if command_type == "set_robot_start":
                 payload = raw.get("payload", {})
                 try:

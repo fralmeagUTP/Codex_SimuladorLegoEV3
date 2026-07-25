@@ -139,7 +139,7 @@ class ExecutionPolicy:
                         defecto: el script debe usar pybricks.tools.wait).
     """
 
-    max_runtime_s: float = 30.0
+    max_runtime_s: float = 120.0
     safe_builtins: dict[str, object] = field(default_factory=lambda: dict(SAFE_BUILTINS))
     blocked_modules: frozenset[str] = field(default_factory=lambda: frozenset(BLOCKED_MODULES))
     allow_math: bool = True

@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import re
 import tkinter as tk
+from functools import partial
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext
 from typing import Any, Optional
@@ -287,6 +288,12 @@ class EV3SimulatorApp(tk.Tk):
         profile_menu.add_command(label="Calibrado", command=lambda: self._set_simulation_profile("calibrated"))
         add_menu_button("Fidelidad", profile_menu)
 
+        runtime_menu = tk.Menu(header, tearoff=0, **menu_style)
+        for seconds in (30, 60, 120, 300):
+            runtime_menu.add_command(label=f"{seconds} s", command=partial(self._set_max_runtime, seconds))
+        runtime_menu.add_command(label="Sin limite", command=lambda: self._set_max_runtime(0))
+        add_menu_button("Tiempo maximo", runtime_menu)
+
         trace_menu = tk.Menu(header, tearoff=0, **menu_style)
         trace_menu.add_command(label="Iniciar registro", command=self._start_trace)
         trace_menu.add_command(label="Detener registro", command=self._stop_trace)
@@ -326,6 +333,16 @@ class EV3SimulatorApp(tk.Tk):
             messagebox.showwarning("Perfil de simulacion", str(exc))
         except ValueError as exc:
             messagebox.showerror("Perfil de simulacion", str(exc))
+
+    def _set_max_runtime(self, seconds: int) -> None:
+        try:
+            self._service.set_max_runtime_s(float(seconds))
+            label = "Sin limite" if seconds == 0 else f"{seconds} s"
+            self._editor.set_status(f"Tiempo maximo: {label}", "#2E7D32")
+        except RuntimeError as exc:
+            messagebox.showwarning("Tiempo maximo", str(exc))
+        except ValueError as exc:
+            messagebox.showerror("Tiempo maximo", str(exc))
 
     def _start_trace(self) -> None:
         self._service.start_trace()

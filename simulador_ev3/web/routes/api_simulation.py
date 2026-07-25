@@ -213,6 +213,16 @@ def reset(session_id: str):
     return jsonify(result)
 
 
+@bp.post("/sessions/<session_id>/runtime-limit")
+def set_runtime_limit(session_id: str):
+    data = json_body()
+    try:
+        max_runtime_s = float(data["max_runtime_s"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise InvalidPayload("max_runtime_s debe ser un numero valido.") from exc
+    return jsonify(require_session(session_id).set_max_runtime_s(max_runtime_s))
+
+
 @bp.post("/sessions/<session_id>/debug/breakpoints")
 def set_debug_breakpoints(session_id: str):
     data = json_body()

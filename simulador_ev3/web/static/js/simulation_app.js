@@ -2257,6 +2257,7 @@
   window.addEventListener("keydown", handleGlobalShortcuts, true);
 
   window.EV3ProfileControls.bind(api, log);
+  window.EV3RuntimeLimitControls.bind(api, log);
 
   window.EV3TraceControls.bind(api, log, refreshSnapshot);
   try {

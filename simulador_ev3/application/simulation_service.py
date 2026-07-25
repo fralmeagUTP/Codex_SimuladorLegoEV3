@@ -90,7 +90,7 @@ class SimulationService:
         tick_rate_hz: float = 50.0,
     ) -> None:
         self._config = config or SimEngineConfig()
-        self._policy = policy or ExecutionPolicy(max_runtime_s=0)
+        self._policy = policy or ExecutionPolicy()
         self._tick_rate_hz = tick_rate_hz
 
         # Se construyen en _rebuild()
@@ -274,6 +274,20 @@ class SimulationService:
                 self._engine.robot.reset_pose(Pose(x=float(x_mm), y=float(y_mm), theta=theta))
             except Exception:  # noqa: BLE001
                 pass
+
+    def set_max_runtime_s(self, max_runtime_s: float) -> None:
+        """Actualiza el watchdog para futuras ejecuciones sin perder el mundo activo."""
+        value = float(max_runtime_s)
+        if value < 0:
+            raise ValueError("El tiempo maximo debe ser mayor o igual que cero.")
+        if self.is_running or self.is_paused:
+            raise RuntimeError("No se puede cambiar el tiempo maximo durante una simulacion activa.")
+        self._policy = ExecutionPolicy(max_runtime_s=value)
+        self._rebuild()
+
+    @property
+    def max_runtime_s(self) -> float:
+        return float(self._policy.max_runtime_s)
 
     def load_world_file(self, path: str | Path) -> None:
         """

@@ -19,7 +19,7 @@ from simulador_ev3.runtime.runtime_sandbox import RuntimeSandbox, SandboxState
 class TestExecutionPolicy:
     def test_default_max_runtime(self):
         p = ExecutionPolicy()
-        assert p.max_runtime_s == 30.0
+        assert p.max_runtime_s == 120.0
 
     def test_negative_runtime_raises(self):
         with pytest.raises(ValueError, match="≥ 0"):
