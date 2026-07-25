@@ -21,6 +21,14 @@ DEFAULT_OUTPUT_DIR = ROOT / "Documentos" / "EVIDENCIA_PARIDAD_2026-07-24" / "tki
 ThemeName = Literal["light", "dark"]
 
 
+def display_path(path: Path) -> Path:
+    """Devuelve una ruta relativa si es posible, sin fallar para artefactos temporales."""
+    try:
+        return path.relative_to(ROOT)
+    except ValueError:
+        return path
+
+
 def capture_theme(theme: ThemeName, output_dir: Path) -> Path:
     """Abre una ventana temporal, captura su área cliente y la cierra."""
 
@@ -66,7 +74,7 @@ def main() -> int:
 
     print("Evidencia Tkinter generada:")
     for file in files:
-        print(f"- {file.relative_to(ROOT)}")
+        print(f"- {display_path(file)}")
     return 0
 
 

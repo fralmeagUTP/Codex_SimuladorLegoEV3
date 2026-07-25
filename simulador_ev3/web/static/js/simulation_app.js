@@ -12,6 +12,7 @@
   let statusProgram = document.getElementById("statusProgram");
   const statusSavePath = document.getElementById("statusSavePath");
   const examplesMenu = document.getElementById("examplesMenu");
+  const missionsMenu = document.getElementById("missionsMenu");
   const worldsMenu = document.getElementById("worldsMenu");
   const scriptFileInput = document.getElementById("scriptFileInput");
   const worldFileInput = document.getElementById("worldFileInput");
@@ -1304,6 +1305,10 @@
       examplesMenu.innerHTML = '<span class="menu-empty">No se pudieron cargar ejemplos</span>';
       log(`Error cargando ejemplos: ${err.message}`);
     });
+    void loadMissions().catch((err) => {
+      missionsMenu.innerHTML = '<span class="menu-empty">No se pudieron cargar misiones</span>';
+      log(`Error cargando misiones: ${err.message}`);
+    });
     void (async () => {
       try {
         await loadWorlds();
@@ -1323,6 +1328,17 @@
     }
     if (!data.examples.length) {
       examplesMenu.innerHTML = '<span class="menu-empty">No hay ejemplos</span>';
+    }
+  }
+
+  async function loadMissions() {
+    const data = await api.listMissions();
+    missionsMenu.innerHTML = "";
+    for (const mission of data.missions) {
+      missionsMenu.appendChild(menuButton(mission.title, () => loadMission(mission)));
+    }
+    if (!data.missions.length) {
+      missionsMenu.innerHTML = '<span class="menu-empty">No hay misiones disponibles</span>';
     }
   }
 
@@ -1941,6 +1957,13 @@
     } catch (err) {
       log(err.message);
     }
+  }
+
+  async function loadMission(mission) {
+    if (guardMenuAction()) return;
+    await loadWorldByName(mission.world_file);
+    await loadExampleByName(mission.starter_script);
+    log(`Misión cargada: ${mission.title}`);
   }
 
   async function downloadScript() {

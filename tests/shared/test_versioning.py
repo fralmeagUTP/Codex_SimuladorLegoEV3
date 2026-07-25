@@ -9,7 +9,7 @@ def test_package_version_has_a_single_python_source() -> None:
     root = Path(__file__).resolve().parents[2]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
 
-    assert __version__ == APP_VERSION == "1.4.0"
+    assert __version__ == APP_VERSION == "1.5.0"
     assert pyproject["project"]["dynamic"] == ["version"]
     assert pyproject["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "simulador_ev3.__version__"}
     assert WEB_ASSET_VERSION == f"v{APP_VERSION}"

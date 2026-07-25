@@ -1,6 +1,6 @@
 # Diferencias entre simulador y robot LEGO EV3
 
-> Estado: actual al 2026-07-24. Version aplicable: `1.4.0`. La matriz de
+> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. La matriz de
 > conformidad detallada esta en
 > `openspec/changes/elevar-calidad-y-paridad-de-interfaz/pybricks-conformance-v1.md`.
 

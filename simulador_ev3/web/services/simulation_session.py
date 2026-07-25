@@ -258,7 +258,8 @@ class SimulationSession(SimulationSessionPort):
             if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
                 raise InvalidSessionState("El paso de tick requiere una simulacion detenida.")
             snapshot = self._decorate_snapshot(self._service.step_tick().to_dict())
-            assert snapshot is not None
+            if snapshot is None:
+                raise RuntimeError("No fue posible generar el snapshot de la sesión.")
             self._latest_snapshot = snapshot
             self._push_event("snapshot", snapshot)
             return snapshot

@@ -1,6 +1,6 @@
 # Estrategia de pruebas
 
-> Estado: actual al 2026-07-24. Version aplicable: `1.4.0`. Los datos de prueba
+> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Los datos de prueba
 > son mundos y scripts sinteticos del repositorio; nunca datos de produccion ni secretos.
 
 | Tipo | Herramienta | Prioridad | Criterio de aprobación |

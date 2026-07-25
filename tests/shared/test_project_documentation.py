@@ -36,6 +36,9 @@ def test_current_guides_identify_the_distributable_version() -> None:
 
 def test_documentation_change_contains_required_openspec_artifacts() -> None:
     root = Path(__file__).resolve().parents[2]
-    change_root = root / "openspec" / "changes" / "actualizar-documentacion-integral"
+    changes_root = root / "openspec" / "changes"
+    active_root = changes_root / "actualizar-documentacion-integral"
+    archived_roots = sorted(changes_root.glob("archive/*-actualizar-documentacion-integral"))
+    change_root = active_root if active_root.is_dir() else archived_roots[-1]
     for relative_path in ("proposal.md", "design.md", "tasks.md", "specs/project-documentation/spec.md"):
         assert (change_root / relative_path).is_file()

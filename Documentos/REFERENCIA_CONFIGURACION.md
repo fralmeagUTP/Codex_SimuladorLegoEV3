@@ -1,6 +1,6 @@
 # Referencia de configuracion
 
-> Estado: actual al 2026-07-24. Version aplicable: `1.4.0`. Fuente de verdad:
+> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Fuente de verdad:
 > `simulador_ev3/web/config.py` y `simulador_ev3/web/waitress_server.py`.
 
 ## Variables principales

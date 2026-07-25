@@ -58,6 +58,32 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python -m pytest tests/e2e/test_web_playwright.py -q
 
+  desktop-visual:
+    name: evidencia visual Tkinter
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Capturar referencia actual de Tkinter
+        run: python scripts/capture_desktop_evidence.py --output-dir artifacts/tkinter --theme light
+      - name: Comparar contra referencia aprobada
+        run: >-
+          python scripts/compare_visual_evidence.py
+          Documentos/EVIDENCIA_PARIDAD_2026-07-24/tkinter/simulacion_light_1280x800.png
+          artifacts/tkinter/simulacion_light_1280x800.png
+          --threshold 0.08
+      - name: Conservar evidencia visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencia-visual-tkinter
+          path: artifacts/tkinter
+          if-no-files-found: warn
+
   runtime-resilience:
     runs-on: ubuntu-latest
     steps:

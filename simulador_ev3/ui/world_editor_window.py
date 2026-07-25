@@ -33,6 +33,7 @@ class WorldEditorWindow(tk.Toplevel):
         self,
         parent: Any,
         on_world_saved: Optional[Callable[[str], None]] = None,
+        on_simulate_saved: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__(parent)
         self.title("Editor de Mundos EV3")
@@ -41,6 +42,7 @@ class WorldEditorWindow(tk.Toplevel):
         self.configure(bg="#ECEFF1")
 
         self._on_world_saved = on_world_saved
+        self._on_simulate_saved = on_simulate_saved
         self._service = WorldEditorService()
         self._selected_id: Optional[str] = None
         self._current_path: Optional[Path] = None
@@ -65,6 +67,7 @@ class WorldEditorWindow(tk.Toplevel):
             on_duplicate=self._cmd_duplicate_selected,
             on_rotate=self._cmd_rotate_selected,
             on_apply_props=self._cmd_apply_properties,
+            on_simulate_saved=self._cmd_simulate_saved,
         )
         self._toolbar.pack(fill=tk.X, side=tk.TOP)
 
@@ -178,13 +181,40 @@ class WorldEditorWindow(tk.Toplevel):
 
     def _save_to_path(self, path: Path) -> None:
         try:
+            issues = self._service.validate_current_world()
+            if issues:
+                self._refresh_validation_status()
+                messagebox.showerror("Editor de mundos", f"No se puede guardar un mundo inválido:\n{issues[0]}")
+                return
             saved = self._service.save_json(path)
             self._current_path = saved
             self._set_status(f"Mundo guardado: {saved.name}")
-            if self._on_world_saved:
+            self._toolbar.set_simulate_saved_enabled(True)
+            # Compatibilidad con integraciones anteriores que reaccionaban al
+            # guardado; la ventana principal usa la acción explícita de simular.
+            if self._on_world_saved is not None:
                 self._on_world_saved(str(saved))
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Editor de mundos", f"No se pudo guardar el archivo:\n{exc}")
+
+    def _cmd_simulate_saved(self) -> None:
+        """Aplica explícitamente el último mundo válido guardado a simulación."""
+
+        if self._current_path is None:
+            self._set_status("Guarda un mundo válido antes de simularlo")
+            return
+        if self._service.validate_current_world():
+            self._refresh_validation_status()
+            self._set_status("Corrige las validaciones antes de simular el mundo")
+            return
+        if self._on_simulate_saved is None:
+            self._set_status("No hay simulación disponible para aplicar el mundo")
+            return
+        try:
+            self._on_simulate_saved(str(self._current_path))
+            self._set_status(f"Mundo aplicado a simulación: {self._current_path.name}")
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Editor de mundos", f"No se pudo aplicar el mundo a simulación:\n{exc}")
 
     def _cmd_delete_selected(self) -> None:
         if not self._selected_id:

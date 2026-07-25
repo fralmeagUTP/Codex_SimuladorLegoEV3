@@ -60,6 +60,22 @@ el sistema de paneles de Tkinter. Se mantienen diferencias de renderizado
 nativo en bordes de botones, menus desplegables y barras de desplazamiento;
 no cambian la funcionalidad ni la semantica visual.
 
+## Comparación automatizable
+
+La comparación se ejecuta sobre las regiones de encabezado, barra de acciones,
+mundo, editor, telemetría y brick de la captura `1280x800`. Las máscaras PNG
+blancas excluyen las diferencias nativas permitidas (bordes, menús y barras de
+desplazamiento); los demás píxeles se comparan con diferencia RGB normalizada
+máxima de `0.08`.
+
+```powershell
+py -3.12 scripts/compare_visual_evidence.py referencia.png actual.png --mask mascara_nativa.png --threshold 0.08
+```
+
+La tarea `desktop-visual` de `.github/workflows/quality.yml` genera una
+captura Tkinter de referencia en Windows, la compara con el umbral anterior y
+publica el directorio `artifacts/tkinter` aun cuando la comparación falle.
+
 El mapa Tkinter tambien aplica la paleta de fondo y rejilla de la Web en los
 temas claro y oscuro. Los colores del robot, LCD y objetos del mundo no se
 tematizan: representan elementos fisicos de la simulacion.

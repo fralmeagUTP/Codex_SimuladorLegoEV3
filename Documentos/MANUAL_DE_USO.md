@@ -1,6 +1,6 @@
 # Manual de Uso - Simulador EV3 Pybricks
 
-Version documentada: 1.4.0
+Version documentada: 1.5.0
 Fecha de actualizacion: 2026-07-24
 
 ## 1. Objetivo
@@ -219,6 +219,22 @@ Carga scripts de ejemplo desde `examples/`.
 
 Carga combinaciones predefinidas de mundo + script.
 
+### 4.5 Ayuda contextual
+
+El menú `Ayuda > Manual de uso...` abre los mismos tres tutoriales guiados de
+la Web: crear un mundo, ejecutar una simulación y depurar por pasos. Cada
+tutorial incluye pasos, resultado esperado y recuperación ante fallos. Usa los
+botones `Crear mundos`, `Ir a simulación` y `Preparar depuración` para abrir el
+flujo correspondiente sin tener que buscarlo de nuevo en los menús.
+
+Para verificar la navegación nativa con ratón en un equipo Windows con sesión
+gráfica, instala `.[desktop-e2e]` y ejecuta:
+
+```powershell
+$env:EV3_RUN_DESKTOP_E2E = "1"
+.\.venv\Scripts\python.exe -m pytest tests/e2e/test_desktop_pywinauto.py -q
+```
+
 ## 5. Flujo Basico de Uso
 
 1. Carga o crea un script en el editor.
@@ -267,6 +283,9 @@ Funciones principales:
 - Colocacion por rejilla.
 - Propiedades del objeto seleccionado.
 - Validacion del mundo.
+- Después de guardar un mundo válido, el botón `Simular mundo guardado` lo
+  aplica directamente a la ventana principal. No es necesario volver a buscar
+  el archivo JSON desde el menú Mundos.
 
 Reglas clave:
 
@@ -298,4 +317,4 @@ Los mundos se guardan en JSON y pueden incluir:
 
 ## 12. Version
 
-Manual actualizado para la version `1.4.0`.
+Manual actualizado para la version `1.5.0`.

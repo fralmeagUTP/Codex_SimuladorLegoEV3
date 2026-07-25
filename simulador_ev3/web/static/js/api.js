@@ -416,6 +416,7 @@ window.EV3Api = (() => {
     ),
     listExamples: () => request("/api/examples"),
     getExample: (name) => request(`/api/examples/${encodeURIComponent(name)}`),
+    listMissions: () => request("/api/missions"),
     listWorlds: () => request("/api/worlds"),
     loadWorld: (name) => request(`/api/sessions/${sessionId}/world`, {
       method: "POST",

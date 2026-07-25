@@ -458,9 +458,8 @@ class SimulationService:
             PybricksFactory.cleanup()
             self._rebuild()
 
-        assert self._engine is not None
-        assert self._controller is not None
-        assert self._stop_event is not None
+        if self._engine is None or self._controller is None or self._stop_event is None:
+            raise RuntimeError("El servicio de simulación no se inicializó correctamente.")
 
         if self._loaded_world is not None:
             self._engine.set_world(self._loaded_world)

@@ -1,6 +1,6 @@
 # Misiones evaluables EV3
 
-> Estado: actual al 2026-07-24. Version aplicable: `1.4.0`. Las evidencias se
+> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Las evidencias se
 > generan localmente; no incluyen datos personales por defecto.
 
 Las misiones se ejecutan con los mismos scripts y mundos en la interfaz Web y
@@ -27,6 +27,28 @@ Las trazas permiten repetir la revisión sin exigir acceso al robot físico.
 2. Exportar JSON o CSV con un nombre que identifique mision, fecha y equipo.
 3. Entregar el script, el mundo JSON y la traza exportada.
 4. Anotar el perfil de simulacion usado y cualquier ajuste de sensores.
+
+## Flujo local para el docente
+
+1. En **Misiones**, elija una actividad. Web y Tkinter cargan el mismo mundo y
+   script inicial desde el catálogo local.
+2. Active **Trazas → Iniciar registro**, ejecute el programa y detenga el
+   registro al terminar.
+3. La evaluación automática se hace sobre una traza determinista y produce un
+   resultado con identificador y versión de misión, criterios, puntuación,
+   perfil y fecha UTC. Los formatos de entrega son JSON y CSV.
+4. Revise el resultado junto con la traza: la rúbrica automática verifica solo
+   reglas declaradas; la observación pedagógica sigue siendo responsabilidad
+   docente.
+
+## Privacidad y portabilidad
+
+Las definiciones y resultados de misión son locales y usan el esquema
+versionado `1`. No almacenan nombre, correo, usuario, identificador de alumno
+ni otros datos personales. El archivo de resultado puede copiarse entre los
+dos entornos sin depender de una cuenta o de un servicio externo. Antes de
+compartir una traza, el docente debe revisar que el nombre del archivo y su
+ubicación no incluyan información identificable.
 
 La evidencia representa una simulacion. El docente debe aplicar los limites del
 apartado siguiente antes de extrapolar el resultado al robot fisico.

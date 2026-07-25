@@ -224,6 +224,11 @@ class EditorPanel(tk.Frame):
         self._highlight()
         self._update_linenos()
 
+    def focus_editor(self) -> None:
+        """Da foco al editor sin exponer el control Tk interno."""
+
+        self._text.focus_set()
+
     def highlight_debug_line(self, line_no: int) -> None:
         """Resalta la linea actual de depuracion."""
         self.clear_debug_line()

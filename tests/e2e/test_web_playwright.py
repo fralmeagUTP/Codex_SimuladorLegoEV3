@@ -539,6 +539,16 @@ def test_help_page_is_available_from_browser(page, live_web_app, expect):
 
     expect(page.locator("body")).to_contain_text("Simulacion del robot")
     expect(page.locator("body")).to_contain_text("Creacion de mundos")
+    expect(page.locator(".tutorial-card")).to_have_count(3)
+    expect(page.locator(".tutorial-card").nth(0)).to_contain_text("Crear tu primer mundo")
+    expect(page.locator(".tutorial-card").nth(1)).to_contain_text("Ejecutar un script")
+    expect(page.locator(".tutorial-card").nth(2)).to_contain_text("Depurar por pasos")
+
+    page.locator(".help-nav a", has_text="Crear mundos").click()
+    expect(page.locator("#assetPalette")).to_be_visible()
+
+    page.locator("nav a", has_text="Simulacion").click()
+    expect(page.locator("#runBtn")).to_be_visible()
 
 
 def test_two_browser_contexts_keep_sessions_independent(browser, live_web_app, expect):

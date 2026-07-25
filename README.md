@@ -1,6 +1,6 @@
 # Simulador EV3 Pybricks
 
-Version actual: 1.4.0 (fuente unica: `simulador_ev3/_version.py`)
+Version actual: 1.5.0 (fuente unica: `simulador_ev3/_version.py`)
 
 Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyecto incluye aplicacion de escritorio Tkinter y aplicacion web Flask para ejecutar scripts, editar mundos 2D y visualizar telemetria del robot.
 
@@ -15,7 +15,7 @@ Simulador educativo LEGO EV3 compatible con una API Pybricks virtual. El proyect
 ## Estado del repositorio
 
 - Rama publicada: `main`
-- Version objetivo en GitHub: `1.4.0`
+- Version objetivo en GitHub: `1.5.0`
 - Interfaz web: incluida desde la version `1.3.0`
 - Interfaz escritorio Tkinter: soportada para uso local Windows
 
@@ -139,10 +139,10 @@ es evidencia fechada; volver a ejecutar los comandos anteriores para obtener el 
 de pruebas, cobertura, E2E y analisis de seguridad ver `docs/testing/` y
 `Documentos/CONTROLES_CALIDAD.md`.
 
-Cambios destacados 1.4.0:
-- Worker aislado, contrato de sesion compartido y recuperacion de ejecuciones.
-- Paridad visual y funcional reforzada entre Web y Tkinter.
-- Observabilidad, calidad continua, documentacion operativa y 689 pruebas en entorno limpio.
+Cambios destacados 1.5.0:
+- Misiones evaluables locales, resultados portables y exportación JSON/CSV.
+- Paridad de navegación, ayuda y mundos reforzada entre Web y Tkinter.
+- Regresión visual Tkinter en CI y requisitos OpenSpec archivados en las especificaciones base.
 
 Para validacion completa por bloques, usar `Documentos/CHECKLIST_QA_RELEASE.md`.
 

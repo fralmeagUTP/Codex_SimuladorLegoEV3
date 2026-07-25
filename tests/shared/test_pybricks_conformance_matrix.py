@@ -3,9 +3,13 @@ from pathlib import Path
 
 def test_pybricks_conformance_matrix_declares_all_public_modules() -> None:
     root = Path(__file__).parents[2]
-    matrix = (
-        root / "openspec" / "changes" / "elevar-calidad-y-paridad-de-interfaz" / "pybricks-conformance-v1.md"
-    ).read_text(encoding="utf-8")
+    changes_root = root / "openspec" / "changes"
+    active_matrix = changes_root / "elevar-calidad-y-paridad-de-interfaz" / "pybricks-conformance-v1.md"
+    archived_matrices = sorted(
+        changes_root.glob("archive/*-elevar-calidad-y-paridad-de-interfaz/pybricks-conformance-v1.md")
+    )
+    matrix_path = active_matrix if active_matrix.is_file() else archived_matrices[-1]
+    matrix = matrix_path.read_text(encoding="utf-8")
 
     for module in ("parameters", "ev3devices", "robotics", "hubs", "tools"):
         assert f"pybricks.{module}" in matrix

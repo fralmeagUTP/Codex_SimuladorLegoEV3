@@ -831,6 +831,11 @@ class TestWorldToolbar:
         assert icon.width() == 32
         assert icon.height() == 32
 
+    def test_exposes_simulate_saved_action_disabled_until_a_valid_save(self):
+        tb = self._new_toolbar()
+        assert tb._simulate_saved_button is not None
+        tb.set_simulate_saved_enabled(True)
+
 
 class TestMainWindow:
     @pytest.fixture(autouse=True)
@@ -1090,6 +1095,21 @@ class TestMainWindow:
 
         assert isinstance(text, str)
         assert len(text) > 0
+        app._on_close()
+
+    def test_manual_includes_the_shared_web_tutorials(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        text = app._tutorials_as_text()
+
+        assert "Crear tu primer mundo" in text
+        assert "Ejecutar un script" in text
+        assert "Depurar por pasos" in text
         app._on_close()
 
     def test_format_runtime_error_includes_script_line(self):

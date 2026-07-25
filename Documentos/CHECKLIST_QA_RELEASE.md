@@ -2,7 +2,7 @@
 
 Usar esta lista antes de publicar un build o entregar una version web/escritorio.
 
-Version aplicable: leer `simulador_ev3/_version.py` (actual: 1.4.0)
+Version aplicable: leer `simulador_ev3/_version.py` (actual: 1.5.0)
 Fecha de actualizacion: 2026-07-24
 
 ## 1. Preparacion

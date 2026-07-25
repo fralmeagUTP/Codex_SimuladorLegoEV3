@@ -1,6 +1,6 @@
 # Guia de aprendizaje por etapas (Pybricks + Simulador EV3)
 
-> Estado: actual al 2026-07-24. Version aplicable: `1.4.0`. Esta guia usa los
+> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Esta guia usa los
 > recursos compartidos de `examples/` y `worlds/`, disponibles desde Web y Tkinter.
 
 Esta guia propone un orden didactico para usar los ejemplos del simulador.

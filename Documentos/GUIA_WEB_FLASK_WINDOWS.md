@@ -7,7 +7,7 @@ Estado oficial de interfaces:
 - La Web y Tkinter son interfaces soportadas con el mismo contrato de sesion.
 - La Web es la referencia visual y ofrece simulacion, mundos, ayuda y operaciones.
 
-Version documentada: 1.4.0
+Version documentada: 1.5.0
 Fecha de actualizacion: 2026-07-24
 
 ## 1. Requisitos

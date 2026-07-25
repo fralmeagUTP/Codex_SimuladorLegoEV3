@@ -1,6 +1,6 @@
 # Indice de documentacion
 
-> Estado: actual al 2026-07-24. Version distribuible: `1.4.0`, leida desde
+> Estado: actual al 2026-07-25. Version distribuible: `1.5.0`, leida desde
 > `simulador_ev3/_version.py`. Responsable: equipo del proyecto.
 
 ## Convenciones

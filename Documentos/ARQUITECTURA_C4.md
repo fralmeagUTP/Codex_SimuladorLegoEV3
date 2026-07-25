@@ -1,6 +1,6 @@
 # Arquitectura C4
 
-> Estado: actual al 2026-07-24. Version aplicable: `1.4.0`. Fuente de requisitos:
+> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Fuente de requisitos:
 > `openspec/project.md` y cambios OpenSpec activos.
 
 ## Contexto

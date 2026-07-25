@@ -36,6 +36,8 @@ from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.domain.editor.world_editor_model import DEFAULT_WORLD_MM
 from simulador_ev3.examples.example_catalog import ExampleCatalog
+from simulador_ev3.shared.help_tutorials import HELP_TUTORIALS
+from simulador_ev3.shared.mission_catalog import MissionCatalog
 from simulador_ev3.shared.paths import (
     resolve_examples_dir,
     resolve_manual_path,
@@ -113,6 +115,7 @@ class EV3SimulatorApp(tk.Tk):
         self._service.set_status_callback(self._on_status)
         self._service.set_debug_callback(self._on_debug_event)
         self._examples = ExampleCatalog(_EXAMPLES_DIR)
+        self._missions = MissionCatalog(_EXAMPLES_DIR, _WORLDS_DIR)
 
         # Pose inicial elegida por el usuario. None = usar config actual.
         self._pending_robot_pose: Optional[tuple[float, float, float]] = None
@@ -253,6 +256,10 @@ class EV3SimulatorApp(tk.Tk):
         scenario_menu = tk.Menu(header, tearoff=0, **menu_style)
         self._populate_scenarios_menu(scenario_menu)
         add_menu_button("Escenarios", scenario_menu, lockable=True)
+
+        missions_menu = tk.Menu(header, tearoff=0, **menu_style)
+        self._populate_missions_menu(missions_menu)
+        add_menu_button("Misiones", missions_menu, lockable=True)
 
         theme_menu = tk.Menu(header, tearoff=0, **menu_style)
         theme_menu.add_command(label="Tema claro", command=lambda: self._set_theme("light"))
@@ -532,6 +539,18 @@ class EV3SimulatorApp(tk.Tk):
             menu.add_command(
                 label=label,
                 command=lambda w=world_file, e=example_file: self._apply_scenario(w, e),  # type: ignore[misc]
+            )
+
+    def _populate_missions_menu(self, menu: tk.Menu) -> None:
+        """Carga el mismo catálogo evaluable que expone la interfaz Web."""
+        missions = self._missions.list_missions()
+        if not missions:
+            menu.add_command(label="(No hay misiones disponibles)", state=tk.DISABLED)
+            return
+        for mission in missions:
+            menu.add_command(
+                label=mission.title,
+                command=lambda item=mission: self._load_mission(item.identifier),  # type: ignore[misc]
             )
 
     def _build_layout(self) -> None:
@@ -1242,7 +1261,7 @@ class EV3SimulatorApp(tk.Tk):
 
             self._world_editor_window = WorldEditorWindow(
                 self,
-                on_world_saved=self._on_editor_world_saved,
+                on_simulate_saved=self._on_editor_world_saved,
             )
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Editor de mundos", str(exc))
@@ -1256,6 +1275,9 @@ class EV3SimulatorApp(tk.Tk):
             self._refresh_world_canvas()
             self._activate_placement_mode()
             self._editor.set_status("Mundo aplicado desde editor", "#2E7D32")
+            self.deiconify()
+            self.lift()
+            self.focus_force()
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Editor de mundos", str(exc))
 
@@ -1313,6 +1335,15 @@ class EV3SimulatorApp(tk.Tk):
             )
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Escenario", str(exc))
+
+    def _load_mission(self, identifier: str) -> None:
+        """Carga mundo y script inicial de una misión local compartida."""
+        mission = self._missions.get(identifier)
+        if mission is None:
+            messagebox.showerror("Misiones", "La misión solicitada no está disponible.")
+            return
+        self._apply_scenario(mission.world_file, mission.starter_script)
+        self._editor.set_status(f"Misión cargada: {mission.title}", "#2E7D32")
 
     def _refresh_world_canvas(self) -> None:
         world = self._service.world_visual_data()
@@ -1481,7 +1512,7 @@ class EV3SimulatorApp(tk.Tk):
             return None
 
     def _cmd_user_manual(self) -> None:
-        """Abre el manual de uso en una ventana con scroll."""
+        """Abre el manual y los mismos tutoriales orientados a tarea de la Web."""
         try:
             if self._manual_window is not None and self._manual_window.winfo_exists():
                 self._manual_window.lift()
@@ -1499,7 +1530,7 @@ class EV3SimulatorApp(tk.Tk):
 
         header = tk.Label(
             win,
-            text="Manual de uso - Simulador EV3 Pybricks",
+            text="Ayuda y manual de uso - Simulador EV3 Pybricks",
             bg="#ECEFF1",
             fg="#0D47A1",
             anchor="w",
@@ -1508,6 +1539,12 @@ class EV3SimulatorApp(tk.Tk):
             pady=8,
         )
         header.pack(side=tk.TOP, fill=tk.X)
+
+        navigation = tk.Frame(win, bg="#ECEFF1", padx=10, pady=8)
+        navigation.pack(side=tk.TOP, fill=tk.X)
+        tk.Button(navigation, text="Crear mundos", command=self._manual_open_worlds).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Button(navigation, text="Ir a simulación", command=self._manual_open_simulation).pack(side=tk.LEFT, padx=6)
+        tk.Button(navigation, text="Preparar depuración", command=self._manual_open_debug).pack(side=tk.LEFT, padx=6)
 
         txt = scrolledtext.ScrolledText(
             win,
@@ -1519,8 +1556,43 @@ class EV3SimulatorApp(tk.Tk):
             pady=8,
         )
         txt.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
-        txt.insert("1.0", self._read_manual_text())
+        txt.insert("1.0", self._tutorials_as_text() + "\n\n" + self._read_manual_text())
         txt.configure(state=tk.DISABLED)
+
+    def _tutorials_as_text(self) -> str:
+        """Presentación textual de los tutoriales compartidos para Tkinter."""
+
+        sections = ["TUTORIALES GUIADOS"]
+        for tutorial in HELP_TUTORIALS:
+            steps = "\n".join(f"  {index}. {step}" for index, step in enumerate(tutorial.steps, start=1))
+            sections.append(
+                f"{tutorial.title}\n{steps}\n"
+                f"Resultado esperado: {tutorial.expected_result}\n"
+                f"Si falla: {tutorial.recovery}"
+            )
+        return "\n\n".join(sections)
+
+    def _close_manual_window(self) -> None:
+        if self._manual_window is not None:
+            try:
+                self._manual_window.destroy()
+            except tk.TclError:
+                pass
+        self._manual_window = None
+
+    def _manual_open_worlds(self) -> None:
+        self._close_manual_window()
+        self._cmd_open_world_editor()
+
+    def _manual_open_simulation(self) -> None:
+        self._close_manual_window()
+        self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    def _manual_open_debug(self) -> None:
+        self._manual_open_simulation()
+        self._editor.focus_editor()
 
     def _read_manual_text(self) -> str:
         """Lee el manual desde la ruta compartida de documentacion."""
