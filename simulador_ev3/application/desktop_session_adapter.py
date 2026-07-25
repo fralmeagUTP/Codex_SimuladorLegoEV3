@@ -8,6 +8,7 @@ from pathlib import Path
 from simulador_ev3.application.session_contract import SessionEvent
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.application.simulation_session_port import SimulationSessionPort
+from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.runtime.isolated_worker import IsolatedRuntimeWorker, worker_isolation_enabled
 
@@ -116,6 +117,10 @@ class DesktopSessionAdapter(SimulationSessionPort):
     def reset(self) -> None:
         self._service.reset()
         self._mirror("reset")
+
+    def current_snapshot(self) -> SnapshotDTO | None:
+        """Estado local de referencia para sincronizar la UI tras un reinicio."""
+        return self._service.current_snapshot()
 
     def set_robot_start(self, x_mm: float, y_mm: float, theta_deg: float | None = None) -> None:
         self._service.set_robot_start(x_mm, y_mm, theta_deg)

@@ -1298,6 +1298,26 @@ class TestMainWindow:
         activate.assert_not_called()
         app._on_close()
 
+    def test_stop_and_reset_applies_initial_snapshot_to_all_tkinter_views(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        initial = _snap()
+
+        with (
+            mock.patch.object(app._service, "reset") as reset,
+            mock.patch.object(app._service, "current_snapshot", return_value=initial),
+            mock.patch.object(app, "_apply_snapshot") as apply_snapshot,
+        ):
+            app._cmd_stop_and_reset()
+
+        reset.assert_called_once()
+        apply_snapshot.assert_called_once_with(initial)
+        app._on_close()
+
     def test_guard_menu_locked_shows_message_when_blocked(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory

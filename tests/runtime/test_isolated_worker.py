@@ -105,7 +105,7 @@ def test_isolated_worker_emits_lifecycle_states() -> None:
             ("pause", "status", "paused"),
             ("resume", "status", "running"),
             ("stop", "status", "stopped"),
-            ("reset", "status", "created"),
+            ("reset", "status", "reset"),
         )
         for command, event_type, status in expected:
             worker.send(command)
@@ -360,6 +360,35 @@ def test_isolated_worker_accepts_robot_start_configuration() -> None:
 
         assert event["type"] == "robot_start_configured"
         assert event["payload"] == {"x_mm": 120.0, "y_mm": 340.0, "theta_deg": 90.0}
+    finally:
+        worker.close()
+
+
+def test_isolated_worker_reset_emits_initial_pose_snapshot() -> None:
+    worker = IsolatedRuntimeWorker("reset-pose-worker")
+    worker.start()
+    try:
+        worker.receive()
+        worker.send("initialize", {"execution_policy": {"max_runtime_s": 2, "max_memory_mb": 128, "max_cpu_s": 2}})
+        worker.receive()
+        worker.send("set_robot_start", {"x_mm": 120, "y_mm": 340, "theta_deg": 90})
+        worker.receive()
+
+        command_id = worker.send("reset")
+        events = [worker.receive() for _ in range(5)]
+        assert any(event["type"] == "snapshot" for event in events), [
+            (event["type"], event["payload"]) for event in events
+        ]
+        snapshot = next(event for event in events if event["type"] == "snapshot")
+        status = next(
+            event
+            for event in events
+            if event["type"] == "status" and event["command_id"] == command_id
+        )
+
+        assert snapshot["command_id"] == command_id
+        assert snapshot["payload"]["robot"] == {"x_mm": 120.0, "y_mm": 340.0, "theta_deg": 90.0}
+        assert status["payload"]["status"] == "reset"
     finally:
         worker.close()
 

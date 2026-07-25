@@ -842,7 +842,9 @@ class EV3SimulatorApp(tk.Tk):
 
     def _activate_placement_mode(self) -> None:
         """Habilita el clic en el canvas para fijar la posiciÃ³n inicial."""
-        self._canvas.set_editor_robot_visible(True)
+        # El robot visible procede siempre del snapshot de simulacion. El asset
+        # del editor se oculta para no crear una segunda imagen al ubicarlo.
+        self._canvas.set_editor_robot_visible(False)
         self._canvas.enable_placement_mode(
             callback=self._on_canvas_placement,
             hover_callback=self._on_canvas_hover,
@@ -1170,11 +1172,12 @@ class EV3SimulatorApp(tk.Tk):
         self._brick_panel.reset()
         self._telemetry_panel.reset()
         self._activate_placement_mode()
+        snapshot = self._service.current_snapshot()
+        if snapshot is not None:
+            self._apply_snapshot(snapshot)
 
     def _cmd_stop_and_reset(self) -> None:
         """Paridad web: detiene la ejecucion actual y reinicia la simulacion."""
-        if self._service.is_running:
-            self._service.stop(reason="manual_stop_and_reset")
         self._cmd_reset()
         self._editor.set_status("Ejecucion finalizada. Simulacion reiniciada.", "#2E7D32")
 

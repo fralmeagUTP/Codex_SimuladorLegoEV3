@@ -759,6 +759,10 @@ class SimulationEngine:
             colliding=self._colliding,
         )
 
+    def snapshot(self) -> StateSnapshot:
+        """Devuelve el estado actual sin avanzar el reloj de simulación."""
+        return self._build_snapshot()
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------

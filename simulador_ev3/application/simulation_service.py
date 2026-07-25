@@ -561,6 +561,12 @@ class SimulationService:
         snap = self._engine.update(1 / self._tick_rate_hz)
         return SnapshotDTO.from_snapshot(snap)
 
+    def current_snapshot(self) -> Optional[SnapshotDTO]:
+        """Obtiene el estado visual actual sin ejecutar un tick adicional."""
+        if not self._engine:
+            return None
+        return SnapshotDTO.from_snapshot(self._engine.snapshot())
+
     # ------------------------------------------------------------------
     # Métodos internos
     # ------------------------------------------------------------------

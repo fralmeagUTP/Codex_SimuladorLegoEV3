@@ -408,7 +408,12 @@ def _worker_main(commands, events, session_id: str) -> None:
                 emit("status", {"status": status}, command_id)
                 continue
             if command_type == "reset":
-                status = "created"
+                if service is not None:
+                    service.reset()
+                    initial_snapshot = service.current_snapshot()
+                    if initial_snapshot is not None:
+                        emit("snapshot", initial_snapshot.to_dict(), command_id)
+                status = "reset"
                 emit("status", {"status": status}, command_id)
                 continue
             if command_type == "set_robot_start":

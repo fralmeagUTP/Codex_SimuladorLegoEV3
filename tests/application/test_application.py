@@ -196,6 +196,18 @@ class TestSimulationServiceLifecycle:
         svc.reset()
         assert svc._source_code is None
 
+    def test_current_snapshot_after_reset_uses_configured_robot_start(self):
+        svc = SimulationService()
+        svc.set_robot_start(320.0, 480.0, 35.0)
+        svc.reset()
+
+        snapshot = svc.current_snapshot()
+
+        assert snapshot is not None
+        assert snapshot.robot == {"x_mm": 320.0, "y_mm": 480.0, "theta_deg": 35.0}
+        assert snapshot.tick == 0
+        assert snapshot.sim_time_s == 0.0
+
     def test_engine_accessible(self):
         svc = SimulationService()
         assert svc.engine is not None
