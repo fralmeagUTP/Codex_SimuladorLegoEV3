@@ -379,7 +379,11 @@ def test_isolated_worker_reset_emits_initial_pose_snapshot() -> None:
         assert any(event["type"] == "snapshot" for event in events), [
             (event["type"], event["payload"]) for event in events
         ]
-        snapshot = next(event for event in events if event["type"] == "snapshot")
+        snapshot = next(
+            event
+            for event in events
+            if event["type"] == "snapshot" and event["command_id"] == command_id
+        )
         status = next(
             event
             for event in events
