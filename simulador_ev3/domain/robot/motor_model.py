@@ -117,6 +117,7 @@ class MotorModel:
         Transición: cualquier estado → IDLE.
         """
         self._target_speed = 0.0
+        self._speed = 0.0
         self._power = 0.0
         self.state = MotorState.IDLE
 

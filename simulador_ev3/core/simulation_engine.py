@@ -324,6 +324,11 @@ class SimulationEngine:
             cmd.signal_done()
         self._pending_blocking.clear()
 
+    def stop_actuators(self) -> None:
+        """Detiene motores preservando sus ángulos para el snapshot terminal."""
+        for motor in self._motors.values():
+            motor.cmd_stop()
+
     # ------------------------------------------------------------------
     # Tick principal
     # ------------------------------------------------------------------

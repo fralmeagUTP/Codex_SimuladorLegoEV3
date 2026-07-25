@@ -57,8 +57,10 @@ class TestStateTransitions:
 
     def test_stop_transitions_to_idle(self, motor: MotorModel) -> None:
         motor.cmd_run(300.0)
+        motor.update(0.1)
         motor.cmd_stop()
         assert motor.state == MotorState.IDLE
+        assert motor.speed == 0.0
 
     def test_brake_transitions_to_brake(self, motor: MotorModel) -> None:
         motor.cmd_run(300.0)

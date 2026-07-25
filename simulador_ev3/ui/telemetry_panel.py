@@ -23,6 +23,7 @@ _COL_FG = LIGHT_TOKENS.danger
 _MONO = ("Segoe UI", 9)
 _LABEL = ("Segoe UI", 9)
 _BOLD = ("Segoe UI", 9, "bold")
+_SECTION = ("Segoe UI", 10, "bold")
 _EMPTY = "-"
 
 
@@ -152,13 +153,16 @@ class TelemetryPanel(tk.Frame):
     def _build(self) -> None:
         _header(self._content, "Telemetria")
         columns = tk.Frame(self._content, bg=_BG)
-        columns.pack(fill=tk.X)
+        columns.pack(fill=tk.BOTH, expand=True, padx=6, pady=(0, 6))
+        columns.grid_columnconfigure(0, weight=1, minsize=150)
+        columns.grid_columnconfigure(1, weight=2, minsize=300)
+        columns.grid_columnconfigure(2, weight=2, minsize=300)
         robot_column = tk.Frame(columns, bg=_BG)
         motors_column = tk.Frame(columns, bg=_BG)
         sensors_column = tk.Frame(columns, bg=_BG)
-        robot_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        motors_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        sensors_column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        robot_column.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        motors_column.grid(row=0, column=1, sticky="nsew", padx=3)
+        sensors_column.grid(row=0, column=2, sticky="nsew", padx=(6, 0))
 
         self._build_robot_section(robot_column)
         self._build_time_section(robot_column)
@@ -181,6 +185,8 @@ class TelemetryPanel(tk.Frame):
         _header(parent, "Motores")
         self._motors_container = tk.Frame(parent, bg=_BG)
         self._motors_container.pack(fill=tk.X)
+        self._motors_container.grid_columnconfigure(0, weight=1)
+        self._motors_container.grid_columnconfigure(1, weight=1)
         self._motors_empty = tk.Label(
             self._motors_container,
             text="Sin motores",
@@ -190,7 +196,7 @@ class TelemetryPanel(tk.Frame):
         )
         self._motors_empty.pack(anchor=tk.W, padx=10, pady=3)
         for port in _MOTOR_PORTS:
-            grp = tk.LabelFrame(self._motors_container, text=port, bg=_BG, font=_LABEL, pady=2)
+            grp = tk.LabelFrame(self._motors_container, text=f"Motor {port}", bg=_BG, font=_BOLD, pady=3, padx=4)
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
                 "speed": _row(grp, "Vel (°/s):", 0),
@@ -203,6 +209,8 @@ class TelemetryPanel(tk.Frame):
         _header(parent, "Sensores")
         self._sensors_container = tk.Frame(parent, bg=_BG)
         self._sensors_container.pack(fill=tk.X)
+        self._sensors_container.grid_columnconfigure(0, weight=1)
+        self._sensors_container.grid_columnconfigure(1, weight=1)
         self._sensors_empty = tk.Label(
             self._sensors_container,
             text="Sin sensores",
@@ -212,7 +220,7 @@ class TelemetryPanel(tk.Frame):
         )
         self._sensors_empty.pack(anchor=tk.W, padx=10, pady=3)
         for port in _SENSOR_PORTS:
-            grp = tk.LabelFrame(self._sensors_container, text=port, bg=_BG, font=_LABEL, pady=2)
+            grp = tk.LabelFrame(self._sensors_container, text=f"Sensor {port}", bg=_BG, font=_BOLD, pady=3, padx=4)
             self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
                 "type": _row(grp, "Tipo:", 0),
@@ -303,11 +311,11 @@ class TelemetryPanel(tk.Frame):
         )
 
     def _set_visible_motor_ports(self, ports: set[str]) -> None:
-        for port, frame in self._motor_frames.items():
+        for index, (port, frame) in enumerate(self._motor_frames.items()):
             if port in ports:
-                frame.pack(fill=tk.X, padx=4, pady=2)
+                frame.grid(row=index // 2, column=index % 2, sticky="nsew", padx=3, pady=3)
             else:
-                forget = getattr(frame, "pack_forget", None)
+                forget = getattr(frame, "grid_forget", None)
                 if callable(forget):
                     forget()
         if ports:
@@ -351,11 +359,11 @@ class TelemetryPanel(tk.Frame):
         )
 
     def _set_visible_sensor_ports(self, ports: set[str]) -> None:
-        for port, frame in self._sensor_frames.items():
+        for index, (port, frame) in enumerate(self._sensor_frames.items()):
             if port in ports:
-                frame.pack(fill=tk.X, padx=4, pady=2)
+                frame.grid(row=index // 2, column=index % 2, sticky="nsew", padx=3, pady=3)
             else:
-                forget = getattr(frame, "pack_forget", None)
+                forget = getattr(frame, "grid_forget", None)
                 if callable(forget):
                     forget()
         if ports:

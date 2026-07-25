@@ -264,6 +264,9 @@ class RuntimeController:
             self._sandbox.join(timeout=timeout)
 
         # Notificar al engine (señala eventos bloqueantes pendientes)
+        self._engine.stop_actuators()
+        if self._snapshot_cb:
+            self._snapshot_cb(self._engine.snapshot())
         self._engine.notify_stopped(reason)
 
         # Esperar al engine thread

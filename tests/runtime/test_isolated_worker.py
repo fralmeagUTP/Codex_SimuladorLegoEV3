@@ -375,7 +375,7 @@ def test_isolated_worker_reset_emits_initial_pose_snapshot() -> None:
         worker.receive()
 
         command_id = worker.send("reset")
-        events = [worker.receive() for _ in range(5)]
+        events = [worker.receive() for _ in range(6)]
         assert any(event["type"] == "snapshot" for event in events), [
             (event["type"], event["payload"]) for event in events
         ]
