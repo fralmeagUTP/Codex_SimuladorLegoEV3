@@ -381,6 +381,10 @@ class WorldCanvas(tk.Canvas):
         self.unbind("<ButtonRelease-1>")
         self.unbind("<MouseWheel>")
         self.delete("placement_ghost")
+        # El marcador naranja representa una pose inicial editable, no un
+        # segundo robot. Al salir de este modo debe desaparecer para que el
+        # robot dibujado desde el SnapshotDTO sea la única referencia visual.
+        self.delete("placement_marker")
 
     def draw_placement_marker(
         self,

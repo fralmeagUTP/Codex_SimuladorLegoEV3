@@ -871,6 +871,25 @@ class EV3SimulatorApp(tk.Tk):
             fg=tokens.success,
         )
 
+    def _preserve_final_robot_visual(self, status: str) -> None:
+        """Conserva solo el robot del último snapshot al cerrar una ejecución.
+
+        El sprite del editor y el marcador naranja pertenecen al modo de
+        colocación. Reactivarlos al finalizar una misión superponía una segunda
+        representación sobre el robot que ya estaba en la pose final calculada.
+        """
+        self._canvas.set_editor_robot_visible(False)
+        self._canvas.disable_placement_mode()
+        self._hover_robot_pos = None
+        tokens = tokens_for_theme(self._theme_name)
+        message = {
+            "finished": "Misión finalizada. El robot permanece en su posición final.",
+            "timed_out": "Tiempo agotado. El robot permanece en su última posición.",
+            "stopped": "Simulación detenida. El robot permanece en su última posición.",
+            "error": "Ejecución con error. El robot permanece en su última posición.",
+        }.get(status, "Ejecución finalizada.")
+        self._placement_bar.config(text=message, bg=tokens.surface_muted, fg=tokens.text_muted)
+
     def _on_canvas_hover(self, x_mm: float, y_mm: float) -> None:
         """Actualiza la ayuda con coordenadas en tiempo real."""
         self._hover_robot_pos = (x_mm, y_mm)
@@ -1062,7 +1081,10 @@ class EV3SimulatorApp(tk.Tk):
         # Re-habilitar modo de colocaciÃ³n al terminar la simulaciÃ³n
         if status in ("stopped", "finished", "timed_out", "error", "reset"):
             self._debug_active = False
-            self.after_idle(self._activate_placement_mode)
+            if status == "reset":
+                self.after_idle(self._activate_placement_mode)
+            else:
+                self.after_idle(self._preserve_final_robot_visual, status)
             self.after_idle(self._editor.clear_debug_line)
 
     def _sync_sim_control_states(self, status: str) -> None:

@@ -484,6 +484,15 @@ class TestWorldCanvas:
         assert wc._placement_theta_deg == pytest.approx(15.0)
         assert received[-1] == pytest.approx((400.0, 400.0, 15.0))
 
+    def test_disabling_placement_removes_initial_marker(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        wc.delete = mock.Mock()
+
+        wc.disable_placement_mode()
+
+        wc.delete.assert_any_call("placement_ghost")
+        wc.delete.assert_any_call("placement_marker")
+
 
 # ===========================================================================
 # EditorPanel
@@ -1269,6 +1278,24 @@ class TestMainWindow:
 
         app._on_status("reset")
         assert app._execution_menu_locked is False
+        app._on_close()
+
+    def test_finished_status_preserves_final_robot_instead_of_reactivating_placement(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        with (
+            mock.patch.object(app, "_activate_placement_mode") as activate,
+            mock.patch.object(app, "_preserve_final_robot_visual") as preserve,
+        ):
+            app._on_status("finished")
+
+        preserve.assert_called_once_with("finished")
+        activate.assert_not_called()
         app._on_close()
 
     def test_guard_menu_locked_shows_message_when_blocked(self):
