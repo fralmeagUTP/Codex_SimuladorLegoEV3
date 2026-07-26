@@ -70,12 +70,15 @@ class BrickPanel(tk.Frame):
         self._update_led(brick.get("led"))
         self._update_screen(brick.get("screen"))
         self._update_speaker(brick.get("speaker"))
+        self._update_robot_state(dto)
 
     def reset(self) -> None:
         """Devuelve el panel a su estado inicial (brick apagado)."""
         self._update_led(None)
         self._update_screen(None)
         self._update_speaker(None)
+        for variable in self._robot_vars.values():
+            variable.set("-")
 
     # ------------------------------------------------------------------
     # Construccion
@@ -97,6 +100,7 @@ class BrickPanel(tk.Frame):
         self._build_speaker(status_row)
         tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
         self._build_screen()
+        self._build_robot_state()
 
     def _build_led(self, row: tk.Widget) -> None:
         tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(side=tk.LEFT)
@@ -154,6 +158,34 @@ class BrickPanel(tk.Frame):
         )
         self._speaker_label.pack(side=tk.LEFT, padx=6)
 
+    def _build_robot_state(self) -> None:
+        """Muestra el estado del robot junto al brick, debajo de la LCD."""
+        section = tk.Frame(self, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
+        section.pack(fill=tk.X, padx=10, pady=(10, 8))
+        tk.Label(
+            section,
+            text="ROBOT / ESTADO",
+            bg=_BRICK_BG,
+            fg=_LABEL_FG,
+            font=("Segoe UI", 9, "bold"),
+            anchor="center",
+        ).grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(4, 2))
+        self._robot_vars = {key: tk.StringVar(value="-") for key in ("x", "y", "theta", "collision", "tick", "time")}
+        labels = (("X:", "x", "cm"), ("Y:", "y", "cm"), ("Theta:", "theta", "°"),
+                  ("Colisión:", "collision", ""), ("Tick:", "tick", ""), ("Tiempo:", "time", ""))
+        for row, (label, key, unit) in enumerate(labels, start=1):
+            tk.Label(section, text=label, bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9), anchor=tk.W).grid(
+                row=row, column=0, sticky=tk.W, padx=(10, 4), pady=1
+            )
+            value = tk.Label(section, textvariable=self._robot_vars[key], bg=_BRICK_BG, fg=_LABEL_FG,
+                             font=("Segoe UI", 9, "bold"), anchor="e")
+            value.grid(row=row, column=1, sticky="e", padx=(4, 2), pady=1)
+            if unit:
+                tk.Label(section, text=unit, bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9), anchor=tk.W).grid(
+                    row=row, column=2, sticky=tk.W, padx=(0, 10), pady=1
+                )
+        section.grid_columnconfigure(1, weight=1)
+
     # ------------------------------------------------------------------
     # Actualizaciones
     # ------------------------------------------------------------------
@@ -189,6 +221,15 @@ class BrickPanel(tk.Frame):
         else:
             label = "-"
         self._speaker_label.configure(text=label)
+
+    def _update_robot_state(self, dto: SnapshotDTO) -> None:
+        robot = dto.robot
+        self._robot_vars["x"].set(f"{float(robot.get('x_mm', 0)) / 10.0:.1f}")
+        self._robot_vars["y"].set(f"{float(robot.get('y_mm', 0)) / 10.0:.1f}")
+        self._robot_vars["theta"].set(f"{float(robot.get('theta_deg', 0)):.1f}")
+        self._robot_vars["collision"].set("COLISIÓN" if dto.colliding else "OK")
+        self._robot_vars["tick"].set(str(dto.tick))
+        self._robot_vars["time"].set(f"{dto.sim_time_s:.3f} s")
 
     # ------------------------------------------------------------------
     # Render LCD

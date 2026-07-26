@@ -94,7 +94,6 @@ class TelemetryPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def update_from_dto(self, dto: SnapshotDTO) -> None:
-        self._update_robot(dto)
         self._update_motors(dto.motors)
         self._update_sensors(dto.sensors)
         self._update_time(dto)
@@ -126,13 +125,8 @@ class TelemetryPanel(tk.Frame):
                 value_var.set(_EMPTY)
             sensor_vars["type"].set("Sin conectar")
 
-        self._var_x.set(_EMPTY)
-        self._var_y.set(_EMPTY)
-        self._var_theta.set(_EMPTY)
         self._var_tick.set(_EMPTY)
         self._var_time.set(_EMPTY)
-        self._var_col.set("OK")
-        self._lbl_col.configure(fg=_VAL_FG)
         self._set_visible_motor_ports(set())
         self._set_visible_sensor_ports(set())
 
@@ -171,8 +165,6 @@ class TelemetryPanel(tk.Frame):
                 visit(child)
 
         visit(self._content)
-        collision_color = tokens.danger if self._var_col.get() == "COLISION" else tokens.text
-        self._lbl_col.configure(fg=collision_color)
 
     # ------------------------------------------------------------------
     # Build
@@ -184,6 +176,8 @@ class TelemetryPanel(tk.Frame):
         self._summary_time = tk.StringVar(value="--")
         self._summary_tick = tk.StringVar(value="----")
         self._summary_collision = tk.StringVar(value="OK")
+        self._var_tick = self._summary_tick
+        self._var_time = self._summary_time
         self._summary_status_cell: tk.Label | None = None
         self._summary_collision_cell: tk.Label | None = None
         summary = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
@@ -207,23 +201,19 @@ class TelemetryPanel(tk.Frame):
         columns = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
         setattr(columns, "_telemetry_role", "card")  # noqa: B010
         columns.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
-        columns.grid_columnconfigure(0, weight=18)
-        columns.grid_columnconfigure(1, weight=28)
-        columns.grid_columnconfigure(2, weight=28)
-        columns.grid_columnconfigure(3, weight=26)
-        robot_column = tk.Frame(columns, bg=_BG)
+        columns.grid_columnconfigure(0, weight=34)
+        columns.grid_columnconfigure(1, weight=34)
+        columns.grid_columnconfigure(2, weight=32)
         motors_ab_column = tk.Frame(columns, bg=_BG)
         motors_cd_column = tk.Frame(columns, bg=_BG)
         sensors_column = tk.Frame(columns, bg=_BG)
-        for column, frame in enumerate((robot_column, motors_ab_column, motors_cd_column, sensors_column)):
+        for column, frame in enumerate((motors_ab_column, motors_cd_column, sensors_column)):
             frame.grid(row=0, column=column, sticky="nsew")
             frame.configure(relief=tk.SOLID, bd=1)
             setattr(frame, "_telemetry_role", "card")  # noqa: B010
 
-        self._build_robot_section(robot_column)
-        self._build_time_section(robot_column)
-        self._build_motors_section(motors_ab_column, ("A", "B"), "Motores A-B (28%)")
-        self._build_motors_section(motors_cd_column, ("C", "D"), "Motores C-D (28%)")
+        self._build_motors_section(motors_ab_column, ("A", "B"), "Motores A-B")
+        self._build_motors_section(motors_cd_column, ("C", "D"), "Motores C-D")
         self._build_sensors_section(sensors_column)
 
     def _build_robot_section(self, parent: tk.Widget) -> None:

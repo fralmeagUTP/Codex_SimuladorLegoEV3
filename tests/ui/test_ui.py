@@ -713,6 +713,13 @@ class TestBrickPanel:
         bp = self.BrickPanel(mock.MagicMock())
         bp._update_speaker({"freq": 440, "duration_ms": 100, "volume": 50})
 
+    def test_robot_state_is_reflected_below_lcd(self):
+        bp = self.BrickPanel(mock.MagicMock())
+        dto = _snap()
+        bp.update_from_dto(dto)
+        assert bp._robot_vars["x"].get() == f"{dto.robot['x_mm'] / 10.0:.1f}"
+        assert bp._robot_vars["tick"].get() == str(dto.tick)
+
 
 # ===========================================================================
 # TelemetryPanel
@@ -746,13 +753,6 @@ class TestTelemetryPanel:
         tp.set_theme("light")
 
         assert tp._theme == "light"
-
-    def test_robot_position_reflected_in_vars(self):
-        tp = self.TelemetryPanel(mock.MagicMock())
-        dto = _snap()
-        tp.update_from_dto(dto)
-        assert tp._var_x.get() == f"{dto.robot['x_mm'] / 10.0:.1f}"
-        assert tp._var_y.get() == f"{dto.robot['y_mm'] / 10.0:.1f}"
 
     def test_tick_var_updated(self):
         tp = self.TelemetryPanel(mock.MagicMock())
