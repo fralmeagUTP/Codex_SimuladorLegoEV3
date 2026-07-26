@@ -126,7 +126,7 @@ def test_simulation_page_runs_default_script(page, live_web_app, expect):
     expect(page.locator("#sessionStatus")).to_have_text(re.compile("running|finished"), timeout=5000)
     expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
     expect(page.locator("#runBtn")).to_be_enabled()
-    expect(page.locator("#telemetry")).to_contain_text("Tick", timeout=5000)
+    expect(page.locator("#telemetryTick")).not_to_have_text("--", timeout=5000)
 
 
 def test_simulation_controls_follow_execution_state(page, live_web_app, expect):

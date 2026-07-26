@@ -730,8 +730,8 @@ dd {
 
 .sim-telemetry-pane {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(150px, 18fr) minmax(220px, 28fr) minmax(220px, 28fr) minmax(190px, 26fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: auto;
   padding: 0;
   background: #fff;
@@ -741,10 +741,39 @@ dd {
   grid-column: 1 / -1;
 }
 
+.telemetry-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, auto minmax(64px, 1fr));
+  align-items: stretch;
+  border-bottom: 1px solid #d8e1ec;
+  background: #f7f9fc;
+}
+
+.telemetry-summary span,
+.telemetry-summary strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 3px 7px;
+  border-right: 1px solid #d8e1ec;
+  color: #50627b;
+  font-size: 11px;
+}
+
+.telemetry-summary strong {
+  color: #123a69;
+  font-size: 12px;
+}
+
+.telemetry-summary strong:last-child { border-right: 0; }
+.telemetry-summary .is-alert { color: #b42318; }
+
 .telemetry-section {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 9px 10px;
   margin: 0;
   border-right: 1px solid #e4eaf2;
@@ -768,13 +797,15 @@ dd {
 }
 
 .sim-telemetry-pane dd,
-.sim-telemetry-pane #motors,
+.sim-telemetry-pane #motorsAB,
+.sim-telemetry-pane #motorsCD,
 .sim-telemetry-pane #sensors {
   color: #1f2f46;
   font-family: Segoe UI, Arial, sans-serif;
 }
 
-.sim-telemetry-pane #motors,
+.sim-telemetry-pane #motorsAB,
+.sim-telemetry-pane #motorsCD,
 .sim-telemetry-pane #sensors {
   display: grid;
   gap: 7px;
@@ -840,6 +871,10 @@ dd {
 
 .motor-card {
   padding: 6px 8px;
+}
+
+.is-disconnected {
+  opacity: 0.78;
 }
 
 .motor-metrics {
@@ -1912,6 +1947,7 @@ html[data-theme="dark"] .sim-control-bar .robot-location-controls {
 
 html[data-theme="dark"] .telemetry-section,
 html[data-theme="dark"] .telemetry-card,
+html[data-theme="dark"] .telemetry-summary,
 html[data-theme="dark"] .world-status-bar,
 html[data-theme="dark"] .world-editor-toolbar,
 html[data-theme="dark"] .world-size-bar,
@@ -1928,7 +1964,8 @@ html[data-theme="dark"] .telemetry-state {
 }
 
 html[data-theme="dark"] .sim-telemetry-pane dd,
-html[data-theme="dark"] .sim-telemetry-pane #motors,
+html[data-theme="dark"] .sim-telemetry-pane #motorsAB,
+html[data-theme="dark"] .sim-telemetry-pane #motorsCD,
 html[data-theme="dark"] .sim-telemetry-pane #sensors,
 html[data-theme="dark"] .telemetry-mini-list dd,
 html[data-theme="dark"] .motor-metrics,

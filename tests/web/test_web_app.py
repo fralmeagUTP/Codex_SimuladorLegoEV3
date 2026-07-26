@@ -718,7 +718,7 @@ def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
     assert "width: min(240px, calc(100% - 24px));" in css
     assert "aspect-ratio: 178 / 128;" in css
     assert "grid-template-columns: minmax(430px, 1.18fr) minmax(300px, 0.82fr);" in css
-    assert "grid-template-columns: repeat(3, minmax(120px, 1fr));" in css
+    assert "grid-template-columns: minmax(150px, 18fr)" in css
 
 
 def test_simulation_toolbar_groups_are_compact_with_separator(tmp_path):
@@ -818,17 +818,21 @@ def test_map_zoom_buttons_are_present_and_wired(tmp_path):
     assert "function fitToView(canvas, world)" in canvas_js
 
 
-def test_telemetry_panel_uses_three_readable_columns(tmp_path):
+def test_telemetry_panel_uses_four_fixed_port_columns(tmp_path):
     client = make_client(tmp_path)
 
     html = client.get("/").get_data(as_text=True)
     css = client.get("/static/css/app.css").get_data(as_text=True)
     js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
 
-    assert "<h3>Robot</h3>" in html
-    assert "<h3>Motores</h3>" in html
-    assert "<h3>Sensores</h3>" in html
-    assert "grid-template-columns: repeat(3, minmax(120px, 1fr));" in css
+    assert "TELEMETRÍA DEL ROBOT" in html
+    assert "Robot / Estado (18%)" in html
+    assert "Motores A-B (28%)" in html
+    assert "Motores C-D (28%)" in html
+    assert "Sensores S1-S4 (26%)" in html
+    assert 'id="motorsAB"' in html
+    assert 'id="motorsCD"' in html
+    assert "grid-template-columns: minmax(150px, 18fr)" in css
     assert ".telemetry-section:last-child" in css
     assert "renderMotorTelemetry" in js
     assert "renderSensorTelemetry" in js

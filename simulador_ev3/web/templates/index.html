@@ -129,18 +129,28 @@
         <section class="sim-bottom-panels">
           <aside class="sim-panel sim-telemetry-pane">
             <div class="sim-panel-header">
-              <h2>Telemetria</h2>
+              <h2>TELEMETRÍA DEL ROBOT</h2>
             </div>
-            <section class="telemetry-section">
-              <h3>Robot</h3>
+            <div class="telemetry-summary" aria-label="Resumen de la telemetría">
+              <span>Estado</span><strong id="telemetryStatus">LISTO</strong>
+              <span>Tiempo</span><strong id="telemetryTime">--</strong>
+              <span>Tick</span><strong id="telemetryTick">--</strong>
+              <span>Colisión</span><strong id="telemetryCollision">--</strong>
+            </div>
+            <section class="telemetry-section telemetry-robot-section">
+              <h3>Robot / Estado (18%)</h3>
               <dl id="telemetry"></dl>
             </section>
-            <section class="telemetry-section motors-section">
-              <h3>Motores</h3>
-              <div id="motors"></div>
+            <section class="telemetry-section motors-section motors-ab-section">
+              <h3>Motores A-B (28%)</h3>
+              <div id="motorsAB"></div>
             </section>
-            <section class="telemetry-section">
-              <h3>Sensores</h3>
+            <section class="telemetry-section motors-section motors-cd-section">
+              <h3>Motores C-D (28%)</h3>
+              <div id="motorsCD"></div>
+            </section>
+            <section class="telemetry-section sensors-section">
+              <h3>Sensores S1-S4 (26%)</h3>
               <div id="sensors"></div>
             </section>
           </aside>
