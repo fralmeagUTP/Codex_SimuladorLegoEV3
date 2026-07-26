@@ -39,7 +39,9 @@ _LCD_SCANLINE = "#D7DFCA"
 _LCD_LED_ON = "#F8F8EF"
 _LCD_LED_OFF = "#A4AA95"
 _LCD_CANVAS_W = 300
-_LCD_CANVAS_H = 320
+# Debe dejar espacio visible para la tabla Robot/Estado bajo la LCD en la
+# franja inferior de la ventana, incluso sin redimensionar el panel.
+_LCD_CANVAS_H = 190
 
 
 class BrickPanel(tk.Frame):
@@ -128,7 +130,7 @@ class BrickPanel(tk.Frame):
             bg=_BRICK_BG,
             fg=_LABEL_FG,
             font=("Segoe UI", 11), anchor="center",
-        ).pack(fill=tk.X, padx=16, pady=(18, 6))
+        ).pack(fill=tk.X, padx=16, pady=(10, 4))
 
         self._screen_canvas = tk.Canvas(
             self,
@@ -158,7 +160,7 @@ class BrickPanel(tk.Frame):
     def _build_robot_state(self) -> None:
         """Muestra el estado del robot junto al brick, debajo de la LCD."""
         section = tk.Frame(self, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
-        section.pack(fill=tk.X, padx=16, pady=(16, 12))
+        section.pack(fill=tk.X, padx=16, pady=(8, 8))
         tk.Label(
             section,
             text="ROBOT / ESTADO",
