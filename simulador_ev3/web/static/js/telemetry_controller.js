@@ -39,7 +39,6 @@ window.EV3TelemetryController = {
           <dt>X</dt><dd>${formatDistance(robot.x_mm, 1)} cm</dd>
           <dt>Y</dt><dd>${formatDistance(robot.y_mm, 1)} cm</dd>
           <dt>Theta</dt><dd>${formatNumber(robot.theta_deg)} °</dd>
-          <dt>Colisión</dt><dd>${snapshot.colliding ? "Sí" : "No"}</dd>
         `;
         const motorsByPort = new Map((snapshot.motors || []).map((motor) => [motor.port, motor]));
         const sensorsByPort = new Map((snapshot.sensors || []).map((sensor) => [sensor.port, sensor]));

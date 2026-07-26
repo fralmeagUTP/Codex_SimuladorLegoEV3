@@ -730,7 +730,7 @@ dd {
 
 .sim-telemetry-pane {
   display: grid;
-  grid-template-columns: minmax(150px, 18fr) minmax(220px, 28fr) minmax(220px, 28fr) minmax(190px, 26fr);
+  grid-template-columns: minmax(220px, 34fr) minmax(220px, 34fr) minmax(190px, 32fr);
   grid-template-rows: auto auto minmax(0, 1fr);
   overflow: auto;
   padding: 0;
@@ -1442,6 +1442,34 @@ dd {
     );
   color: #111827;
 }
+
+.brick-robot-state {
+  margin: 14px 12px;
+  border: 1px solid #d8e1ec;
+}
+
+.brick-robot-state h3 {
+  margin: 0;
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid #d8e1ec;
+}
+
+.brick-robot-state dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+}
+
+.brick-robot-state dt,
+.brick-robot-state dd {
+  margin: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e3e9f1;
+}
+
+.brick-robot-state dt { text-align: center; }
+.brick-robot-state dd { text-align: center; font-weight: 700; }
 
 @media (min-height: 940px) {
   .sim-brick-pane .brick-screen {
