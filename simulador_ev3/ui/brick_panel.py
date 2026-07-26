@@ -118,7 +118,7 @@ class BrickPanel(tk.Frame):
             fill=_LED_COLORS[None],
             outline="#778",
         )
-        self._led_label = tk.Label(row, text="Apagado", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9))
+        self._led_label = tk.Label(cell, text="Apagado", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9))
         self._led_label.pack(side=tk.LEFT)
 
     def _build_screen(self) -> None:
@@ -147,7 +147,7 @@ class BrickPanel(tk.Frame):
             side=tk.LEFT, padx=(18, 8), pady=12
         )
         self._speaker_label = tk.Label(
-            row,
+            cell,
             text="Inactivo",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
