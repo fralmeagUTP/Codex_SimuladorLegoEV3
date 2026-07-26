@@ -498,4 +498,29 @@ def _sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = Fa
     )
     setattr(value_widget, "_telemetry_role", "value")  # noqa: B010
     value_widget.grid(row=row, column=1, sticky=tk.W, padx=(0, 8), pady=2)
+    _attach_value_tooltip(value_widget, var)
     return var
+
+
+def _attach_value_tooltip(widget: tk.Label, value: tk.StringVar) -> None:
+    """Muestra el valor completo de un sensor cuando la celda se queda corta."""
+    tip: tk.Toplevel | None = None
+
+    def show(_event) -> None:
+        nonlocal tip
+        text = value.get()
+        if not text or text == _EMPTY:
+            return
+        tip = tk.Toplevel(widget)
+        tip.wm_overrideredirect(True)
+        tip.geometry(f"+{widget.winfo_rootx() + 10}+{widget.winfo_rooty() + widget.winfo_height() + 6}")
+        tk.Label(tip, text=text, justify=tk.LEFT, padx=8, pady=5, relief=tk.SOLID, bd=1).pack()
+
+    def hide(_event) -> None:
+        nonlocal tip
+        if tip is not None:
+            tip.destroy()
+            tip = None
+
+    widget.bind("<Enter>", show)
+    widget.bind("<Leave>", hide)
