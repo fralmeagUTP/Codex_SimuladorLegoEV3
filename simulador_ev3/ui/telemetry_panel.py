@@ -57,9 +57,8 @@ class TelemetryPanel(tk.Frame):
 
         self._motor_vars: dict[str, dict[str, tk.StringVar]] = {}
         self._sensor_vars: dict[str, dict[str, tk.StringVar]] = {}
-        self._motor_frames: dict[str, tk.LabelFrame] = {}
-        self._motor_containers: dict[str, tk.Frame] = {}
-        self._sensor_frames: dict[str, tk.LabelFrame] = {}
+        self._motor_frames: dict[str, tk.Frame] = {}
+        self._sensor_frames: dict[str, tk.Frame] = {}
         self._theme = "light"
 
         self._scroll_canvas = tk.Canvas(self, bg=_BG, highlightthickness=0)
@@ -180,7 +179,7 @@ class TelemetryPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        _header(self._content, "TELEMETRÍA DEL ROBOT", primary=True)
+        _table_title(self._content, "TELEMETRÍA DEL ROBOT")
         self._summary_status = tk.StringVar(value="LISTO")
         self._summary_time = tk.StringVar(value="--")
         self._summary_tick = tk.StringVar(value="----")
@@ -188,11 +187,10 @@ class TelemetryPanel(tk.Frame):
         self._summary_status_cell: tk.Label | None = None
         self._summary_collision_cell: tk.Label | None = None
         summary = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
-        summary.pack(fill=tk.X, padx=8, pady=(5, 3))
-        summary.grid_columnconfigure(1, weight=1)
-        summary.grid_columnconfigure(3, weight=1)
-        summary.grid_columnconfigure(5, weight=1)
-        summary.grid_columnconfigure(7, weight=1)
+        setattr(summary, "_telemetry_role", "card")  # noqa: B010
+        summary.pack(fill=tk.X, padx=8, pady=(0, 4))
+        for summary_column in range(8):
+            summary.grid_columnconfigure(summary_column, weight=1)
         summary_pairs = (
             ("Estado:", self._summary_status),
             ("Tiempo:", self._summary_time),
@@ -200,19 +198,15 @@ class TelemetryPanel(tk.Frame):
             ("Colisión:", self._summary_collision),
         )
         for column, (label, value) in enumerate(summary_pairs):
-            tk.Label(summary, text=label, font=_LABEL, anchor="center").grid(
-                row=0, column=column * 2, sticky="nsew", padx=8, pady=5
-            )
-            cell = tk.Label(summary, textvariable=value, font=_BOLD, anchor="center")
-            cell.grid(
-                row=0, column=column * 2 + 1, sticky="nsew", padx=8, pady=5
-            )
+            _table_cell(summary, label, 0, column * 2, value=False)
+            cell = _table_cell(summary, value, 0, column * 2 + 1, value=True)
             if column == 0:
                 self._summary_status_cell = cell
             elif column == 3:
                 self._summary_collision_cell = cell
-        columns = tk.Frame(self._content, bg=_BG)
-        columns.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
+        columns = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
+        setattr(columns, "_telemetry_role", "card")  # noqa: B010
+        columns.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
         columns.grid_columnconfigure(0, weight=18)
         columns.grid_columnconfigure(1, weight=28)
         columns.grid_columnconfigure(2, weight=28)
@@ -221,10 +215,10 @@ class TelemetryPanel(tk.Frame):
         motors_ab_column = tk.Frame(columns, bg=_BG)
         motors_cd_column = tk.Frame(columns, bg=_BG)
         sensors_column = tk.Frame(columns, bg=_BG)
-        robot_column.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
-        motors_ab_column.grid(row=0, column=1, sticky="nsew", padx=4)
-        motors_cd_column.grid(row=0, column=2, sticky="nsew", padx=4)
-        sensors_column.grid(row=0, column=3, sticky="nsew", padx=(4, 0))
+        for column, frame in enumerate((robot_column, motors_ab_column, motors_cd_column, sensors_column)):
+            frame.grid(row=0, column=column, sticky="nsew")
+            frame.configure(relief=tk.SOLID, bd=1)
+            setattr(frame, "_telemetry_role", "card")  # noqa: B010
 
         self._build_robot_section(robot_column)
         self._build_time_section(robot_column)
@@ -233,60 +227,50 @@ class TelemetryPanel(tk.Frame):
         self._build_sensors_section(sensors_column)
 
     def _build_robot_section(self, parent: tk.Widget) -> None:
-        grid = _card(parent, "Robot")
-        grid.pack(fill=tk.X, padx=4, pady=4)
+        _table_section_header(parent, "ROBOT / ESTADO (18%)")
+        grid = tk.Frame(parent, bg=_BG)
+        grid.pack(fill=tk.BOTH, expand=True)
         grid.grid_columnconfigure(0, weight=1)
         grid.grid_columnconfigure(1, weight=1)
-        self._var_x = _row(grid, "X (cm):", 0)
-        self._var_y = _row(grid, "Y (cm):", 1)
-        self._var_theta = _row(grid, "Theta (°):", 2)
+        self._var_x = _table_data_row(grid, "X:", 0, suffix=" cm")
+        self._var_y = _table_data_row(grid, "Y:", 1, suffix=" cm")
+        self._var_theta = _table_data_row(grid, "Theta:", 2, suffix=" °")
         self._var_col = tk.StringVar(value="OK")
-        tk.Label(grid, text="Colision:", bg=_BG, font=_LABEL).grid(row=3, column=0, sticky=tk.W)
-        self._lbl_col = tk.Label(grid, textvariable=self._var_col, bg=_BG, font=_MONO, fg=_VAL_FG)
-        self._lbl_col.grid(row=3, column=1, sticky=tk.W)
+        _table_cell(grid, "Colisión:", 3, 0, value=False)
+        self._lbl_col = _table_cell(grid, self._var_col, 3, 1, value=True)
 
     def _build_motors_section(self, parent: tk.Widget, ports: tuple[str, str], title: str) -> None:
-        _header(parent, title)
+        _table_section_header(parent, title.upper())
         container = tk.Frame(parent, bg=_BG)
-        container.pack(fill=tk.X)
+        container.pack(fill=tk.BOTH, expand=True)
         for port in ports:
-            grp = _card(container, f"Motor {port}")
-            self._motor_containers[port] = container
+            grp = _table_motor_block(container, f"MOTOR {port}")
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
-                "speed": _row(grp, "Vel (°/s):", 0),
-                "angle": _row(grp, "Ángulo (0–360°):", 1),
+                "speed": _table_data_row(grp, "Velocidad:", 1, suffix=" °/s"),
+                "angle": _table_data_row(grp, "Ángulo (0–360):", 2, suffix=" °"),
                 "angle_norm": tk.StringVar(value=_EMPTY),
-                "state": _row(grp, "Estado:", 2),
+                "state": _table_data_row(grp, "Estado:", 3),
             }
 
     def _build_sensors_section(self, parent: tk.Widget) -> None:
-        _header(parent, "Sensores")
+        _table_section_header(parent, "SENSORES S1–S4 (26%)")
         self._sensors_container = tk.Frame(parent, bg=_BG)
-        self._sensors_container.pack(fill=tk.X)
-        self._sensors_empty = tk.Label(
-            self._sensors_container,
-            text="Sin sensores",
-            bg=_BG,
-            fg=LIGHT_TOKENS.text_muted,
-            font=_LABEL,
-        )
-        self._sensors_empty.pack(anchor=tk.W, padx=10, pady=3)
+        self._sensors_container.pack(fill=tk.BOTH, expand=True)
+        self._sensors_empty = tk.Label(self._sensors_container, text="", bg=_BG)
         for port in _SENSOR_PORTS:
-            grp = _card(self._sensors_container, f"Sensor {port}")
+            grp = _table_sensor_block(self._sensors_container, f"SENSOR {port}")
             grp.grid_columnconfigure(0, weight=1)
             grp.grid_columnconfigure(1, weight=2)
             self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
-                "type": _sensor_row(grp, "Tipo:", 0),
-                "value": _sensor_row(grp, "Valor:", 1, emphasize=True),
+                "type": _table_sensor_row(grp, "Tipo:", 1),
+                "value": _table_sensor_row(grp, "Valor:", 2, emphasize=True),
             }
 
     def _build_time_section(self, parent: tk.Widget) -> None:
-        grid = _card(parent, "Estado")
-        grid.pack(fill=tk.X, padx=4, pady=(0, 4))
-        self._var_tick = _row(grid, "Tick:", 0)
-        self._var_time = _row(grid, "Tiempo:", 1)
+        self._var_tick = self._summary_tick
+        self._var_time = self._summary_time
 
     # ------------------------------------------------------------------
     # Scroll helpers
@@ -422,6 +406,75 @@ class TelemetryPanel(tk.Frame):
         if self._summary_collision_cell is not None:
             color = tokens_for_theme(self._theme).danger if dto.colliding else tokens_for_theme(self._theme).success
             self._summary_collision_cell.configure(fg=color)
+
+
+def _table_title(parent: tk.Widget, text: str) -> None:
+    label = tk.Label(parent, text=text, bg=_HDR_BG, fg=_HDR_FG, font=("Segoe UI", 11, "bold"), anchor="center")
+    setattr(label, "_telemetry_role", "section_header")  # noqa: B010
+    label.pack(fill=tk.X, padx=8, pady=(8, 0), ipady=7)
+
+
+def _table_section_header(parent: tk.Widget, text: str) -> None:
+    label = tk.Label(parent, text=text, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
+    setattr(label, "_telemetry_role", "section_header")  # noqa: B010
+    label.pack(fill=tk.X, ipady=5)
+
+
+def _table_cell(
+    parent: tk.Widget, text: str | tk.StringVar, row: int, column: int, *, value: bool
+) -> tk.Label:
+    if isinstance(text, tk.StringVar):
+        widget = tk.Label(parent, textvariable=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
+                          relief=tk.SOLID, bd=0, padx=5, pady=5)
+    else:
+        widget = tk.Label(parent, text=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
+                          relief=tk.SOLID, bd=0, padx=5, pady=5)
+    setattr(widget, "_telemetry_role", "value" if value else "label")  # noqa: B010
+    widget.grid(row=row, column=column, sticky="nsew")
+    return widget
+
+
+def _table_data_row(parent: tk.Widget, label: str, row: int, *, suffix: str = "") -> tk.StringVar:
+    parent.grid_columnconfigure(0, weight=1)
+    parent.grid_columnconfigure(1, weight=1)
+    parent.grid_columnconfigure(2, weight=0)
+    value = tk.StringVar(value=_EMPTY)
+    _table_cell(parent, label, row, 0, value=False)
+    _table_cell(parent, value, row, 1, value=True)
+    if suffix:
+        _table_cell(parent, suffix, row, 2, value=False)
+    return value
+
+
+def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
+    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
+    setattr(block, "_telemetry_role", "card")  # noqa: B010
+    block.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+    header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
+    setattr(header, "_telemetry_role", "section_header")  # noqa: B010
+    header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=4)
+    return block
+
+
+def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
+    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
+    setattr(block, "_telemetry_role", "card")  # noqa: B010
+    block.pack(fill=tk.BOTH, expand=True, padx=4, pady=3)
+    header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
+    setattr(header, "_telemetry_role", "section_header")  # noqa: B010
+    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=3)
+    return block
+
+
+def _table_sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = False) -> tk.StringVar:
+    parent.grid_columnconfigure(0, weight=1)
+    parent.grid_columnconfigure(1, weight=2)
+    value = tk.StringVar(value=_EMPTY)
+    _table_cell(parent, label, row, 0, value=False)
+    widget = _table_cell(parent, value, row, 1, value=True)
+    widget.configure(anchor=tk.W, justify=tk.LEFT, wraplength=150, font=_BOLD if emphasize else _MONO)
+    _attach_value_tooltip(widget, value)
+    return value
 
 
 def _header(parent: tk.Widget, text: str, *, primary: bool = False) -> None:
