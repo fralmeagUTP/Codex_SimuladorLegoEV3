@@ -59,6 +59,9 @@ def _make_tk_mock():
         def grid(self, **kw):
             return self
 
+        def grid_columnconfigure(self, *a, **kw):
+            return None
+
         def configure(self, **kw):
             return self
 
