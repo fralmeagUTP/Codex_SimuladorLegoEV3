@@ -180,7 +180,7 @@ class TelemetryPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        _header(self._content, "Telemetría en tiempo real", primary=True)
+        _header(self._content, "TELEMETRÍA DEL ROBOT", primary=True)
         self._summary_status = tk.StringVar(value="LISTO")
         self._summary_time = tk.StringVar(value="--")
         self._summary_tick = tk.StringVar(value="----")
