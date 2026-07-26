@@ -526,7 +526,9 @@ window.EV3Canvas = (() => {
   function drawRobot(ctx, robot, view, colliding) {
     const pos = toCanvas(view, robot.x_mm, robot.y_mm);
     const theta = (robot.theta_deg || 0) * Math.PI / 180;
-    const size = sizeToCanvas(view, ROBOT_WIDTH_MM, ROBOT_HEIGHT_MM);
+    // El sprite es cuadrado: no se estira para ajustarlo al rectángulo físico.
+    const visualSideMm = Math.max(ROBOT_WIDTH_MM, ROBOT_HEIGHT_MM);
+    const size = sizeToCanvas(view, visualSideMm, visualSideMm);
     const w = size.w;
     const h = size.h;
     ctx.save();

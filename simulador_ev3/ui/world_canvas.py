@@ -668,9 +668,13 @@ class WorldCanvas(tk.Canvas):
         self._robot_sprite_rot_cache = {0: self._robot_sprite}
 
     def _robot_draw_size_px(self) -> tuple[int, int]:
+        # El sprite EV3 es cuadrado (32x32); se conserva su proporción visual
+        # aunque el modelo de colisión físico sea rectangular.
+        visual_side_mm = max(_ROBOT_WIDTH_MM, _ROBOT_HEIGHT_MM)
+        side_px = max(1, int(round(visual_side_mm * self._px_per_mm)))
         return (
-            max(1, int(round(_ROBOT_WIDTH_MM * self._px_per_mm))),
-            max(1, int(round(_ROBOT_HEIGHT_MM * self._px_per_mm))),
+            side_px,
+            side_px,
         )
 
     def _resize_photoimage(
