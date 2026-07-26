@@ -100,6 +100,14 @@ class TelemetryPanel(tk.Frame):
         self._update_sensors(dto.sensors)
         self._update_time(dto)
 
+    def set_execution_status(self, status: str) -> None:
+        labels = {
+            "started": "EJECUTANDO", "resumed": "EJECUTANDO", "paused": "PAUSADO",
+            "finished": "FINALIZADO", "timed_out": "TIEMPO AGOTADO", "error": "ERROR",
+            "stopped": "DETENIDO", "reset": "IDLE", "world_loaded": "IDLE",
+        }
+        self._summary_status.set(labels.get(status, str(status).upper()))
+
     def reset(self) -> None:
         for motor_vars in self._motor_vars.values():
             for value_var in motor_vars.values():
@@ -165,10 +173,29 @@ class TelemetryPanel(tk.Frame):
 
     def _build(self) -> None:
         _header(self._content, "Telemetría en tiempo real", primary=True)
-        self._summary_var = tk.StringVar(value="LISTO  |  Tiempo: --  |  Tick: ----  |  Colisión: OK")
-        summary = tk.Label(self._content, textvariable=self._summary_var, font=_MONO, anchor="center", pady=5)
-        setattr(summary, "_telemetry_role", "card")  # noqa: B010
+        self._summary_status = tk.StringVar(value="LISTO")
+        self._summary_time = tk.StringVar(value="--")
+        self._summary_tick = tk.StringVar(value="----")
+        self._summary_collision = tk.StringVar(value="OK")
+        summary = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
         summary.pack(fill=tk.X, padx=8, pady=(5, 3))
+        summary.grid_columnconfigure(1, weight=1)
+        summary.grid_columnconfigure(3, weight=1)
+        summary.grid_columnconfigure(5, weight=1)
+        summary.grid_columnconfigure(7, weight=1)
+        summary_pairs = (
+            ("Estado:", self._summary_status),
+            ("Tiempo:", self._summary_time),
+            ("Tick:", self._summary_tick),
+            ("Colisión:", self._summary_collision),
+        )
+        for column, (label, value) in enumerate(summary_pairs):
+            tk.Label(summary, text=label, font=_LABEL, anchor="center").grid(
+                row=0, column=column * 2, sticky="nsew", padx=8, pady=5
+            )
+            tk.Label(summary, textvariable=value, font=_BOLD, anchor="center").grid(
+                row=0, column=column * 2 + 1, sticky="nsew", padx=8, pady=5
+            )
         columns = tk.Frame(self._content, bg=_BG)
         columns.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
         columns.grid_columnconfigure(0, weight=18)
@@ -193,6 +220,8 @@ class TelemetryPanel(tk.Frame):
     def _build_robot_section(self, parent: tk.Widget) -> None:
         grid = _card(parent, "Robot")
         grid.pack(fill=tk.X, padx=4, pady=4)
+        grid.grid_columnconfigure(0, weight=1)
+        grid.grid_columnconfigure(1, weight=1)
         self._var_x = _row(grid, "X (cm):", 0)
         self._var_y = _row(grid, "Y (cm):", 1)
         self._var_theta = _row(grid, "Theta (°):", 2)
@@ -211,9 +240,9 @@ class TelemetryPanel(tk.Frame):
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
                 "speed": _row(grp, "Vel (°/s):", 0),
-                "angle": _row(grp, "Ang (°):", 1),
-                "angle_norm": _row(grp, "Ang 0-360 (°):", 2),
-                "state": _row(grp, "Estado:", 3),
+                "angle": _row(grp, "Ángulo (0–360°):", 1),
+                "angle_norm": tk.StringVar(value=_EMPTY),
+                "state": _row(grp, "Estado:", 2),
             }
 
     def _build_sensors_section(self, parent: tk.Widget) -> None:
@@ -230,6 +259,8 @@ class TelemetryPanel(tk.Frame):
         self._sensors_empty.pack(anchor=tk.W, padx=10, pady=3)
         for port in _SENSOR_PORTS:
             grp = _card(self._sensors_container, f"Sensor {port}")
+            grp.grid_columnconfigure(0, weight=1)
+            grp.grid_columnconfigure(1, weight=2)
             self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
                 "type": _sensor_row(grp, "Tipo:", 0),
@@ -307,8 +338,8 @@ class TelemetryPanel(tk.Frame):
             if isinstance(speed, (int, float)):
                 vars_by_key["speed"].set(f"{speed:.0f}")
             if isinstance(angle, (int, float)):
-                vars_by_key["angle"].set(f"{angle:.1f}°")
                 normalized = (float(angle) % 360.0 + 360.0) % 360.0
+                vars_by_key["angle"].set(f"{normalized:.1f}°")
                 vars_by_key["angle_norm"].set(f"{normalized:.1f}°")
             if state is not None:
                 vars_by_key["state"].set(str(state))
@@ -370,9 +401,9 @@ class TelemetryPanel(tk.Frame):
         self._var_tick.set(str(dto.tick))
         self._var_time.set(f"{dto.sim_time_s:.3f} s")
         collision = "COLISIÓN" if dto.colliding else "OK"
-        self._summary_var.set(
-            f"SIMULACIÓN  |  Tiempo: {dto.sim_time_s:.3f} s  |  Tick: {dto.tick}  |  Colisión: {collision}"
-        )
+        self._summary_time.set(f"{dto.sim_time_s:.3f} s")
+        self._summary_tick.set(str(dto.tick))
+        self._summary_collision.set(collision)
 
 
 def _header(parent: tk.Widget, text: str, *, primary: bool = False) -> None:

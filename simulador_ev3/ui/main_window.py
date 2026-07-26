@@ -1090,6 +1090,7 @@ class EV3SimulatorApp(tk.Tk):
         msg, color = status_map.get(status, (status, "#212121"))
         self.after_idle(self._editor.set_status, msg, color)
         self.after_idle(self._status_text_var.set, f"Estado: {msg}")
+        self.after_idle(self._telemetry_panel.set_execution_status, status)
         self.after_idle(self._sync_sim_control_states, status)
 
         if status in ("started", "paused", "resumed", "stopped", "finished", "timed_out"):
