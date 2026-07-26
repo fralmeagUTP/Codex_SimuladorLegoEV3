@@ -968,7 +968,9 @@ class EV3SimulatorApp(tk.Tk):
         # Proporciones base en espejo web: simulacion izquierda + editor derecha
         editor_w = max(420, int(width * 0.42))
         editor_x = max(640, width - editor_w)
-        telemetry_w = max(360, int((editor_x - 24) * 0.58))
+        # La telemetría es una tabla de cuatro columnas: necesita prioridad de
+        # anchura frente al brick para no comprimir sus celdas.
+        telemetry_w = max(520, int((editor_x - 24) * 0.70))
         bottom_height = max(250, int(height * 0.34))
 
         try:
