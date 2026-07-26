@@ -39,7 +39,7 @@ _LCD_SCANLINE = "#D7DFCA"
 _LCD_LED_ON = "#F8F8EF"
 _LCD_LED_OFF = "#A4AA95"
 _LCD_CANVAS_W = 300
-_LCD_CANVAS_H = 216
+_LCD_CANVAS_H = 320
 
 
 class BrickPanel(tk.Frame):
@@ -85,27 +85,25 @@ class BrickPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        tk.Label(
-            self,
-            text="EV3 Brick",
-            bg=_BRICK_BG,
-            fg=_LABEL_FG,
-            font=("Segoe UI", 9, "bold"),
-            anchor=tk.W,
-            padx=12,
-        ).pack(fill=tk.X, pady=(8, 0))
-        status_row = tk.Frame(self, bg=_BRICK_BG)
-        status_row.pack(fill=tk.X, padx=12, pady=8)
+        tk.Label(self, text="EV3 Brick", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 14, "bold"),
+                 anchor="center", relief=tk.SOLID, bd=1).pack(fill=tk.X, padx=8, pady=(8, 0), ipady=12)
+        status_row = tk.Frame(self, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
+        status_row.pack(fill=tk.X, padx=8)
+        status_row.grid_columnconfigure(0, weight=1)
+        status_row.grid_columnconfigure(1, weight=1)
         self._build_led(status_row)
         self._build_speaker(status_row)
-        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
         self._build_screen()
         self._build_robot_state()
 
     def _build_led(self, row: tk.Widget) -> None:
-        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        cell = tk.Frame(row, bg=_BRICK_BG, relief=tk.SOLID, bd=0)
+        cell.grid(row=0, column=0, sticky="nsew")
+        tk.Label(cell, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 11)).pack(
+            side=tk.LEFT, padx=(16, 6), pady=12
+        )
         self._led_canvas = tk.Canvas(
-            row,
+            cell,
             width=24,
             height=24,
             bg=_BRICK_BG,
@@ -129,25 +127,24 @@ class BrickPanel(tk.Frame):
             text="Pantalla LCD EV3 (178x128):",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
-            font=("Segoe UI", 9, "bold"),
-        ).pack(anchor=tk.W, padx=12, pady=(8, 4))
+            font=("Segoe UI", 11), anchor="center",
+        ).pack(fill=tk.X, padx=16, pady=(18, 6))
 
         self._screen_canvas = tk.Canvas(
             self,
             width=_LCD_CANVAS_W,
             height=_LCD_CANVAS_H,
-            bg=_BRICK_BG,
-            highlightthickness=0,
-            bd=0,
-            relief=tk.FLAT,
+            bg=_BRICK_BG, highlightthickness=0, bd=1, relief=tk.SOLID,
         )
-        self._screen_canvas.pack(fill=tk.X, padx=2)
+        self._screen_canvas.pack(fill=tk.X, padx=16)
         self._screen_canvas.bind("<Configure>", self._on_screen_resize)
         self._render_screen()
 
     def _build_speaker(self, row: tk.Widget) -> None:
-        tk.Label(row, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(
-            side=tk.LEFT, padx=(24, 0)
+        cell = tk.Frame(row, bg=_BRICK_BG, relief=tk.SOLID, bd=0)
+        cell.grid(row=0, column=1, sticky="nsew")
+        tk.Label(cell, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 11)).pack(
+            side=tk.LEFT, padx=(18, 8), pady=12
         )
         self._speaker_label = tk.Label(
             row,
@@ -161,29 +158,29 @@ class BrickPanel(tk.Frame):
     def _build_robot_state(self) -> None:
         """Muestra el estado del robot junto al brick, debajo de la LCD."""
         section = tk.Frame(self, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
-        section.pack(fill=tk.X, padx=10, pady=(10, 8))
+        section.pack(fill=tk.X, padx=16, pady=(16, 12))
         tk.Label(
             section,
             text="ROBOT / ESTADO",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
-            font=("Segoe UI", 9, "bold"),
+            font=("Segoe UI", 11, "bold"),
             anchor="center",
         ).grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(4, 2))
-        self._robot_vars = {key: tk.StringVar(value="-") for key in ("x", "y", "theta", "collision", "tick", "time")}
-        labels = (("X:", "x", "cm"), ("Y:", "y", "cm"), ("Theta:", "theta", "°"),
-                  ("Colisión:", "collision", ""), ("Tick:", "tick", ""), ("Tiempo:", "time", ""))
+        self._robot_vars = {key: tk.StringVar(value="-") for key in ("x", "y", "theta")}
+        labels = (("X:", "x", ""), ("Y:", "y", ""), ("Theta:", "theta", ""))
         for row, (label, key, unit) in enumerate(labels, start=1):
-            tk.Label(section, text=label, bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9), anchor=tk.W).grid(
-                row=row, column=0, sticky=tk.W, padx=(10, 4), pady=1
+            tk.Label(section, text=label, bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 10), anchor=tk.W).grid(
+                row=row, column=0, sticky="nsew", padx=(10, 4), pady=1
             )
             value = tk.Label(section, textvariable=self._robot_vars[key], bg=_BRICK_BG, fg=_LABEL_FG,
-                             font=("Segoe UI", 9, "bold"), anchor="e")
-            value.grid(row=row, column=1, sticky="e", padx=(4, 2), pady=1)
+                             font=("Segoe UI", 10), anchor="center")
+            value.grid(row=row, column=1, sticky="nsew", padx=(4, 10), pady=1)
             if unit:
                 tk.Label(section, text=unit, bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9), anchor=tk.W).grid(
                     row=row, column=2, sticky=tk.W, padx=(0, 10), pady=1
                 )
+        section.grid_columnconfigure(0, weight=1)
         section.grid_columnconfigure(1, weight=1)
 
     # ------------------------------------------------------------------
@@ -227,9 +224,6 @@ class BrickPanel(tk.Frame):
         self._robot_vars["x"].set(f"{float(robot.get('x_mm', 0)) / 10.0:.1f}")
         self._robot_vars["y"].set(f"{float(robot.get('y_mm', 0)) / 10.0:.1f}")
         self._robot_vars["theta"].set(f"{float(robot.get('theta_deg', 0)):.1f}")
-        self._robot_vars["collision"].set("COLISIÓN" if dto.colliding else "OK")
-        self._robot_vars["tick"].set(str(dto.tick))
-        self._robot_vars["time"].set(f"{dto.sim_time_s:.3f} s")
 
     # ------------------------------------------------------------------
     # Render LCD

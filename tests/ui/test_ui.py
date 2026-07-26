@@ -718,7 +718,7 @@ class TestBrickPanel:
         dto = _snap()
         bp.update_from_dto(dto)
         assert bp._robot_vars["x"].get() == f"{dto.robot['x_mm'] / 10.0:.1f}"
-        assert bp._robot_vars["tick"].get() == str(dto.tick)
+        assert bp._robot_vars["theta"].get() == f"{dto.robot['theta_deg']:.1f}"
 
 
 # ===========================================================================

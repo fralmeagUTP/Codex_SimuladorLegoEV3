@@ -237,8 +237,8 @@ class TelemetryPanel(tk.Frame):
             grp = _table_motor_block(container, f"MOTOR {port}")
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
-                "speed": _table_data_row(grp, "Velocidad:", 1, suffix=" °/s"),
-                "angle": _table_data_row(grp, "Ángulo (0–360):", 2, suffix=" °"),
+                "speed": _table_data_row(grp, "Velocidad:", 1),
+                "angle": _table_data_row(grp, "Ángulo (0–360):", 2),
                 "angle_norm": tk.StringVar(value=_EMPTY),
                 "state": _table_data_row(grp, "Estado:", 3),
             }
@@ -439,7 +439,7 @@ def _table_data_row(parent: tk.Widget, label: str, row: int, *, suffix: str = ""
 def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
     block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
+    block.pack(fill=tk.BOTH, expand=True, padx=16, pady=18)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
     header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=8)
@@ -449,7 +449,7 @@ def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
 def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
     block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
+    block.pack(fill=tk.BOTH, expand=True, padx=16, pady=6)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
     header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=6)
