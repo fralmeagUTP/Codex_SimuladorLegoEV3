@@ -107,6 +107,14 @@ class TelemetryPanel(tk.Frame):
             "stopped": "DETENIDO", "reset": "IDLE", "world_loaded": "IDLE",
         }
         self._summary_status.set(labels.get(status, str(status).upper()))
+        tokens = tokens_for_theme(self._theme)
+        color = tokens.success if status in {"started", "resumed", "finished", "reset", "world_loaded"} else tokens.text
+        if status in {"paused", "timed_out"}:
+            color = tokens.warning
+        elif status == "error":
+            color = tokens.danger
+        if self._summary_status_cell is not None:
+            self._summary_status_cell.configure(fg=color)
 
     def reset(self) -> None:
         for motor_vars in self._motor_vars.values():
@@ -177,6 +185,8 @@ class TelemetryPanel(tk.Frame):
         self._summary_time = tk.StringVar(value="--")
         self._summary_tick = tk.StringVar(value="----")
         self._summary_collision = tk.StringVar(value="OK")
+        self._summary_status_cell: tk.Label | None = None
+        self._summary_collision_cell: tk.Label | None = None
         summary = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
         summary.pack(fill=tk.X, padx=8, pady=(5, 3))
         summary.grid_columnconfigure(1, weight=1)
@@ -193,9 +203,14 @@ class TelemetryPanel(tk.Frame):
             tk.Label(summary, text=label, font=_LABEL, anchor="center").grid(
                 row=0, column=column * 2, sticky="nsew", padx=8, pady=5
             )
-            tk.Label(summary, textvariable=value, font=_BOLD, anchor="center").grid(
+            cell = tk.Label(summary, textvariable=value, font=_BOLD, anchor="center")
+            cell.grid(
                 row=0, column=column * 2 + 1, sticky="nsew", padx=8, pady=5
             )
+            if column == 0:
+                self._summary_status_cell = cell
+            elif column == 3:
+                self._summary_collision_cell = cell
         columns = tk.Frame(self._content, bg=_BG)
         columns.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
         columns.grid_columnconfigure(0, weight=18)
@@ -404,6 +419,9 @@ class TelemetryPanel(tk.Frame):
         self._summary_time.set(f"{dto.sim_time_s:.3f} s")
         self._summary_tick.set(str(dto.tick))
         self._summary_collision.set(collision)
+        if self._summary_collision_cell is not None:
+            color = tokens_for_theme(self._theme).danger if dto.colliding else tokens_for_theme(self._theme).success
+            self._summary_collision_cell.configure(fg=color)
 
 
 def _header(parent: tk.Widget, text: str, *, primary: bool = False) -> None:
