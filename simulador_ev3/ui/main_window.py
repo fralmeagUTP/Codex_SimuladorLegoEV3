@@ -971,7 +971,9 @@ class EV3SimulatorApp(tk.Tk):
         # La telemetría es una tabla de cuatro columnas: necesita prioridad de
         # anchura frente al brick para no comprimir sus celdas.
         telemetry_w = max(520, int((editor_x - 24) * 0.70))
-        bottom_height = max(250, int(height * 0.34))
+        # El tablero incluye cuatro sensores y cuatro motores; con menos de
+        # esta altura termina desplazándose y deja de conservar la tabla.
+        bottom_height = max(420, int(height * 0.48))
 
         try:
             self._root_hpane.sash_place(0, editor_x, 0)

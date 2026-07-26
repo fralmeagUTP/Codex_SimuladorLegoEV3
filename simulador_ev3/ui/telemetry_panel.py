@@ -150,8 +150,8 @@ class TelemetryPanel(tk.Frame):
             changes: dict[str, str] = {}
             if role == "top_header":
                 changes = {"bg": tokens.primary, "fg": "white"}
-            elif role == "section_header":
-                changes = {"bg": tokens.surface_muted, "fg": tokens.primary}
+            elif role in {"section_header", "table_header"}:
+                changes = {"bg": tokens.surface_muted, "fg": tokens.text}
             elif role == "card":
                 changes = {"bg": tokens.surface_muted, "fg": tokens.text, "highlightbackground": tokens.border}
             elif role == "label":
@@ -409,15 +409,15 @@ class TelemetryPanel(tk.Frame):
 
 
 def _table_title(parent: tk.Widget, text: str) -> None:
-    label = tk.Label(parent, text=text, bg=_HDR_BG, fg=_HDR_FG, font=("Segoe UI", 11, "bold"), anchor="center")
-    setattr(label, "_telemetry_role", "section_header")  # noqa: B010
-    label.pack(fill=tk.X, padx=8, pady=(8, 0), ipady=7)
+    label = tk.Label(parent, text=text, bg=_HDR_BG, fg=_HDR_FG, font=("Segoe UI", 14, "bold"), anchor="center")
+    setattr(label, "_telemetry_role", "table_header")  # noqa: B010
+    label.pack(fill=tk.X, padx=8, pady=(8, 0), ipady=12)
 
 
 def _table_section_header(parent: tk.Widget, text: str) -> None:
-    label = tk.Label(parent, text=text, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
-    setattr(label, "_telemetry_role", "section_header")  # noqa: B010
-    label.pack(fill=tk.X, ipady=5)
+    label = tk.Label(parent, text=text, bg=_HDR_BG, fg=_HDR_FG, font=("Segoe UI", 10, "bold"), anchor="center")
+    setattr(label, "_telemetry_role", "table_header")  # noqa: B010
+    label.pack(fill=tk.X, ipady=9)
 
 
 def _table_cell(
@@ -425,10 +425,10 @@ def _table_cell(
 ) -> tk.Label:
     if isinstance(text, tk.StringVar):
         widget = tk.Label(parent, textvariable=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=5)
+                          relief=tk.SOLID, bd=0, padx=5, pady=10)
     else:
         widget = tk.Label(parent, text=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=5)
+                          relief=tk.SOLID, bd=0, padx=5, pady=10)
     setattr(widget, "_telemetry_role", "value" if value else "label")  # noqa: B010
     widget.grid(row=row, column=column, sticky="nsew")
     return widget
@@ -449,20 +449,20 @@ def _table_data_row(parent: tk.Widget, label: str, row: int, *, suffix: str = ""
 def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
     block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+    block.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
-    setattr(header, "_telemetry_role", "section_header")  # noqa: B010
-    header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=4)
+    setattr(header, "_telemetry_role", "table_header")  # noqa: B010
+    header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=8)
     return block
 
 
 def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
     block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=4, pady=3)
+    block.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
-    setattr(header, "_telemetry_role", "section_header")  # noqa: B010
-    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=3)
+    setattr(header, "_telemetry_role", "table_header")  # noqa: B010
+    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=6)
     return block
 
 
