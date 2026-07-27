@@ -159,3 +159,35 @@ El motor y las pruebas unitarias no se evalúan como sustituto de la experiencia
 real: la campaña detectó dos regresiones visuales de alta severidad y una de
 ciclo de vida. La aprobación debe requerir corrección, nueva evidencia visual
 y recorridos interactivos de escritorio no bloqueados.
+
+## 9. Seguimiento de corrección — 2026-07-27
+
+Se implementó el cambio OpenSpec `corregir-regresiones-qa-tkinter` después de
+la campaña inicial. No altera los resultados históricos anteriores; registra
+la verificación posterior de las tres regresiones confirmadas.
+
+| Hallazgo | Resultado posterior | Evidencia |
+|---|---|---|
+| TK-001 | PASS visual: a menos de 560 px el tablero se apila y evita recortar celdas; desde ese ancho conserva tres columnas. | [Seis capturas](EVIDENCIA_QA_REGRESION_2026-07-27/final/) en 1024×768, 1280×800 y 1920×1080, claro y oscuro. |
+| TK-002 | PASS por accesibilidad: Brick incorpora desplazamiento vertical independiente y la tabla `ROBOT / ESTADO` queda después de la LCD, siempre alcanzable. | Capturas finales con barra vertical del panel Brick. |
+| TK-003 | PASS: el cierre cancela de forma idempotente callbacks de tick, resize y layout. | El capturador de seis imágenes finalizó con código 0 y sin `invalid command name`. |
+
+Pruebas automatizadas posteriores: `pytest tests/ui/test_ui.py
+tests/shared/test_desktop_evidence_script.py -q` — **84 PASS**. Se añadieron
+casos específicos de cierre con callback de layout pendiente e invocación de
+cierre repetida.
+
+La validación visual se ejecutó con `python scripts/capture_desktop_evidence.py
+--theme all --size 1024x768 --size 1280x800 --size 1920x1080
+--verify-layout`; el modo verifica la geometría de telemetría/LCD y que
+`ROBOT / ESTADO` es visible o desplazable desde el panel Brick.
+
+Mediciones registradas por el capturador (96 DPI): 1024×768 → telemetría
+369×320, Brick 321×320, LCD 289×192; 1280×800 → 432×334, 300×334, 268×192;
+1920×1080 solicitado (1061 px de área cliente por la barra del sistema) →
+655×443, 448×443, 399×192.
+
+La decisión de liberación permanece **apta con observaciones**, no aprobación
+plena: siguen pendientes los recorridos de la fase 5 (intro, menús, diálogos,
+mundos, misiones y scripts) en una sesión Windows realmente interactiva, y las
+pruebas de geometría automatizadas sin mocks de Tkinter.

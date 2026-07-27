@@ -978,6 +978,30 @@ class TestMainWindow:
         app.after_cancel.assert_called_once_with("pending-resize")
         assert app._resize_after_id is None
 
+    def test_close_cancels_the_initial_layout_idle_callback(self):
+        app = self.EV3SimulatorApp()
+        app.after_cancel = mock.Mock()
+        app._tick_id = None
+        app._resize_after_id = None
+        app._layout_idle_id = "pending-layout"
+
+        app._on_close()
+
+        app.after_cancel.assert_called_once_with("pending-layout")
+        assert app._layout_idle_id is None
+
+    def test_close_is_idempotent_with_pending_callbacks(self):
+        app = self.EV3SimulatorApp()
+        app.after_cancel = mock.Mock()
+        app._tick_id = None
+        app._resize_after_id = "pending-resize"
+        app._layout_idle_id = "pending-layout"
+
+        app._on_close()
+        app._on_close()
+
+        assert app.after_cancel.call_count == 2
+
     def test_ephemeral_window_does_not_restore_or_persist_user_session(self):
         from simulador_ev3.ui import main_window as mw
 

@@ -145,13 +145,15 @@ class EV3SimulatorApp(tk.Tk):
             self._restore_desktop_session()
 
         # Arrancar el ciclo de ticks
+        self._closing = False
         self._tick_id: Optional[str] = None
         self._resize_after_id: Optional[str] = None
+        self._layout_idle_id: Optional[str] = None
         self._schedule_tick()
 
         # Layout responsivo al cambiar tamaÃ±o de ventana
         self.bind("<Configure>", self._on_window_resize)
-        self.after_idle(self._apply_responsive_layout)
+        self._layout_idle_id = self.after_idle(self._apply_responsive_layout)
 
         # Al cerrar la ventana, detener la simulaciÃ³n
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -746,8 +748,10 @@ class EV3SimulatorApp(tk.Tk):
 
         self._telemetry_panel = TelemetryPanel(self._bottom_pane)
         self._brick_panel = BrickPanel(self._bottom_pane)
-        self._bottom_pane.add(self._telemetry_panel, minsize=360, stretch="always")
-        self._bottom_pane.add(self._brick_panel, minsize=320, stretch="always")
+        # En pantallas de aula la telemetría se vuelve compacta; estos mínimos
+        # impiden que el separador oculte alguno de los dos paneles.
+        self._bottom_pane.add(self._telemetry_panel, minsize=300, stretch="always")
+        self._bottom_pane.add(self._brick_panel, minsize=250, stretch="always")
 
         # Columna derecha: editor de codigo
         self._editor = EditorPanel(
@@ -854,8 +858,13 @@ class EV3SimulatorApp(tk.Tk):
 
     def _on_window_resize(self, _event) -> None:
         """Aplica layout responsivo con debounce en cada resize de la ventana."""
+        if self._closing:
+            return
         if self._resize_after_id:
-            self.after_cancel(self._resize_after_id)
+            try:
+                self.after_cancel(self._resize_after_id)
+            except tk.TclError:
+                pass
         self._resize_after_id = self.after(60, self._apply_responsive_layout)
 
     # ------------------------------------------------------------------
@@ -964,7 +973,8 @@ class EV3SimulatorApp(tk.Tk):
 
     def _apply_responsive_layout(self) -> None:
         """Ajusta posiciones de sashes para distribuir espacios proporcionalmente."""
-        self._resize_after_id = None
+        if self._closing:
+            return
         width = self.winfo_width()
         height = self.winfo_height()
         if width <= 1 or height <= 1:
@@ -975,10 +985,14 @@ class EV3SimulatorApp(tk.Tk):
         editor_x = max(640, width - editor_w)
         # La telemetría es una tabla de cuatro columnas: necesita prioridad de
         # anchura frente al brick para no comprimir sus celdas.
-        telemetry_w = max(520, int((editor_x - 24) * 0.70))
+        bottom_available = max(1, editor_x - 20)
+        telemetry_w = min(
+            max(300, int(bottom_available * 0.60)),
+            max(300, bottom_available - 250),
+        )
         # El tablero incluye cuatro sensores y cuatro motores; con menos de
         # esta altura termina desplazándose y deja de conservar la tabla.
-        bottom_height = max(420, int(height * 0.48))
+        bottom_height = max(300, int(height * 0.42))
 
         try:
             self._root_hpane.sash_place(0, editor_x, 0)
@@ -1710,6 +1724,9 @@ class EV3SimulatorApp(tk.Tk):
 
     def _on_close(self) -> None:
         """Cierra la aplicaciÃ³n de forma limpia."""
+        if self._closing:
+            return
+        self._closing = True
         if self._persist_session:
             try:
                 save_desktop_session(
@@ -1722,11 +1739,15 @@ class EV3SimulatorApp(tk.Tk):
                 )
             except Exception:  # noqa: BLE001
                 pass
-        if self._tick_id:
-            self.after_cancel(self._tick_id)
-        if self._resize_after_id:
-            self.after_cancel(self._resize_after_id)
-            self._resize_after_id = None
+        for callback_id in (self._tick_id, self._resize_after_id, self._layout_idle_id):
+            if callback_id:
+                try:
+                    self.after_cancel(callback_id)
+                except tk.TclError:
+                    pass
+        self._tick_id = None
+        self._resize_after_id = None
+        self._layout_idle_id = None
         if self._manual_window is not None:
             try:
                 self._manual_window.destroy()

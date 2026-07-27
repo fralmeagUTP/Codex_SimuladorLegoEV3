@@ -60,6 +60,8 @@ class TelemetryPanel(tk.Frame):
         self._motor_frames: dict[str, tk.Frame] = {}
         self._sensor_frames: dict[str, tk.Frame] = {}
         self._theme = "light"
+        self._compact_layout = False
+        self._summary_cells: list[tuple[tk.Label, tk.Label]] = []
 
         self._scroll_canvas = tk.Canvas(self, bg=_BG, highlightthickness=0)
         self._scrollbar = tk.Scrollbar(
@@ -181,6 +183,7 @@ class TelemetryPanel(tk.Frame):
         self._summary_status_cell: tk.Label | None = None
         self._summary_collision_cell: tk.Label | None = None
         summary = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
+        self._summary = summary
         setattr(summary, "_telemetry_role", "card")  # noqa: B010
         summary.pack(fill=tk.X, padx=8, pady=(0, 4))
         for summary_column in range(8):
@@ -192,13 +195,15 @@ class TelemetryPanel(tk.Frame):
             ("Colisión:", self._summary_collision),
         )
         for column, (label, value) in enumerate(summary_pairs):
-            _table_cell(summary, label, 0, column * 2, value=False)
+            label_cell = _table_cell(summary, label, 0, column * 2, value=False)
             cell = _table_cell(summary, value, 0, column * 2 + 1, value=True)
+            self._summary_cells.append((label_cell, cell))
             if column == 0:
                 self._summary_status_cell = cell
             elif column == 3:
                 self._summary_collision_cell = cell
         columns = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
+        self._columns = columns
         setattr(columns, "_telemetry_role", "card")  # noqa: B010
         columns.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
         columns.grid_columnconfigure(0, weight=34)
@@ -211,6 +216,8 @@ class TelemetryPanel(tk.Frame):
             frame.grid(row=0, column=column, sticky="nsew")
             frame.configure(relief=tk.SOLID, bd=1)
             setattr(frame, "_telemetry_role", "card")  # noqa: B010
+
+        self._section_columns = (motors_ab_column, motors_cd_column, sensors_column)
 
         self._build_motors_section(motors_ab_column, ("A", "B"), "Motores A-B")
         self._build_motors_section(motors_cd_column, ("C", "D"), "Motores C-D")
@@ -271,6 +278,35 @@ class TelemetryPanel(tk.Frame):
 
     def _on_canvas_configure(self, event) -> None:
         self._scroll_canvas.itemconfigure(self._canvas_window, width=event.width)
+        self._apply_density(event.width)
+
+    def _apply_density(self, width: int) -> None:
+        """Refluye el tablero: tres columnas amplias o una columna legible."""
+        # Tres columnas sólo son legibles desde ~560 px; por debajo se apilan
+        # para preservar contenido en vez de recortar texto.
+        compact = width < 560
+        if compact == self._compact_layout:
+            return
+        self._compact_layout = compact
+
+        for frame in self._section_columns:
+            frame.grid_forget()
+        if compact:
+            self._columns.grid_columnconfigure(0, weight=1)
+            for row, frame in enumerate(self._section_columns):
+                frame.grid(row=row, column=0, sticky="nsew")
+            for index, (label, value) in enumerate(self._summary_cells):
+                label.grid_configure(row=index, column=0)
+                value.grid_configure(row=index, column=1)
+            self._summary.grid_columnconfigure(0, weight=1)
+            self._summary.grid_columnconfigure(1, weight=1)
+        else:
+            for column, frame in enumerate(self._section_columns):
+                frame.grid(row=0, column=column, sticky="nsew")
+            for index, (label, value) in enumerate(self._summary_cells):
+                label.grid_configure(row=0, column=index * 2)
+                value.grid_configure(row=0, column=index * 2 + 1)
+        self._content.update_idletasks()
 
     def _bind_mousewheel_recursive(self, widget: tk.Misc) -> None:
         widget.bind("<MouseWheel>", self._on_panel_mousewheel)

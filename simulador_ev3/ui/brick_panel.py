@@ -60,6 +60,15 @@ class BrickPanel(tk.Frame):
         super().__init__(parent, **kwargs)
 
         self._screen_state = self._default_screen_state()
+        self._scroll_canvas = tk.Canvas(self, bg=_BRICK_BG, highlightthickness=0)
+        self._scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=self._scroll_canvas.yview)
+        self._scroll_canvas.configure(yscrollcommand=self._scrollbar.set)
+        self._scroll_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._content = tk.Frame(self._scroll_canvas, bg=_BRICK_BG)
+        self._content_window = self._scroll_canvas.create_window((0, 0), window=self._content, anchor=tk.NW)
+        self._content.bind("<Configure>", self._on_content_configure)
+        self._scroll_canvas.bind("<Configure>", self._on_panel_configure)
         self._build()
 
     # ------------------------------------------------------------------
@@ -87,9 +96,9 @@ class BrickPanel(tk.Frame):
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        tk.Label(self, text="EV3 Brick", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 14, "bold"),
+        tk.Label(self._content, text="EV3 Brick", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 14, "bold"),
                  anchor="center", relief=tk.SOLID, bd=1).pack(fill=tk.X, padx=8, pady=(8, 0), ipady=12)
-        status_row = tk.Frame(self, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
+        status_row = tk.Frame(self._content, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
         status_row.pack(fill=tk.X, padx=8)
         status_row.grid_columnconfigure(0, weight=1)
         status_row.grid_columnconfigure(1, weight=1)
@@ -125,7 +134,7 @@ class BrickPanel(tk.Frame):
 
     def _build_screen(self) -> None:
         tk.Label(
-            self,
+            self._content,
             text="Pantalla LCD EV3 (178x128):",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
@@ -133,7 +142,7 @@ class BrickPanel(tk.Frame):
         ).pack(fill=tk.X, padx=16, pady=(10, 4))
 
         self._screen_canvas = tk.Canvas(
-            self,
+            self._content,
             width=_LCD_CANVAS_W,
             height=_LCD_CANVAS_H,
             bg=_BRICK_BG, highlightthickness=0, bd=1, relief=tk.SOLID,
@@ -159,7 +168,8 @@ class BrickPanel(tk.Frame):
 
     def _build_robot_state(self) -> None:
         """Muestra el estado del robot junto al brick, debajo de la LCD."""
-        section = tk.Frame(self, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
+        section = tk.Frame(self._content, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
+        self._robot_state_section = section
         section.pack(fill=tk.X, padx=16, pady=(8, 8))
         tk.Label(
             section,
@@ -184,6 +194,12 @@ class BrickPanel(tk.Frame):
                 )
         section.grid_columnconfigure(0, weight=1)
         section.grid_columnconfigure(1, weight=1)
+
+    def _on_content_configure(self, _event) -> None:
+        self._scroll_canvas.configure(scrollregion=self._scroll_canvas.bbox("all"))
+
+    def _on_panel_configure(self, event) -> None:
+        self._scroll_canvas.itemconfigure(self._content_window, width=event.width)
 
     # ------------------------------------------------------------------
     # Actualizaciones
