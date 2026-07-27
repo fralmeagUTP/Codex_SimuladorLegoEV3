@@ -226,3 +226,13 @@ posición inicial. La aplicación se cerró sin proceso residual. Evidencia:
 Esta validación elimina el bloqueo de entrada para los recorridos cubiertos,
 pero la fase 5 continúa pendiente para el resto del catálogo de menús,
 diálogos, mundos y misiones.
+
+Menús verificados con interacción visible: **Ayuda** se desplegó y abrió
+`Manual de uso`; **Mundos** se desplegó con las acciones Mundo en blanco,
+Cargar JSON, Editor de mundos y preestablecidos. Evidencia:
+[Ayuda](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ayuda_abierto.png),
+[Manual](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/manual_uso.png) y
+[Mundos](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundos_abierto.png).
+No se declara aprobado el editor de mundos aún: la selección por coordenadas
+fijas no produjo una evidencia concluyente y debe repetirse por un selector
+semántico o una ruta de teclado fiable.
