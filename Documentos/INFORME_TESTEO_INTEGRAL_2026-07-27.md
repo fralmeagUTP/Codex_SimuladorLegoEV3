@@ -245,3 +245,12 @@ fue correcta. Evidencia: [oscuro](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/tema_
 y [claro restaurado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/tema_claro_restaurado.png).
 La persistencia del tema entre reinicios sigue fuera del alcance de este
 recorrido y permanece pendiente.
+
+Validación interactiva de límite de script: el menú **Tiempo máximo** mostró
+las opciones `30 s`, `60 s`, `120 s`, `300 s` y `Sin límite`. Tras seleccionar
+`120 s`, se ejecutó el script `wait(35000)`: a los 30,3 s permanecía en estado
+`EJECUTANDO` y terminó normalmente a los 36,3 s. Por tanto, se confirma que el
+límite no sigue fijado rígidamente en 30 s. Evidencia:
+[menú](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/tiempo_maximo_menu.png),
+[en ejecución a 30 s](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/limite_120s_ejecutando_31s.png)
+y [finalizado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/limite_120s_detenido.png).
