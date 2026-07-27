@@ -54,7 +54,11 @@ def capture_theme(
     app._apply_theme(theme)
     app.update_idletasks()
     app.deiconify()
+    # ImageGrab captura el escritorio real: asegurar que la ventana temporal
+    # esté delante de VS Code u otra aplicación antes de registrar evidencia.
+    app.attributes("-topmost", True)
     app.lift()
+    app.focus_force()
     measurement: dict[str, object] = {}
 
     def save_and_close() -> None:
