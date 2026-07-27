@@ -134,6 +134,27 @@ declaran como aprobados.
 - Recomendación: sincronizar el nombre visible con el identificador o nombre
   mostrado del mundo cargado y añadir una prueba de regresión de selección.
 
+### TK-006 — Reanudar finaliza prematuramente un script pausado
+
+- Severidad: **alta**.
+- Funcionalidad: controles de ejecución Pausar/Reanudar y semántica de
+  `pybricks.tools.wait`.
+- Pasos:
+  1. Ejecutar el script `from pybricks.tools import wait; wait(8000)`.
+  2. Pulsar Pausar aproximadamente al segundo 1.
+  3. Confirmar estado `PAUSADO` y pulsar Reanudar.
+- Esperado: el programa continúa los aproximadamente 7 segundos restantes y
+  solo entonces llega a `FINALIZADO`.
+- Observado: a los `1.120 s` la telemetría indicó `PAUSADO`; tras Reanudar, el
+  estado cambió inmediatamente a `FINALIZADO` y el tiempo/tick permanecieron
+  en `1.120 s`/`56`.
+- Evidencia: capturas de la validación interactiva posterior, sección 9.
+- Hipótesis: la pausa interrumpe el mecanismo de espera y Reanudar no conserva
+  el trabajo pendiente ni la duración restante.
+- Recomendación: tratar la pausa como detención del reloj de simulación, no
+  como finalización de la corrutina; añadir una prueba de regresión con
+  `wait()` y una operación de motor.
+
 ## 5. Accesibilidad, estabilidad y rendimiento
 
 - Accesibilidad: no fue posible validar foco de teclado, atajos, orden de tab,
@@ -308,3 +329,11 @@ estos menús. Evidencia: [Archivo](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/arch
 [Fidelidad](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/fidelidad_menu.png).
 Las operaciones de abrir, guardar y exportar con archivos del sistema siguen
 pendientes para una ejecución aislada con rutas temporales explícitas.
+
+Validación de ciclo de ejecución: con `wait(8000)`, el botón **Pausar** dejó
+la interfaz en `PAUSADO` a `1.120 s`/tick `56`, demostrando que el control es
+alcanzable y actualiza la telemetría. Sin embargo, **Reanudar** hizo que la
+misión terminara de inmediato, sin consumir el tiempo restante; se registró
+como TK-006. Evidencia: [pausado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecucion_pausada.png),
+[resultado tras reanudar](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecucion_reanudada.png)
+y [estado posterior al reinicio](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecucion_cancelada_reiniciada.png).
