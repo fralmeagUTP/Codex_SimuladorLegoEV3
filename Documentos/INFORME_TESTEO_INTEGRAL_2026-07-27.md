@@ -191,6 +191,25 @@ declaran como aprobados.
 - Recomendación: centrar la ventana tras `update_idletasks()` y añadir una
   prueba de geometría relativa a la ventana principal.
 
+### TK-009 — El ejecutable empaquetado no puede cargar Tkinter
+
+- Severidad: **crítica**.
+- Funcionalidad: distribución Windows `dist/SimuladorEV3/SimuladorEV3.exe`.
+- Pasos:
+  1. Ejecutar `dist\SimuladorEV3\SimuladorEV3.exe` en Windows.
+  2. Esperar el inicio de la introducción.
+- Esperado: se muestra la intro de BotLab y, tras tres segundos, la ventana
+  principal de Tkinter.
+- Observado: PyInstaller muestra `Unhandled exception in script` y el error
+  `ImportError: DLL load failed while importing _tkinter: No se puede encontrar
+  el módulo especificado.` La interfaz no llega a crear ninguna ventana.
+- Evidencia: captura `ejecutable_intro_700ms.png` y proceso `SimuladorEV3.exe`
+  iniciado desde la distribución local.
+- Hipótesis: el artefacto no incorpora o no puede resolver las DLL requeridas
+  por Tcl/Tk en el entorno de empaquetado.
+- Recomendación: corregir la especificación de PyInstaller y validar el
+  directorio `_internal` en un Windows limpio antes de cualquier liberación.
+
 ## 5. Accesibilidad, estabilidad y rendimiento
 
 - Accesibilidad: no fue posible validar foco de teclado, atajos, orden de tab,
@@ -423,3 +442,9 @@ durante el recorrido; al final se observaron `19.640 s`, tick `982` y colisión
 muestra un criterio o resultado de evaluación explícito. Evidencia:
 [misión cargada](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mision_evitar_obstaculos_cargada.png)
 y [misión finalizada](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mision_evitar_obstaculos_finalizada.png).
+
+Validación del ejecutable empaquetado: la tarea permanece bloqueada y revela
+un defecto crítico. Al iniciar `dist/SimuladorEV3/SimuladorEV3.exe`, PyInstaller
+mostró `ImportError: DLL load failed while importing _tkinter`; no apareció ni
+la intro ni la ventana principal. La instancia se cerró tras aceptar el diálogo
+de error. Evidencia: [error del ejecutable](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecutable_intro_700ms.png).

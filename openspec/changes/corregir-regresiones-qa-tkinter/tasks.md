@@ -42,4 +42,6 @@
 - [ ] 5.2 Adjuntar evidencia desde código fuente y ejecutable empaquetado.
   - [x] 5.2.1 Adjuntar evidencia visual de intro y flujo fuente; validar el artefacto PyInstaller.
   - [ ] 5.2.2 Capturar visualmente intro y ventana principal desde el ejecutable empaquetado.
+    - [x] 5.2.2a Ejecutar el `.exe` y registrar el bloqueo TK-009 de carga de `_tkinter`.
+    - [ ] 5.2.2b Corregir empaquetado Tk/Tcl y repetir evidencia de intro/ventana principal.
 - [ ] 5.3 Cambiar decisión de liberación solo después de 5.1 y 5.2.
