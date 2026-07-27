@@ -197,3 +197,10 @@ Con `EV3_RUN_DESKTOP_E2E=1` la campaña actual reportó 3 pruebas **BLOCKED**
 (omitidas), ya que Windows no expuso ventanas visibles al proceso de
 automatización. El mismo recorrido quedará activo, sin cambios manuales, en
 una sesión gráfica local o de CI con escritorio interactivo.
+
+Validación de empaquetado posterior: `python -m PyInstaller --noconfirm
+SimuladorEV3.spec` finalizó con código 0. El artefacto
+`dist/SimuladorEV3/SimuladorEV3.exe` contiene
+`_internal/simulador_ev3/assets/Intro.png`; al iniciarlo, el proceso continuó
+activo tras 6 segundos y pudo cerrarse limpiamente. La inspección visual de la
+intro del ejecutable permanece BLOCKED por la misma limitación de escritorio.
