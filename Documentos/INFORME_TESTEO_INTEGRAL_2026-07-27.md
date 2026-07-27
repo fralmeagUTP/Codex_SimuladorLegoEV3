@@ -236,3 +236,12 @@ Cargar JSON, Editor de mundos y preestablecidos. Evidencia:
 No se declara aprobado el editor de mundos aún: la selección por coordenadas
 fijas no produjo una evidencia concluyente y debe repetirse por un selector
 semántico o una ruta de teclado fiable.
+
+Validación interactiva de tema: se alternó el menú **Tema** de claro a oscuro
+y de oscuro a claro en una ventana de escritorio visible. Los cambios se
+aplicaron al escenario, telemetría, panel EV3, controles y editor, sin texto
+oscuro sobre fondo oscuro ni una excepción visible. La restauración a claro
+fue correcta. Evidencia: [oscuro](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/tema_oscuro.png)
+y [claro restaurado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/tema_claro_restaurado.png).
+La persistencia del tema entre reinicios sigue fuera del alcance de este
+recorrido y permanece pendiente.
