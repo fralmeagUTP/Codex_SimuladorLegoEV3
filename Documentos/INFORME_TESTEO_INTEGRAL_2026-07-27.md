@@ -155,6 +155,24 @@ declaran como aprobados.
   como finalización de la corrutina; añadir una prueba de regresión con
   `wait()` y una operación de motor.
 
+### TK-007 — El registro de trazas exporta listas de snapshots vacías
+
+- Severidad: **alta**.
+- Funcionalidad: Trazas > Iniciar registro / Detener registro / Exportar JSON.
+- Pasos:
+  1. Iniciar el registro desde el menú Trazas.
+  2. Ejecutar `wait(1500)` hasta finalizar (81 ticks observados).
+  3. Exportar JSON, y repetir tras detener el registro.
+- Esperado: el JSON contiene snapshots del ciclo de simulación ejecutado.
+- Observado: ambos archivos JSON se crearon y fueron válidos, pero contenían
+  exactamente `{"trace_version":1,"snapshots":[]}`.
+- Evidencia: ejecución interactiva del 2026-07-27; archivos temporales de
+  exportación inspeccionados con tamaño de 34 bytes.
+- Hipótesis: el menú activa un indicador o buffer distinto del recopilador de
+  snapshots, o el runtime no entrega eventos al servicio de trazas.
+- Recomendación: enlazar el colector a los ticks reales y añadir una prueba de
+  integración que ejecute una misión y valide un JSON con al menos un snapshot.
+
 ## 5. Accesibilidad, estabilidad y rendimiento
 
 - Accesibilidad: no fue posible validar foco de teclado, atajos, orden de tab,
@@ -345,3 +363,10 @@ superior como en el marcador visual. El control Haces cambió de `Haces ON` a
 `Haces OFF`; el haz no es distinguible en este mundo sin sensores configurados.
 Evidencia: [reubicación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/robot_reubicado_canvas.png)
 y [orientación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/robot_orientado_arrastre.png).
+
+Validación de trazas: se inició el registro, se ejecutó `wait(1500)` hasta
+`FINALIZADO` (1.620 s y tick 81), se exportó JSON y se repitió la exportación
+después de detener el registro. Los dos JSON temporales fueron válidos pero
+contenían `{"trace_version":1,"snapshots":[]}`. Se registra como TK-007; el
+problema no es un fallo del diálogo de archivo, pues ambos archivos se crearon
+correctamente fuera del repositorio.
