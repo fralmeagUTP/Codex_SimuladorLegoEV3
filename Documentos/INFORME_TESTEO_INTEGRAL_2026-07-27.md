@@ -394,3 +394,10 @@ botón Aceptar funcionales, y ambos diálogos/principal se cerraron sin residuo.
 No obstante, la ventana se ubicó en `(0, 0)` mientras la principal estaba en
 `(130, 130)`; se registra como TK-008 por no respetar el centrado esperado.
 Evidencia: [Acerca de](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/acerca_de.png).
+
+Validación del Editor de mundos: **Mundos > Editor de mundos** abrió la
+ventana `Editor de Mundos EV3`, con lienzo de cuadrícula, selector de activos,
+herramientas, dimensiones, panel de propiedades y estado `Validación: OK`.
+Se cerró sin guardar ni modificar mundos. La comprobación previa se marcó como
+no concluyente por buscar el título incorrecto; esta evidencia la sustituye.
+Evidencia: [Editor de mundos](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/editor_mundos_menu_actual.png).
