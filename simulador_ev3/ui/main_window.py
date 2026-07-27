@@ -1813,10 +1813,56 @@ def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
     app.after(duration_ms, reveal)
 
 
+def _launch_after_intro() -> None:
+    """Usa la raíz inicial exclusivamente como introducción y luego crea la app."""
+    splash = tk.Tk()
+    splash.overrideredirect(True)
+    splash.configure(bg="#ffffff")
+    try:
+        splash.attributes("-topmost", True)
+    except tk.TclError:
+        pass
+
+    try:
+        image = tk.PhotoImage(file=str(_intro_image_path()))
+        max_w = max(1, splash.winfo_screenwidth() - 80)
+        max_h = max(1, splash.winfo_screenheight() - 80)
+        factor = max(1, -(-image.width() // max_w), -(-image.height() // max_h))
+        image = image.subsample(factor, factor) if factor > 1 else image
+        tk.Label(splash, image=image, bg="#ffffff", bd=0).pack()
+        splash._intro_image = image  # type: ignore[attr-defined]
+        width, height = image.width(), image.height()
+    except Exception:  # noqa: BLE001
+        tk.Label(
+            splash,
+            text="BotLab Studio",
+            bg="#ffffff",
+            fg="#1f3a5a",
+            font=("Segoe UI", 20, "bold"),
+            padx=48,
+            pady=32,
+        ).pack()
+        width, height = 300, 100
+
+    main_w = min(WEB_REFERENCE_WIDTH_PX, max(1, splash.winfo_screenwidth() - 80))
+    main_h = min(WEB_REFERENCE_HEIGHT_PX, max(1, splash.winfo_screenheight() - 80))
+    main_x = max(0, (splash.winfo_screenwidth() - main_w) // 2)
+    main_y = max(0, (splash.winfo_screenheight() - main_h) // 2)
+    splash.geometry(f"{width}x{height}+{main_x + (main_w - width) // 2}+{main_y + (main_h - height) // 2}")
+    splash.lift()
+    splash.focus_force()
+
+    def launch() -> None:
+        splash.destroy()
+        app = EV3SimulatorApp()
+        app.mainloop()
+
+    splash.after(3000, launch)
+    splash.mainloop()
+
+
 def main() -> None:
-    app = EV3SimulatorApp(start_hidden=True)
-    _show_intro(app)
-    app.mainloop()
+    _launch_after_intro()
 
 
 if __name__ == "__main__":
