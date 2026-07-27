@@ -254,3 +254,12 @@ límite no sigue fijado rígidamente en 30 s. Evidencia:
 [menú](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/tiempo_maximo_menu.png),
 [en ejecución a 30 s](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/limite_120s_ejecutando_31s.png)
 y [finalizado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/limite_120s_detenido.png).
+
+Validación interactiva de mundos: el submenú **Mundos preestablecidos** se
+desplegó y se seleccionó `07_laberinto_v1.json`. El canvas pasó a mostrar sus
+obstáculos y el mensaje de posición inicial cambió a `(45.0 cm, 95.0 cm)`;
+por tanto, el mundo activo fue aplicado. Se detectó una inconsistencia menor:
+el encabezado mantuvo el texto `Mundo actual: Básico` después del cambio.
+Debe actualizarse el nombre mostrado o aclararse que el texto representa otra
+propiedad. Evidencia: [submenú](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundos_preestablecidos.png)
+y [mundo aplicado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundo_preestablecido_laberinto.png).
