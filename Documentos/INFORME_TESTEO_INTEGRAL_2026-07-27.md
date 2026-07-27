@@ -529,3 +529,25 @@ los obstáculos y la posición inicial cambió a `(45.0 cm, 95.0 cm)`. La ventan
 se cerró sin residuos. Evidencia:
 [mundo cargado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundo_laberinto_nombre_sincronizado.png).
 Estado de TK-005: **RESUELTO y validado visualmente**.
+
+Validación visual posterior de TK-008: **Ayuda > Acerca de** abrió sobre la
+ventana principal, no en `(0,0)`, y se cerró sin dejar diálogos ni ventanas
+principales residuales. La medición Windows fue principal `208,208,1296x839`
+y diálogo `546,289,636x739`; la diferencia respecto a los bordes externos se
+debe al marco y barra de título, mientras que el centrado se calcula sobre el
+área cliente de Tkinter. Evidencia:
+[Acerca de centrado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/acerca_centrada_validacion.png).
+Estado de TK-008: **RESUELTO y validado visualmente**.
+
+### Decisión de liberación posterior
+
+**Apta con observaciones** para la rama evaluada. TK-005, TK-006, TK-007,
+TK-008 y TK-009 están corregidos y cuentan con pruebas automatizadas y/o
+evidencia visual real. La regresión final obtuvo **728 PASS, 3 SKIPPED** y el
+ejecutable fue reconstruido correctamente con PyInstaller.
+
+La observación pendiente no es un defecto confirmado: el arnés E2E
+`pywinauto` no puede ver las ventanas desde esta sesión de ejecución. Debe
+repetirse en una sesión Windows interactiva antes de una liberación formal a
+terceros, junto con los recorridos completos de CRUD de mundos y resultados de
+misiones que no formaron parte de estas correcciones.

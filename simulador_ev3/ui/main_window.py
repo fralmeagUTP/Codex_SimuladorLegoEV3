@@ -1573,6 +1573,10 @@ class EV3SimulatorApp(tk.Tk):
         footer.pack(fill=tk.X, padx=10, pady=(0, 10))
         tk.Button(footer, text="Aceptar", width=12, command=win.destroy).pack(side=tk.RIGHT)
         self._center_dialog_over_main_window(win)
+        # Las tarjetas pueden ajustar el tamaño solicitado tras el primer
+        # layout; repetimos al quedar libre el bucle para centrar la geometría
+        # final, no la estimada inicialmente.
+        win.after_idle(lambda: self._center_dialog_over_main_window(win))
 
     def _center_dialog_over_main_window(self, window: tk.Toplevel) -> None:
         """Centra un diálogo respecto a la ventana principal visible."""
