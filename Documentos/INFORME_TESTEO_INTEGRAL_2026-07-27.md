@@ -278,3 +278,15 @@ aplicación conservó la respuesta de la interfaz, informó el estado `ERROR` en
 telemetría y mostró el diálogo modal `Línea 1: invalid syntax (<script>, line
 1)`. El diálogo se cerró y la aplicación terminó sin proceso residual.
 Evidencia: [error de sintaxis](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/error_sintaxis.png).
+
+Validación de navegación restante: **Archivo** se desplegó con Nuevo script,
+Abrir script, Guardar script y Salir; al usar Nuevo script se sustituyó el
+contenido por la plantilla `# Nuevo script`. **Trazas** mostró iniciar/detener
+registro, avanzar un tick y exportaciones JSON/CSV. **Fidelidad** mostró los
+perfiles Ideal, Realista y Calibrado. No hubo excepciones ni bloqueo al abrir
+estos menús. Evidencia: [Archivo](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/archivo_menu.png),
+[nuevo script](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/nuevo_script.png),
+[Trazas](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/trazas_menu.png) y
+[Fidelidad](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/fidelidad_menu.png).
+Las operaciones de abrir, guardar y exportar con archivos del sistema siguen
+pendientes para una ejecución aislada con rutas temporales explícitas.
