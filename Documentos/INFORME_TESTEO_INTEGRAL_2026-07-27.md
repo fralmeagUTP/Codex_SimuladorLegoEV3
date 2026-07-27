@@ -213,6 +213,18 @@ declaran como aprobados.
 - Recomendación: corregir la especificación de PyInstaller y validar el
   directorio `_internal` en un Windows limpio antes de cualquier liberación.
 
+### TK-010 — La interfaz no muestra el resultado evaluado de una misión
+
+- Severidad: **media**.
+- Funcionalidad: Misiones y retroalimentación educativa.
+- Evidencia: `MissionCatalog` define criterios y `MissionEvaluator` existe,
+  pero `EV3SimulatorApp._load_mission()` solo carga mundo y script; no conserva
+  la misión activa ni invoca al evaluador cuando el runtime finaliza.
+- Impacto: no se puede verificar desde Tkinter éxito, fallo o cancelación, ni
+  mostrar puntuación o criterios al alumnado.
+- Recomendación: implementar el cambio OpenSpec
+  `exponer-resultados-mision-en-interfaces` con contrato común Web/Tkinter.
+
 ## 5. Accesibilidad, estabilidad y rendimiento
 
 - Accesibilidad: no fue posible validar foco de teclado, atajos, orden de tab,
