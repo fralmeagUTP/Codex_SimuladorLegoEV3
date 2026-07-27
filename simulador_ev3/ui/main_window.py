@@ -1760,6 +1760,10 @@ def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
     splash.overrideredirect(True)
     splash.transient(app)
     splash.configure(bg="#ffffff")
+    try:
+        splash.attributes("-topmost", True)
+    except tk.TclError:
+        pass
     image: tk.PhotoImage | None = None
     try:
         source = tk.PhotoImage(file=str(_intro_image_path()))
@@ -1790,9 +1794,17 @@ def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
     main_x = max(0, (splash.winfo_screenwidth() - main_w) // 2)
     main_y = max(0, (splash.winfo_screenheight() - main_h) // 2)
     splash.geometry(f"{width}x{height}+{main_x + (main_w - width) // 2}+{main_y + (main_h - height) // 2}")
+    splash.deiconify()
+    splash.lift()
+    splash.focus_force()
+    splash.update_idletasks()
 
     def reveal() -> None:
         if splash.winfo_exists():
+            try:
+                splash.attributes("-topmost", False)
+            except tk.TclError:
+                pass
             splash.destroy()
         app.deiconify()
         app.lift()
