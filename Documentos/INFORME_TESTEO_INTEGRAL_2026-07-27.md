@@ -204,3 +204,11 @@ SimuladorEV3.spec` finalizó con código 0. El artefacto
 `_internal/simulador_ev3/assets/Intro.png`; al iniciarlo, el proceso continuó
 activo tras 6 segundos y pudo cerrarse limpiamente. La inspección visual de la
 intro del ejecutable permanece BLOCKED por la misma limitación de escritorio.
+
+Validación funcional de intro desde código fuente: el nuevo capturador
+`scripts/capture_desktop_intro.py` ejecutó el flujo real de
+`_launch_after_intro()` y generó [intro](EVIDENCIA_INTRO_2026-07-27/intro.png)
+y [ventana principal](EVIDENCIA_INTRO_2026-07-27/ventana_principal.png). La
+captura ocurrió a los 500 ms de la intro y, tras los 3.000 ms configurados,
+tomó la ventana principal y la cerró limpiamente. El flujo de evidencia crea
+una sesión efímera: no restaura ni persiste la sesión de la persona usuaria.

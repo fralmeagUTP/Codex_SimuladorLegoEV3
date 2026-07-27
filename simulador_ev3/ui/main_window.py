@@ -30,7 +30,7 @@ import tkinter as tk
 from functools import partial
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from simulador_ev3 import __version__
 from simulador_ev3.application.desktop_session_adapter import DesktopSessionAdapter
@@ -1834,7 +1834,13 @@ def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
     app.after(duration_ms, reveal)
 
 
-def _launch_after_intro() -> None:
+def _launch_after_intro(
+    *,
+    duration_ms: int = 3000,
+    on_intro_ready: Optional[Callable[[tk.Tk], None]] = None,
+    on_main_ready: Optional[Callable[[EV3SimulatorApp], None]] = None,
+    app_factory: Optional[Callable[[], EV3SimulatorApp]] = None,
+) -> None:
     """Usa la raíz inicial exclusivamente como introducción y luego crea la app."""
     splash = tk.Tk()
     splash.overrideredirect(True)
@@ -1872,13 +1878,18 @@ def _launch_after_intro() -> None:
     splash.geometry(f"{width}x{height}+{main_x + (main_w - width) // 2}+{main_y + (main_h - height) // 2}")
     splash.lift()
     splash.focus_force()
+    splash.update_idletasks()
+    if on_intro_ready is not None:
+        on_intro_ready(splash)
 
     def launch() -> None:
         splash.destroy()
-        app = EV3SimulatorApp()
+        app = app_factory() if app_factory is not None else EV3SimulatorApp()
+        if on_main_ready is not None:
+            on_main_ready(app)
         app.mainloop()
 
-    splash.after(3000, launch)
+    splash.after(duration_ms, launch)
     splash.mainloop()
 
 
