@@ -41,7 +41,7 @@ _LCD_LED_OFF = "#A4AA95"
 _LCD_CANVAS_W = 300
 # Debe dejar espacio visible para la tabla Robot/Estado bajo la LCD en la
 # franja inferior de la ventana, incluso sin redimensionar el panel.
-_LCD_CANVAS_H = 190
+_LCD_CANVAS_H = 100
 
 
 class BrickPanel(tk.Frame):
