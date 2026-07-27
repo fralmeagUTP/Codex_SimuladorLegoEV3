@@ -414,3 +414,12 @@ Validación de cierre durante ejecución: con `wait(10000)` activo a `1.060 s`
 y tick `53`, se cerró la ventana principal mediante su control visible. La
 ventana desapareció en menos de dos segundos y no quedó una instancia Tkinter
 visible. Evidencia: [ejecución antes del cierre](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/cierre_durante_ejecucion.png).
+
+Validación de misión: se cargó **Misiones > Evita obstáculos** y se ejecutó
+hasta `FINALIZADO` sin excepción. El escenario actualizó obstáculos, el robot
+mantuvo una única representación visual, los haces y la LCD informaron lecturas
+durante el recorrido; al final se observaron `19.640 s`, tick `982` y colisión
+`OK`. No se declara validado éxito/fallo de misión porque la interfaz no
+muestra un criterio o resultado de evaluación explícito. Evidencia:
+[misión cargada](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mision_evitar_obstaculos_cargada.png)
+y [misión finalizada](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mision_evitar_obstaculos_finalizada.png).
