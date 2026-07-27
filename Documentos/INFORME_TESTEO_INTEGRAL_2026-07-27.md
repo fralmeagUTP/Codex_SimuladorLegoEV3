@@ -173,6 +173,24 @@ declaran como aprobados.
 - Recomendación: enlazar el colector a los ticks reales y añadir una prueba de
   integración que ejecute una misión y valide un JSON con al menos un snapshot.
 
+### TK-008 — El diálogo “Acerca de” no se centra respecto a la aplicación
+
+- Severidad: **media**.
+- Funcionalidad: Ayuda > Acerca de y ventanas secundarias.
+- Pasos:
+  1. Abrir el menú Ayuda.
+  2. Seleccionar Acerca de.
+- Esperado: diálogo modal centrado respecto a la ventana principal, con foco y
+  un cierre accesible.
+- Observado: la ventana se abrió en `(0, 0)` del escritorio, lejos de la
+  ventana principal ubicada en `(130, 130)`. El contenido y el botón Aceptar
+  fueron funcionales; al cerrarla no quedaron ventanas residuales.
+- Evidencia: captura `acerca_de.png` de la validación interactiva posterior.
+- Hipótesis: el diálogo `Toplevel` no recibe una geometría calculada ni llama a
+  una utilidad de centrado después de conocer su tamaño real.
+- Recomendación: centrar la ventana tras `update_idletasks()` y añadir una
+  prueba de geometría relativa a la ventana principal.
+
 ## 5. Accesibilidad, estabilidad y rendimiento
 
 - Accesibilidad: no fue posible validar foco de teclado, atajos, orden de tab,
@@ -370,3 +388,9 @@ después de detener el registro. Los dos JSON temporales fueron válidos pero
 contenían `{"trace_version":1,"snapshots":[]}`. Se registra como TK-007; el
 problema no es un fallo del diálogo de archivo, pues ambos archivos se crearon
 correctamente fuera del repositorio.
+
+Validación de ventana secundaria: **Ayuda > Acerca de** abrió con contenido y
+botón Aceptar funcionales, y ambos diálogos/principal se cerraron sin residuo.
+No obstante, la ventana se ubicó en `(0, 0)` mientras la principal estaba en
+`(130, 130)`; se registra como TK-008 por no respetar el centrado esperado.
+Evidencia: [Acerca de](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/acerca_de.png).
