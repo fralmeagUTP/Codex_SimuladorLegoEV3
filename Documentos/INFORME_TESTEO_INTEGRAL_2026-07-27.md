@@ -205,8 +205,10 @@ declaran como aprobados.
   el módulo especificado.` La interfaz no llega a crear ninguna ventana.
 - Evidencia: captura `ejecutable_intro_700ms.png` y proceso `SimuladorEV3.exe`
   iniciado desde la distribución local.
-- Hipótesis: el artefacto no incorpora o no puede resolver las DLL requeridas
-  por Tcl/Tk en el entorno de empaquetado.
+- Causa raíz confirmada: el artefacto contiene `_tkinter.pyd` y los directorios
+  de datos Tcl/Tk, pero no `tcl86t.dll` ni `tk86t.dll`. En el entorno Conda de
+  compilación esas DLL están en `C:\ProgramData\miniforge3\Library\bin`, una
+  ubicación que la especificación actual no añade a `Analysis.binaries`.
 - Recomendación: corregir la especificación de PyInstaller y validar el
   directorio `_internal` en un Windows limpio antes de cualquier liberación.
 
