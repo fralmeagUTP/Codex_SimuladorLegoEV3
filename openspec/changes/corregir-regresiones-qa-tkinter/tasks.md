@@ -30,5 +30,12 @@
 ## Fase 5 — Validación interactiva pendiente
 
 - [ ] 5.1 Ejecutar intro, menús, diálogos, mundos, misiones, scripts y controles en sesión Windows visible.
+  - [x] 5.1.1 Validar intro, temas, menús, Manual, Acerca de y Editor de mundos con entrada visible.
+  - [x] 5.1.2 Validar ejecución, error de sintaxis, tiempo máximo, controles de canvas y reinicio.
+  - [x] 5.1.3 Registrar fallos reproducibles de Reanudar, trazas y sincronización del nombre de mundo.
+  - [ ] 5.1.4 Completar crear/guardar/cargar/editar/eliminar mundos con rutas temporales aisladas.
+  - [ ] 5.1.5 Ejecutar misiones con resultado de éxito, fallo y cancelación; comprobar sus criterios.
 - [ ] 5.2 Adjuntar evidencia desde código fuente y ejecutable empaquetado.
+  - [x] 5.2.1 Adjuntar evidencia visual de intro y flujo fuente; validar el artefacto PyInstaller.
+  - [ ] 5.2.2 Capturar visualmente intro y ventana principal desde el ejecutable empaquetado.
 - [ ] 5.3 Cambiar decisión de liberación solo después de 5.1 y 5.2.
