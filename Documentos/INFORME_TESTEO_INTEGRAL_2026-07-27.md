@@ -191,3 +191,9 @@ La decisión de liberación permanece **apta con observaciones**, no aprobación
 plena: siguen pendientes los recorridos de la fase 5 (intro, menús, diálogos,
 mundos, misiones y scripts) en una sesión Windows realmente interactiva, y las
 pruebas de geometría automatizadas sin mocks de Tkinter.
+
+Se añadió el recorrido E2E `test_desktop_startup_shows_intro_before_main_window`.
+Con `EV3_RUN_DESKTOP_E2E=1` la campaña actual reportó 3 pruebas **BLOCKED**
+(omitidas), ya que Windows no expuso ventanas visibles al proceso de
+automatización. El mismo recorrido quedará activo, sin cambios manuales, en
+una sesión gráfica local o de CI con escritorio interactivo.

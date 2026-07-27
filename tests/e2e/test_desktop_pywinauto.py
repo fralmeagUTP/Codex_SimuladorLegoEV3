@@ -23,6 +23,45 @@ def _desktop_e2e_enabled() -> bool:
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_startup_shows_intro_before_main_window() -> None:
+    """Comprueba que la intro ocupa el arranque y que no deja ventanas residuales."""
+
+    pytest.importorskip("pywinauto")
+    from pywinauto import Desktop
+    from pywinauto.application import Application
+
+    root = Path(__file__).resolve().parents[2]
+    application = Application(backend="win32").start(
+        cmd_line=f'"{sys.executable}" -m simulador_ev3.ui.main_window',
+        work_dir=str(root),
+        wait_for_idle=False,
+    )
+    desktop = Desktop(backend="win32")
+    main = application.window(title="Simulador EV3 Pybricks")
+    try:
+        # Durante la intro existe una sola ventana visible del proceso y la
+        # ventana principal aún no debe ser interactuable.
+        assert not main.exists(timeout=1)
+        visible = [window for window in application.windows() if window.is_visible()]
+        if not visible:
+            pytest.skip("el entorno no expone la ventana de introducción en un escritorio Windows visible")
+        assert len(visible) == 1
+
+        main.wait("visible", timeout=8)
+        main.set_focus()
+        visible_main = [
+            window for window in desktop.windows(process=application.process)
+            if window.is_visible() and window.window_text() == "Simulador EV3 Pybricks"
+        ]
+        assert len(visible_main) == 1
+    finally:
+        try:
+            application.kill()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
 def test_desktop_navigation_opens_help_and_world_editor() -> None:
     """Comprueba navegación real por ratón sobre las ventanas Tkinter."""
 
