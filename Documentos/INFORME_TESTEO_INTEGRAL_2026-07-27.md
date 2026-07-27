@@ -337,3 +337,11 @@ misión terminara de inmediato, sin consumir el tiempo restante; se registró
 como TK-006. Evidencia: [pausado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecucion_pausada.png),
 [resultado tras reanudar](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecucion_reanudada.png)
 y [estado posterior al reinicio](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecucion_cancelada_reiniciada.png).
+
+Validación de controles de escenario: un clic en el canvas reubicó el robot a
+`(118.4 cm, 20.6 cm)` y actualizó el texto de posición inicial. Arrastrar desde
+el robot hacia abajo actualizó la orientación a `90°`, tanto en la etiqueta
+superior como en el marcador visual. El control Haces cambió de `Haces ON` a
+`Haces OFF`; el haz no es distinguible en este mundo sin sensores configurados.
+Evidencia: [reubicación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/robot_reubicado_canvas.png)
+y [orientación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/robot_orientado_arrastre.png).
