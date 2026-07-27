@@ -512,3 +512,12 @@ La ventana se cerró sin residuos. Evidencia:
 [reanudación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/pausa_reanudar_corregida.png)
 y [finalización](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/pausa_finalizada_corregida.png).
 Estado de TK-006: **RESUELTO y validado visualmente**.
+
+Validación visual posterior de TK-007: desde **Trazas > Iniciar registro** se
+ejecutó `wait(2000)` hasta `FINALIZADO` (2.100 s, tick 105), se abrió
+**Exportar JSON** y se guardó el resultado en una ruta temporal aislada. El
+archivo fue válido y contenía **106 snapshots**, desde tick 1 hasta tick 105.
+La ventana se cerró sin residuos. Evidencia:
+[menú Trazas](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/trazas_menu_validacion.png)
+y [diálogo de exportación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/trazas_exportar_dialogo_validacion.png).
+Estado de TK-007: **RESUELTO y validado visualmente**.
