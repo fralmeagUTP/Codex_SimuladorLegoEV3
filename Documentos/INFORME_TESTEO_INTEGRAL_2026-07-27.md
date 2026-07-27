@@ -116,6 +116,24 @@ declaran como aprobados.
 - Recomendación: añadir un capturador específico de intro que tome una imagen
   entre 0.5 y 2 segundos, y una prueba `pywinauto` en una sesión Windows visible.
 
+### TK-005 — Nombre de mundo mostrado no se sincroniza al cargar un preestablecido
+
+- Severidad: **media**.
+- Funcionalidad: gestión y contexto visible del mundo activo.
+- Pasos:
+  1. Abrir **Mundos > Mundos preestablecidos**.
+  2. Seleccionar `07_laberinto_v1.json`.
+  3. Revisar el encabezado y la posición inicial mostrada.
+- Esperado: el encabezado identifica el mundo seleccionado y coincide con el
+  escenario y su posición de inicio.
+- Observado: el canvas carga los obstáculos y la posición cambia a `(45.0 cm,
+  95.0 cm)`, pero el encabezado conserva `Mundo actual: Básico`.
+- Evidencia: capturas de la validación interactiva posterior, sección 9.
+- Hipótesis: la carga de mundo actualiza el motor/canvas, pero no la variable
+  enlazada a la etiqueta del encabezado.
+- Recomendación: sincronizar el nombre visible con el identificador o nombre
+  mostrado del mundo cargado y añadir una prueba de regresión de selección.
+
 ## 5. Accesibilidad, estabilidad y rendimiento
 
 - Accesibilidad: no fue posible validar foco de teclado, atajos, orden de tab,
