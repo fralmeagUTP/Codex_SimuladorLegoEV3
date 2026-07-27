@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import tkinter as tk
 from functools import partial
 from pathlib import Path
@@ -41,6 +42,7 @@ from simulador_ev3.shared.help_tutorials import HELP_TUTORIALS
 from simulador_ev3.shared.mission_catalog import MissionCatalog
 from simulador_ev3.shared.paths import (
     resolve_examples_dir,
+    resolve_image_assets_dir,
     resolve_manual_path,
     resolve_worlds_dir,
 )
@@ -97,8 +99,11 @@ class EV3SimulatorApp(tk.Tk):
         *,
         restore_session: bool = True,
         persist_session: bool = True,
+        start_hidden: bool = False,
     ) -> None:
         super().__init__()
+        if start_hidden:
+            self.withdraw()
         self.title("Simulador EV3 Pybricks")
         self.geometry(f"{WEB_REFERENCE_WIDTH_PX}x{WEB_REFERENCE_HEIGHT_PX}")
         self.minsize(WEB_MIN_WIDTH_PX, WEB_MIN_HEIGHT_PX)
@@ -1741,8 +1746,64 @@ class EV3SimulatorApp(tk.Tk):
 # ---------------------------------------------------------------------------
 
 
+def _intro_image_path() -> Path:
+    """Ruta de la introducción en código fuente y en ejecutables PyInstaller."""
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        return Path(bundle_root) / "simulador_ev3" / "assets" / "Intro.png"
+    return resolve_image_assets_dir() / "Intro.png"
+
+
+def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
+    """Muestra una introducción no bloqueante antes de revelar la ventana principal."""
+    splash = tk.Toplevel(app)
+    splash.overrideredirect(True)
+    splash.transient(app)
+    splash.configure(bg="#ffffff")
+    image: tk.PhotoImage | None = None
+    try:
+        source = tk.PhotoImage(file=str(_intro_image_path()))
+        screen_w = max(1, splash.winfo_screenwidth())
+        screen_h = max(1, splash.winfo_screenheight())
+        max_w = max(1, screen_w - 80)
+        max_h = max(1, screen_h - 80)
+        factor = max(1, -(-source.width() // max_w), -(-source.height() // max_h))
+        image = source.subsample(factor, factor) if factor > 1 else source
+        tk.Label(splash, image=image, bg="#ffffff", bd=0).pack()
+        splash._intro_image = image  # type: ignore[attr-defined]
+        width, height = image.width(), image.height()
+    except Exception:  # noqa: BLE001
+        tk.Label(
+            splash,
+            text="BotLab Studio",
+            bg="#ffffff",
+            fg="#1f3a5a",
+            font=("Segoe UI", 20, "bold"),
+            padx=48,
+            pady=32,
+        ).pack()
+        width, height = 300, 100
+
+    app.update_idletasks()
+    main_w = min(WEB_REFERENCE_WIDTH_PX, max(1, splash.winfo_screenwidth() - 80))
+    main_h = min(WEB_REFERENCE_HEIGHT_PX, max(1, splash.winfo_screenheight() - 80))
+    main_x = max(0, (splash.winfo_screenwidth() - main_w) // 2)
+    main_y = max(0, (splash.winfo_screenheight() - main_h) // 2)
+    splash.geometry(f"{width}x{height}+{main_x + (main_w - width) // 2}+{main_y + (main_h - height) // 2}")
+
+    def reveal() -> None:
+        if splash.winfo_exists():
+            splash.destroy()
+        app.deiconify()
+        app.lift()
+        app.focus_force()
+
+    app.after(duration_ms, reveal)
+
+
 def main() -> None:
-    app = EV3SimulatorApp()
+    app = EV3SimulatorApp(start_hidden=True)
+    _show_intro(app)
     app.mainloop()
 
 
