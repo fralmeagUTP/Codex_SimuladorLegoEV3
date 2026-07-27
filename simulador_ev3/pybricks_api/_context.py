@@ -36,10 +36,14 @@ class PybricksContext:
         command_queue: "CommandQueue",
         engine: "SimulationEngine",
         stop_event: threading.Event,
+        pause_event: threading.Event | None = None,
     ) -> None:
         self.command_queue = command_queue
         self.engine = engine
         self.stop_event = stop_event
+        # Se comparte con el runtime para que las esperas cooperativas no
+        # consuman tiempo de script mientras la simulación está pausada.
+        self.pause_event = pause_event or threading.Event()
 
     # ------------------------------------------------------------------
     # Registro global thread-safe

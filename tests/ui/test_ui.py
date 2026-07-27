@@ -1093,6 +1093,7 @@ class TestMainWindow:
 
         load_world.assert_called_once()
         load_file.assert_called_once()
+        assert app._active_world_label == "01_linea_negra"
         app._on_close()
 
     def test_apply_scenario_shows_error_when_world_missing(self):
@@ -1388,3 +1389,33 @@ class TestMainWindow:
             mw.main()
 
         assert calls == ["freeze", "launch"]
+
+    def test_about_dialog_is_centered_over_the_main_window(self):
+        app = self.EV3SimulatorApp()
+
+        class FakeDialog:
+            def __init__(self):
+                self.geometry_value = ""
+
+            def update_idletasks(self):
+                pass
+
+            def winfo_width(self):
+                return 200
+
+            def winfo_height(self):
+                return 100
+
+            def geometry(self, value):
+                self.geometry_value = value
+
+        app.winfo_rootx = mock.Mock(return_value=100)
+        app.winfo_rooty = mock.Mock(return_value=80)
+        app.winfo_width = mock.Mock(return_value=800)
+        app.winfo_height = mock.Mock(return_value=600)
+        dialog = FakeDialog()
+
+        app._center_dialog_over_main_window(dialog)
+
+        assert dialog.geometry_value == "200x100+400+330"
+        app._on_close()

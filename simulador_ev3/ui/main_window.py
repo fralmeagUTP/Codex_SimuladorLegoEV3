@@ -133,6 +133,7 @@ class EV3SimulatorApp(tk.Tk):
         self._about_images: list[tk.PhotoImage] = []
         self._editor_world_placements: list[dict] = []
         self._active_world_path: str | None = None
+        self._active_world_label = "Basico"
         self._debug_active = False
         self._execution_menu_locked = False
         self._lockable_menu_buttons: list[tk.Menubutton] = []
@@ -1387,6 +1388,7 @@ class EV3SimulatorApp(tk.Tk):
         try:
             self._service.load_world_file(path)
             self._active_world_path = str(Path(path).resolve())
+            self._active_world_label = Path(path).stem
             self._load_editor_visual_data(path)
             self._refresh_world_canvas()
             self._activate_placement_mode()
@@ -1401,6 +1403,7 @@ class EV3SimulatorApp(tk.Tk):
         try:
             self._service.load_world_file(path)
             self._active_world_path = str(Path(path).resolve())
+            self._active_world_label = Path(path).stem
             self._load_editor_visual_data(path)
             self._refresh_world_canvas()
             self._activate_placement_mode()
@@ -1415,6 +1418,7 @@ class EV3SimulatorApp(tk.Tk):
         try:
             self._service.load_blank_world()
             self._active_world_path = None
+            self._active_world_label = "En blanco"
             self._editor_world_placements = []
             self._refresh_world_canvas()
             self._activate_placement_mode()
@@ -1441,6 +1445,8 @@ class EV3SimulatorApp(tk.Tk):
 
         try:
             self._service.load_world_file(str(world_path))
+            self._active_world_path = str(world_path.resolve())
+            self._active_world_label = Path(world_file).stem
             self._load_editor_visual_data(str(world_path))
             self._editor.load_file(str(example_path))
             self._refresh_world_canvas()
@@ -1463,7 +1469,8 @@ class EV3SimulatorApp(tk.Tk):
 
     def _refresh_world_canvas(self) -> None:
         world = self._service.world_visual_data()
-        self._world_name_var.set(f"Mundo actual: {world['name']}")
+        world_name = self._active_world_label or str(world["name"])
+        self._world_name_var.set(f"Mundo actual: {world_name}")
         self._canvas.set_world_size_mm(world["width_mm"], world["height_mm"])
         self._canvas.set_surface_cells(world["surface_cells"])
         self._canvas.set_obstacles(world["obstacles"])
@@ -1565,6 +1572,16 @@ class EV3SimulatorApp(tk.Tk):
         footer = tk.Frame(body, bg=tokens.surface_muted)
         footer.pack(fill=tk.X, padx=10, pady=(0, 10))
         tk.Button(footer, text="Aceptar", width=12, command=win.destroy).pack(side=tk.RIGHT)
+        self._center_dialog_over_main_window(win)
+
+    def _center_dialog_over_main_window(self, window: tk.Toplevel) -> None:
+        """Centra un diálogo respecto a la ventana principal visible."""
+        window.update_idletasks()
+        width = max(1, window.winfo_width())
+        height = max(1, window.winfo_height())
+        x = self.winfo_rootx() + max(0, (self.winfo_width() - width) // 2)
+        y = self.winfo_rooty() + max(0, (self.winfo_height() - height) // 2)
+        window.geometry(f"{width}x{height}+{x}+{y}")
 
     def _add_about_group_card(self, parent: tk.Widget, image_rel_path: str, title: str, desc: str) -> None:
         tokens = tokens_for_theme(self._theme_name)

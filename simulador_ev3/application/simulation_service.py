@@ -188,6 +188,11 @@ class SimulationService:
     def stop_trace(self) -> None:
         self._trace_recording = False
 
+    def record_external_snapshot(self, dto: SnapshotDTO) -> None:
+        """Incorpora un snapshot emitido por un worker aislado a la traza."""
+        if self._trace_recording:
+            self._trace.record(dto.to_dict())
+
     def export_trace(self, format: str = "json") -> str:
         if format == "json":
             return self._trace.to_json()

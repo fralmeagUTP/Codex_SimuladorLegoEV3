@@ -190,6 +190,8 @@ class DesktopSessionAdapter(SimulationSessionPort):
         raw_events = self._worker.drain_events() if self._worker is not None else []
         events = [SessionEvent.from_dict(event).to_dict() for event in raw_events]
         for event in events:
+            if event.get("type") == "snapshot" and isinstance(event.get("payload"), dict):
+                self._service.record_external_snapshot(SnapshotDTO(event["payload"]))
             if event.get("type") == "status" and isinstance(event.get("payload"), dict):
                 candidate = event["payload"].get("status")
                 if isinstance(candidate, str):

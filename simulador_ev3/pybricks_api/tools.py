@@ -33,11 +33,19 @@ def wait(time_ms: float) -> None:
         raise SystemExit
 
     while remaining_s > 0:
+        # El engine puede quedar pausado durante una misión. En ese estado no
+        # se descuenta el tiempo solicitado: el script conserva la espera que
+        # quedaba al reanudar y Stop sigue siendo inmediato.
+        while ctx.pause_event.is_set():
+            if ctx.stop_event.is_set():
+                raise SystemExit
+            _time.sleep(interval)
         sleep_s = min(remaining_s, interval)
         _time.sleep(sleep_s)
         if ctx.stop_event.is_set():
             raise SystemExit
-        remaining_s -= sleep_s
+        if not ctx.pause_event.is_set():
+            remaining_s -= sleep_s
 
 
 class StopWatch:

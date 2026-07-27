@@ -221,6 +221,7 @@ class RuntimeController:
                 from simulador_ev3.pybricks_api._context import PybricksContext
 
                 PybricksContext.get_current().stop_event = self._sandbox.stop_event
+                PybricksContext.get_current().pause_event = self._pause_flag
             except Exception:  # noqa: BLE001
                 pass
 

@@ -470,3 +470,19 @@ y [ventana principal del ejecutable](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ej
 Estado de TK-009: **RESUELTO y verificado en el ejecutable reconstruido**. Esta
 corrección no cambia los hallazgos pendientes TK-005, TK-006, TK-007 y TK-008,
 por lo que no modifica por sí sola la decisión de liberación.
+
+### Seguimiento funcional posterior
+
+Se implementó el cambio OpenSpec `corregir-regresiones-funcionales-qa` para
+TK-005, TK-006, TK-007 y TK-008. `wait()` ahora conserva el tiempo pendiente
+mientras el runtime está pausado; los snapshots de worker aislado pasan al
+registro de trazas; el encabezado conserva el nombre del archivo de mundo
+activo; y Acerca de se centra respecto a la ventana principal.
+
+La validación automatizada cubrió 157 pruebas de UI, Pybricks y adaptador de
+escritorio sin fallos. Incluye una integración con worker real que ejecuta un
+script aislado y comprueba que la exportación contiene snapshots. La prueba
+ad-hoc mediante entrada estándar no fue utilizable porque Windows `spawn` no
+puede importar `<stdin>`; se sustituyó por Pytest, que ejecutó correctamente
+el mismo flujo. Queda pendiente repetir los cuatro recorridos de forma visual
+en la aplicación antes de cambiar la decisión de liberación.

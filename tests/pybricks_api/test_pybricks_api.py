@@ -174,6 +174,26 @@ class TestWait:
         elapsed_ms = (time.perf_counter() - t0) * 1000
         assert elapsed_ms < 100
 
+    def test_wait_preserves_remaining_time_while_the_runtime_is_paused(self):
+        eng = make_engine()
+        stop = threading.Event()
+        pause = threading.Event()
+        PybricksFactory.create(eng, stop, pause)
+        pause.set()
+        completed = threading.Event()
+
+        thread = threading.Thread(target=lambda: (wait(80), completed.set()), daemon=True)
+        started_at = time.perf_counter()
+        thread.start()
+        time.sleep(0.07)
+        assert not completed.is_set()
+
+        pause.clear()
+        thread.join(timeout=0.5)
+
+        assert completed.is_set()
+        assert time.perf_counter() - started_at >= 0.14
+
 
 class TestStopWatch:
     def test_time_increases(self):
