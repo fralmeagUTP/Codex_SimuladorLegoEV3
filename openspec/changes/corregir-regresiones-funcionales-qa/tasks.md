@@ -7,4 +7,5 @@
 - [x] 5. Centrar Acerca de respecto a la ventana principal.
 - [x] 6. Añadir pruebas unitarias, de UI y de integración con worker real.
 - [ ] 7. Repetir la validación visual manual de pausa, trazas, mundos y Acerca de.
+  - [ ] 7.1 Ejecutar E2E nativo con `EV3_RUN_DESKTOP_E2E=1` en una sesión Windows que exponga el escritorio al proceso de pruebas.
 - [ ] 8. Actualizar la decisión de liberación después de la validación manual.

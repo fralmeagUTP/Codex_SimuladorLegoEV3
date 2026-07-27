@@ -486,3 +486,11 @@ ad-hoc mediante entrada estándar no fue utilizable porque Windows `spawn` no
 puede importar `<stdin>`; se sustituyó por Pytest, que ejecutó correctamente
 el mismo flujo. Queda pendiente repetir los cuatro recorridos de forma visual
 en la aplicación antes de cambiar la decisión de liberación.
+
+El 2026-07-27 se activó también el arnés `tests/e2e/test_desktop_pywinauto.py`
+con `EV3_RUN_DESKTOP_E2E=1`. `pywinauto 0.6.9` está instalado, pero la sesión
+en la que se ejecuta Pytest no expone las ventanas a ese backend: inicio,
+navegación y controles se omitieron tras sus tiempos de espera. Esto es una
+limitación de la sesión de automatización, no una aprobación ni un defecto
+confirmado del producto. El comando y los tres motivos de omisión quedaron
+registrados en la salida de ejecución.
