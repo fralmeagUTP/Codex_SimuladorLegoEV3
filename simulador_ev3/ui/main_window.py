@@ -24,6 +24,7 @@ Uso:
 from __future__ import annotations
 
 import json
+import multiprocessing
 import re
 import sys
 import tkinter as tk
@@ -1894,6 +1895,10 @@ def _launch_after_intro(
 
 
 def main() -> None:
+    # En un ejecutable PyInstaller, los workers ``spawn`` vuelven a invocar el
+    # punto de entrada. Resolverlo antes de crear la intro evita instancias UI
+    # recursivas en procesos de worker.
+    multiprocessing.freeze_support()
     _launch_after_intro()
 
 

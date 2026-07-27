@@ -39,9 +39,9 @@
   - [ ] 5.1.5 Ejecutar misiones con resultado de éxito, fallo y cancelación; comprobar sus criterios.
     - [x] 5.1.5a Ejecutar Evita obstáculos hasta finalización normal y verificar telemetría/LCD.
     - [ ] 5.1.5b Validar resultados explícitos de éxito/fallo y cancelación de todas las misiones disponibles.
-- [ ] 5.2 Adjuntar evidencia desde código fuente y ejecutable empaquetado.
+- [x] 5.2 Adjuntar evidencia desde código fuente y ejecutable empaquetado.
   - [x] 5.2.1 Adjuntar evidencia visual de intro y flujo fuente; validar el artefacto PyInstaller.
-  - [ ] 5.2.2 Capturar visualmente intro y ventana principal desde el ejecutable empaquetado.
+  - [x] 5.2.2 Capturar visualmente intro y ventana principal desde el ejecutable empaquetado.
     - [x] 5.2.2a Ejecutar el `.exe` y registrar el bloqueo TK-009 de carga de `_tkinter`.
-    - [ ] 5.2.2b Corregir empaquetado Tk/Tcl y repetir evidencia de intro/ventana principal.
+    - [x] 5.2.2b Corregir empaquetado Tk/Tcl y repetir evidencia de intro/ventana principal.
 - [ ] 5.3 Cambiar decisión de liberación solo después de 5.1 y 5.2.

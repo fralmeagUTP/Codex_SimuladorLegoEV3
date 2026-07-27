@@ -1375,3 +1375,16 @@ class TestMainWindow:
 
         app._editor.set_code.assert_not_called()
         app._on_close()
+
+    def test_main_resolves_frozen_worker_before_launching_the_ui(self):
+        """Evita que el ejecutable cree intros/UI desde un worker ``spawn``."""
+        from simulador_ev3.ui import main_window as mw
+
+        calls: list[str] = []
+        with (
+            mock.patch.object(mw.multiprocessing, "freeze_support", side_effect=lambda: calls.append("freeze")),
+            mock.patch.object(mw, "_launch_after_intro", side_effect=lambda: calls.append("launch")),
+        ):
+            mw.main()
+
+        assert calls == ["freeze", "launch"]

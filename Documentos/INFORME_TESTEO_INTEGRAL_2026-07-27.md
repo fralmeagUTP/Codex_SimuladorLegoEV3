@@ -194,6 +194,7 @@ declaran como aprobados.
 ### TK-009 — El ejecutable empaquetado no puede cargar Tkinter
 
 - Severidad: **crítica**.
+- Estado posterior: **RESUELTO y verificado** en el artefacto reconstruido.
 - Funcionalidad: distribución Windows `dist/SimuladorEV3/SimuladorEV3.exe`.
 - Pasos:
   1. Ejecutar `dist\SimuladorEV3\SimuladorEV3.exe` en Windows.
@@ -450,3 +451,22 @@ un defecto crítico. Al iniciar `dist/SimuladorEV3/SimuladorEV3.exe`, PyInstalle
 mostró `ImportError: DLL load failed while importing _tkinter`; no apareció ni
 la intro ni la ventana principal. La instancia se cerró tras aceptar el diálogo
 de error. Evidencia: [error del ejecutable](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecutable_intro_700ms.png).
+
+### Corrección posterior de TK-009
+
+El defecto anterior se corrigió sin alterar la lógica del simulador. La
+especificación de PyInstaller ahora incluye las DLL de Tcl/Tk y sus dependencias
+instaladas por Conda en `Library/bin`; además, el punto de entrada resuelve
+`multiprocessing.freeze_support()` antes de crear la introducción. Esto evita
+que un worker aislado iniciado con `spawn` abra ventanas de UI recursivas.
+
+Se reconstruyó `dist/SimuladorEV3/SimuladorEV3.exe` y se ejecutó realmente. A
+los 3 s se observó la introducción y a los 6 s una única ventana principal
+funcional; el proceso adicional corresponde al worker aislado previsto. Tras
+cerrar la ventana no quedó ninguna instancia de la aplicación. Evidencia:
+[intro del ejecutable](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecutable_intro_3s_final.png)
+y [ventana principal del ejecutable](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejecutable_principal_6s_final.png).
+
+Estado de TK-009: **RESUELTO y verificado en el ejecutable reconstruido**. Esta
+corrección no cambia los hallazgos pendientes TK-005, TK-006, TK-007 y TK-008,
+por lo que no modifica por sí sola la decisión de liberación.
