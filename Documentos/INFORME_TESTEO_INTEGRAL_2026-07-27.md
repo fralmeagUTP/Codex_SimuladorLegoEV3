@@ -401,3 +401,11 @@ herramientas, dimensiones, panel de propiedades y estado `Validación: OK`.
 Se cerró sin guardar ni modificar mundos. La comprobación previa se marcó como
 no concluyente por buscar el título incorrecto; esta evidencia la sustituye.
 Evidencia: [Editor de mundos](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/editor_mundos_menu_actual.png).
+
+Validación parcial de persistencia de mundos: desde el Editor se generó y
+guardó un mundo vacío en una ruta temporal fuera del repositorio. El JSON fue
+creado correctamente (579 bytes, versión 1, dimensiones 4000×4000 mm y listas
+vacías). Se invocó también Abrir sobre ese archivo y no hubo excepción, pero
+la UI no expone el nombre del archivo cargado de forma inequívoca; por ello la
+recarga no se declara aprobada. Evidencia: [diálogo de guardado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/guardar_mundo_temporal_dialogo.png)
+y [estado posterior](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundo_temporal_recargado.png).

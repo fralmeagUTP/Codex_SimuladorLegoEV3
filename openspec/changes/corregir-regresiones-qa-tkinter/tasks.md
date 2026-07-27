@@ -34,6 +34,8 @@
   - [x] 5.1.2 Validar ejecución, error de sintaxis, tiempo máximo, controles de canvas y reinicio.
   - [x] 5.1.3 Registrar fallos reproducibles de Reanudar, trazas y sincronización del nombre de mundo.
   - [ ] 5.1.4 Completar crear/guardar/cargar/editar/eliminar mundos con rutas temporales aisladas.
+    - [x] 5.1.4a Crear y guardar un mundo temporal; validar su JSON.
+    - [ ] 5.1.4b Confirmar recarga, edición y eliminación con estado visible y sin afectar mundos de usuario.
   - [ ] 5.1.5 Ejecutar misiones con resultado de éxito, fallo y cancelación; comprobar sus criterios.
 - [ ] 5.2 Adjuntar evidencia desde código fuente y ejecutable empaquetado.
   - [x] 5.2.1 Adjuntar evidencia visual de intro y flujo fuente; validar el artefacto PyInstaller.
