@@ -8,4 +8,5 @@
 - [x] 6. Añadir pruebas unitarias, de UI y de integración con worker real.
 - [ ] 7. Repetir la validación visual manual de pausa, trazas, mundos y Acerca de.
   - [ ] 7.1 Ejecutar E2E nativo con `EV3_RUN_DESKTOP_E2E=1` en una sesión Windows que exponga el escritorio al proceso de pruebas.
+  - [x] 7.2 Validar visualmente pausa/reanudación con script multilineal real y cierre limpio.
 - [ ] 8. Actualizar la decisión de liberación después de la validación manual.

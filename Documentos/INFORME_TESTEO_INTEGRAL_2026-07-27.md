@@ -500,3 +500,15 @@ Como regresión final de código se ejecutó `python -m pytest -q`: **728 PASS,
 que requieren visibilidad de escritorio para `pywinauto`; la suite cubrió
 motor, runtime aislado, Pybricks, UI simulada, Web, Playwright y configuración
 de contenedor.
+
+Validación visual posterior de TK-006: en una instancia Tkinter real se pegó
+`wait(2000)` con saltos de línea correctos, se ejecutó, pausó, reanudó y dejó
+terminar. La pausa mostró `PAUSADO`, `0.540 s` y tick `27`; después de
+reanudar se observó `EJECUTANDO`, `1.060 s` y tick `53`, por lo que no finalizó
+inmediatamente. La ejecución concluyó en `FINALIZADO`, `2.120 s` y tick `106`.
+La ventana se cerró sin residuos. Evidencia:
+[script](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/pausa_script_insertado.png),
+[pausa](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/pausa_activa_corregida.png),
+[reanudación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/pausa_reanudar_corregida.png)
+y [finalización](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/pausa_finalizada_corregida.png).
+Estado de TK-006: **RESUELTO y validado visualmente**.
