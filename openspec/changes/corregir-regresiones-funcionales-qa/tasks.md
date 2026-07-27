@@ -10,4 +10,5 @@
   - [ ] 7.1 Ejecutar E2E nativo con `EV3_RUN_DESKTOP_E2E=1` en una sesión Windows que exponga el escritorio al proceso de pruebas.
   - [x] 7.2 Validar visualmente pausa/reanudación con script multilineal real y cierre limpio.
   - [x] 7.3 Validar registro y exportación JSON de trazas desde la interfaz real.
+  - [x] 7.4 Validar que el encabezado identifica el mundo preestablecido cargado.
 - [ ] 8. Actualizar la decisión de liberación después de la validación manual.

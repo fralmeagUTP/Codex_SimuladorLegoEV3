@@ -521,3 +521,11 @@ La ventana se cerró sin residuos. Evidencia:
 [menú Trazas](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/trazas_menu_validacion.png)
 y [diálogo de exportación](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/trazas_exportar_dialogo_validacion.png).
 Estado de TK-007: **RESUELTO y validado visualmente**.
+
+Validación visual posterior de TK-005: desde **Mundos > Mundos
+preestablecidos** se seleccionó `07_laberinto_v1.json`. El encabezado cambió
+de `Mundo actual: Basico` a `Mundo actual: 07_laberinto_v1`, el canvas cargó
+los obstáculos y la posición inicial cambió a `(45.0 cm, 95.0 cm)`. La ventana
+se cerró sin residuos. Evidencia:
+[mundo cargado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundo_laberinto_nombre_sincronizado.png).
+Estado de TK-005: **RESUELTO y validado visualmente**.
