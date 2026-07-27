@@ -494,3 +494,9 @@ navegación y controles se omitieron tras sus tiempos de espera. Esto es una
 limitación de la sesión de automatización, no una aprobación ni un defecto
 confirmado del producto. El comando y los tres motivos de omisión quedaron
 registrados en la salida de ejecución.
+
+Como regresión final de código se ejecutó `python -m pytest -q`: **728 PASS,
+3 SKIPPED** en 65.07 s. Los tres omitidos son exclusivamente los E2E Tkinter
+que requieren visibilidad de escritorio para `pywinauto`; la suite cubrió
+motor, runtime aislado, Pybricks, UI simulada, Web, Playwright y configuración
+de contenedor.
