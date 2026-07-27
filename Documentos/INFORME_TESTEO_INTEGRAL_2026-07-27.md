@@ -263,3 +263,18 @@ el encabezado mantuvo el texto `Mundo actual: Básico` después del cambio.
 Debe actualizarse el nombre mostrado o aclararse que el texto representa otra
 propiedad. Evidencia: [submenú](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundos_preestablecidos.png)
 y [mundo aplicado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundo_preestablecido_laberinto.png).
+
+Validación de catálogos: el menú **Escenarios** expuso Seguidor de línea,
+Ultrasonido + obstáculos, Test pantalla/altavoz y Radar 360 ultrasónico. Al
+seleccionar Radar 360 se cargaron su escenario, posición inicial `(195.0 cm,
+185.0 cm)` y código Pybricks asociado sin excepción. El menú **Misiones**
+también se desplegó con Sigue líneas básico, Evita obstáculos y Radar
+ultrasónico. Evidencia: [escenarios](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/escenarios_menu.png),
+[Radar aplicado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/escenario_radar_aplicado.png)
+y [misiones](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/misiones_menu.png).
+
+Validación de error de sintaxis: al ejecutar `if True print("error")`, la
+aplicación conservó la respuesta de la interfaz, informó el estado `ERROR` en
+telemetría y mostró el diálogo modal `Línea 1: invalid syntax (<script>, line
+1)`. El diálogo se cerró y la aplicación terminó sin proceso residual.
+Evidencia: [error de sintaxis](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/error_sintaxis.png).
