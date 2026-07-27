@@ -212,3 +212,17 @@ y [ventana principal](EVIDENCIA_INTRO_2026-07-27/ventana_principal.png). La
 captura ocurrió a los 500 ms de la intro y, tras los 3.000 ms configurados,
 tomó la ventana principal y la cerró limpiamente. El flujo de evidencia crea
 una sesión efímera: no restaura ni persiste la sesión de la persona usuaria.
+
+Validación interactiva parcial posterior: mediante entrada real de mouse y
+teclado se abrió el catálogo **Ejemplos**, se cargó un script Pybricks, se
+ejecutó hasta finalizar y se verificaron el LED, la LCD, tick, tiempo y estado
+de telemetría. También se pulsó **Detener y reiniciar** durante la ejecución:
+el resultado fue `IDLE`, tick `0`, tiempo `0.000 s`, LED apagado y robot en su
+posición inicial. La aplicación se cerró sin proceso residual. Evidencia:
+[ejecutando](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejemplo_ejecutando.png),
+[finalizado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/ejemplo_terminado.png) y
+[reiniciado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/detener_reiniciar_durante_ejecucion.png).
+
+Esta validación elimina el bloqueo de entrada para los recorridos cubiertos,
+pero la fase 5 continúa pendiente para el resto del catálogo de menús,
+diálogos, mundos y misiones.
