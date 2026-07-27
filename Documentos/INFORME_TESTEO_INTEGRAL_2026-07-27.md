@@ -409,3 +409,8 @@ vacías). Se invocó también Abrir sobre ese archivo y no hubo excepción, pero
 la UI no expone el nombre del archivo cargado de forma inequívoca; por ello la
 recarga no se declara aprobada. Evidencia: [diálogo de guardado](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/guardar_mundo_temporal_dialogo.png)
 y [estado posterior](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/mundo_temporal_recargado.png).
+
+Validación de cierre durante ejecución: con `wait(10000)` activo a `1.060 s`
+y tick `53`, se cerró la ventana principal mediante su control visible. La
+ventana desapareció en menos de dos segundos y no quedó una instancia Tkinter
+visible. Evidencia: [ejecución antes del cierre](EVIDENCIA_INTERACCION_TKINTER_2026-07-27/cierre_durante_ejecucion.png).
