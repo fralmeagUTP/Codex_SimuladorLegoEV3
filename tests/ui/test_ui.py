@@ -1463,6 +1463,24 @@ class TestMainWindow:
         assert splash.geometry_value == "800x600+560+240"
         assert app.state_value == "zoomed"
 
+    def test_intro_image_is_resized_to_exact_startup_dimensions(self):
+        from simulador_ev3.ui import main_window as mw
+
+        source = mock.MagicMock()
+        source.convert.return_value.resize.return_value = "scaled-image"
+        source.__enter__.return_value = source
+
+        with (
+            mock.patch.object(mw.Image, "open", return_value=source),
+            mock.patch.object(mw.ImageTk, "PhotoImage", return_value="tk-image") as photo_image,
+        ):
+            result = mw._load_intro_image()
+
+        source.convert.assert_called_once_with("RGBA")
+        source.convert.return_value.resize.assert_called_once_with((800, 600), mw.Image.Resampling.LANCZOS)
+        photo_image.assert_called_once_with("scaled-image")
+        assert result == "tk-image"
+
     def test_about_dialog_is_centered_over_the_main_window(self):
         app = self.EV3SimulatorApp()
 

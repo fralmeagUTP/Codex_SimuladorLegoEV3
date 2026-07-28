@@ -33,6 +33,8 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext
 from typing import Any, Callable, Optional
 
+from PIL import Image, ImageTk
+
 from simulador_ev3 import __version__
 from simulador_ev3.application.desktop_session_adapter import DesktopSessionAdapter
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
@@ -1880,6 +1882,14 @@ def _intro_image_path() -> Path:
     return resolve_image_assets_dir() / "Intro.png"
 
 
+def _load_intro_image() -> Any:
+    """Carga la introducción reescalada exactamente a 800×600 px."""
+
+    with Image.open(_intro_image_path()) as source:
+        scaled = source.convert("RGBA").resize((_INTRO_WIDTH_PX, _INTRO_HEIGHT_PX), Image.Resampling.LANCZOS)
+    return ImageTk.PhotoImage(scaled)
+
+
 def _center_splash_window(splash: tk.Tk | tk.Toplevel) -> None:
     """Fija la introducción a 800×600 px y la centra en el escritorio activo."""
 
@@ -1919,13 +1929,7 @@ def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
         pass
     image: tk.PhotoImage | None = None
     try:
-        source = tk.PhotoImage(file=str(_intro_image_path()))
-        screen_w = max(1, splash.winfo_screenwidth())
-        screen_h = max(1, splash.winfo_screenheight())
-        max_w = max(1, screen_w - 80)
-        max_h = max(1, screen_h - 80)
-        factor = max(1, -(-source.width() // max_w), -(-source.height() // max_h))
-        image = source.subsample(factor, factor) if factor > 1 else source
+        image = _load_intro_image()
         tk.Label(splash, image=image, bg="#ffffff", bd=0).pack()
         splash._intro_image = image  # type: ignore[attr-defined]
     except Exception:  # noqa: BLE001
@@ -1977,11 +1981,7 @@ def _launch_after_intro(
         pass
 
     try:
-        image = tk.PhotoImage(file=str(_intro_image_path()))
-        max_w = max(1, splash.winfo_screenwidth() - 80)
-        max_h = max(1, splash.winfo_screenheight() - 80)
-        factor = max(1, -(-image.width() // max_w), -(-image.height() // max_h))
-        image = image.subsample(factor, factor) if factor > 1 else image
+        image = _load_intro_image()
         tk.Label(splash, image=image, bg="#ffffff", bd=0).pack()
         splash._intro_image = image  # type: ignore[attr-defined]
     except Exception:  # noqa: BLE001
