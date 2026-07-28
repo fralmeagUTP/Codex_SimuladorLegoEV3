@@ -4,7 +4,7 @@
   tooltips, categorías y equivalencias de unidades compartidas.
 - [x] 2. Reorganizar la cabecera en grupos Archivo, Edición y Simulación, con
   estados habilitados coherentes y una única acción contextual de eliminar.
-- [ ] 3. Implementar biblioteca lateral con búsqueda, categorías, tarjetas de
+- [x] 3. Implementar biblioteca lateral con búsqueda, categorías, tarjetas de
   asset, selección visible y accesibilidad.
 - [ ] 4. Añadir guía de lienzo vacío y mantener cuadrícula, snap, zoom, paneo,
   coordenadas y validación existentes.

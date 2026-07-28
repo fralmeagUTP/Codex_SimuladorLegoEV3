@@ -91,28 +91,6 @@ class WorldToolbar(tk.Frame):
             ]
         )
 
-        asset_group = self._add_group(self, "Elementos rápidos", fill=tk.X)
-        for tool_id, label in (
-            ("robot_ev3_32x32", "Robot EV3"),
-            ("wall_64x64_a", "Muro A"),
-            ("wall_64x64_b", "Muro B"),
-            ("wall_64x64_c", "Muro C"),
-            ("floor_tile_256_a", "Suelo A"),
-            ("floor_tile_256_b", "Suelo B"),
-            ("floor_tile_256_c", "Suelo C"),
-            ("zone_white_128", "Zona blanca"),
-            ("zone_red_128", "Zona roja"),
-            ("zone_green_128", "Zona verde"),
-            ("line_64_64_hor", "Línea horizontal"),
-            ("line_64_64_ver", "Línea vertical"),
-            ("line_64x64_cruz", "Cruce"),
-            ("line_64_64_infder", "Curva inferior derecha"),
-            ("line_64_64_infizq", "Curva inferior izquierda"),
-            ("line_64_64_supder", "Curva superior derecha"),
-            ("line_64_64_supizq", "Curva superior izquierda"),
-        ):
-            self._add_tool_button(tool_id, label, parent=asset_group)
-
         self._refresh_tool_styles()
 
     @staticmethod
@@ -165,6 +143,12 @@ class WorldToolbar(tk.Frame):
         state = tk.NORMAL if enabled else tk.DISABLED
         for button in self._selection_buttons:
             button.configure(state=state)
+
+    def set_active_tool(self, tool_id: str) -> None:
+        """Sincroniza la selección de herramienta desde la biblioteca lateral."""
+
+        self._active_tool = tool_id
+        self._refresh_tool_styles()
 
     def _add_tool_button(self, tool_id: str, label: str, *, parent: tk.Widget) -> None:
         icon = self._get_tool_icon(tool_id)

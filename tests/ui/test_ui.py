@@ -885,6 +885,19 @@ class TestWorldToolbar:
         tb.set_simulate_saved_enabled(True)
 
 
+class TestAssetLibraryPanel:
+    def test_selecting_a_named_asset_activates_the_placement_callback(self):
+        from simulador_ev3.ui.asset_library_panel import AssetLibraryPanel
+
+        on_select = mock.Mock()
+        library = AssetLibraryPanel(mock.MagicMock(), on_select=on_select)
+
+        library._select_asset("wall_64x64_a")
+
+        on_select.assert_called_once_with("wall_64x64_a")
+        assert library._selected_asset == "wall_64x64_a"
+
+
 class TestMainWindow:
     @pytest.fixture(autouse=True)
     def imp(self):

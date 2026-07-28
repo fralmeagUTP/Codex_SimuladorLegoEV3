@@ -19,6 +19,7 @@ from simulador_ev3.domain.editor.world_editor_model import (
     MAX_WORLD_PIXELS,
 )
 from simulador_ev3.shared.paths import resolve_worlds_dir
+from simulador_ev3.ui.asset_library_panel import AssetLibraryPanel
 from simulador_ev3.ui.object_properties_panel import ObjectPropertiesPanel
 from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
 from simulador_ev3.ui.world_toolbar import WorldToolbar
@@ -104,6 +105,9 @@ class WorldEditorWindow(tk.Toplevel):
 
         content = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=6, bg="#B0BEC5")
         content.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
+
+        self._asset_library = AssetLibraryPanel(content, on_select=self._on_library_asset_selected)
+        content.add(self._asset_library, minsize=190, stretch="never")
 
         canvas_container = tk.Frame(content, bg="#ECEFF1")
         content.add(canvas_container, minsize=760, stretch="always")
@@ -394,8 +398,17 @@ class WorldEditorWindow(tk.Toplevel):
     # ------------------------------------------------------------------
 
     def _on_tool_change(self, tool_id: str) -> None:
+        if tool_id == "select":
+            self._asset_library.set_selected_asset(None)
         self._canvas.set_tool(tool_id)
         self._set_status(f"Herramienta: {tool_id}")
+
+    def _on_library_asset_selected(self, asset_key: str) -> None:
+        """Activa un elemento elegido por nombre en la biblioteca lateral."""
+
+        self._toolbar.set_active_tool(asset_key)
+        self._canvas.set_tool(asset_key)
+        self._set_status(f"Elemento seleccionado: {asset_key}")
 
     def _on_place_asset(self, asset_key: str, x_px: int, y_px: int) -> None:
         try:
