@@ -1737,6 +1737,25 @@ dd {
   cursor: pointer;
 }
 
+.layer-list {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.layer-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #c7d0da;
+  background: #fff;
+}
+
+.layer-row.selected { border-color: #294c7c; background: #e8f1fb; }
+.layer-row button { min-width: 0; padding: 4px 5px; font-size: 12px; }
+.layer-row button:first-child { text-align: left; }
+
 .world-status-bar {
   display: flex;
   justify-content: space-between;

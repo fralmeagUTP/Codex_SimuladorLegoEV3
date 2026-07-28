@@ -25,6 +25,7 @@
   const worldHeightInput = document.getElementById("worldHeightInput");
   const cursorReadout = document.getElementById("cursorReadout");
   const validationStatus = document.getElementById("validationStatus");
+  const layerList = document.getElementById("layerList");
   const worldMapZoomInBtn = document.getElementById("worldMapZoomInBtn");
   const worldMapZoomOutBtn = document.getElementById("worldMapZoomOutBtn");
   const worldMapZoomResetBtn = document.getElementById("worldMapZoomResetBtn");
@@ -40,6 +41,8 @@
   let placementPreview = null;
   let dragPlacement = null;
   let suppressNextClick = false;
+  const hiddenLayerIds = new Set();
+  const lockedLayerIds = new Set();
 
   function log(message) {
     consoleEl.textContent = message || "";
@@ -206,6 +209,8 @@
       robotThetaInput.value = String(Math.round(robotStart.theta_deg || 0));
     }
     updateRobotStartReadout();
+    prunePresentationLayers();
+    renderLayers();
     drawEditor();
   }
 
@@ -248,7 +253,10 @@
   }
 
   function drawEditor() {
-    window.EV3Canvas.draw(canvas, null, currentWorld, {
+    const visibleWorld = hiddenLayerIds.size
+      ? { ...currentWorld, editor_spec: { ...editorWorld, placements: (editorWorld?.placements || []).filter((p) => !hiddenLayerIds.has(p.id)) } }
+      : currentWorld;
+    window.EV3Canvas.draw(canvas, null, visibleWorld, {
       selectedPlacementId: selectedPlacement?.id || null,
       placementPreview,
       robotStart,
@@ -274,6 +282,11 @@
     selectedPlacement = placement;
     moveMode = false;
     moveAssetBtn.classList.remove("tool-active");
+    const isLocked = Boolean(placement?.id && lockedLayerIds.has(placement.id));
+    for (const id of ["deleteAssetBtn", "rotateAssetBtn", "duplicateAssetBtn", "applyAssetPropertiesBtn"]) {
+      const button = document.getElementById(id);
+      if (button) button.disabled = !placement || isLocked;
+    }
     selectedAssetEl.textContent = placement
       ? assetLabel({ key: placement.asset_key })
       : "Selecciona un elemento del lienzo para editarlo.";
@@ -281,6 +294,7 @@
       assetPropertiesEl.innerHTML = "";
       assetPropertiesForm.classList.add("hidden");
       drawEditor();
+      renderLayers();
       return;
     }
     assetPropertiesEl.innerHTML = `
@@ -295,6 +309,50 @@
     assetRotationInput.value = placement.rotation || 0;
     assetPropertiesForm.classList.remove("hidden");
     drawEditor();
+    renderLayers();
+  }
+
+  function prunePresentationLayers() {
+    const valid = new Set((editorWorld?.placements || []).map((placement) => placement.id));
+    for (const id of hiddenLayerIds) if (!valid.has(id)) hiddenLayerIds.delete(id);
+    for (const id of lockedLayerIds) if (!valid.has(id)) lockedLayerIds.delete(id);
+  }
+
+  function renderLayers() {
+    if (!layerList) return;
+    layerList.innerHTML = "";
+    const placements = [...(editorWorld?.placements || [])].reverse();
+    if (!placements.length) {
+      layerList.textContent = "No hay elementos en este mundo.";
+      return;
+    }
+    for (const placement of placements) {
+      const row = document.createElement("div");
+      row.className = "layer-row";
+      if (placement.id === selectedPlacement?.id) row.classList.add("selected");
+      const select = document.createElement("button");
+      select.type = "button";
+      select.textContent = assetLabel({ key: placement.asset_key });
+      select.addEventListener("click", () => updateSelection(placement));
+      const visibility = document.createElement("button");
+      visibility.type = "button";
+      visibility.textContent = hiddenLayerIds.has(placement.id) ? "Mostrar" : "Ocultar";
+      visibility.addEventListener("click", () => {
+        if (hiddenLayerIds.has(placement.id)) hiddenLayerIds.delete(placement.id);
+        else hiddenLayerIds.add(placement.id);
+        drawEditor(); renderLayers();
+      });
+      const lock = document.createElement("button");
+      lock.type = "button";
+      lock.textContent = lockedLayerIds.has(placement.id) ? "Desbloq." : "Bloquear";
+      lock.addEventListener("click", () => {
+        if (lockedLayerIds.has(placement.id)) lockedLayerIds.delete(placement.id);
+        else lockedLayerIds.add(placement.id);
+        updateSelection(selectedPlacement);
+      });
+      row.append(select, visibility, lock);
+      layerList.appendChild(row);
+    }
   }
 
   function setRobotStartMode(enabled) {
