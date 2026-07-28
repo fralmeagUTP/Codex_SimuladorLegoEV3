@@ -243,26 +243,12 @@ class TelemetryPanel(tk.Frame):
         _table_cell(grid, "Colisión:", 3, 0, value=False)
         self._lbl_col = _table_cell(grid, self._var_col, 3, 1, value=True)
 
-    def _build_motors_section(
-        self, parent: tk.Widget, ports: tuple[str, str] | None = None, title: str = ""
-    ) -> None:
-        if ports is None:
-            _table_section_header(parent, "MOTORES A-D")
-            groups = tk.Frame(parent, bg=_BG)
-            groups.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
-            groups.grid_columnconfigure(0, weight=1)
-            groups.grid_columnconfigure(1, weight=1)
-            for column, group_ports in enumerate((("A", "B"), ("C", "D"))):
-                group = tk.Frame(groups, bg=_BG)
-                group.grid(row=0, column=column, sticky="nsew")
-                self._build_motors_section(group, group_ports)
-            return
-
-        if title:
-            _table_section_header(parent, title.upper())
+    def _build_motors_section(self, parent: tk.Widget) -> None:
+        """Muestra A-D en una única columna estable y escaneable."""
+        _table_section_header(parent, "MOTORES A-D")
         container = tk.Frame(parent, bg=_BG)
-        container.pack(fill=tk.BOTH, expand=True)
-        for port in ports:
+        container.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
+        for port in _MOTOR_PORTS:
             grp = _table_motor_block(container, f"MOTOR {port}")
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
