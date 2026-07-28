@@ -18,6 +18,7 @@
   const robotStartReadout = document.getElementById("robotStartReadout");
   const worldNameLabel = document.getElementById("worldNameLabel");
   const simulateSavedWorldLink = document.getElementById("simulateSavedWorldLink");
+  const deleteSavedWorldBtn = document.getElementById("deleteSavedWorldBtn");
   const worldWidthInput = document.getElementById("worldWidthInput");
   const worldHeightInput = document.getElementById("worldHeightInput");
   const cursorReadout = document.getElementById("cursorReadout");
@@ -33,6 +34,7 @@
   let robotStartMode = false;
   let robotStart = null;
   let activeWorldBaseName = "";
+  let savedWorldFileName = "";
   let placementPreview = null;
   let dragPlacement = null;
   let suppressNextClick = false;
@@ -467,6 +469,11 @@
     setWorldNameLabel(activeWorldBaseName);
   }
 
+  function setSavedWorldFileName(name) {
+    savedWorldFileName = String(name || "").trim();
+    if (deleteSavedWorldBtn) deleteSavedWorldBtn.disabled = !savedWorldFileName;
+  }
+
   function currentWorldName() {
     if (activeWorldBaseName) return activeWorldBaseName;
     if (!worldNameLabel) return "";
@@ -514,6 +521,7 @@
     const savedFileName = String(result.name || "").trim();
     const displayName = stripJsonExtension(savedFileName || trimmed);
     setActiveWorldName(displayName);
+    setSavedWorldFileName(savedFileName);
     setSimulateSavedWorldLink(savedFileName);
     log(`Mundo guardado en servidor: ${savedFileName}`);
   }
@@ -573,6 +581,7 @@
       await hydrateRobotStartFromSnapshotIfMissing();
       await ensureRobotVisibleOnEditor();
       setActiveWorldName("");
+      setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
@@ -591,6 +600,7 @@
       await hydrateRobotStartFromSnapshotIfMissing();
       await ensureRobotVisibleOnEditor();
       setActiveWorldName("");
+      setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
@@ -900,6 +910,7 @@
       // Priorizar el nombre real del archivo abierto por el usuario.
       const inferredName = stripJsonExtension(file.name || world?.name || world?.world_name);
       setActiveWorldName(inferredName);
+      setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
       updateSelection(null);
       showValidation(data.validation);
@@ -923,6 +934,27 @@
   document.getElementById("saveWorldBtn").addEventListener("click", async () => {
     try {
       await saveWorldOnServer();
+    } catch (err) {
+      log(err.message);
+    }
+  });
+
+  deleteSavedWorldBtn?.addEventListener("click", async () => {
+    if (!savedWorldFileName) return;
+    if (!window.confirm(`Se eliminará permanentemente ${savedWorldFileName}. ¿Deseas continuar?`)) return;
+    try {
+      const response = await fetch(api.resolvePath(`/api/sessions/${api.sessionId}/editor/world/save/${encodeURIComponent(savedWorldFileName)}`), {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error?.message || `HTTP ${response.status}`);
+      await createEditorWorld();
+      updateSelection(null);
+      setActiveWorldName("");
+      setSavedWorldFileName("");
+      setSimulateSavedWorldLink("");
+      log(`Mundo eliminado: ${payload.name}. Se creó un mundo nuevo.`);
     } catch (err) {
       log(err.message);
     }
