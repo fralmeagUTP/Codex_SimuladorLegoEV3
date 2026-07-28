@@ -44,6 +44,12 @@
       <label for="worldHeightInput">Alto (celdas):</label>
       <input id="worldHeightInput" type="number" min="1" max="160" value="40">
       <button id="applyWorldSizeBtn" title="Aplicar nuevo ancho y alto del mundo">Aplicar tamano</button>
+      <span class="world-size-presets" aria-label="Preajustes de tamaño">
+        <button type="button" data-world-size="40x30">Pequeño</button>
+        <button type="button" data-world-size="80x60">Aula</button>
+        <button type="button" data-world-size="160x120">Grande</button>
+      </span>
+      <span id="worldSizeHint" class="world-size-hint"></span>
       <label for="robotThetaInput">Theta robot:</label>
       <input id="robotThetaInput" type="number" value="0" step="15" min="0" max="359">
       <button id="placeRobotStartBtn" title="Definir pose inicial del robot con clic en el mapa">Colocar robot</button>
@@ -65,6 +71,12 @@
       </aside>
       <section class="world-canvas-pane">
         <canvas id="worldCanvas" width="1120" height="800"></canvas>
+        <div id="emptyWorldGuide" class="empty-world-guide hidden" aria-live="polite">
+          <strong>Comienza a crear tu mundo</strong>
+          <span>1. Elige un elemento en la Biblioteca.</span>
+          <span>2. Haz clic en el mapa para colocarlo.</span>
+          <span>3. Guarda y aplica el mundo al simulador.</span>
+        </div>
       </section>
       <aside class="properties-pane">
         <h2>Inspector</h2>

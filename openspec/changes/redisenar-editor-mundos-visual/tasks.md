@@ -14,9 +14,9 @@
   equivalencias físicas, preservando validación ante cambios destructivos.
 - [x] 7. Implementar lista de capas con selección bidireccional, visibilidad,
   bloqueo y reordenamiento donde aplique.
-- [ ] 8. Adaptar el diseño a escritorio y móvil, y aplicar tema claro/oscuro a
+- [x] 8. Adaptar el diseño a escritorio y móvil, y aplicar tema claro/oscuro a
   todos los paneles, estados y controles.
-- [ ] 9. Aplicar la misma capacidad funcional en Web y Tkinter respetando sus
+- [x] 9. Aplicar la misma capacidad funcional en Web y Tkinter respetando sus
   componentes nativos y el formato JSON actual.
 - [ ] 10. Añadir pruebas unitarias, de integración y visuales para biblioteca,
   inspector, capas, dimensiones, persistencia y transición a simulación.

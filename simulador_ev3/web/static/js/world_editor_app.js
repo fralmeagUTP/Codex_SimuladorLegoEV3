@@ -23,6 +23,8 @@
   const deleteSavedWorldBtn = document.getElementById("deleteSavedWorldBtn");
   const worldWidthInput = document.getElementById("worldWidthInput");
   const worldHeightInput = document.getElementById("worldHeightInput");
+  const worldSizeHint = document.getElementById("worldSizeHint");
+  const emptyWorldGuide = document.getElementById("emptyWorldGuide");
   const cursorReadout = document.getElementById("cursorReadout");
   const validationStatus = document.getElementById("validationStatus");
   const layerList = document.getElementById("layerList");
@@ -199,6 +201,7 @@
     editorWorld = world;
     if (worldWidthInput) worldWidthInput.value = world.world_width_cells || DEFAULT_WORLD_CELLS;
     if (worldHeightInput) worldHeightInput.value = world.world_height_cells || DEFAULT_WORLD_CELLS;
+    updateWorldSizeHint();
     currentWorld = editorWorldToRenderWorld(world);
     robotStart = robotStartFromEditorWorld(world);
     if (!robotStart) {
@@ -262,6 +265,16 @@
       robotStart,
       followRobotStart: false,
     });
+    emptyWorldGuide?.classList.toggle("hidden", Boolean(editorWorld?.placements?.length));
+  }
+
+  function updateWorldSizeHint() {
+    if (!worldSizeHint) return;
+    const width = Number(worldWidthInput?.value || 0);
+    const height = Number(worldHeightInput?.value || 0);
+    worldSizeHint.textContent = Number.isFinite(width) && Number.isFinite(height)
+      ? `Equivale a ${width * 10} × ${height * 10} cm`
+      : "";
   }
 
   function applyMapZoom(action) {
@@ -716,6 +729,19 @@
       log(err.message);
     }
   });
+
+  for (const preset of document.querySelectorAll("[data-world-size]")) {
+    preset.addEventListener("click", () => {
+      const [width, height] = String(preset.dataset.worldSize || "").split("x").map(Number);
+      if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+      worldWidthInput.value = String(width);
+      worldHeightInput.value = String(height);
+      updateWorldSizeHint();
+      document.getElementById("applyWorldSizeBtn").click();
+    });
+  }
+  worldWidthInput?.addEventListener("input", updateWorldSizeHint);
+  worldHeightInput?.addEventListener("input", updateWorldSizeHint);
 
   document.getElementById("openWorldBtn").addEventListener("click", () => {
     document.getElementById("importWorldInput").click();
