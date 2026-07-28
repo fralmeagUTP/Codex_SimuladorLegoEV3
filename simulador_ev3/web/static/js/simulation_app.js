@@ -33,6 +33,8 @@
   const debugRunBtn = document.getElementById("debugRunBtn");
   const debugStepBtn = document.getElementById("debugStepBtn");
   const debugContinueBtn = document.getElementById("debugContinueBtn");
+  const executionSuccessToast = document.getElementById("executionSuccessToast");
+  const executionSuccessToastClose = document.getElementById("executionSuccessToastClose");
   const mapZoomInBtn = document.getElementById("mapZoomInBtn");
   const mapZoomOutBtn = document.getElementById("mapZoomOutBtn");
   const mapZoomResetBtn = document.getElementById("mapZoomResetBtn");
@@ -55,6 +57,7 @@
     onStatus: setStatus,
     onError: (err) => log(err.message),
     beforeStart: () => {
+      beginExecutionNotificationCycle();
       clearDebugState();
       hideRobotStartMarker();
       executionMenuLocked = true;
@@ -225,6 +228,10 @@
   let currentScriptName = "editor_actual.py";
   const ACTIVE_EXECUTION_STATUSES = new Set(["running", "paused"]);
   let executionMenuLocked = false;
+  let nextExecutionNotificationId = 0;
+  let activeExecutionNotificationId = null;
+  let notifiedExecutionNotificationId = null;
+  let executionSuccessToastTimer = null;
   const initialSensorBeamsFlag =
     String(document?.documentElement?.dataset?.ev3SensorBeamsEnabled || "true").toLowerCase() !== "false";
   let showSensorBeams = initialSensorBeamsFlag;
@@ -284,7 +291,50 @@
     if (currentStatus === "running") {
       suppressStoppedAutoReset = false;
     }
+    if (currentStatus === "finished") {
+      scheduleExecutionSuccessNotification();
+    } else if (["stopped", "timed_out", "error", "created"].includes(currentStatus)) {
+      invalidateExecutionNotificationCycle();
+    }
     updateControlStates();
+  }
+
+  function beginExecutionNotificationCycle() {
+    nextExecutionNotificationId += 1;
+    activeExecutionNotificationId = nextExecutionNotificationId;
+    hideExecutionSuccessToast();
+  }
+
+  function invalidateExecutionNotificationCycle() {
+    activeExecutionNotificationId = null;
+    hideExecutionSuccessToast();
+  }
+
+  function hideExecutionSuccessToast() {
+    if (executionSuccessToastTimer) {
+      clearTimeout(executionSuccessToastTimer);
+      executionSuccessToastTimer = null;
+    }
+    if (executionSuccessToast) executionSuccessToast.hidden = true;
+  }
+
+  function showExecutionSuccessToast() {
+    if (!executionSuccessToast) return;
+    executionSuccessToast.hidden = false;
+    executionSuccessToastTimer = setTimeout(hideExecutionSuccessToast, 4000);
+  }
+
+  function scheduleExecutionSuccessNotification() {
+    const executionId = activeExecutionNotificationId;
+    if (!executionId || notifiedExecutionNotificationId === executionId) return;
+    // La cola de eventos publica primero el snapshot final. requestAnimationFrame
+    // también cubre el sondeo, cuyo mismo ciclo renderiza el snapshot tras el estado.
+    requestAnimationFrame(() => {
+      if (currentStatus !== "finished" || activeExecutionNotificationId !== executionId) return;
+      notifiedExecutionNotificationId = executionId;
+      activeExecutionNotificationId = null;
+      showExecutionSuccessToast();
+    });
   }
 
   function updateExecutionIndicator() {
@@ -1840,8 +1890,11 @@
   }
 
   stopBtn.addEventListener("click", async () => {
+    invalidateExecutionNotificationCycle();
     await performStopAndReset({ automatic: false });
   });
+
+  executionSuccessToastClose?.addEventListener("click", hideExecutionSuccessToast);
 
   async function loadExampleByName(name) {
     if (guardMenuAction()) return;

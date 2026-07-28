@@ -856,6 +856,25 @@ def test_telemetry_panel_uses_three_columns_and_brick_robot_state(tmp_path):
     assert "JSON.stringify(s.value)" not in js
 
 
+def test_web_success_notification_is_accessible_and_deduplicated(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+
+    assert 'id="executionSuccessToast"' in html
+    assert 'aria-live="polite"' in html
+    assert 'id="executionSuccessToastClose"' in html
+    assert "El programa se ejecutó correctamente." in html
+    assert ".execution-success-toast" in css
+    assert 'html[data-theme="dark"] .execution-success-toast' in css
+    assert "beginExecutionNotificationCycle" in js
+    assert "scheduleExecutionSuccessNotification" in js
+    assert "notifiedExecutionNotificationId === executionId" in js
+    assert "setTimeout(hideExecutionSuccessToast, 4000)" in js
+
+
 def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
     client = make_client(tmp_path)
 

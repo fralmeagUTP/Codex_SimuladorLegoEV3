@@ -136,6 +136,9 @@ class EV3SimulatorApp(tk.Tk):
         self._active_world_label = "Basico"
         self._debug_active = False
         self._execution_menu_locked = False
+        self._next_execution_notification_id = 0
+        self._active_execution_notification_id: int | None = None
+        self._notified_execution_notification_id: int | None = None
         self._lockable_menu_buttons: list[tk.Menubutton] = []
         self._persist_session = persist_session
 
@@ -1144,6 +1147,34 @@ class EV3SimulatorApp(tk.Tk):
             mission_result = self._service.complete_active_mission(outcome_by_status[status])
             if mission_result is not None:
                 self.after_idle(self._show_mission_result, mission_result)
+        if status == "finished":
+            self.after_idle(self._show_execution_success_notification, self._active_execution_notification_id)
+        elif status in {"stopped", "timed_out", "error", "reset"}:
+            self._active_execution_notification_id = None
+
+    def _begin_execution_notification_cycle(self) -> None:
+        """Asocia el posible aviso de éxito con una única ejecución de la UI."""
+
+        self._next_execution_notification_id += 1
+        self._active_execution_notification_id = self._next_execution_notification_id
+
+    def _show_execution_success_notification(self, execution_id: int | None) -> None:
+        """Muestra una sola confirmación tras aplicar el snapshot terminal."""
+
+        if (
+            self._closing
+            or execution_id is None
+            or execution_id != self._active_execution_notification_id
+            or execution_id == self._notified_execution_notification_id
+        ):
+            return
+        self._notified_execution_notification_id = execution_id
+        self._active_execution_notification_id = None
+        messagebox.showinfo(
+            "Ejecución finalizada",
+            "El programa se ejecutó correctamente.",
+            parent=self,
+        )
 
     def _show_mission_result(self, payload: dict) -> None:
         """Presenta el resultado de misión usando el DTO compartido."""
@@ -1245,6 +1276,7 @@ class EV3SimulatorApp(tk.Tk):
             self._canvas.set_sensor_beams_enabled(bool(self._sensor_beams_var.get()))
 
     def _cmd_reset(self) -> None:
+        self._active_execution_notification_id = None
         self._service.reset()
         self._set_execution_menu_locked(False)
         self._canvas.reset()
@@ -1282,6 +1314,7 @@ class EV3SimulatorApp(tk.Tk):
         self._canvas.reset()
         self._brick_panel.reset()
         self._telemetry_panel.reset()
+        self._begin_execution_notification_cycle()
         self._service.load_script(source_code)
         self._service.start(debug=False, step_mode=False)
         self._set_execution_menu_locked(True)
@@ -1294,6 +1327,7 @@ class EV3SimulatorApp(tk.Tk):
         self._canvas.reset()
         self._brick_panel.reset()
         self._telemetry_panel.reset()
+        self._begin_execution_notification_cycle()
         self._service.set_debug_breakpoints(self._editor.get_breakpoints())
         self._service.load_script(source_code)
         self._service.start(debug=True, step_mode=False)
@@ -1311,6 +1345,7 @@ class EV3SimulatorApp(tk.Tk):
         self._canvas.reset()
         self._brick_panel.reset()
         self._telemetry_panel.reset()
+        self._begin_execution_notification_cycle()
         self._service.set_debug_breakpoints(self._editor.get_breakpoints())
         self._service.load_script(source_code)
         self._service.start(debug=True, step_mode=True)

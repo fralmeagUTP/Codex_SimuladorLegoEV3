@@ -150,6 +150,57 @@ def test_terminal_snapshot_synchronizes_status_telemetry_and_lcd(page, live_web_
     assert has_lcd_pixels
 
 
+def test_successful_execution_shows_one_accessible_toast_after_terminal_snapshot(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill(
+        "from pybricks.hubs import EV3Brick\n"
+        "from pybricks.tools import wait\n"
+        "ev3 = EV3Brick()\n"
+        "ev3.screen.print('FIN OK')\n"
+        "wait(80)\n"
+    )
+    page.locator("#runBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#telemetryStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#executionSuccessToast")).to_be_visible(timeout=3000)
+    expect(page.locator("#executionSuccessToast")).to_contain_text("El programa se ejecutó correctamente.")
+    assert page.locator("#executionSuccessToast").count() == 1
+    page.locator("#executionSuccessToastClose").click()
+    expect(page.locator("#executionSuccessToast")).to_be_hidden()
+
+
+def test_success_toast_is_not_emitted_for_error_or_manual_stop(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill("raise RuntimeError('fallo de QA')\n")
+    page.locator("#runBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text("error", timeout=7000)
+    expect(page.locator("#executionSuccessToast")).to_be_hidden()
+
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwhile True:\n    wait(50)\n")
+    page.locator("#runBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile("running"), timeout=5000)
+    page.locator("#stopBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
+    expect(page.locator("#executionSuccessToast")).to_be_hidden()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_success_toast_fits_mobile_viewport_in_both_themes(page, live_web_app, expect, theme):
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(f"{live_web_app}/")
+    page.locator(".menu-trigger", has_text="Tema").hover()
+    page.locator(f"[data-theme-choice='{theme}']").click()
+    expect(page.locator("html")).to_have_attribute("data-theme", theme)
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwait(50)\n")
+    page.locator("#runBtn").click()
+    expect(page.locator("#executionSuccessToast")).to_be_visible(timeout=7000)
+    box = page.locator("#executionSuccessToast").bounding_box()
+    assert box is not None
+    assert box["x"] >= 0
+    assert box["x"] + box["width"] <= 390
+
+
 def test_reset_replaces_terminal_snapshot_without_late_updates(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
     expect(page.locator("#telemetryTick")).not_to_have_text("--", timeout=5000)

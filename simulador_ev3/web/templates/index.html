@@ -2,6 +2,10 @@
 {% block title %}Simulador EV3 Web{% endblock %}
 {% block body %}
 <main class="app-shell">
+  <div id="executionSuccessToast" class="execution-success-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span id="executionSuccessToastMessage">El programa se ejecutó correctamente.</span>
+    <button id="executionSuccessToastClose" type="button" aria-label="Cerrar notificación de ejecución finalizada">×</button>
+  </div>
   <header class="menu-bar">
     <strong class="app-brand"><span class="brand-mark">EV3</span>Simulador EV3 Pybricks</strong>
     <nav class="app-menu" aria-label="Menu principal">

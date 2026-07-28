@@ -1330,6 +1330,29 @@ class TestMainWindow:
         activate.assert_not_called()
         app._on_close()
 
+    def test_success_notification_is_emitted_once_only_for_finished_execution(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.ui import main_window as mw
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        with mock.patch.object(mw.messagebox, "showinfo") as showinfo:
+            app._begin_execution_notification_cycle()
+            app._on_status("finished")
+            app._on_status("finished")
+            app._begin_execution_notification_cycle()
+            app._on_status("timed_out")
+
+        showinfo.assert_called_once_with(
+            "Ejecución finalizada",
+            "El programa se ejecutó correctamente.",
+            parent=app,
+        )
+        app._on_close()
+
     def test_stop_and_reset_applies_initial_snapshot_to_all_tkinter_views(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory

@@ -73,6 +73,44 @@ textarea {
   display: none !important;
 }
 
+.execution-success-toast {
+  position: fixed;
+  z-index: 1000;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border: 1px solid #2e7d32;
+  border-radius: 6px;
+  background: #edf8ee;
+  color: #174d1a;
+  box-shadow: 0 10px 24px rgba(15, 35, 20, 0.22);
+  font-weight: 600;
+}
+
+.execution-success-toast[hidden] {
+  display: none;
+}
+
+.execution-success-toast button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+html[data-theme="dark"] .execution-success-toast {
+  border-color: #66bb6a;
+  background: #183b27;
+  color: #e1f6e4;
+}
+
 .about-backdrop {
   position: fixed;
   inset: 0;
@@ -2317,6 +2355,12 @@ html[data-theme="dark"] .tutorial-figure img {
 }
 
 @media (max-width: 640px) {
+  .execution-success-toast {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    max-width: none;
+  }
   .menu-bar {
     font-size: 12px;
   }
