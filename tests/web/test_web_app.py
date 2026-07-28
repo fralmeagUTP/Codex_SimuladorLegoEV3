@@ -773,7 +773,7 @@ def test_code_editor_uses_horizontal_scroll_instead_of_wrapping(tmp_path):
 
     css = client.get("/static/css/app.css").get_data(as_text=True)
     editor_block = re.search(
-        r"\.syntax-highlight,\n\.sim-code-pane #codeEditor \{(?P<body>.*?)\n\}",
+        r"\.syntax-highlight,\r?\n\.sim-code-pane #codeEditor \{(?P<body>.*?)\r?\n\}",
         css,
         re.DOTALL,
     )
@@ -860,7 +860,7 @@ def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
     client = make_client(tmp_path)
 
     canvas_js = client.get("/static/js/canvas_world.js").get_data(as_text=True)
-    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
+    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True).replace("\r\n", "\n")
 
     assert "function placementOriginForAsset" in canvas_js
     assert "Math.floor(size.w / 2) * gridSize" in canvas_js

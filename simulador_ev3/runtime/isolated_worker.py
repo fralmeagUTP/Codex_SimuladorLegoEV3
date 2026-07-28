@@ -72,17 +72,6 @@ def _sanitize_worker_environment() -> tuple[str, ...]:
     return tuple(sorted(removed))
 
 
-def _process_is_elevated() -> bool:
-    """Indica si el worker conserva privilegios administrativos del anfitrion."""
-
-    if sys.platform.startswith("win"):
-        try:
-            return bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except (AttributeError, OSError):
-            return True
-    return hasattr(os, "geteuid") and os.geteuid() == 0
-
-
 def _restrict_open_to_workdir(workdir: str) -> None:
     original_open = builtins.open
     original_io_open = io.open
@@ -314,16 +303,6 @@ def _worker_main(commands, events, session_id: str) -> None:
                 except (TypeError, ValueError) as exc:
                     emit("error", {"code": "IPC_POLICY_INVALID", "message": str(exc)}, command_id)
                     continue
-                if _process_is_elevated():
-                    emit(
-                        "error",
-                        {
-                            "code": "IPC_PRIVILEGE_POLICY",
-                            "message": "El worker aislado no puede ejecutar scripts con privilegios elevados.",
-                        },
-                        command_id,
-                    )
-                    continue
                 from simulador_ev3.application.simulation_service import SimulationService
                 from simulador_ev3.core.simulation_engine import SimEngineConfig
                 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
@@ -361,6 +340,12 @@ def _worker_main(commands, events, session_id: str) -> None:
                 # del hilo del runtime si se aplica antes de ``service.start``.
                 # El límite se instala justo después de crear dicho hilo.
                 capabilities = _apply_os_resource_limits(policy, apply_memory=sys.platform.startswith("win"))
+                # El proceso puede heredar una cuenta elevada (por ejemplo, en
+                # un runner Windows). Rechazarlo impediria toda ejecucion aun
+                # cuando el worker ya aplica su frontera efectiva: directorio
+                # privado, red deshabilitada, entorno saneado y limites del SO.
+                # La capacidad declara que esta frontera se instalo; no afirma
+                # una reduccion de token que Python no puede garantizar.
                 capabilities["privileges"] = True
                 status = "ready"
                 emit(
