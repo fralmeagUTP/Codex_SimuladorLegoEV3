@@ -138,7 +138,7 @@ def _restrict_open_to_workdir(workdir: str) -> None:
     setattr(os, "rename", guarded_rename)  # noqa: B010 - frontera deliberada del sandbox
 
 
-def _apply_os_resource_limits(policy: WorkerResourcePolicy) -> dict[str, bool]:
+def _apply_os_resource_limits(policy: WorkerResourcePolicy, *, apply_memory: bool = True) -> dict[str, bool]:
     """Aplica los límites disponibles del SO sin afirmar soporte inexistente."""
 
     capabilities = {"runtime": True, "cpu": False, "memory": False, "privileges": False}
@@ -149,8 +149,11 @@ def _apply_os_resource_limits(policy: WorkerResourcePolicy) -> dict[str, bool]:
         import resource
 
         resource.setrlimit(resource.RLIMIT_CPU, (max(1, int(policy.max_cpu_s)), max(1, int(policy.max_cpu_s))))
-        resource.setrlimit(resource.RLIMIT_AS, (policy.max_memory_mb * 1024 * 1024, policy.max_memory_mb * 1024 * 1024))
-        capabilities.update(cpu=True, memory=True)
+        capabilities["cpu"] = True
+        if apply_memory:
+            memory_bytes = policy.max_memory_mb * 1024 * 1024
+            resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
+            capabilities["memory"] = True
     except (ImportError, OSError, ValueError):
         pass
     return capabilities
@@ -354,7 +357,10 @@ def _worker_main(commands, events, session_id: str) -> None:
 
                 service.set_status_callback(emit_service_status)
                 service.set_debug_callback(lambda debug: emit("debug", debug))
-                capabilities = _apply_os_resource_limits(policy)
+                # En Linux, RLIMIT_AS puede impedir que Python reserve la pila
+                # del hilo del runtime si se aplica antes de ``service.start``.
+                # El límite se instala justo después de crear dicho hilo.
+                capabilities = _apply_os_resource_limits(policy, apply_memory=sys.platform.startswith("win"))
                 capabilities["privileges"] = True
                 status = "ready"
                 emit(
@@ -394,6 +400,8 @@ def _worker_main(commands, events, session_id: str) -> None:
                     service.start(
                         debug=bool(payload.get("debug", False)), step_mode=bool(payload.get("step_mode", False))
                     )
+                    if policy is not None and not sys.platform.startswith("win"):
+                        _apply_os_resource_limits(policy)
                 status = "running"
                 emit("status", {"status": status}, command_id)
                 continue

@@ -47,7 +47,6 @@ def capture_theme(
     """Abre una ventana temporal, captura su área cliente y la cierra."""
 
     width, height = size
-    target = output_dir / f"simulacion_{theme}_{width}x{height}.png"
     app = EV3SimulatorApp(restore_session=False, persist_session=False)
     app.geometry(f"{width}x{height}+20+20")
     app._theme_name = theme
@@ -61,7 +60,10 @@ def capture_theme(
     app.focus_force()
     measurement: dict[str, object] = {}
 
+    captured_target: Path | None = None
+
     def save_and_close() -> None:
+        nonlocal captured_target
         try:
             app.update_idletasks()
             left = app.winfo_rootx()
@@ -73,11 +75,15 @@ def capture_theme(
                 "dpi": round(float(app.winfo_fpixels("1i")), 1),
                 "telemetry": f"{app._telemetry_panel.winfo_width()}x{app._telemetry_panel.winfo_height()}",
                 "brick": f"{app._brick_panel.winfo_width()}x{app._brick_panel.winfo_height()}",
-                "lcd": f"{app._brick_panel._screen_canvas.winfo_width()}x{app._brick_panel._screen_canvas.winfo_height()}",
+                "lcd": (
+                    f"{app._brick_panel._screen_canvas.winfo_width()}x"
+                    f"{app._brick_panel._screen_canvas.winfo_height()}"
+                ),
             })
             if verify_layout:
                 _verify_layout(app, width)
-            ImageGrab.grab(bbox=(left, top, left + width, top + height), all_screens=True).save(target)
+            captured_target = output_dir / f"simulacion_{theme}_{width}x{height}.png"
+            ImageGrab.grab(bbox=(left, top, left + width, top + height), all_screens=True).save(captured_target)
         finally:
             app._on_close()
 
@@ -88,7 +94,9 @@ def capture_theme(
         f"telemetría={measurement.get('telemetry')} Brick={measurement.get('brick')} "
         f"LCD={measurement.get('lcd')}"
     )
-    return target
+    if captured_target is None:
+        raise RuntimeError("La captura de Tkinter no produjo un archivo de evidencia")
+    return captured_target
 
 
 def _verify_layout(app: EV3SimulatorApp, window_width: int) -> None:

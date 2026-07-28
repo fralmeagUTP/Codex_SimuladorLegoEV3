@@ -71,11 +71,13 @@ jobs:
       - name: Capturar referencia actual de Tkinter
         run: python scripts/capture_desktop_evidence.py --output-dir artifacts/tkinter --theme light
       - name: Comparar contra referencia aprobada
-        run: >-
-          python scripts/compare_visual_evidence.py
-          Documentos/EVIDENCIA_PARIDAD_2026-07-24/tkinter/simulacion_light_1280x800.png
-          artifacts/tkinter/simulacion_light_1280x800.png
-          --threshold 0.08
+        shell: pwsh
+        run: |
+          $actual = Get-ChildItem artifacts/tkinter/simulacion_light_*.png | Select-Object -First 1
+          if ($null -eq $actual) { throw "No se generó evidencia visual de Tkinter." }
+          $reference = Join-Path "Documentos/EVIDENCIA_PARIDAD_2026-07-24/tkinter" $actual.Name
+          if (-not (Test-Path $reference)) { throw "No existe referencia aprobada para $($actual.Name)." }
+          python scripts/compare_visual_evidence.py $reference $actual.FullName --threshold 0.08
       - name: Conservar evidencia visual
         if: always()
         uses: actions/upload-artifact@v4

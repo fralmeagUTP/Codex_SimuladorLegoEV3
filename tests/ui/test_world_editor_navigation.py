@@ -4,6 +4,9 @@ from unittest.mock import Mock, patch
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.ui.world_editor_window import WorldEditorWindow
 
+_EDITOR_GLOBALS = WorldEditorWindow._cmd_delete_world_file.__globals__
+_EDITOR_MESSAGEBOX = _EDITOR_GLOBALS["messagebox"]
+
 
 def _editor_for_navigation(path: Path, issues: list[str] | None = None) -> WorldEditorWindow:
     editor = object.__new__(WorldEditorWindow)
@@ -48,8 +51,8 @@ def test_delete_current_custom_world_resets_editor_after_confirmation(tmp_path: 
     world_path.write_text("{}", encoding="utf-8")
     editor = _editor_for_navigation(world_path)
 
-    with patch("simulador_ev3.ui.world_editor_window._WORLDS_DIR", tmp_path), patch(
-        "simulador_ev3.ui.world_editor_window.messagebox.askyesno", return_value=True
+    with patch.dict(_EDITOR_GLOBALS, {"_WORLDS_DIR": tmp_path}), patch.object(
+        _EDITOR_MESSAGEBOX, "askyesno", return_value=True
     ):
         editor._cmd_delete_world_file()
 
@@ -65,8 +68,8 @@ def test_delete_current_custom_world_resets_editor_after_confirmation(tmp_path: 
 
 def test_builtin_world_cannot_be_deleted(tmp_path: Path) -> None:
     editor = _editor_for_navigation(tmp_path / "01_linea_negra_basica.json")
-    with patch.object(WorldEditorWindow, "_is_builtin_world_path", return_value=True), patch(
-        "simulador_ev3.ui.world_editor_window.messagebox.showwarning"
+    with patch.object(WorldEditorWindow, "_is_builtin_world_path", return_value=True), patch.object(
+        _EDITOR_MESSAGEBOX, "showwarning", create=True
     ) as show_warning:
         editor._cmd_delete_world_file()
 
@@ -81,8 +84,8 @@ def test_world_outside_configured_directory_cannot_be_deleted(tmp_path: Path) ->
     path.write_text("{}", encoding="utf-8")
     editor = _editor_for_navigation(path)
 
-    with patch("simulador_ev3.ui.world_editor_window._WORLDS_DIR", tmp_path), patch(
-        "simulador_ev3.ui.world_editor_window.messagebox.showwarning"
+    with patch.dict(_EDITOR_GLOBALS, {"_WORLDS_DIR": tmp_path}), patch.object(
+        _EDITOR_MESSAGEBOX, "showwarning", create=True
     ) as show_warning:
         editor._cmd_delete_world_file()
 
