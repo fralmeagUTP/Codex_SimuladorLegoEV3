@@ -12,6 +12,8 @@
   const selectedAssetEl = document.getElementById("selectedAsset");
   const assetPropertiesEl = document.getElementById("assetProperties");
   const assetPalette = document.getElementById("assetPalette");
+  const assetSearchInput = document.getElementById("assetSearchInput");
+  const assetLibraryHint = document.getElementById("assetLibraryHint");
   const moveAssetBtn = document.getElementById("moveAssetBtn");
   const placeRobotStartBtn = document.getElementById("placeRobotStartBtn");
   const robotThetaInput = document.getElementById("robotThetaInput");
@@ -61,15 +63,16 @@
     assetPalette.innerHTML = "";
     const groups = {
       robot: "Robot",
-      wall: "Muros",
-      line: "Lineas",
-      zone: "Zonas",
-      floor: "Pisos",
+      wall: "Obstáculos",
+      line: "Líneas",
+      zone: "Zonas y metas",
+      floor: "Suelos",
     };
+    const categoryContainers = {};
     for (const item of data.assets) {
       const option = document.createElement("option");
       option.value = item.key;
-      option.textContent = `${groups[item.type] || item.type}: ${item.key}`;
+      option.textContent = `${groups[item.type] || item.type}: ${assetLabel(item)}`;
       assetSelect.appendChild(option);
       assetKeyInput.appendChild(option.cloneNode(true));
 
@@ -78,6 +81,7 @@
       button.className = "asset-tool";
       button.title = assetTooltip(item);
       button.dataset.assetKey = item.key;
+      button.dataset.assetLabel = `${assetLabel(item)} ${groups[item.type] || ""}`.toLocaleLowerCase();
       const img = document.createElement("img");
       img.src = api.resolvePath(`/assets/${encodeURIComponent(assetImageFile(item.key))}`);
       img.alt = "";
@@ -86,14 +90,30 @@
         button.textContent = assetShortLabel(item);
       };
       button.appendChild(img);
+      const label = document.createElement("span");
+      label.textContent = assetLabel(item);
+      button.appendChild(label);
       button.addEventListener("click", () => {
         assetSelect.value = item.key;
         syncAssetPalette();
         updateSelection(null);
+        assetLibraryHint.textContent = `${assetLabel(item)} seleccionado. Haz clic en el mapa para colocarlo.`;
       });
-      assetPalette.appendChild(button);
+      const category = groups[item.type] || "Otros";
+      if (!categoryContainers[category]) {
+        const section = document.createElement("section");
+        section.className = "asset-category";
+        section.innerHTML = `<h3>${category}</h3>`;
+        const items = document.createElement("div");
+        items.className = "asset-category-items";
+        section.appendChild(items);
+        assetPalette.appendChild(section);
+        categoryContainers[category] = items;
+      }
+      categoryContainers[category].appendChild(button);
     }
     syncAssetPalette();
+    assetSearchInput?.addEventListener("input", filterAssetPalette);
   }
 
   function assetImageFile(key) {
@@ -108,6 +128,37 @@
     if (item.type === "zone") return item.key.includes("red") ? "R" : item.key.includes("green") ? "G" : "Z";
     if (item.type === "robot") return "EV3";
     return "F";
+  }
+
+  function assetLabel(item) {
+    const key = String(item?.key || "");
+    if (key.includes("robot")) return "Robot EV3";
+    if (key.includes("wall")) return `Muro ${key.slice(-1).toUpperCase()}`;
+    if (key.includes("floor")) return `Suelo ${key.slice(-1).toUpperCase()}`;
+    if (key.includes("zone_green")) return "Zona verde";
+    if (key.includes("zone_red")) return "Zona roja";
+    if (key.includes("zone_white")) return "Zona blanca";
+    if (key.includes("cruz")) return "Cruce";
+    if (key.includes("hor")) return "Línea horizontal";
+    if (key.includes("ver")) return "Línea vertical";
+    if (key.includes("infder")) return "Curva inferior derecha";
+    if (key.includes("infizq")) return "Curva inferior izquierda";
+    if (key.includes("supder")) return "Curva superior derecha";
+    if (key.includes("supizq")) return "Curva superior izquierda";
+    return key;
+  }
+
+  function filterAssetPalette() {
+    const query = String(assetSearchInput?.value || "").trim().toLocaleLowerCase();
+    for (const section of assetPalette.querySelectorAll(".asset-category")) {
+      let visible = 0;
+      for (const button of section.querySelectorAll(".asset-tool")) {
+        const matches = !query || String(button.dataset.assetLabel || "").includes(query);
+        button.hidden = !matches;
+        if (matches) visible += 1;
+      }
+      section.hidden = visible === 0;
+    }
   }
 
   function assetTooltip(item) {
@@ -224,8 +275,8 @@
     moveMode = false;
     moveAssetBtn.classList.remove("tool-active");
     selectedAssetEl.textContent = placement
-      ? `${placement.id} (${placement.asset_key})`
-      : "Sin seleccion";
+      ? assetLabel({ key: placement.asset_key })
+      : "Selecciona un elemento del lienzo para editarlo.";
     if (!placement) {
       assetPropertiesEl.innerHTML = "";
       assetPropertiesForm.classList.add("hidden");
@@ -233,15 +284,14 @@
       return;
     }
     assetPropertiesEl.innerHTML = `
-      <dt>ID</dt><dd>${placement.id}</dd>
-      <dt>Asset</dt><dd>${placement.asset_key}</dd>
-      <dt>X</dt><dd>${placement.x ?? placement.x_px ?? 0}</dd>
-      <dt>Y</dt><dd>${placement.y ?? placement.y_px ?? 0}</dd>
-      <dt>Rotacion</dt><dd>${placement.rotation || 0}</dd>
+      <dt>Tipo</dt><dd>${assetLabel({ key: placement.asset_key })}</dd>
+      <dt>X</dt><dd>${(placement.x ?? placement.x_px ?? 0) / Number(editorWorld?.grid_size_px || 32)} celdas</dd>
+      <dt>Y</dt><dd>${(placement.y ?? placement.y_px ?? 0) / Number(editorWorld?.grid_size_px || 32)} celdas</dd>
+      <dt>Rotación</dt><dd>${placement.rotation || 0}°</dd>
     `;
     assetKeyInput.value = placement.asset_key;
-    assetXInput.value = placement.x ?? placement.x_px ?? 0;
-    assetYInput.value = placement.y ?? placement.y_px ?? 0;
+    assetXInput.value = (placement.x ?? placement.x_px ?? 0) / Number(editorWorld?.grid_size_px || 32);
+    assetYInput.value = (placement.y ?? placement.y_px ?? 0) / Number(editorWorld?.grid_size_px || 32);
     assetRotationInput.value = placement.rotation || 0;
     assetPropertiesForm.classList.remove("hidden");
     drawEditor();
@@ -842,8 +892,8 @@
       const data = await api.updateAsset({
         id: selectedPlacement.id,
         asset_key: assetKeyInput.value,
-        x: Number.parseInt(assetXInput.value || "0", 10),
-        y: Number.parseInt(assetYInput.value || "0", 10),
+        x: Math.round(Number(assetXInput.value || "0") * Number(editorWorld?.grid_size_px || 32)),
+        y: Math.round(Number(assetYInput.value || "0") * Number(editorWorld?.grid_size_px || 32)),
         rotation: Number.parseInt(assetRotationInput.value || "0", 10),
       });
       setEditorWorld(data.world);
