@@ -85,6 +85,7 @@ class SimulationSession(SimulationSessionPort):
         self._worker_shadow_last_sequence = 0
         self._worker_shadow_snapshot: dict[str, Any] | None = None
         self._worker_shadow_status: str | None = None
+        self._reset_in_progress = False
         self._worker_diagnostics: dict[str, int | float | str] = {}
         if worker_isolation_enabled():
             self._worker_shadow = IsolatedRuntimeWorker(f"web-shadow-{session_id}")
@@ -200,24 +201,45 @@ class SimulationSession(SimulationSessionPort):
 
     def reset(self) -> dict[str, Any]:
         with self._lock:
-            self._transition(SessionStatus.RESETTING)
-            self._service.reset()
-            self._mirror_worker("reset")
-            self._wire_callbacks()
-            self._source_code = None
-            self._active_mission = None
-            self._latest_mission_result = None
-            self._latest_snapshot = None
-            self._snapshot_generation += 1
-            self._latest_error = None
-            self._latest_debug_context = None
-            self._debug_breakpoints = set()
-            self._debug_watches = []
-            self._start_idempotency.clear()
-            self._transition(SessionStatus.CREATED)
-            self._set_debug_state("idle")
-            self._push_event("status", {"status": self._status})
-            return self.summary()
+            self._reset_in_progress = True
+            try:
+                self._transition(SessionStatus.RESETTING)
+                # Descartar el espejo antes de crear una nueva generación: ningún
+                # snapshot de la ejecución anterior debe poder restaurar la UI.
+                self._drain_shadow_worker()
+                self._snapshot_generation += 1
+                self._worker_shadow_snapshot = None
+                self._worker_shadow_status = None
+                self._last_snapshot_event_at = 0.0
+                self._service.reset()
+                self._mirror_worker("reset", discard_unrelated_events=True, wait_for_status="reset")
+                # El comando reset genera primero las notificaciones de parada del
+                # runtime. Su snapshot final pertenece a la ejecución cancelada,
+                # por lo que no puede ser el estado visible posterior al reinicio.
+                self._worker_shadow_snapshot = None
+                self._worker_shadow_status = None
+                self._wire_callbacks()
+                self._source_code = None
+                self._active_mission = None
+                self._latest_mission_result = None
+                self._latest_error = None
+                self._latest_debug_context = None
+                self._debug_breakpoints = set()
+                self._debug_watches = []
+                self._start_idempotency.clear()
+                self._transition(SessionStatus.CREATED)
+                self._set_debug_state("idle")
+                # Se decora tras la transición para que telemetría, canvas y el
+                # resumen de sesión reciban el mismo estado terminal: ``created``.
+                initial_dto = self._service.get_snapshot()
+                initial = self._decorate_snapshot(initial_dto.to_dict() if initial_dto is not None else None)
+                self._latest_snapshot = initial
+                if initial is not None:
+                    self._push_event("snapshot", initial)
+                self._push_event("status", {"status": self._status})
+                return self.summary()
+            finally:
+                self._reset_in_progress = False
 
     def select_mission(self, mission: MissionDefinition) -> dict[str, Any]:
         """Activa la evaluación de la misión cargada por la interfaz."""
@@ -478,7 +500,7 @@ class SimulationSession(SimulationSessionPort):
                 snapshot = self._latest_snapshot
             return {
                 "session_id": self.session_id,
-                "status": self._worker_shadow_status or self._status,
+                "status": self._status,
                 "sequence": self._sequence,
                 "snapshot": snapshot,
                 "error": self._latest_error,
@@ -827,7 +849,14 @@ class SimulationSession(SimulationSessionPort):
             self._set_debug_state("stopped")
             self._push_event("status", {"status": self._status})
 
-    def _mirror_worker(self, command: str, payload: dict[str, Any] | None = None) -> None:
+    def _mirror_worker(
+        self,
+        command: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        discard_unrelated_events: bool = False,
+        wait_for_status: str | None = None,
+    ) -> None:
         """Espeja un comando en el worker sin publicar sus eventos en la sesión visible."""
         if self._worker_shadow is None:
             return
@@ -837,8 +866,14 @@ class SimulationSession(SimulationSessionPort):
                 event = self._worker_shadow.receive(0.2)
             except TimeoutError:
                 continue
+            if discard_unrelated_events and event.get("command_id") != command_id:
+                continue
             self._consume_shadow_event(event)
-            if event.get("command_id") == command_id:
+            if event.get("command_id") != command_id:
+                continue
+            if wait_for_status is None:
+                return
+            if event.get("type") == "status" and event.get("payload", {}).get("status") == wait_for_status:
                 return
         raise TimeoutError(f"El worker sombra no confirmó {command}")
 
@@ -892,8 +927,21 @@ class SimulationSession(SimulationSessionPort):
 
     def _consume_shadow_event(self, event: dict[str, Any]) -> None:
         event = SessionEvent.from_dict(event).to_dict()
-        self._worker_shadow_last_sequence = max(self._worker_shadow_last_sequence, int(event.get("sequence", 0)))
+        worker_sequence = int(event.get("sequence", 0))
+        # El pipe del worker puede entregar snapshots que estaban encolados
+        # antes del reset. Nunca pueden reescribir una generación ya aplicada.
+        if worker_sequence <= self._worker_shadow_last_sequence:
+            return
+        self._worker_shadow_last_sequence = worker_sequence
         if event.get("type") == "snapshot" and isinstance(event.get("payload"), dict):
+            if self._reset_in_progress:
+                return
+            # En estado base no existe una ejecución activa que pueda producir
+            # snapshots útiles. Ignorar el último tick que un EngineThread
+            # cancelado pudiera dejar en el pipe evita que reemplace la pose
+            # inicial publicada por ``reset``.
+            if self._status == SessionStatus.CREATED.value and self._source_code is None:
+                return
             snapshot = self._decorate_snapshot(event["payload"])
             self._worker_shadow_snapshot = snapshot
             self._latest_snapshot = snapshot
@@ -927,6 +975,18 @@ class SimulationSession(SimulationSessionPort):
     def _on_snapshot(self, dto) -> None:
         data = self._decorate_snapshot(dto.to_dict())
         with self._lock:
+            if self._reset_in_progress:
+                return
+            # RuntimeController puede finalizar el último callback justo al
+            # detenerse. Tras reset ya no hay código cargado: conservar el
+            # snapshot inicial evita que ese callback tardío restaure ticks,
+            # LCD o telemetría de la misión anterior en modo local.
+            if (
+                self._status == SessionStatus.CREATED.value
+                and self._source_code is None
+                and self._latest_snapshot is not None
+            ):
+                return
             self._latest_snapshot = data
             now = time.monotonic()
             if now - self._last_snapshot_event_at >= self._snapshot_event_interval_s:
@@ -939,7 +999,22 @@ class SimulationSession(SimulationSessionPort):
             return None
         data = dict(snapshot)
         data["snapshot_generation"] = self._snapshot_generation
+        # La telemetría se renderiza exclusivamente desde este DTO, por lo que
+        # el estado de sesión se incorpora al mismo snapshot que canvas y LCD.
+        data["status"] = self._status
         return data
+
+    def _publish_current_snapshot(self) -> None:
+        """Publica sin throttling el snapshot que corresponde al estado actual."""
+        snapshot = self._worker_shadow_snapshot or self._latest_snapshot
+        if snapshot is None:
+            dto = self._service.get_snapshot()
+            snapshot = dto.to_dict() if dto is not None else None
+        snapshot = self._decorate_snapshot(snapshot)
+        if snapshot is None:
+            return
+        self._latest_snapshot = snapshot
+        self._push_event("snapshot", snapshot)
 
     def _on_error(self, payload: dict[str, Any]) -> None:
         with self._lock:
@@ -951,9 +1026,12 @@ class SimulationSession(SimulationSessionPort):
             if not self._transition(target):
                 return
             self._set_debug_state(self._status, reason=error_reason)
+            self._publish_current_snapshot()
             self._push_event("error", self._latest_error)
 
     def _on_status(self, status: str) -> None:
+        if self._reset_in_progress:
+            return
         if status == "error" and self._status in {"stopped", "created", "expired"}:
             return
         mapped = {
@@ -986,6 +1064,8 @@ class SimulationSession(SimulationSessionPort):
                 self._set_debug_state("idle")
             elif status == "error":
                 self._set_debug_state("error", reason="error")
+            if status in {"finished", "stopped", "timed_out", "reset", "error"}:
+                self._publish_current_snapshot()
             self._push_event("status", {"status": mapped, "raw_status": status})
             outcome = {
                 "finished": "finished",

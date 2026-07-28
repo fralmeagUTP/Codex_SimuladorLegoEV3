@@ -719,7 +719,8 @@ dd {
 
 .sim-map-pane #worldCanvas,
 .world-canvas-pane #worldCanvas {
-  width: auto;
+  width: min(100%, 980px);
+  max-width: 100%;
   height: auto;
   min-height: 0;
   display: block;
@@ -2383,6 +2384,24 @@ html[data-theme="dark"] .tutorial-figure img {
 
   .sim-map-pane #worldCanvas {
     margin: 0 !important;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .panel-title-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .map-tools {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .map-tools button,
+  #toggleSensorBeamsBtn {
+    flex: 0 0 auto;
   }
 
   .sim-code-pane {

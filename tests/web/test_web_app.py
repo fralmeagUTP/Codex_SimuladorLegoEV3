@@ -1234,6 +1234,21 @@ def test_snapshot_contract_has_sequence_and_new_generation_after_reset(tmp_path)
     assert after["snapshot"]["snapshot_generation"] == 1
 
 
+def test_reset_snapshot_is_a_complete_created_state(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sid = session["session_id"]
+
+    client.post(f"/api/sessions/{sid}/reset", headers=headers)
+    payload = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()
+
+    assert payload["status"] == "created"
+    assert payload["snapshot"]["status"] == "created"
+    assert payload["snapshot"]["tick"] <= 1
+    assert payload["snapshot"]["sim_time_s"] <= 0.02
+
+
 def test_pause_does_not_consume_runtime_timeout_budget(tmp_path):
     client = make_client_with_config(tmp_path, SCRIPT_MAX_RUNTIME_S=1.0)
     session = client.post("/api/sessions").get_json()

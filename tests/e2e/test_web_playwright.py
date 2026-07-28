@@ -129,6 +129,63 @@ def test_simulation_page_runs_default_script(page, live_web_app, expect):
     expect(page.locator("#telemetryTick")).not_to_have_text("--", timeout=5000)
 
 
+def test_terminal_snapshot_synchronizes_status_telemetry_and_lcd(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill(
+        "from pybricks.hubs import EV3Brick\n"
+        "from pybricks.tools import wait\n"
+        "ev3 = EV3Brick()\n"
+        "ev3.screen.print('QA F001')\n"
+        "wait(100)\n"
+    )
+    page.locator("#runBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#telemetryStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#telemetryTime")).not_to_have_text("--")
+    expect(page.locator("#telemetryTick")).not_to_have_text("--")
+    has_lcd_pixels = page.locator("#screen").evaluate(
+        "canvas => canvas.getContext('2d').getImageData(0, 0, 178, 128).data.some(x => x !== 0)"
+    )
+    assert has_lcd_pixels
+
+
+def test_reset_replaces_terminal_snapshot_without_late_updates(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+    expect(page.locator("#telemetryTick")).not_to_have_text("--", timeout=5000)
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwhile True:\n    wait(100)\n")
+    page.locator("#runBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile("running"), timeout=5000)
+    page.locator("#stopBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
+    expect(page.locator("#telemetryStatus")).to_have_text("created", timeout=5000)
+    # Esperar a que termine el refresco explícito que realiza el controlador
+    # después de recibir la respuesta de reset.
+    page.wait_for_timeout(300)
+    # El endpoint inicial puede avanzar un tick para construir el primer DTO;
+    # tras reset solo se admite ese snapshot inicial, nunca el de la ejecución.
+    tick = int(page.locator("#telemetryTick").inner_text())
+    simulated_time = float(page.locator("#telemetryTime").inner_text().removesuffix("s"))
+    assert tick <= 1
+    assert simulated_time <= 0.02
+
+
+@pytest.mark.parametrize("viewport", [(1920, 1080), (1280, 800), (1024, 768), (390, 844)])
+def test_map_canvas_and_tools_stay_inside_viewport(page, live_web_app, viewport):
+    page.set_viewport_size({"width": viewport[0], "height": viewport[1]})
+    page.goto(f"{live_web_app}/")
+
+    canvas_box = page.locator("#worldCanvas").bounding_box()
+    beam_box = page.locator("#toggleSensorBeamsBtn").bounding_box()
+
+    assert canvas_box is not None
+    assert beam_box is not None
+    assert canvas_box["width"] <= viewport[0]
+    assert beam_box["x"] >= 0
+    assert beam_box["x"] + beam_box["width"] <= viewport[0]
+
+
 def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
 

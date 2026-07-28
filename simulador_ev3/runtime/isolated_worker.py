@@ -339,12 +339,20 @@ def _worker_main(commands, events, session_id: str) -> None:
                 )
                 service.set_snapshot_callback(lambda snapshot: emit("snapshot", snapshot.to_dict()))
                 service.set_error_callback(lambda error: emit("error", {"code": "SCRIPT_ERROR", **error}))
-                service.set_status_callback(
-                    lambda service_status: emit(
-                        "status",
-                        {"status": {"started": "running", "stopped": "stopped"}.get(service_status, service_status)},
-                    )
-                )
+                def emit_service_status(service_status: str, service_ref=service) -> None:
+                    normalized = {"started": "running", "stopped": "stopped"}.get(service_status, service_status)
+                    # El último snapshot debe salir antes del estado terminal;
+                    # de este modo las interfaces no conservan telemetría/LCD
+                    # de un tick intermedio cuando reciben ``finished``.
+                    # ``reset`` ya emite su snapshot inicial identificado con
+                    # command_id en su manejador específico más abajo.
+                    if normalized in {"finished", "timed_out", "error"}:
+                        final_snapshot = service_ref.current_snapshot()
+                        if final_snapshot is not None:
+                            emit("snapshot", final_snapshot.to_dict())
+                    emit("status", {"status": normalized})
+
+                service.set_status_callback(emit_service_status)
                 service.set_debug_callback(lambda debug: emit("debug", debug))
                 capabilities = _apply_os_resource_limits(policy)
                 capabilities["privileges"] = True
