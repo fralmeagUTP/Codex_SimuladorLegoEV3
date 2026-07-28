@@ -82,6 +82,8 @@ _SCENARIOS: list[tuple[str, str, str]] = [
 
 # Periodo del tick en ms (â‰ˆ50 Hz)
 _TICK_MS = 20
+_INTRO_WIDTH_PX = 800
+_INTRO_HEIGHT_PX = 600
 
 
 class EV3SimulatorApp(tk.Tk):
@@ -1878,6 +1880,33 @@ def _intro_image_path() -> Path:
     return resolve_image_assets_dir() / "Intro.png"
 
 
+def _center_splash_window(splash: tk.Tk | tk.Toplevel) -> None:
+    """Fija la introducción a 800×600 px y la centra en el escritorio activo."""
+
+    screen_w = max(1, splash.winfo_screenwidth())
+    screen_h = max(1, splash.winfo_screenheight())
+    width = min(_INTRO_WIDTH_PX, screen_w)
+    height = min(_INTRO_HEIGHT_PX, screen_h)
+    x = max(0, (screen_w - width) // 2)
+    y = max(0, (screen_h - height) // 2)
+    splash.geometry(f"{width}x{height}+{x}+{y}")
+
+
+def _maximize_main_window(app: EV3SimulatorApp) -> None:
+    """Abre la aplicación principal maximizada sin depender del gestor de ventanas."""
+
+    try:
+        app.state("zoomed")
+        return
+    except (AttributeError, tk.TclError):
+        pass
+    try:
+        app.attributes("-zoomed", True)
+    except (AttributeError, tk.TclError):
+        # Fallback para gestores que no exponen el estado "zoomed".
+        app.geometry(f"{app.winfo_screenwidth()}x{app.winfo_screenheight()}+0+0")
+
+
 def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
     """Muestra una introducción no bloqueante antes de revelar la ventana principal."""
     splash = tk.Toplevel(app)
@@ -1899,7 +1928,6 @@ def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
         image = source.subsample(factor, factor) if factor > 1 else source
         tk.Label(splash, image=image, bg="#ffffff", bd=0).pack()
         splash._intro_image = image  # type: ignore[attr-defined]
-        width, height = image.width(), image.height()
     except Exception:  # noqa: BLE001
         tk.Label(
             splash,
@@ -1910,14 +1938,9 @@ def _show_intro(app: EV3SimulatorApp, duration_ms: int = 3000) -> None:
             padx=48,
             pady=32,
         ).pack()
-        width, height = 300, 100
 
     app.update_idletasks()
-    main_w = min(WEB_REFERENCE_WIDTH_PX, max(1, splash.winfo_screenwidth() - 80))
-    main_h = min(WEB_REFERENCE_HEIGHT_PX, max(1, splash.winfo_screenheight() - 80))
-    main_x = max(0, (splash.winfo_screenwidth() - main_w) // 2)
-    main_y = max(0, (splash.winfo_screenheight() - main_h) // 2)
-    splash.geometry(f"{width}x{height}+{main_x + (main_w - width) // 2}+{main_y + (main_h - height) // 2}")
+    _center_splash_window(splash)
     splash.deiconify()
     splash.lift()
     splash.focus_force()
@@ -1961,7 +1984,6 @@ def _launch_after_intro(
         image = image.subsample(factor, factor) if factor > 1 else image
         tk.Label(splash, image=image, bg="#ffffff", bd=0).pack()
         splash._intro_image = image  # type: ignore[attr-defined]
-        width, height = image.width(), image.height()
     except Exception:  # noqa: BLE001
         tk.Label(
             splash,
@@ -1972,13 +1994,8 @@ def _launch_after_intro(
             padx=48,
             pady=32,
         ).pack()
-        width, height = 300, 100
 
-    main_w = min(WEB_REFERENCE_WIDTH_PX, max(1, splash.winfo_screenwidth() - 80))
-    main_h = min(WEB_REFERENCE_HEIGHT_PX, max(1, splash.winfo_screenheight() - 80))
-    main_x = max(0, (splash.winfo_screenwidth() - main_w) // 2)
-    main_y = max(0, (splash.winfo_screenheight() - main_h) // 2)
-    splash.geometry(f"{width}x{height}+{main_x + (main_w - width) // 2}+{main_y + (main_h - height) // 2}")
+    _center_splash_window(splash)
     splash.lift()
     splash.focus_force()
     splash.update_idletasks()
@@ -1988,6 +2005,7 @@ def _launch_after_intro(
     def launch() -> None:
         splash.destroy()
         app = app_factory() if app_factory is not None else EV3SimulatorApp()
+        _maximize_main_window(app)
         if on_main_ready is not None:
             on_main_ready(app)
         app.mainloop()

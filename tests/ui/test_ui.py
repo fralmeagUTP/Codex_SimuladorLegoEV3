@@ -1438,6 +1438,31 @@ class TestMainWindow:
 
         assert calls == ["freeze", "launch"]
 
+    def test_desktop_startup_uses_fixed_intro_and_maximizes_main_window(self):
+        from simulador_ev3.ui import main_window as mw
+
+        class FakeSplash:
+            def winfo_screenwidth(self):
+                return 1920
+
+            def winfo_screenheight(self):
+                return 1080
+
+            def geometry(self, value):
+                self.geometry_value = value
+
+        class FakeApp:
+            def state(self, value):
+                self.state_value = value
+
+        splash = FakeSplash()
+        app = FakeApp()
+        mw._center_splash_window(splash)
+        mw._maximize_main_window(app)
+
+        assert splash.geometry_value == "800x600+560+240"
+        assert app.state_value == "zoomed"
+
     def test_about_dialog_is_centered_over_the_main_window(self):
         app = self.EV3SimulatorApp()
 
