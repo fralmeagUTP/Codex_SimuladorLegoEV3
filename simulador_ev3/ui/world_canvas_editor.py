@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional, cast
 from simulador_ev3.application.world_validation_engine import rotated_connectors
 from simulador_ev3.domain.editor.world_editor_model import CELL_SIZE_MM, GRID_SIZE_PX, Direction, get_asset_spec
 from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.ui_design_tokens import tokens_for_theme
 from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
 _BG = "#F4F6F8"
@@ -112,6 +113,18 @@ class WorldCanvasEditor(tk.Canvas):
 
     def set_selected_id(self, object_id: Optional[str]) -> None:
         self._selected_id = object_id
+        self._redraw()
+
+    def set_theme(self, theme: str) -> None:
+        """Actualiza fondo y cuadrícula según los tokens compartidos."""
+
+        tokens = tokens_for_theme(theme)
+        is_dark = str(theme).strip().lower() == "dark"
+        global _BG, _GRID, _BORDER
+        _BG = tokens.background if is_dark else tokens.surface_muted
+        _GRID = "#29415E" if is_dark else "#D0D7DE"
+        _BORDER = tokens.border
+        self.configure(bg=_BG, highlightbackground=_BORDER)
         self._redraw()
 
     def set_presentation_layers(self, hidden_ids: set[str], locked_ids: set[str]) -> None:

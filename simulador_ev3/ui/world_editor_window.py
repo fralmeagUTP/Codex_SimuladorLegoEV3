@@ -19,6 +19,7 @@ from simulador_ev3.domain.editor.world_editor_model import (
     MAX_WORLD_PIXELS,
 )
 from simulador_ev3.shared.paths import resolve_worlds_dir
+from simulador_ev3.shared.ui_design_tokens import DARK_TOKENS, LIGHT_TOKENS, ThemeTokens, tokens_for_theme
 from simulador_ev3.ui.asset_library_panel import AssetLibraryPanel
 from simulador_ev3.ui.layer_list_panel import LayerListPanel
 from simulador_ev3.ui.object_properties_panel import ObjectPropertiesPanel
@@ -52,11 +53,13 @@ class WorldEditorWindow(tk.Toplevel):
         parent: Any,
         on_world_saved: Optional[Callable[[str], None]] = None,
         on_simulate_saved: Optional[Callable[[str], None]] = None,
+        theme: str = "light",
     ) -> None:
         super().__init__(parent)
         self.title("Editor de Mundos EV3")
         self.geometry("1320x860")
         self.minsize(980, 620)
+        self._theme_name = theme
         self.configure(bg="#ECEFF1")
 
         self._on_world_saved = on_world_saved
@@ -68,6 +71,7 @@ class WorldEditorWindow(tk.Toplevel):
         self._locked_layer_ids: set[str] = set()
 
         self._build()
+        self.apply_theme(theme)
         self._sync_world_size_inputs()
         self._refresh_canvas()
 
@@ -128,10 +132,10 @@ class WorldEditorWindow(tk.Toplevel):
         content.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
 
         self._asset_library = AssetLibraryPanel(content, on_select=self._on_library_asset_selected)
-        content.add(self._asset_library, minsize=190, stretch="never")
+        content.add(self._asset_library, minsize=160, stretch="never")
 
         canvas_container = tk.Frame(content, bg="#ECEFF1")
-        content.add(canvas_container, minsize=760, stretch="always")
+        content.add(canvas_container, minsize=480, stretch="always")
 
         self._canvas = WorldCanvasEditor(
             canvas_container,
@@ -149,7 +153,7 @@ class WorldEditorWindow(tk.Toplevel):
         self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         right_panel = tk.Frame(content, bg="#ECEFF1")
-        content.add(right_panel, minsize=300, stretch="never")
+        content.add(right_panel, minsize=250, stretch="never")
         self._props = ObjectPropertiesPanel(right_panel)
         self._props.pack(fill=tk.X, padx=2, pady=(0, 6))
         self._layers = LayerListPanel(
@@ -179,6 +183,56 @@ class WorldEditorWindow(tk.Toplevel):
     # ------------------------------------------------------------------
     # Commands
     # ------------------------------------------------------------------
+
+    def apply_theme(self, theme: str) -> None:
+        """Aplica el tema activo a la ventana y todos sus paneles nativos."""
+
+        self._theme_name = theme
+        tokens = tokens_for_theme(theme)
+        palette: dict[str, str] = {}
+        for source in (LIGHT_TOKENS, DARK_TOKENS):
+            for name in ThemeTokens.__dataclass_fields__:
+                palette[str(getattr(source, name)).upper()] = str(getattr(tokens, name))
+        palette.update(
+            {
+                "#ECEFF1": tokens.background,
+                "#FFFFFF": tokens.surface,
+                "#F4F6F8": tokens.surface_muted,
+                "#CFD8DC": tokens.surface_muted,
+                "#455A64": tokens.text_muted,
+                "#1565C0": tokens.primary,
+                "#DCEBFA": tokens.surface_muted,
+                "#B0BEC5": tokens.border,
+            }
+        )
+
+        def visit(widget: tk.Widget) -> None:
+            changes: dict[str, str] = {}
+            for option in (
+                "bg",
+                "fg",
+                "activebackground",
+                "activeforeground",
+                "highlightbackground",
+                "insertbackground",
+            ):
+                try:
+                    value = str(widget.cget(option)).upper()
+                    if value in palette:
+                        changes[option] = palette[value]
+                except Exception:  # noqa: BLE001
+                    pass
+            if changes:
+                try:
+                    widget.configure(**changes)
+                except Exception:  # noqa: BLE001
+                    pass
+            for child in widget.winfo_children():
+                visit(child)
+
+        self.configure(bg=tokens.background)
+        visit(self)
+        self._canvas.set_theme(theme)
 
     def _cmd_new(self) -> None:
         if not messagebox.askyesno("Editor de mundos", "Crear un mundo nuevo? Se perderan cambios no guardados."):

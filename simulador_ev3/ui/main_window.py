@@ -346,6 +346,12 @@ class EV3SimulatorApp(tk.Tk):
     def _set_theme(self, theme: str) -> None:
         self._theme_name = save_ui_theme(theme)
         self._apply_theme(self._theme_name)
+        editor_window = self._world_editor_window
+        try:
+            if editor_window is not None and editor_window.winfo_exists():
+                editor_window.apply_theme(self._theme_name)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _set_simulation_profile(self, profile: str) -> None:
         try:
@@ -1496,6 +1502,7 @@ class EV3SimulatorApp(tk.Tk):
             self._world_editor_window = WorldEditorWindow(
                 self,
                 on_simulate_saved=self._on_editor_world_saved,
+                theme=self._theme_name,
             )
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Editor de mundos", str(exc))
