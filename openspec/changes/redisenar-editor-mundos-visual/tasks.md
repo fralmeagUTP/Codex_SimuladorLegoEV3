@@ -10,7 +10,7 @@
   coordenadas y validación existentes.
 - [x] 5. Rediseñar el inspector para mostrar propiedades de dominio por tipo de
   objeto, unidades legibles y estado sin selección.
-- [ ] 6. Implementar dimensiones en Ancho/Alto de celdas, presets y
+- [x] 6. Implementar dimensiones en Ancho/Alto de celdas, presets y
   equivalencias físicas, preservando validación ante cambios destructivos.
 - [ ] 7. Implementar lista de capas con selección bidireccional, visibilidad,
   bloqueo y reordenamiento donde aplique.

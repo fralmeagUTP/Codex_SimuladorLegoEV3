@@ -89,19 +89,37 @@ class WorldEditorWindow(tk.Toplevel):
         )
         self._toolbar.pack(fill=tk.X, side=tk.TOP)
 
-        world_cfg = tk.Frame(self, bg="#ECEFF1", padx=8, pady=4)
+        world_cfg = tk.LabelFrame(
+            self,
+            text="Tamaño del mundo",
+            bg="#ECEFF1",
+            padx=8,
+            pady=4,
+            font=("Segoe UI", 9, "bold"),
+        )
         world_cfg.pack(fill=tk.X, side=tk.TOP)
-        tk.Label(world_cfg, text="World W (cells):", bg="#ECEFF1").pack(side=tk.LEFT)
+        tk.Label(world_cfg, text="Ancho (celdas):", bg="#ECEFF1").pack(side=tk.LEFT)
         self._world_w_entry = tk.Entry(world_cfg, width=8)
         self._world_w_entry.pack(side=tk.LEFT, padx=(4, 10))
-        tk.Label(world_cfg, text="World H (cells):", bg="#ECEFF1").pack(side=tk.LEFT)
+        tk.Label(world_cfg, text="Alto (celdas):", bg="#ECEFF1").pack(side=tk.LEFT)
         self._world_h_entry = tk.Entry(world_cfg, width=8)
         self._world_h_entry.pack(side=tk.LEFT, padx=(4, 10))
-        tk.Button(world_cfg, text="Aplicar tamano", command=self._cmd_apply_world_size).pack(side=tk.LEFT)
+        tk.Button(world_cfg, text="Aplicar tamaño", command=self._cmd_apply_world_size).pack(side=tk.LEFT)
+        tk.Label(world_cfg, text="Preajustes:", bg="#ECEFF1").pack(side=tk.LEFT, padx=(14, 3))
+        for label, width, height in (("Pequeño", 40, 30), ("Aula", 80, 60), ("Grande", 160, 120)):
+            tk.Button(
+                world_cfg,
+                text=label,
+                command=lambda w=width, h=height: self._set_world_size_preset(w, h),
+            ).pack(side=tk.LEFT, padx=2)
         tk.Frame(world_cfg, width=12, bg="#ECEFF1").pack(side=tk.LEFT)
         tk.Button(world_cfg, text="+", width=3, command=self._cmd_zoom_in).pack(side=tk.LEFT, padx=2)
         tk.Button(world_cfg, text="-", width=3, command=self._cmd_zoom_out).pack(side=tk.LEFT, padx=2)
         tk.Button(world_cfg, text="[]", width=3, command=self._cmd_zoom_reset).pack(side=tk.LEFT, padx=2)
+        self._world_size_hint_var = tk.StringVar(value="")
+        tk.Label(world_cfg, textvariable=self._world_size_hint_var, bg="#ECEFF1", fg="#455A64").pack(
+            side=tk.RIGHT, padx=4
+        )
 
         content = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=6, bg="#B0BEC5")
         content.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
@@ -365,13 +383,22 @@ class WorldEditorWindow(tk.Toplevel):
             width_cells = int(self._world_w_entry.get())
             height_cells = int(self._world_h_entry.get())
         except ValueError:
-            messagebox.showerror("Editor de mundos", "Width/Height deben ser enteros (cells).")
+            messagebox.showerror("Editor de mundos", "Ancho y alto deben ser números enteros en celdas.")
             return
         if width_cells > MAX_WORLD_CELLS or height_cells > MAX_WORLD_CELLS:
             messagebox.showerror(
                 "Editor de mundos",
-                f"Tamano maximo: {MAX_WORLD_CELLS} celdas por eje ({MAX_WORLD_PIXELS} px).",
+                f"Tamaño máximo: {MAX_WORLD_CELLS} celdas por eje ({MAX_WORLD_PIXELS} px).",
             )
+            return
+        current = self._service.current_formal_world()
+        is_smaller = width_cells < current.world_width_cells or height_cells < current.world_height_cells
+        if is_smaller and current.placements and not messagebox.askyesno(
+            "Reducir tamaño del mundo",
+            "Reducir el mundo puede dejar elementos fuera de los límites.\n\n"
+            "El cambio solo se aplicará si todos los elementos siguen siendo válidos. ¿Continuar?",
+            icon="warning",
+        ):
             return
         if not self._service.resize_formal_world(width_cells, height_cells):
             messagebox.showerror(
@@ -383,6 +410,16 @@ class WorldEditorWindow(tk.Toplevel):
             )
             return
         self._refresh_canvas()
+        self._sync_world_size_inputs()
+
+    def _set_world_size_preset(self, width_cells: int, height_cells: int) -> None:
+        """Carga un preajuste visible y aplica las mismas validaciones manuales."""
+
+        self._world_w_entry.delete(0, tk.END)
+        self._world_h_entry.delete(0, tk.END)
+        self._world_w_entry.insert(0, str(width_cells))
+        self._world_h_entry.insert(0, str(height_cells))
+        self._cmd_apply_world_size()
 
     def _cmd_zoom_in(self) -> None:
         self._canvas.zoom_in()
@@ -454,6 +491,9 @@ class WorldEditorWindow(tk.Toplevel):
         self._world_h_entry.delete(0, tk.END)
         self._world_w_entry.insert(0, str(world.world_width_cells))
         self._world_h_entry.insert(0, str(world.world_height_cells))
+        self._world_size_hint_var.set(
+            f"Equivale a {world.world_width_cells * 10:g} × {world.world_height_cells * 10:g} cm"
+        )
 
     def _refresh_canvas(self) -> None:
         world = self._service.current_formal_world()
