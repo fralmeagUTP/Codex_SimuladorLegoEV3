@@ -19,7 +19,7 @@ La arquitectura de hilos es:
 
 from __future__ import annotations
 
-import re
+import ast
 import sys
 import threading
 import time
@@ -442,9 +442,7 @@ class RuntimeSandbox:
         results: list[dict] = []
         for expr in expressions[:20]:
             item = {"expr": expr, "value": None, "error": None}
-            lowered = expr.lower()
-            # Bloqueo simple de dunder y llamadas de import/exec/eval/open.
-            if "__" in expr or re.search(r"\b(import|exec|eval|open|compile|input)\b", lowered):
+            if not self._is_safe_watch_expression(expr):
                 item["error"] = "expresion no permitida"
                 results.append(item)
                 continue
@@ -455,6 +453,71 @@ class RuntimeSandbox:
                 item["error"] = str(exc)
             results.append(item)
         return results
+
+    @staticmethod
+    def _is_safe_watch_expression(expr: str) -> bool:
+        """Permite expresiones de inspeccion y funciones puras controladas.
+
+        Las Watches se evaluan mientras un script del alumno esta pausado.  Un
+        filtro textual es insuficiente para aislar una expresion de Python, por
+        lo que se valida el arbol sintactico antes de llegar a ``eval``.  Se
+        conservan comparaciones, calculos y las funciones puras expuestas por
+        el sandbox; se rechazan atributos, subindices y toda otra construccion
+        ejecutable.
+        """
+        try:
+            tree = ast.parse(expr, mode="eval")
+        except SyntaxError:
+            return False
+
+        allowed_nodes = (
+            ast.Expression,
+            ast.BoolOp,
+            ast.BinOp,
+            ast.UnaryOp,
+            ast.Compare,
+            ast.Call,
+            ast.Name,
+            ast.Load,
+            ast.Constant,
+            ast.List,
+            ast.Tuple,
+            ast.Set,
+            ast.Dict,
+            ast.Add,
+            ast.Sub,
+            ast.Mult,
+            ast.Div,
+            ast.FloorDiv,
+            ast.Mod,
+            ast.Pow,
+            ast.UAdd,
+            ast.USub,
+            ast.Not,
+            ast.And,
+            ast.Or,
+            ast.Eq,
+            ast.NotEq,
+            ast.Lt,
+            ast.LtE,
+            ast.Gt,
+            ast.GtE,
+            ast.In,
+            ast.NotIn,
+            ast.Is,
+            ast.IsNot,
+        )
+        for node in ast.walk(tree):
+            if not isinstance(node, allowed_nodes):
+                return False
+            if isinstance(node, ast.Name) and node.id.startswith("__"):
+                return False
+            if isinstance(node, ast.Call) and (
+                not isinstance(node.func, ast.Name)
+                or node.func.id not in {"abs", "min", "max", "sum", "len", "round"}
+            ):
+                return False
+        return True
 
     def _on_timeout(self) -> None:
         """Watchdog: script excedio max_runtime_s."""

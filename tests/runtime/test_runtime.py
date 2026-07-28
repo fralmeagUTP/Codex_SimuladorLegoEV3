@@ -319,6 +319,28 @@ class TestSandboxExecution:
         assert watches[2]["value"] is None
         assert watches[2]["error"]
 
+    def test_debug_pause_rejects_watch_expressions_with_calls_or_attributes(self):
+        pauses = []
+        code = "distancia = 245\nresultado = distancia + 1\n"
+        sb = RuntimeSandbox(
+            source_code=code,
+            policy=ExecutionPolicy(max_runtime_s=0),
+            debug_enabled=True,
+            debug_breakpoints={2},
+            debug_watches=["distancia + 1", "abs(distancia)", "().__class__"],
+            debug_callback=lambda payload: pauses.append(payload) if payload.get("type") == "paused" else None,
+        )
+        sb.start()
+        time.sleep(0.2)
+        sb.debug_continue()
+        sb.join(timeout=2.0)
+
+        assert pauses
+        watches = pauses[0]["watches"]
+        assert watches[0] == {"expr": "distancia + 1", "value": 246, "error": None}
+        assert watches[1] == {"expr": "abs(distancia)", "value": 245, "error": None}
+        assert watches[2]["error"] == "expresion no permitida"
+
 
 # ===========================================================================
 # RuntimeController
