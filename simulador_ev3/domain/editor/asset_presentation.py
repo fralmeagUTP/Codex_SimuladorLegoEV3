@@ -74,6 +74,12 @@ def pixels_to_mm(value_px: int | float) -> float:
     return pixels_to_cells(value_px) * CELL_SIZE_MM
 
 
+def cells_to_pixels(value_cells: int | float) -> int:
+    """Convierte la unidad de edición visible al valor interno persistido."""
+
+    return int(round(float(value_cells) * GRID_SIZE_PX))
+
+
 def cells_to_mm(value_cells: int | float) -> float:
     """Indica la equivalencia física visible de un tamaño en celdas."""
 

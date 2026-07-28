@@ -8,7 +8,7 @@
   asset, selección visible y accesibilidad.
 - [x] 4. Añadir guía de lienzo vacío y mantener cuadrícula, snap, zoom, paneo,
   coordenadas y validación existentes.
-- [ ] 5. Rediseñar el inspector para mostrar propiedades de dominio por tipo de
+- [x] 5. Rediseñar el inspector para mostrar propiedades de dominio por tipo de
   objeto, unidades legibles y estado sin selección.
 - [ ] 6. Implementar dimensiones en Ancho/Alto de celdas, presets y
   equivalencias físicas, preservando validación ante cambios destructivos.
