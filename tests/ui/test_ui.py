@@ -409,6 +409,21 @@ class TestWorldCanvas:
         wc.clear_trail()
         assert wc._trail == []
 
+    def test_world_transition_clears_robot_beams_trail_and_placement_layers(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        wc.delete = mock.Mock()
+        wc._trail = [(10, 10), (20, 20)]
+        wc._robot_items = [101, 102]  # Robot y haz de sensor del mundo anterior.
+        wc._placement_hover_pos = (100.0, 100.0)
+
+        wc.clear_world_transition_visuals()
+
+        assert wc._trail == []
+        assert wc._robot_items == []
+        assert wc._placement_hover_pos is None
+        wc.delete.assert_any_call("placement_ghost")
+        wc.delete.assert_any_call("placement_marker")
+
     def test_reset_clears_trail(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
         wc._trail = [(5, 5)]

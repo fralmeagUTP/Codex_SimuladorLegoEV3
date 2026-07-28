@@ -326,6 +326,19 @@ class WorldCanvas(tk.Canvas):
         self._trail.clear()
         self.delete("trail")
 
+    def clear_world_transition_visuals(self) -> None:
+        """Elimina capas transitorias antes de proyectar un mundo nuevo.
+
+        Los haces de sensores se almacenan junto con los elementos del robot;
+        por eso cambiar únicamente obstáculos y fondo dejaba conos o líneas
+        azules del mundo anterior visibles en el nuevo escenario.
+        """
+        self.clear_trail()
+        self._clear_robot()
+        self.delete("placement_ghost")
+        self.delete("placement_marker")
+        self._placement_hover_pos = None
+
     def reset(self) -> None:
         """Limpia el canvas completamente y redibuja el fondo."""
         self.delete("all")

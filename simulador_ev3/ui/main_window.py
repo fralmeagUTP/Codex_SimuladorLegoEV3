@@ -1553,6 +1553,10 @@ class EV3SimulatorApp(tk.Tk):
         self._editor.set_status(f"Misión cargada: {mission.title}", "#2E7D32")
 
     def _refresh_world_canvas(self) -> None:
+        # Fondo, obstáculos y assets se reemplazan a continuación. Limpiamos
+        # primero las capas que no pertenecen al mundo (rastro, haces y ghost)
+        # para que no queden líneas azules de la sesión previa.
+        self._canvas.clear_world_transition_visuals()
         world = self._service.world_visual_data()
         world_name = self._active_world_label or str(world["name"])
         self._world_name_var.set(f"Mundo actual: {world_name}")
