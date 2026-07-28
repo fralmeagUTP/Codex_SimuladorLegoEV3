@@ -24,6 +24,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional
 
+from simulador_ev3.application.mission_evaluator import MissionEvaluator
 from simulador_ev3.application.simulation_trace import SimulationTrace
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.application.world_editor_service import WorldEditorService
@@ -33,6 +34,7 @@ from simulador_ev3.core.event_bus import (
 )
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
 from simulador_ev3.core.simulation_profile import resolve_profile
+from simulador_ev3.domain.assessment import MissionDefinition
 from simulador_ev3.domain.editor.world_editor_model import (
     CELL_SIZE_MM,
     DEFAULT_WORLD_CELLS,
@@ -112,6 +114,8 @@ class SimulationService:
         self._latest_debug_event: dict | None = None
         self._trace = SimulationTrace()
         self._trace_recording = False
+        self._active_mission: MissionDefinition | None = None
+        self._mission_result: dict | None = None
 
         # Construir la infraestructura inicial
         self._rebuild()
@@ -187,6 +191,47 @@ class SimulationService:
 
     def stop_trace(self) -> None:
         self._trace_recording = False
+
+    def activate_mission(self, mission: MissionDefinition) -> None:
+        """Asocia una misión a la próxima ejecución y registra su evidencia."""
+        self._active_mission = mission
+        self._mission_result = None
+        self.start_trace()
+
+    def clear_active_mission(self) -> None:
+        self._active_mission = None
+        self._mission_result = None
+
+    @property
+    def active_mission(self) -> MissionDefinition | None:
+        return self._active_mission
+
+    @property
+    def mission_result(self) -> dict | None:
+        return dict(self._mission_result) if self._mission_result is not None else None
+
+    def complete_active_mission(self, outcome: str) -> dict | None:
+        """Evalúa una misión una sola vez al finalizar, fallar o cancelar."""
+        if self._active_mission is None or self._mission_result is not None:
+            return None
+        result = MissionEvaluator().evaluate(
+            self._active_mission, self._trace, self._config.simulation_profile
+        ).to_dict()
+        if outcome in {"cancelled", "error", "timed_out"}:
+            result["passed"] = False
+            result["score"] = 0.0
+        self.stop_trace()
+        self._mission_result = {
+            "event_version": 1,
+            "outcome": outcome,
+            "mission": {
+                "id": self._active_mission.identifier,
+                "title": self._active_mission.title,
+                "version": self._active_mission.version,
+            },
+            "result": result,
+        }
+        return dict(self._mission_result)
 
     def record_external_snapshot(self, dto: SnapshotDTO) -> None:
         """Incorpora un snapshot emitido por un worker aislado a la traza."""

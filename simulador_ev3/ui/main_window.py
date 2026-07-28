@@ -1132,6 +1132,40 @@ class EV3SimulatorApp(tk.Tk):
                 self.after_idle(self._preserve_final_robot_visual, status)
             self.after_idle(self._editor.clear_debug_line)
 
+        outcome_by_status = {
+            "finished": "finished",
+            "stopped": "cancelled",
+            "timed_out": "timed_out",
+            "error": "error",
+        }
+        if status in outcome_by_status:
+            mission_result = self._service.complete_active_mission(outcome_by_status[status])
+            if mission_result is not None:
+                self.after_idle(self._show_mission_result, mission_result)
+
+    def _show_mission_result(self, payload: dict) -> None:
+        """Presenta el resultado de misión usando el DTO compartido."""
+        result = payload["result"]
+        outcome = str(payload["outcome"])
+        state = "COMPLETADA" if result["passed"] and outcome == "finished" else {
+            "cancelled": "CANCELADA", "timed_out": "TIEMPO AGOTADO", "error": "ERROR"
+        }.get(outcome, "NO SUPERADA")
+        criteria = "\n".join(
+            f"{'✓' if item['passed'] else '✗'} {item['id']}"
+            for item in result.get("criteria", [])
+        ) or "Sin criterios evaluables"
+        self._editor.set_status(
+            f"Misión {state}: {result['score']:.0f} puntos", "#2E7D32" if result["passed"] else "#B71C1C"
+        )
+        messagebox.showinfo(
+            "Resultado de misión",
+            (
+                f"{payload['mission']['title']}\n\nEstado: {state}\n"
+                f"Puntuación: {result['score']:.0f}\n\nCriterios:\n{criteria}"
+            ),
+            parent=self,
+        )
+
     def _sync_sim_control_states(self, status: str) -> None:
         """Replica la disponibilidad de controles de la Web en Tkinter."""
 
@@ -1221,8 +1255,17 @@ class EV3SimulatorApp(tk.Tk):
 
     def _cmd_stop_and_reset(self) -> None:
         """Paridad web: detiene la ejecucion actual y reinicia la simulacion."""
+        # ``reset()`` emite ``stopped`` y ``reset`` de forma consecutiva.  Si
+        # esperamos a que el callback de estado evalúe la misión, el segundo
+        # evento puede reconstruir la sesión antes de que se presente el
+        # resultado.  Cerramos explícitamente la misión primero: así una
+        # interrupción manual queda registrada como CANCELADA y se muestra una
+        # sola vez, antes de restaurar el mundo.
+        mission_result = self._service.complete_active_mission("cancelled")
         self._cmd_reset()
         self._editor.set_status("Ejecucion finalizada. Simulacion reiniciada.", "#2E7D32")
+        if mission_result is not None:
+            self.after_idle(self._show_mission_result, mission_result)
 
     # ------------------------------------------------------------------
     # Comandos de la UI
@@ -1465,6 +1508,7 @@ class EV3SimulatorApp(tk.Tk):
             messagebox.showerror("Misiones", "La misión solicitada no está disponible.")
             return
         self._apply_scenario(mission.world_file, mission.starter_script)
+        self._service.activate_mission(mission)
         self._editor.set_status(f"Misión cargada: {mission.title}", "#2E7D32")
 
     def _refresh_world_canvas(self) -> None:

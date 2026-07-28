@@ -28,6 +28,20 @@ def test_session_event_validates_and_roundtrips_worker_event() -> None:
     assert SessionEvent.from_dict(raw).to_dict() == raw
 
 
+def test_session_event_roundtrips_versioned_mission_result() -> None:
+    raw = {
+        "protocol_version": 1,
+        "session_id": "session-1",
+        "sequence": 4,
+        "kind": "event",
+        "type": "mission_result",
+        "payload": {"event_version": 1, "outcome": "finished", "result": {"passed": True, "score": 10}},
+        "command_id": None,
+    }
+
+    assert SessionEvent.from_dict(raw).to_dict() == raw
+
+
 def test_session_event_rejects_unknown_protocol_version() -> None:
     with pytest.raises(ValueError, match="no compatible"):
         SessionEvent.from_dict({"protocol_version": 2})

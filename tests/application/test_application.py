@@ -10,6 +10,7 @@ from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.core.command_queue import SimulationCommand
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
+from simulador_ev3.domain.assessment import MissionAcceptanceCriterion, MissionDefinition, MissionRubricCriterion
 from simulador_ev3.domain.world.obstacle_model import ObstacleModel
 from simulador_ev3.domain.world.world_model import WorldModel
 from simulador_ev3.persistence.world_repository import WorldRepository
@@ -50,6 +51,48 @@ def make_snapshot(engine=None):
     """Obtiene un StateSnapshot real ejecutando un tick del engine."""
     eng = engine or make_engine()
     return eng.update()
+
+
+def make_mission(expected: dict) -> MissionDefinition:
+    return MissionDefinition(
+        identifier="mision-prueba",
+        version=1,
+        title="Misión de prueba",
+        objective="Verificar contrato",
+        world_file="mundo.json",
+        starter_script="script.py",
+        acceptance_criteria=(MissionAcceptanceCriterion("criterio", "Debe cumplir", expected),),
+        rubric=(MissionRubricCriterion("puntaje", "Puntaje", "Puntaje máximo", 10.0),),
+    )
+
+
+def test_service_emits_single_completed_mission_result_from_recorded_trace():
+    service = SimulationService()
+    service.activate_mission(make_mission({"min_ticks": 1}))
+    service.record_external_snapshot(service.get_snapshot())
+
+    result = service.complete_active_mission("finished")
+
+    assert result is not None
+    assert result["event_version"] == 1
+    assert result["outcome"] == "finished"
+    assert result["result"]["passed"] is True
+    assert result["result"]["score"] == 10.0
+    assert service.complete_active_mission("finished") is None
+
+
+@pytest.mark.parametrize("outcome", ["cancelled", "error", "timed_out"])
+def test_service_mission_terminal_outcomes_never_report_success(outcome):
+    service = SimulationService()
+    service.activate_mission(make_mission({"min_ticks": 1}))
+    service.record_external_snapshot(service.get_snapshot())
+
+    result = service.complete_active_mission(outcome)
+
+    assert result is not None
+    assert result["outcome"] == outcome
+    assert result["result"]["passed"] is False
+    assert result["result"]["score"] == 0.0
 
 
 # ===========================================================================

@@ -13,6 +13,7 @@
   const statusSavePath = document.getElementById("statusSavePath");
   const examplesMenu = document.getElementById("examplesMenu");
   const missionsMenu = document.getElementById("missionsMenu");
+  const missionResultEl = document.getElementById("missionResult");
   const worldsMenu = document.getElementById("worldsMenu");
   const scriptFileInput = document.getElementById("scriptFileInput");
   const worldFileInput = document.getElementById("worldFileInput");
@@ -1514,6 +1515,7 @@
           currentWorld = payload || currentWorld;
           redrawCanvas();
         },
+        missionResult: (payload) => renderMissionResult(payload),
         error: (payload) => {
           const message = payload?.error?.message || payload?.message;
           if (message) log(message);
@@ -1963,7 +1965,20 @@
     if (guardMenuAction()) return;
     await loadWorldByName(mission.world_file);
     await loadExampleByName(mission.starter_script);
+    await api.selectMission(mission.id);
+    if (missionResultEl) missionResultEl.hidden = true;
     log(`Misión cargada: ${mission.title}`);
+  }
+
+  function renderMissionResult(payload) {
+    if (!missionResultEl || !payload?.result) return;
+    const result = payload.result;
+    const completed = payload.outcome === "finished" && result.passed;
+    const label = completed ? "Misión completada" : payload.outcome === "cancelled" ? "Misión cancelada" : "Misión no superada";
+    const criteria = (result.criteria || []).map((item) => `${item.passed ? "✓" : "✗"} ${item.id}`).join(" · ");
+    missionResultEl.textContent = `${label}: ${result.score || 0} puntos. ${criteria}`;
+    missionResultEl.className = `mission-result ${completed ? "mission-result-success" : "mission-result-failure"}`;
+    missionResultEl.hidden = false;
   }
 
   async function downloadScript() {

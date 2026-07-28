@@ -1346,6 +1346,27 @@ class TestMainWindow:
         apply_snapshot.assert_called_once_with(initial)
         app._on_close()
 
+    def test_stop_and_reset_records_and_displays_cancelled_mission(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        payload = {"outcome": "cancelled", "result": {"score": 0.0}}
+
+        with (
+            mock.patch.object(app._service, "complete_active_mission", return_value=payload) as complete,
+            mock.patch.object(app, "_cmd_reset") as reset,
+            mock.patch.object(app, "after_idle") as after_idle,
+        ):
+            app._cmd_stop_and_reset()
+            complete.assert_called_once_with("cancelled")
+            reset.assert_called_once()
+            after_idle.assert_called_once_with(app._show_mission_result, payload)
+
+        app._on_close()
+
     def test_guard_menu_locked_shows_message_when_blocked(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory

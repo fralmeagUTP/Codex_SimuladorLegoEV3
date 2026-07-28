@@ -36,9 +36,9 @@
   - [ ] 5.1.4 Completar crear/guardar/cargar/editar/eliminar mundos con rutas temporales aisladas.
     - [x] 5.1.4a Crear y guardar un mundo temporal; validar su JSON.
     - [ ] 5.1.4b Confirmar recarga, edición y eliminación con estado visible y sin afectar mundos de usuario.
-  - [ ] 5.1.5 Ejecutar misiones con resultado de éxito, fallo y cancelación; comprobar sus criterios.
+  - [x] 5.1.5 Ejecutar misiones con resultado de éxito, fallo y cancelación; comprobar sus criterios.
     - [x] 5.1.5a Ejecutar Evita obstáculos hasta finalización normal y verificar telemetría/LCD.
-    - [ ] 5.1.5b Validar resultados explícitos de éxito/fallo y cancelación de todas las misiones disponibles.
+    - [x] 5.1.5b Validar resultados explícitos de éxito/fallo y cancelación de todas las misiones disponibles.
 - [x] 5.2 Adjuntar evidencia desde código fuente y ejecutable empaquetado.
   - [x] 5.2.1 Adjuntar evidencia visual de intro y flujo fuente; validar el artefacto PyInstaller.
   - [x] 5.2.2 Capturar visualmente intro y ventana principal desde el ejecutable empaquetado.

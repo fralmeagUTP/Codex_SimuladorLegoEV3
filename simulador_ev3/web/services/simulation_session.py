@@ -16,8 +16,10 @@ from typing import Any
 from simulador_ev3.application.session_contract import SessionEvent
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.application.simulation_session_port import SimulationSessionPort
+from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.core.simulation_engine import SimEngineConfig
+from simulador_ev3.domain.assessment import MissionDefinition
 from simulador_ev3.domain.editor.world_editor_model import (
     ASSET_CATALOG,
     CELL_SIZE_MM,
@@ -68,6 +70,8 @@ class SimulationSession(SimulationSessionPort):
         self._start_idempotency_ttl_s = float(self._config.get("START_IDEMPOTENCY_TTL_S", 20.0))
         self._status = SessionStatus.CREATED.value
         self._loaded_world_name: str | None = None
+        self._active_mission: MissionDefinition | None = None
+        self._latest_mission_result: dict[str, Any] | None = None
         self._editor = WorldEditorService()
         self._world_has_editor_spec = False
         self._service = SimulationService(
@@ -191,6 +195,7 @@ class SimulationSession(SimulationSessionPort):
                 self._service.stop()
             self._mirror_worker("stop")
             self._push_event("status", {"status": self._status})
+            self._complete_mission("cancelled")
             return self.summary()
 
     def reset(self) -> dict[str, Any]:
@@ -200,6 +205,8 @@ class SimulationSession(SimulationSessionPort):
             self._mirror_worker("reset")
             self._wire_callbacks()
             self._source_code = None
+            self._active_mission = None
+            self._latest_mission_result = None
             self._latest_snapshot = None
             self._snapshot_generation += 1
             self._latest_error = None
@@ -211,6 +218,31 @@ class SimulationSession(SimulationSessionPort):
             self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
             return self.summary()
+
+    def select_mission(self, mission: MissionDefinition) -> dict[str, Any]:
+        """Activa la evaluación de la misión cargada por la interfaz."""
+        with self._lock:
+            self._active_mission = mission
+            self._latest_mission_result = None
+            self._service.activate_mission(mission)
+            self._push_event(
+                "mission",
+                {
+                    "event_version": 1,
+                    "mission": {"id": mission.identifier, "title": mission.title, "version": mission.version},
+                },
+            )
+            return self.summary()
+
+    def _complete_mission(self, outcome: str) -> dict[str, Any] | None:
+        if self._active_mission is None or self._latest_mission_result is not None:
+            return None
+        payload = self._service.complete_active_mission(outcome)
+        if payload is None:
+            return None
+        self._latest_mission_result = payload
+        self._push_event("mission_result", payload)
+        return payload
 
     def set_max_runtime_s(self, max_runtime_s: float) -> dict[str, Any]:
         """Configura el watchdog de la sesion antes de iniciar una ejecucion."""
@@ -706,6 +738,12 @@ class SimulationSession(SimulationSessionPort):
             "breakpoints": sorted(self._debug_breakpoints),
             "watches": list(self._debug_watches),
             "simulation_profile": self._service.engine_config.simulation_profile,
+            "active_mission": (
+                {"id": self._active_mission.identifier, "title": self._active_mission.title}
+                if self._active_mission is not None
+                else None
+            ),
+            "mission_result": self._latest_mission_result,
         }
 
     def runtime_checkpoint(self) -> dict[str, Any]:
@@ -859,6 +897,7 @@ class SimulationSession(SimulationSessionPort):
             snapshot = self._decorate_snapshot(event["payload"])
             self._worker_shadow_snapshot = snapshot
             self._latest_snapshot = snapshot
+            self._service.record_external_snapshot(SnapshotDTO(event["payload"]))
             if snapshot is not None:
                 self._worker_diagnostics["last_tick"] = int(snapshot.get("tick", 0))
             now = time.monotonic()
@@ -869,6 +908,7 @@ class SimulationSession(SimulationSessionPort):
             candidate = event["payload"].get("status")
             if candidate in {status.value for status in SessionStatus}:
                 self._worker_shadow_status = candidate
+                self._on_status(str(candidate))
         if event.get("type") == "heartbeat" and isinstance(event.get("payload"), dict):
             self._worker_diagnostics = {
                 key: value for key, value in event["payload"].items() if isinstance(value, (int, float, str))
@@ -947,6 +987,14 @@ class SimulationSession(SimulationSessionPort):
             elif status == "error":
                 self._set_debug_state("error", reason="error")
             self._push_event("status", {"status": mapped, "raw_status": status})
+            outcome = {
+                "finished": "finished",
+                "stopped": "cancelled",
+                "timed_out": "timed_out",
+                "error": "error",
+            }.get(mapped)
+            if outcome is not None:
+                self._complete_mission(outcome)
 
     def _on_debug(self, payload: dict[str, Any]) -> None:
         with self._lock:

@@ -353,6 +353,7 @@ window.EV3Api = (() => {
         }
       });
       source.addEventListener("world", (event) => handlers.world?.(parse(event)));
+      source.addEventListener("mission_result", (event) => handlers.missionResult?.(parse(event)));
       source.addEventListener("heartbeat", () => handlers.heartbeat?.());
       source.onerror = () => handlers.connectionError?.(source);
       return source;
@@ -421,6 +422,10 @@ window.EV3Api = (() => {
     listExamples: () => request("/api/examples"),
     getExample: (name) => request(`/api/examples/${encodeURIComponent(name)}`),
     listMissions: () => request("/api/missions"),
+    selectMission: (id) => request(`/api/sessions/${sessionId}/mission`, {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }),
     listWorlds: () => request("/api/worlds"),
     loadWorld: (name) => request(`/api/sessions/${sessionId}/world`, {
       method: "POST",

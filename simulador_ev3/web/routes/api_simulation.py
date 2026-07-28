@@ -7,6 +7,7 @@ import time
 
 from flask import Blueprint, Response, current_app, jsonify, make_response, request, stream_with_context
 
+from simulador_ev3.shared.mission_catalog import MissionCatalog
 from simulador_ev3.web.errors import CapacityExceeded, InvalidPayload
 from simulador_ev3.web.routes.helpers import get_manager, json_body, request_token, require_session
 
@@ -100,6 +101,15 @@ def close_session(session_id: str):
 def session_info(session_id: str):
     session = require_session(session_id)
     return jsonify(session.summary())
+
+
+@bp.post("/sessions/<session_id>/mission")
+def select_mission(session_id: str):
+    identifier = str(json_body().get("id", "")).strip()
+    mission = MissionCatalog(current_app.config["EXAMPLES_DIR"], current_app.config["WORLDS_DIR"]).get(identifier)
+    if mission is None:
+        raise InvalidPayload("La misión solicitada no existe.")
+    return jsonify(require_session(session_id).select_mission(mission))
 
 
 @bp.post("/sessions/<session_id>/simulation-profile")
