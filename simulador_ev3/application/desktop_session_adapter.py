@@ -77,15 +77,16 @@ class DesktopSessionAdapter(SimulationSessionPort):
     def world_visual_data(self) -> dict:
         return self._service.world_visual_data()
 
-    def _mirror(self, command: str, payload: dict | None = None) -> None:
+    def _mirror(self, command: str, payload: dict | None = None) -> str | None:
         if self._worker is not None:
             try:
-                self._worker.send(command, payload)
+                return self._worker.send(command, payload)
             except RuntimeError as exc:
                 if "no iniciado" not in str(exc):
                     raise
                 self._start_worker()
-                self._worker.send(command, payload)
+                return self._worker.send(command, payload)
+        return None
 
     def load_script(self, source: str) -> None:
         self._service.load_script(source)
@@ -119,9 +120,9 @@ class DesktopSessionAdapter(SimulationSessionPort):
             self._worker_status = "stopped"
         self._mirror("stop")
 
-    def reset(self) -> None:
+    def reset(self) -> str | None:
         self._service.reset()
-        self._mirror("reset")
+        return self._mirror("reset")
 
     def current_snapshot(self) -> SnapshotDTO | None:
         """Estado local de referencia para sincronizar la UI tras un reinicio."""

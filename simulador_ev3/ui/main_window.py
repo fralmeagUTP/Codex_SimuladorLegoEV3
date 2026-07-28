@@ -147,6 +147,8 @@ class EV3SimulatorApp(tk.Tk):
         # cancelar. Sin esta barrera, un callback tardío podía volver a dibujar
         # haces/trazas azules justo después de "Detener y reiniciar".
         self._snapshot_epoch = 0
+        self._awaiting_worker_reset_snapshot = False
+        self._reset_worker_command_id: str | None = None
         self._lockable_menu_buttons: list[tk.Menubutton] = []
         self._persist_session = persist_session
 
@@ -1044,7 +1046,7 @@ class EV3SimulatorApp(tk.Tk):
             event_type = event.get("type")
             payload = event.get("payload")
             if event_type == "snapshot" and isinstance(payload, dict):
-                self._apply_snapshot(SnapshotDTO(payload))
+                self._apply_worker_snapshot_event(event, payload)
             elif event_type == "status" and isinstance(payload, dict):
                 worker_status = str(payload.get("status", ""))
                 self._on_status({"running": "started"}.get(worker_status, worker_status))
@@ -1069,6 +1071,20 @@ class EV3SimulatorApp(tk.Tk):
         # en el hilo de Tkinter (MainThread)
         snapshot_epoch = self._snapshot_epoch
         self.after_idle(self._apply_snapshot_if_current, dto, snapshot_epoch)
+
+    def _apply_worker_snapshot_event(self, event: dict, payload: dict) -> None:
+        """Aplica snapshots IPC, descartando los anteriores al reinicio.
+
+        El worker puede tener snapshots de la ejecución previa aún en su cola
+        cuando se pulsa "Detener y reiniciar". Solo el snapshot emitido por el
+        comando ``reset`` puede volver a pintar el canvas en ese intervalo.
+        """
+        if self._awaiting_worker_reset_snapshot:
+            if event.get("command_id") != self._reset_worker_command_id:
+                return
+            self._awaiting_worker_reset_snapshot = False
+            self._reset_worker_command_id = None
+        self._apply_snapshot(SnapshotDTO(payload))
 
     def _apply_snapshot_if_current(self, dto, snapshot_epoch: int) -> None:
         """Aplica solo snapshots pertenecientes a la ejecución vigente."""
@@ -1295,14 +1311,17 @@ class EV3SimulatorApp(tk.Tk):
         # Invalida los callbacks de snapshot que el hilo de ejecución hubiera
         # dejado pendientes antes de detenerse.
         self._snapshot_epoch += 1
-        self._service.reset()
+        is_worker_session = bool(self._service.worker_enabled)
+        self._awaiting_worker_reset_snapshot = is_worker_session
+        reset_command_id = self._service.reset()
+        self._reset_worker_command_id = reset_command_id if is_worker_session else None
         self._set_execution_menu_locked(False)
         self._canvas.reset()
         self._brick_panel.reset()
         self._telemetry_panel.reset()
         self._activate_placement_mode()
         snapshot = self._service.current_snapshot()
-        if snapshot is not None:
+        if snapshot is not None and not is_worker_session:
             self._apply_snapshot(snapshot)
 
     def _cmd_stop_and_reset(self) -> None:

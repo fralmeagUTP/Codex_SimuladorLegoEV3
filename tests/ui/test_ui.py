@@ -950,6 +950,27 @@ class TestMainWindow:
         app._apply_snapshot.assert_not_called()
         app._on_close()
 
+    def test_worker_reset_discards_queued_snapshot_before_reset_reply(self):
+        """La cola IPC previa no puede volver a dibujar la trayectoria."""
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        app._awaiting_worker_reset_snapshot = True
+        app._reset_worker_command_id = "reset-actual"
+        app._apply_snapshot = mock.Mock()
+        payload = _snap().to_dict()
+
+        app._apply_worker_snapshot_event({"command_id": "ejecucion-anterior"}, payload)
+        app._apply_snapshot.assert_not_called()
+
+        app._apply_worker_snapshot_event({"command_id": "reset-actual"}, payload)
+        app._apply_snapshot.assert_called_once()
+        assert app._awaiting_worker_reset_snapshot is False
+        app._on_close()
+
     def test_simulation_control_states_follow_execution_state(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory
