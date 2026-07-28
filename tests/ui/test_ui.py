@@ -694,8 +694,8 @@ class TestBrickPanel:
     def test_lcd_canvas_uses_thirty_percent_larger_reference_size(self):
         from simulador_ev3.ui import brick_panel
 
-        assert brick_panel._LCD_CANVAS_W == 390
-        assert brick_panel._LCD_CANVAS_H == 130
+        assert brick_panel._LCD_CANVAS_W == 507
+        assert brick_panel._LCD_CANVAS_H == 169
 
     def test_update_from_dto_no_crash(self):
         bp = self.BrickPanel(mock.MagicMock())

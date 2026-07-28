@@ -6,4 +6,4 @@ Fecha: 2026-07-28. Entorno: Windows, Python 3.12.5.
 - Ruff del panel Brick y sus pruebas: aprobado.
 - OpenSpec estricto: aprobado.
 
-La regresión verifica el canvas LCD de referencia 390×130 px, equivalente a un aumento del 30 % respecto de 300×100 px.
+La regresión verifica el canvas LCD de referencia 507×169 px, equivalente a un incremento adicional del 30 % respecto de 390×130 px.
