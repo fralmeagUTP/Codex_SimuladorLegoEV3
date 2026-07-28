@@ -42,7 +42,12 @@ def _parse_size(value: str) -> tuple[int, int]:
 
 
 def capture_theme(
-    theme: ThemeName, output_dir: Path, size: tuple[int, int], *, verify_layout: bool = False
+    theme: ThemeName,
+    output_dir: Path,
+    size: tuple[int, int],
+    *,
+    verify_layout: bool = False,
+    world_editor: bool = False,
 ) -> Path:
     """Abre una ventana temporal, captura su área cliente y la cierra."""
 
@@ -51,13 +56,19 @@ def capture_theme(
     app.geometry(f"{width}x{height}+20+20")
     app._theme_name = theme
     app._apply_theme(theme)
+    target = app
+    if world_editor:
+        app._cmd_open_world_editor()
+        target = app._world_editor_window
+        if target is None:
+            raise RuntimeError("No fue posible abrir el Editor de mundos")
     app.update_idletasks()
     app.deiconify()
     # ImageGrab captura el escritorio real: asegurar que la ventana temporal
     # esté delante de VS Code u otra aplicación antes de registrar evidencia.
-    app.attributes("-topmost", True)
-    app.lift()
-    app.focus_force()
+    target.attributes("-topmost", True)
+    target.lift()
+    target.focus_force()
     measurement: dict[str, object] = {}
 
     captured_target: Path | None = None
@@ -65,11 +76,11 @@ def capture_theme(
     def save_and_close() -> None:
         nonlocal captured_target
         try:
-            app.update_idletasks()
-            left = app.winfo_rootx()
-            top = app.winfo_rooty()
-            width = app.winfo_width()
-            height = app.winfo_height()
+            target.update_idletasks()
+            left = target.winfo_rootx()
+            top = target.winfo_rooty()
+            width = target.winfo_width()
+            height = target.winfo_height()
             measurement.update({
                 "window": f"{width}x{height}",
                 "dpi": round(float(app.winfo_fpixels("1i")), 1),
@@ -82,7 +93,8 @@ def capture_theme(
             })
             if verify_layout:
                 _verify_layout(app, width)
-            captured_target = output_dir / f"simulacion_{theme}_{width}x{height}.png"
+            prefix = "editor_mundos" if world_editor else "simulacion"
+            captured_target = output_dir / f"{prefix}_{theme}_{width}x{height}.png"
             ImageGrab.grab(bbox=(left, top, left + width, top + height), all_screens=True).save(captured_target)
         finally:
             app._on_close()
@@ -108,9 +120,9 @@ def _verify_layout(app: EV3SimulatorApp, window_width: int) -> None:
         errors.append("telemetría o Brick no recibió ancho visible")
     if brick._screen_canvas.winfo_width() <= 0 or brick._screen_canvas.winfo_height() <= 0:
         errors.append("la LCD no recibió geometría visible")
-    if telemetry.winfo_width() < 560 and not telemetry._compact_layout:
+    if hasattr(telemetry, "_compact_layout") and telemetry.winfo_width() < 560 and not telemetry._compact_layout:
         errors.append("la telemetría estrecha no activó el modo compacto")
-    if telemetry.winfo_width() >= 560 and telemetry._compact_layout:
+    if hasattr(telemetry, "_compact_layout") and telemetry.winfo_width() >= 560 and telemetry._compact_layout:
         errors.append("la telemetría ancha no restauró sus tres columnas")
     robot_bottom = brick._robot_state_section.winfo_y() + brick._robot_state_section.winfo_height()
     content_bottom = brick._scroll_canvas.canvasy(brick._scroll_canvas.winfo_height())
@@ -132,6 +144,10 @@ def main() -> int:
         "--verify-layout", action="store_true",
         help="Comprueba geometría y alcanzabilidad de Robot/Estado durante cada captura.",
     )
+    parser.add_argument(
+        "--world-editor", action="store_true",
+        help="Captura el Editor de mundos abierto desde la aplicacion principal.",
+    )
     args = parser.parse_args()
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -140,7 +156,13 @@ def main() -> int:
     try:
         sizes = args.size or [(WEB_REFERENCE_WIDTH_PX, WEB_REFERENCE_HEIGHT_PX)]
         files = [
-            capture_theme(theme, output_dir, size, verify_layout=args.verify_layout)
+            capture_theme(
+                theme,
+                output_dir,
+                size,
+                verify_layout=args.verify_layout,
+                world_editor=args.world_editor,
+            )
             for size in sizes for theme in themes
         ]
     except OSError as exc:

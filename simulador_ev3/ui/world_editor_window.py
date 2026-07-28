@@ -227,11 +227,31 @@ class WorldEditorWindow(tk.Toplevel):
                     widget.configure(**changes)
                 except Exception:  # noqa: BLE001
                     pass
+            if isinstance(widget, tk.LabelFrame):
+                try:
+                    widget.configure(fg=tokens.text)
+                except tk.TclError:
+                    pass
+            elif isinstance(widget, tk.Label):
+                try:
+                    widget.configure(fg=tokens.text)
+                except tk.TclError:
+                    pass
+            elif isinstance(widget, tk.Button):
+                try:
+                    current_fg = str(widget.cget("fg")).upper()
+                    if current_fg not in {"WHITE", "#FFFFFF"}:
+                        widget.configure(fg=tokens.text, activeforeground=tokens.text)
+                except tk.TclError:
+                    pass
             for child in widget.winfo_children():
                 visit(child)
 
         self.configure(bg=tokens.background)
         visit(self)
+        self._asset_library.set_theme(theme)
+        self._layers.set_theme(theme)
+        self._refresh_layer_panel()
         self._canvas.set_theme(theme)
 
     def _cmd_new(self) -> None:

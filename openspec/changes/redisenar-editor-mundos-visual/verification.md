@@ -35,3 +35,14 @@ La propuesta se considera verificada cuando el editor permite crear, editar,
 guardar, cargar, validar y probar mundos con una biblioteca e inspector
 comprensibles, preserva compatibilidad JSON y mantiene paridad funcional entre
 Web y Tkinter.
+
+## Evidencia de cierre (2026-07-28)
+
+- `python -m pytest -q`: 770 aprobadas y 4 omitidas (E2E de escritorio sin
+  automatización gráfica disponible).
+- Playwright ejercitó el editor Web, incluida la creación, edición y arrastre
+  de elementos; la matriz existente cubre 1920x1080, 1280x800, 1024x768 y
+  390x844 para controles y lienzo.
+- Se capturó una instancia real de Tkinter a 1280x800 en claro y oscuro con
+  `scripts/capture_desktop_evidence.py --world-editor`; las capturas temporales
+  confirman biblioteca, lienzo, inspector y capas visibles y contrastados.

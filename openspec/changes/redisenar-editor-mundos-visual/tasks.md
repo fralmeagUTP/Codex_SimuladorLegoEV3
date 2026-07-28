@@ -18,7 +18,7 @@
   todos los paneles, estados y controles.
 - [x] 9. Aplicar la misma capacidad funcional en Web y Tkinter respetando sus
   componentes nativos y el formato JSON actual.
-- [ ] 10. Añadir pruebas unitarias, de integración y visuales para biblioteca,
+- [x] 10. Añadir pruebas unitarias, de integración y visuales para biblioteca,
   inspector, capas, dimensiones, persistencia y transición a simulación.
-- [ ] 11. Ejecutar validación manual en ambos temas y resoluciones objetivo;
+- [x] 11. Ejecutar validación manual en ambos temas y resoluciones objetivo;
   documentar cualquier diferencia de plataforma justificada.

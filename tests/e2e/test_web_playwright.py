@@ -586,7 +586,7 @@ def test_world_editor_builds_valid_world_and_exposes_simulation_link(page, live_
     assert box is not None
     page.mouse.click(box["x"] + 120, box["y"] + 120)
 
-    expect(page.locator("#selectedAsset")).to_contain_text("robot_ev3_32x32", timeout=5000)
+    expect(page.locator("#selectedAsset")).to_contain_text("Robot EV3", timeout=5000)
     expect(page.locator("#validationStatus")).to_contain_text("Validacion", timeout=5000)
 
     page.on("dialog", lambda dialog: dialog.accept("world_editor_smoke"))
@@ -607,14 +607,14 @@ def test_world_editor_updates_selected_asset_properties(page, live_web_app, expe
 
     expect(page.locator("#assetPropertiesForm")).to_be_visible()
     page.locator("#assetKeyInput").select_option("line_64_64_hor")
-    page.locator("#assetXInput").fill("64")
-    page.locator("#assetYInput").fill("96")
+    page.locator("#assetXInput").fill("2")
+    page.locator("#assetYInput").fill("3")
     page.locator("#assetRotationInput").fill("180")
     page.locator("#applyAssetPropertiesBtn").click()
 
-    expect(page.locator("#selectedAsset")).to_contain_text("line_64_64_hor", timeout=5000)
-    expect(page.locator("#assetProperties")).to_contain_text("64")
-    expect(page.locator("#assetProperties")).to_contain_text("96")
+    expect(page.locator("#selectedAsset")).to_contain_text("Línea horizontal", timeout=5000)
+    expect(page.locator("#assetProperties")).to_contain_text("2")
+    expect(page.locator("#assetProperties")).to_contain_text("3")
     expect(page.locator("#assetProperties")).to_contain_text("180")
 
 
@@ -630,7 +630,7 @@ def test_world_editor_drags_selected_asset(page, live_web_app, expect):
     end_y = box["y"] + 190
 
     page.mouse.click(start_x, start_y)
-    expect(page.locator("#selectedAsset")).to_contain_text("wall_64x64_a", timeout=5000)
+    expect(page.locator("#selectedAsset")).to_contain_text("Muro A", timeout=5000)
 
     page.mouse.move(start_x, start_y)
     page.mouse.down()
@@ -638,7 +638,7 @@ def test_world_editor_drags_selected_asset(page, live_web_app, expect):
     page.mouse.up()
 
     expect(page.locator("#assetProperties")).to_contain_text("X")
-    expect(page.locator("#selectedAsset")).to_contain_text("wall_64x64_a", timeout=5000)
+    expect(page.locator("#selectedAsset")).to_contain_text("Muro A", timeout=5000)
     expect(page.locator("#console")).to_contain_text("Mundo valido.", timeout=5000)
 
 

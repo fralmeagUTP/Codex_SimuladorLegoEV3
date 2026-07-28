@@ -12,6 +12,7 @@ from simulador_ev3.domain.editor.asset_presentation import (
     presentation_for_asset,
 )
 from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, tokens_for_theme
 
 _BG = "#ECEFF1"
 _CARD_BG = "#FFFFFF"
@@ -30,34 +31,43 @@ class AssetLibraryPanel(tk.LabelFrame):
         self._on_select = on_select
         self._selected_asset: str | None = None
         self._selected_category = "Todos"
+        self._tokens = LIGHT_TOKENS
         self._search_var = tk.StringVar(value="")
         self._asset_buttons: dict[str, tk.Button] = {}
         self._asset_icons: dict[str, tk.PhotoImage] = {}
+        self._category_buttons: list[tk.Button] = []
+        self._static_labels: list[tk.Label] = []
         self._content: tk.Frame | None = None
         self._build()
 
     def _build(self) -> None:
-        tk.Label(self, text="Buscar elemento", bg=_BG, anchor=tk.W).pack(fill=tk.X)
+        search_label = tk.Label(self, text="Buscar elemento", bg=_BG, anchor=tk.W)
+        search_label.pack(fill=tk.X)
+        self._static_labels.append(search_label)
         search = tk.Entry(self, textvariable=self._search_var)
         search.pack(fill=tk.X, pady=(2, 8))
         search.bind("<KeyRelease>", lambda _event: self._refresh_assets())
 
         self._help_var = tk.StringVar(value="Selecciona un elemento para colocarlo en el lienzo.")
-        tk.Label(self, textvariable=self._help_var, bg=_BG, fg="#455A64", justify=tk.LEFT, wraplength=180).pack(
+        help_label = tk.Label(self, textvariable=self._help_var, bg=_BG, fg="#455A64", justify=tk.LEFT, wraplength=180)
+        help_label.pack(
             fill=tk.X, pady=(0, 6)
         )
+        self._static_labels.append(help_label)
 
         categories = tk.Frame(self, bg=_BG)
         categories.pack(fill=tk.X, pady=(0, 6))
         for category in ("Todos", *CATEGORY_ORDER):
-            tk.Button(
+            category_button = tk.Button(
                 categories,
                 text=category,
                 command=lambda value=category: self._set_category(value),
                 bg=_BG,
                 relief=tk.FLAT,
                 anchor=tk.W,
-            ).pack(fill=tk.X)
+            )
+            category_button.pack(fill=tk.X)
+            self._category_buttons.append(category_button)
 
         self._content = tk.Frame(self, bg=_BG)
         self._content.pack(fill=tk.BOTH, expand=True)
@@ -90,8 +100,8 @@ class AssetLibraryPanel(tk.LabelFrame):
             tk.Label(
                 self._content,
                 text=category,
-                bg=_BG,
-                fg="#1565C0",
+                bg=self._tokens.background,
+                fg=self._tokens.primary,
                 font=("Segoe UI", 9, "bold"),
                 anchor=tk.W,
             ).pack(fill=tk.X, pady=(6, 2))
@@ -101,8 +111,10 @@ class AssetLibraryPanel(tk.LabelFrame):
                     self._content,
                     text=presentation.name,
                     command=lambda asset_key=key: self._select_asset(asset_key),
-                    bg=_ACTIVE_BG if key == self._selected_asset else _CARD_BG,
-                    activebackground=_ACTIVE_BG,
+                    bg=self._tokens.surface_muted if key == self._selected_asset else self._tokens.surface,
+                    fg=self._tokens.text,
+                    activebackground=self._tokens.surface_muted,
+                    activeforeground=self._tokens.text,
                     anchor=tk.W,
                     relief=tk.SOLID,
                     bd=1,
@@ -128,6 +140,25 @@ class AssetLibraryPanel(tk.LabelFrame):
 
     def set_selected_asset(self, asset_key: str | None) -> None:
         self._selected_asset = asset_key
+        self._refresh_assets()
+
+    def set_theme(self, theme: str) -> None:
+        """Conserva contraste al reconstruir las tarjetas de la biblioteca."""
+
+        self._tokens = tokens_for_theme(theme)
+        self.configure(bg=self._tokens.background, fg=self._tokens.text)
+        for index, label in enumerate(self._static_labels):
+            label.configure(
+                bg=self._tokens.background,
+                fg=self._tokens.text_muted if index else self._tokens.text,
+            )
+        for button in self._category_buttons:
+            button.configure(
+                bg=self._tokens.background,
+                fg=self._tokens.text,
+                activebackground=self._tokens.surface_muted,
+                activeforeground=self._tokens.text,
+            )
         self._refresh_assets()
 
     def _get_icon(self, asset_key: str) -> tk.PhotoImage | None:

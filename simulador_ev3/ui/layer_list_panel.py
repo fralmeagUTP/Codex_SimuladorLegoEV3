@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from simulador_ev3.domain.editor.asset_presentation import presentation_for_asset
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, tokens_for_theme
 
 _BG = "#ECEFF1"
 _SELECTED = "#DCEBFA"
@@ -27,6 +28,7 @@ class LayerListPanel(tk.LabelFrame):
         self._on_select = on_select
         self._on_toggle_visibility = on_toggle_visibility
         self._on_toggle_lock = on_toggle_lock
+        self._tokens = LIGHT_TOKENS
         self._content = tk.Frame(self, bg=_BG)
         self._content.pack(fill=tk.BOTH, expand=True)
 
@@ -46,13 +48,21 @@ class LayerListPanel(tk.LabelFrame):
         for placement in reversed(placements):
             object_id = str(placement.get("id", ""))
             presentation = presentation_for_asset(str(placement.get("asset_key", "")))
-            row = tk.Frame(self._content, bg=_SELECTED if object_id == selected_id else _BG, bd=1, relief=tk.SOLID)
+            row = tk.Frame(
+                self._content,
+                bg=self._tokens.surface_muted if object_id == selected_id else self._tokens.background,
+                bd=1,
+                relief=tk.SOLID,
+            )
             row.pack(fill=tk.X, pady=2)
             tk.Button(
                 row,
                 text=presentation.name,
                 command=lambda value=object_id: self._on_select(value),
-                bg=_SELECTED if object_id == selected_id else "#FFFFFF",
+                bg=self._tokens.surface_muted if object_id == selected_id else self._tokens.surface,
+                fg=self._tokens.text,
+                activebackground=self._tokens.primary_active,
+                activeforeground=self._tokens.text,
                 anchor=tk.W,
                 relief=tk.FLAT,
             ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2, pady=2)
@@ -68,3 +78,8 @@ class LayerListPanel(tk.LabelFrame):
                 command=lambda value=object_id: self._on_toggle_lock(value),
                 width=8,
             ).pack(side=tk.LEFT, padx=1, pady=2)
+
+    def set_theme(self, theme: str) -> None:
+        self._tokens = tokens_for_theme(theme)
+        self.configure(bg=self._tokens.background, fg=self._tokens.text)
+        self._content.configure(bg=self._tokens.background)
