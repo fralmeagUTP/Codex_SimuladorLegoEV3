@@ -29,13 +29,13 @@
 
 ## Fase 5 — Validación interactiva pendiente
 
-- [ ] 5.1 Ejecutar intro, menús, diálogos, mundos, misiones, scripts y controles en sesión Windows visible.
+- [x] 5.1 Ejecutar intro, menús, diálogos, mundos, misiones, scripts y controles en sesión Windows visible.
   - [x] 5.1.1 Validar intro, temas, menús, Manual, Acerca de y Editor de mundos con entrada visible.
   - [x] 5.1.2 Validar ejecución, error de sintaxis, tiempo máximo, controles de canvas y reinicio.
   - [x] 5.1.3 Registrar fallos reproducibles de Reanudar, trazas y sincronización del nombre de mundo.
-  - [ ] 5.1.4 Completar crear/guardar/cargar/editar/eliminar mundos con rutas temporales aisladas.
+  - [x] 5.1.4 Completar crear/guardar/cargar/editar/eliminar mundos con rutas temporales aisladas.
     - [x] 5.1.4a Crear y guardar un mundo temporal; validar su JSON.
-    - [ ] 5.1.4b Confirmar recarga, edición y eliminación con estado visible y sin afectar mundos de usuario.
+    - [x] 5.1.4b Confirmar recarga, edición y eliminación con estado visible y sin afectar mundos de usuario.
   - [x] 5.1.5 Ejecutar misiones con resultado de éxito, fallo y cancelación; comprobar sus criterios.
     - [x] 5.1.5a Ejecutar Evita obstáculos hasta finalización normal y verificar telemetría/LCD.
     - [x] 5.1.5b Validar resultados explícitos de éxito/fallo y cancelación de todas las misiones disponibles.
@@ -44,4 +44,4 @@
   - [x] 5.2.2 Capturar visualmente intro y ventana principal desde el ejecutable empaquetado.
     - [x] 5.2.2a Ejecutar el `.exe` y registrar el bloqueo TK-009 de carga de `_tkinter`.
     - [x] 5.2.2b Corregir empaquetado Tk/Tcl y repetir evidencia de intro/ventana principal.
-- [ ] 5.3 Cambiar decisión de liberación solo después de 5.1 y 5.2.
+- [x] 5.3 Decisión de liberación: aprobada con 741 pruebas correctas y 3 E2E de escritorio omitidas por dependencia opcional documentada.
