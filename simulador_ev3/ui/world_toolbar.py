@@ -40,6 +40,7 @@ class WorldToolbar(tk.Frame):
         on_open: Callable[[], None],
         on_save: Callable[[], None],
         on_save_as: Callable[[], None],
+        on_delete_world_file: Callable[[], None],
         on_delete: Callable[[], None],
         on_duplicate: Callable[[], None],
         on_rotate: Callable[[], None],
@@ -57,6 +58,11 @@ class WorldToolbar(tk.Frame):
         self._add_action_button("Abrir", on_open)
         self._add_action_button("Guardar", on_save)
         self._add_action_button("Guardar como", on_save_as)
+        self._delete_world_file_button = self._add_action_button(
+            "Eliminar archivo",
+            on_delete_world_file,
+            state=tk.DISABLED,
+        )
         self._simulate_saved_button = self._add_action_button(
             "Simular mundo guardado",
             on_simulate_saved or (lambda: None),
@@ -120,6 +126,11 @@ class WorldToolbar(tk.Frame):
         """Habilita el retorno explícito a simulación tras un guardado válido."""
 
         self._simulate_saved_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+
+    def set_delete_world_file_enabled(self, enabled: bool) -> None:
+        """Habilita borrar solo cuando existe un archivo de mundo editable."""
+
+        self._delete_world_file_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
 
     def _add_tool_button(self, tool_id: str, label: str) -> None:
         icon = self._get_tool_icon(tool_id)
