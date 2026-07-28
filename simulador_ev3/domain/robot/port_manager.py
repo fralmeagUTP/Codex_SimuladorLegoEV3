@@ -17,37 +17,39 @@ Responsabilidades:
 from __future__ import annotations
 
 from enum import Enum, auto
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 
 class PortType(Enum):
     """Categoría de puerto según el tipo de señal que soporta."""
-    OUTPUT = auto()   # puertos de motores: A, B, C, D
-    INPUT  = auto()   # puertos de sensores: S1, S2, S3, S4
+
+    OUTPUT = auto()  # puertos de motores: A, B, C, D
+    INPUT = auto()  # puertos de sensores: S1, S2, S3, S4
 
 
 # Definición estática de todos los puertos del brick EV3
 _PORT_CATALOG: Dict[str, PortType] = {
-    "A":  PortType.OUTPUT,
-    "B":  PortType.OUTPUT,
-    "C":  PortType.OUTPUT,
-    "D":  PortType.OUTPUT,
+    "A": PortType.OUTPUT,
+    "B": PortType.OUTPUT,
+    "C": PortType.OUTPUT,
+    "D": PortType.OUTPUT,
     "S1": PortType.INPUT,
     "S2": PortType.INPUT,
     "S3": PortType.INPUT,
     "S4": PortType.INPUT,
 }
 
+
 # Tipos de dispositivo reconocidos para validación semántica
 class DeviceCategory(Enum):
-    MOTOR   = auto()
-    SENSOR  = auto()
+    MOTOR = auto()
+    SENSOR = auto()
 
 
 # Categoría esperada por tipo de puerto
 _EXPECTED_CATEGORY: Dict[PortType, DeviceCategory] = {
     PortType.OUTPUT: DeviceCategory.MOTOR,
-    PortType.INPUT:  DeviceCategory.SENSOR,
+    PortType.INPUT: DeviceCategory.SENSOR,
 }
 
 
@@ -96,12 +98,11 @@ class PortManager:
 
         if port_name not in _PORT_CATALOG:
             raise PortError(
-                f"Puerto '{port_name}' no existe en el brick EV3. "
-                f"Puertos válidos: {list(_PORT_CATALOG.keys())}"
+                f"Puerto '{port_name}' no existe en el brick EV3. Puertos válidos: {list(_PORT_CATALOG.keys())}"
             )
 
         port_type = _PORT_CATALOG[port_name]
-        expected  = _EXPECTED_CATEGORY[port_type]
+        expected = _EXPECTED_CATEGORY[port_type]
 
         if category != expected:
             raise PortError(
@@ -111,10 +112,7 @@ class PortManager:
 
         if port_name in self._registry:
             existing, _ = self._registry[port_name]
-            raise PortError(
-                f"Puerto '{port_name}' ya tiene registrado: {existing!r}. "
-                f"Llama a unregister() primero."
-            )
+            raise PortError(f"Puerto '{port_name}' ya tiene registrado: {existing!r}. Llama a unregister() primero.")
 
         self._registry[port_name] = (device, category)
 
@@ -165,19 +163,11 @@ class PortManager:
 
     def all_motors(self) -> Dict[str, Any]:
         """Retorna todos los dispositivos de categoría MOTOR por puerto."""
-        return {
-            port: device
-            for port, (device, cat) in self._registry.items()
-            if cat == DeviceCategory.MOTOR
-        }
+        return {port: device for port, (device, cat) in self._registry.items() if cat == DeviceCategory.MOTOR}
 
     def all_sensors(self) -> Dict[str, Any]:
         """Retorna todos los dispositivos de categoría SENSOR por puerto."""
-        return {
-            port: device
-            for port, (device, cat) in self._registry.items()
-            if cat == DeviceCategory.SENSOR
-        }
+        return {port: device for port, (device, cat) in self._registry.items() if cat == DeviceCategory.SENSOR}
 
     @staticmethod
     def available_ports() -> Dict[str, PortType]:

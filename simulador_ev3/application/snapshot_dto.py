@@ -38,6 +38,7 @@ Estructura del dict de salida:
 Nota: el DTO no importa nada del dominio; sólo depende de StateSnapshot
 para mantener la capa de aplicación desacoplada.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -51,6 +52,8 @@ class SnapshotDTO:
         dto = SnapshotDTO.from_snapshot(snapshot)
         data = dto.to_dict()   # safe para json.dumps
     """
+
+    CONTRACT_VERSION = 1
 
     def __init__(self, data: dict[str, Any]) -> None:
         self._data = data
@@ -68,13 +71,14 @@ class SnapshotDTO:
             snapshot: simulador_ev3.core.simulation_engine.StateSnapshot
         """
         data: dict[str, Any] = {
-            "tick":       snapshot.tick,
+            "snapshot_version": cls.CONTRACT_VERSION,
+            "tick": snapshot.tick,
             "sim_time_s": round(snapshot.sim_time_s, 4),
-            "colliding":  snapshot.colliding,
+            "colliding": snapshot.colliding,
             "robot": _robot_dict(snapshot.robot),
-            "motors":  [_motor_dict(m) for m in snapshot.motors],
+            "motors": [_motor_dict(m) for m in snapshot.motors],
             "sensors": [_sensor_dict(s) for s in snapshot.sensors],
-            "brick":   _brick_dict(snapshot.brick),
+            "brick": _brick_dict(snapshot.brick),
         }
         return cls(data)
 
@@ -90,6 +94,10 @@ class SnapshotDTO:
     @property
     def tick(self) -> int:
         return self._data["tick"]
+
+    @property
+    def snapshot_version(self) -> int:
+        return self._data["snapshot_version"]
 
     @property
     def sim_time_s(self) -> float:
@@ -116,28 +124,25 @@ class SnapshotDTO:
         return self._data["brick"]
 
     def __repr__(self) -> str:
-        return (
-            f"SnapshotDTO(tick={self.tick}, "
-            f"t={self.sim_time_s:.3f}s, "
-            f"colliding={self.colliding})"
-        )
+        return f"SnapshotDTO(tick={self.tick}, t={self.sim_time_s:.3f}s, colliding={self.colliding})"
 
 
 # ---------------------------------------------------------------------------
 # Helpers privados
 # ---------------------------------------------------------------------------
 
+
 def _robot_dict(robot_snap) -> dict[str, float]:
     return {
-        "x_mm":      round(robot_snap.x_mm, 2),
-        "y_mm":      round(robot_snap.y_mm, 2),
+        "x_mm": round(robot_snap.x_mm, 2),
+        "y_mm": round(robot_snap.y_mm, 2),
         "theta_deg": round(robot_snap.theta_deg, 3),
     }
 
 
 def _motor_dict(motor_snap) -> dict[str, Any]:
     return {
-        "port":  motor_snap.port,
+        "port": motor_snap.port,
         "speed": round(motor_snap.speed_dps, 2),
         "angle": round(motor_snap.angle_deg, 2),
         "state": motor_snap.state,
@@ -155,11 +160,10 @@ def _sensor_dict(sensor_snap) -> dict[str, Any]:
     if isinstance(raw, float):
         raw = round(raw, 3)
     return {
-        "port":  sensor_snap.port,
-        "type":  sensor_snap.sensor_type,
+        "port": sensor_snap.port,
+        "type": sensor_snap.sensor_type,
         "value": raw,
-        "data":  {k: (round(v, 3) if isinstance(v, float) else v)
-                  for k, v in data.items()},
+        "data": {k: (round(v, 3) if isinstance(v, float) else v) for k, v in data.items()},
     }
 
 
@@ -177,9 +181,9 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
     # LED ─────────────────────────────────────────────────────────────
     led_raw = brick_dict.get("led")
     if isinstance(led_raw, dict):
-        led_str: str | None = led_raw["color"] if led_raw.get("is_on") else None
-    elif hasattr(led_raw, "name"):          # enum LedColor
-        led_str = led_raw.name
+        led_str = str(led_raw.get("color")) if led_raw.get("is_on") and led_raw.get("color") is not None else None
+    elif (led_name := getattr(led_raw, "name", None)) is not None:  # enum LedColor
+        led_str = str(led_name)
     else:
         led_str = str(led_raw) if led_raw else None
 
@@ -198,9 +202,7 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
     }
     if isinstance(screen_raw, dict):
         screen_out["lines"] = [str(ln) for ln in screen_raw.get("lines", [])]
-        screen_out["draw_ops"] = [
-            dict(op) for op in screen_raw.get("draw_ops", []) if isinstance(op, dict)
-        ]
+        screen_out["draw_ops"] = [dict(op) for op in screen_raw.get("draw_ops", []) if isinstance(op, dict)]
         for key in (
             "width_px",
             "height_px",
@@ -225,9 +227,9 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
         state = speaker_raw.get("state", "IDLE")
         if state != "IDLE":
             speaker_out = {
-                "freq":        speaker_raw.get("frequency_hz", 0),
+                "freq": speaker_raw.get("frequency_hz", 0),
                 "duration_ms": speaker_raw.get("remaining_ms", 0),
-                "volume":      speaker_raw.get("volume", 50),
+                "volume": speaker_raw.get("volume", 50),
             }
 
     # Botones ─────────────────────────────────────────────────────────
@@ -241,8 +243,8 @@ def _brick_dict(brick_dict: dict) -> dict[str, Any]:
         buttons_out = []
 
     return {
-        "led":     led_str,
-        "screen":  screen_out,
+        "led": led_str,
+        "screen": screen_out,
         "speaker": speaker_out,
         "buttons": buttons_out,
     }

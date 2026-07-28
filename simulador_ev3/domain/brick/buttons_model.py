@@ -20,12 +20,13 @@ from typing import Set
 
 class Button(Enum):
     """Botones disponibles en el brick EV3."""
-    UP     = auto()
-    DOWN   = auto()
-    LEFT   = auto()
-    RIGHT  = auto()
+
+    UP = auto()
+    DOWN = auto()
+    LEFT = auto()
+    RIGHT = auto()
     CENTER = auto()
-    BACK   = auto()
+    BACK = auto()
 
 
 @dataclass

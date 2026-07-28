@@ -1,9 +1,9 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
-import socket
-import threading
 import json
 import re
+import socket
+import threading
 from contextlib import closing
 
 import pytest
@@ -40,12 +40,21 @@ def live_web_app(tmp_path):
         ],
     }
     world = {"editor_spec": editor_spec}
-    for name in ("01_linea_negra.json", "02_obstaculos_beacon.json", "menu_world.json"):
+    for name in (
+        "01_linea_negra.json",
+        "01_linea_negra_basica.json",
+        "02_obstaculos_beacon.json",
+        "05_obstaculos_baliza_ir.json",
+        "12_radar_ultrasonido_360.json",
+        "menu_world.json",
+    ):
         (worlds_dir / name).write_text(json.dumps(world), encoding="utf-8")
     examples = {
         "11_siguelineas_basico.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("linea")\n',
         "15_esquiva_obstaculos.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("ultra")\n',
-        "02_intro_pantalla_altavoz.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n',
+        "02_intro_pantalla_altavoz.py": (
+            'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("brick")\n'
+        ),
         "menu_example.py": 'from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print("menu")\n',
     }
     for name, source in examples.items():
@@ -114,10 +123,67 @@ def test_simulation_page_runs_default_script(page, live_web_app, expect):
 
     page.locator("#runBtn").click()
 
-    expect(page.locator("#sessionStatus")).to_have_text(re.compile("running|created"), timeout=5000)
-    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=7000)
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile("running|finished"), timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
     expect(page.locator("#runBtn")).to_be_enabled()
-    expect(page.locator("#telemetry")).to_contain_text("Tick", timeout=5000)
+    expect(page.locator("#telemetryTick")).not_to_have_text("--", timeout=5000)
+
+
+def test_terminal_snapshot_synchronizes_status_telemetry_and_lcd(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill(
+        "from pybricks.hubs import EV3Brick\n"
+        "from pybricks.tools import wait\n"
+        "ev3 = EV3Brick()\n"
+        "ev3.screen.print('QA F001')\n"
+        "wait(100)\n"
+    )
+    page.locator("#runBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#telemetryStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#telemetryTime")).not_to_have_text("--")
+    expect(page.locator("#telemetryTick")).not_to_have_text("--")
+    has_lcd_pixels = page.locator("#screen").evaluate(
+        "canvas => canvas.getContext('2d').getImageData(0, 0, 178, 128).data.some(x => x !== 0)"
+    )
+    assert has_lcd_pixels
+
+
+def test_reset_replaces_terminal_snapshot_without_late_updates(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+    expect(page.locator("#telemetryTick")).not_to_have_text("--", timeout=5000)
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwhile True:\n    wait(100)\n")
+    page.locator("#runBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile("running"), timeout=5000)
+    page.locator("#stopBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
+    expect(page.locator("#telemetryStatus")).to_have_text("created", timeout=5000)
+    # Esperar a que termine el refresco explícito que realiza el controlador
+    # después de recibir la respuesta de reset.
+    page.wait_for_timeout(300)
+    # El endpoint inicial puede avanzar un tick para construir el primer DTO;
+    # tras reset solo se admite ese snapshot inicial, nunca el de la ejecución.
+    tick = int(page.locator("#telemetryTick").inner_text())
+    simulated_time = float(page.locator("#telemetryTime").inner_text().removesuffix("s"))
+    assert tick <= 1
+    assert simulated_time <= 0.02
+
+
+@pytest.mark.parametrize("viewport", [(1920, 1080), (1280, 800), (1024, 768), (390, 844)])
+def test_map_canvas_and_tools_stay_inside_viewport(page, live_web_app, viewport):
+    page.set_viewport_size({"width": viewport[0], "height": viewport[1]})
+    page.goto(f"{live_web_app}/")
+
+    canvas_box = page.locator("#worldCanvas").bounding_box()
+    beam_box = page.locator("#toggleSensorBeamsBtn").bounding_box()
+
+    assert canvas_box is not None
+    assert beam_box is not None
+    assert canvas_box["width"] <= viewport[0]
+    assert beam_box["x"] >= 0
+    assert beam_box["x"] + beam_box["width"] <= viewport[0]
 
 
 def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
@@ -131,14 +197,10 @@ def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
     expect(page.locator("#stopBtn")).to_be_disabled()
     expect(page.locator("#placeRobotStartBtn")).to_be_enabled()
 
-    page.locator("#codeEditor").fill(
-        "from pybricks.tools import wait\n"
-        "while True:\n"
-        "    wait(100)\n"
-    )
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwhile True:\n    wait(100)\n")
     page.locator("#runBtn").click()
 
-    expect(page.locator("#sessionStatus")).to_have_text("running", timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile(r"running"), timeout=5000)
     expect(page.locator("#runBtn")).to_be_disabled()
     expect(page.locator("#debugRunBtn")).to_be_disabled()
     expect(page.locator("#pauseBtn")).to_be_enabled()
@@ -148,14 +210,14 @@ def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
 
     page.locator("#pauseBtn").click()
 
-    expect(page.locator("#sessionStatus")).to_have_text("paused", timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile(r"paused"), timeout=5000)
     expect(page.locator("#pauseBtn")).to_be_disabled()
     expect(page.locator("#resumeBtn")).to_be_enabled()
     expect(page.locator("#debugContinueBtn")).to_be_enabled()
     expect(page.locator("#debugStepBtn")).to_be_enabled()
 
     page.locator("#resumeBtn").click()
-    expect(page.locator("#sessionStatus")).to_have_text("running", timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile(r"running"), timeout=5000)
 
     page.locator("#stopBtn").click()
     expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
@@ -176,13 +238,14 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
 
     expect(page.locator("#worldsMenu")).to_contain_text("menu_world.json")
     page.locator(".menu-trigger", has_text="Mundos").hover()
-    page.locator("#worldsMenu button", has_text="menu_world.json").click()
+    page.locator("#worldsMenu .menu-subtoggle", has_text="Mundos preestablecidos").click()
+    page.locator("#worldsMenu .menu-sublist button", has_text="menu_world.json").click()
     expect(page.locator("#statusWorld")).to_have_text("menu_world.json")
 
     page.locator(".menu-trigger", has_text="Escenarios").hover()
     page.locator("#scenariosMenu button[data-scenario='line']").click()
     expect(page.locator("#codeEditor")).to_have_value(re.compile("linea"), timeout=5000)
-    expect(page.locator("#statusWorld")).to_have_text("01_linea_negra.json")
+    expect(page.locator("#statusWorld")).to_have_text("01_linea_negra_basica.json")
     expect(page.locator("#console")).to_contain_text("Escenario cargado: Seguidor de linea")
 
     page.locator(".menu-trigger", has_text="Ayuda").hover()
@@ -211,12 +274,7 @@ def test_simulation_gutter_breakpoints_and_robot_start(page, live_web_app, expec
 def test_debug_breakpoint_pause_enables_debug_controls(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
 
-    page.locator("#codeEditor").fill(
-        "from pybricks.tools import wait\n"
-        "x = 1\n"
-        "wait(2000)\n"
-        "x = 2\n"
-    )
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nx = 1\nwait(2000)\nx = 2\n")
     page.locator("#breakpointsInput").fill("3")
     page.locator("#debugRunBtn").click()
 
@@ -356,9 +414,7 @@ def test_simulation_editor_highlights_python_syntax(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
 
     page.locator("#codeEditor").fill(
-        "from pybricks.hubs import EV3Brick\n"
-        "ev3 = EV3Brick()\n"
-        "ev3.screen.print('hola')  # comentario\n"
+        "from pybricks.hubs import EV3Brick\nev3 = EV3Brick()\nev3.screen.print('hola')  # comentario\n"
     )
 
     expect(page.locator("#syntaxHighlight .syntax-kw", has_text="from")).to_be_visible()
@@ -540,6 +596,16 @@ def test_help_page_is_available_from_browser(page, live_web_app, expect):
 
     expect(page.locator("body")).to_contain_text("Simulacion del robot")
     expect(page.locator("body")).to_contain_text("Creacion de mundos")
+    expect(page.locator(".tutorial-card")).to_have_count(3)
+    expect(page.locator(".tutorial-card").nth(0)).to_contain_text("Crear tu primer mundo")
+    expect(page.locator(".tutorial-card").nth(1)).to_contain_text("Ejecutar un script")
+    expect(page.locator(".tutorial-card").nth(2)).to_contain_text("Depurar por pasos")
+
+    page.locator(".help-nav a", has_text="Crear mundos").click()
+    expect(page.locator("#assetPalette")).to_be_visible()
+
+    page.locator("nav a", has_text="Simulacion").click()
+    expect(page.locator("#runBtn")).to_be_visible()
 
 
 def test_two_browser_contexts_keep_sessions_independent(browser, live_web_app, expect):
@@ -558,26 +624,25 @@ def test_two_browser_contexts_keep_sessions_independent(browser, live_web_app, e
         page_a.locator("#codeEditor").fill(
             "from pybricks.hubs import EV3Brick\n"
             "from pybricks.tools import wait\n"
+            "from pybricks.parameters import Color\n"
             "ev3 = EV3Brick()\n"
-            "ev3.screen.print('perfil A')\n"
+            "ev3.light.on(Color.RED)\n"
             "wait(900)\n"
         )
         page_b.locator("#codeEditor").fill(
             "from pybricks.hubs import EV3Brick\n"
             "from pybricks.tools import wait\n"
+            "from pybricks.parameters import Color\n"
             "ev3 = EV3Brick()\n"
-            "ev3.screen.print('perfil B')\n"
+            "ev3.light.on(Color.GREEN)\n"
             "wait(900)\n"
         )
 
         page_a.locator("#runBtn").click()
         page_b.locator("#runBtn").click()
 
-        expect(page_a.locator("#screen")).to_contain_text("perfil A", timeout=5000)
-        expect(page_b.locator("#screen")).to_contain_text("perfil B", timeout=5000)
-        expect(page_a.locator("#screen")).not_to_contain_text("perfil B")
-        expect(page_b.locator("#screen")).not_to_contain_text("perfil A")
+        expect(page_a.locator("#ledText")).to_have_text("RED", timeout=5000)
+        expect(page_b.locator("#ledText")).to_have_text("GREEN", timeout=5000)
     finally:
         context_a.close()
         context_b.close()
-

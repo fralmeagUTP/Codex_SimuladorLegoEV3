@@ -30,10 +30,10 @@ class BeaconModel:
         name:    Identificador para debug/UI.
     """
 
-    x_mm:    float
-    y_mm:    float
-    channel: int  = 1
-    name:    str  = "beacon"
+    x_mm: float
+    y_mm: float
+    channel: int = 1
+    name: str = "beacon"
 
     def __post_init__(self) -> None:
         if not (1 <= self.channel <= 4):
@@ -83,7 +83,4 @@ class BeaconModel:
         return max(-25, min(25, heading))
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"BeaconModel(name={self.name!r}, "
-            f"pos=({self.x_mm:.0f},{self.y_mm:.0f})mm, ch={self.channel})"
-        )
+        return f"BeaconModel(name={self.name!r}, pos=({self.x_mm:.0f},{self.y_mm:.0f})mm, ch={self.channel})"

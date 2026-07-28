@@ -26,15 +26,19 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Optional
+
+from simulador_ev3.domain.robot.motor_model import StopMode
 
 
 class DriveState(Enum):
     """Estados operativos del DriveBase."""
-    IDLE     = auto()   # parado, sin movimiento activo
-    DRIVE    = auto()   # conducción continua (drive)
-    STRAIGHT = auto()   # movimiento recto acotado en mm
-    TURN     = auto()   # giro acotado en grados
+
+    IDLE = auto()  # parado, sin movimiento activo
+    DRIVE = auto()  # conducción continua (drive)
+    STRAIGHT = auto()  # movimiento recto acotado en mm
+    TURN = auto()  # giro acotado en grados
+    HOLD = auto()  # mantiene la pose tras una maniobra acotada
+    BRAKE = auto()  # frena activamente durante un tick
 
 
 @dataclass
@@ -49,10 +53,11 @@ class AccelerationProfile:
         turn_rate:             Velocidad angular de giro (deg/s)
         turn_acceleration:     Aceleración angular (deg/s²)
     """
-    straight_speed:        float = 200.0
+
+    straight_speed: float = 200.0
     straight_acceleration: float = 600.0
-    turn_rate:             float = 90.0
-    turn_acceleration:     float = 360.0
+    turn_rate: float = 90.0
+    turn_acceleration: float = 360.0
 
     def __post_init__(self) -> None:
         if self.straight_speed <= 0:
@@ -85,7 +90,7 @@ class DriveBaseModel:
     """
 
     wheel_diameter_mm: float
-    axle_track_mm:     float
+    axle_track_mm: float
 
     # Perfil de aceleración configurable (settings())
     profile: AccelerationProfile = field(default_factory=AccelerationProfile)
@@ -94,14 +99,15 @@ class DriveBaseModel:
     state: DriveState = field(default=DriveState.IDLE, init=False)
 
     # Velocidades actuales (lineales en mm/s, angulares en deg/s)
-    _current_linear_speed:  float = field(default=0.0, init=False, repr=False)
+    _current_linear_speed: float = field(default=0.0, init=False, repr=False)
     _current_angular_speed: float = field(default=0.0, init=False, repr=False)
 
     # Para comandos acotados (STRAIGHT / TURN): distancia/ángulo restante
-    _target_linear_speed:   float = field(default=0.0, init=False, repr=False)
-    _target_angular_speed:  float = field(default=0.0, init=False, repr=False)
+    _target_linear_speed: float = field(default=0.0, init=False, repr=False)
+    _target_angular_speed: float = field(default=0.0, init=False, repr=False)
     _remaining_distance_mm: float = field(default=0.0, init=False, repr=False)
-    _remaining_angle_deg:   float = field(default=0.0, init=False, repr=False)
+    _remaining_angle_deg: float = field(default=0.0, init=False, repr=False)
+    _then: StopMode = field(default=StopMode.COAST, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.wheel_diameter_mm <= 0:
@@ -135,17 +141,17 @@ class DriveBaseModel:
         Returns:
             Tupla (vel_rueda_izq_deg_s, vel_rueda_der_deg_s)
         """
-        v     = self._current_linear_speed          # mm/s
+        v = self._current_linear_speed  # mm/s
         omega = math.radians(self._current_angular_speed)  # rad/s
-        L     = self.axle_track_mm
-        r     = self.wheel_diameter_mm / 2.0
+        L = self.axle_track_mm
+        self.wheel_diameter_mm / 2.0
 
         vl = v - omega * L / 2.0  # mm/s rueda izquierda
         vr = v + omega * L / 2.0  # mm/s rueda derecha
 
         # Convertir mm/s a deg/s en la rueda
-        circ        = math.pi * self.wheel_diameter_mm  # mm/vuelta
-        deg_per_mm  = 360.0 / circ
+        circ = math.pi * self.wheel_diameter_mm  # mm/vuelta
+        deg_per_mm = 360.0 / circ
 
         return vl * deg_per_mm, vr * deg_per_mm
 
@@ -158,7 +164,7 @@ class DriveBaseModel:
         Conducción continua (no bloqueante).
         Equivale a DriveBase.drive(speed, turn_rate) de Pybricks.
         """
-        self._target_linear_speed  = float(speed_mm_s)
+        self._target_linear_speed = float(speed_mm_s)
         self._target_angular_speed = float(turn_rate_deg_s)
         self._current_linear_speed = float(speed_mm_s)
         self._current_angular_speed = float(turn_rate_deg_s)
@@ -169,50 +175,62 @@ class DriveBaseModel:
         Detiene el DriveBase inmediatamente.
         Transición: cualquier estado → IDLE.
         """
-        self._current_linear_speed  = 0.0
+        self._current_linear_speed = 0.0
         self._current_angular_speed = 0.0
-        self._target_linear_speed   = 0.0
-        self._target_angular_speed  = 0.0
+        self._target_linear_speed = 0.0
+        self._target_angular_speed = 0.0
         self._remaining_distance_mm = 0.0
-        self._remaining_angle_deg   = 0.0
+        self._remaining_angle_deg = 0.0
         self.state = DriveState.IDLE
 
-    def cmd_straight(self, distance_mm: float) -> None:
+    def cmd_brake(self) -> None:
+        """Frena activamente; queda inactivo despues de un tick."""
+        self.cmd_stop()
+        self.state = DriveState.BRAKE
+
+    def cmd_hold(self) -> None:
+        """Mantiene la pose actual sin producir movimiento."""
+        self.cmd_stop()
+        self.state = DriveState.HOLD
+
+    def cmd_straight(self, distance_mm: float, then: StopMode = StopMode.COAST) -> None:
         """
         Inicia movimiento recto acotado a `distance_mm` mm (bloqueante).
         Negativo → retroceso.
         Transición: cualquier estado → STRAIGHT.
         """
         speed = self.profile.straight_speed * math.copysign(1.0, distance_mm)
-        self._target_linear_speed   = speed
-        self._target_angular_speed  = 0.0
-        self._current_linear_speed  = speed
+        self._target_linear_speed = speed
+        self._target_angular_speed = 0.0
+        self._current_linear_speed = speed
         self._current_angular_speed = 0.0
         self._remaining_distance_mm = abs(float(distance_mm))
-        self._remaining_angle_deg   = 0.0
+        self._remaining_angle_deg = 0.0
+        self._then = then
         self.state = DriveState.STRAIGHT
 
-    def cmd_turn(self, angle_deg: float) -> None:
+    def cmd_turn(self, angle_deg: float, then: StopMode = StopMode.COAST) -> None:
         """
         Inicia giro acotado de `angle_deg` grados (bloqueante).
         Positivo → giro horario (derecha).
         Transición: cualquier estado → TURN.
         """
         rate = self.profile.turn_rate * math.copysign(1.0, angle_deg)
-        self._target_linear_speed   = 0.0
-        self._target_angular_speed  = rate
-        self._current_linear_speed  = 0.0
+        self._target_linear_speed = 0.0
+        self._target_angular_speed = rate
+        self._current_linear_speed = 0.0
         self._current_angular_speed = rate
         self._remaining_distance_mm = 0.0
-        self._remaining_angle_deg   = abs(float(angle_deg))
+        self._remaining_angle_deg = abs(float(angle_deg))
+        self._then = then
         self.state = DriveState.TURN
 
     def cmd_settings(
         self,
-        straight_speed:        float,
+        straight_speed: float,
         straight_acceleration: float,
-        turn_rate:             float,
-        turn_acceleration:     float,
+        turn_rate: float,
+        turn_acceleration: float,
     ) -> None:
         """
         Actualiza el perfil de aceleración del DriveBase.
@@ -240,8 +258,15 @@ class DriveBaseModel:
         if self.state == DriveState.IDLE:
             return 0.0, 0.0, False
 
+        elif self.state == DriveState.HOLD:
+            return 0.0, 0.0, False
+
+        elif self.state == DriveState.BRAKE:
+            self.state = DriveState.IDLE
+            return 0.0, 0.0, True
+
         elif self.state == DriveState.DRIVE:
-            dd = self._current_linear_speed  * dt
+            dd = self._current_linear_speed * dt
             da = self._current_angular_speed * dt
             return dd, da, False
 
@@ -252,7 +277,7 @@ class DriveBaseModel:
             self._remaining_distance_mm -= advance
 
             if self._remaining_distance_mm <= 0.0:
-                self.cmd_stop()
+                self._apply_stop_mode(self._then)
                 return dd, 0.0, True
 
             return dd, 0.0, False
@@ -264,7 +289,7 @@ class DriveBaseModel:
             self._remaining_angle_deg -= advance
 
             if self._remaining_angle_deg <= 0.0:
-                self.cmd_stop()
+                self._apply_stop_mode(self._then)
                 return 0.0, da, True
 
             return 0.0, da, False
@@ -274,6 +299,14 @@ class DriveBaseModel:
     # ------------------------------------------------------------------ #
     # Cinemática diferencial (SAD §13)
     # ------------------------------------------------------------------ #
+
+    def _apply_stop_mode(self, mode: StopMode) -> None:
+        if mode == StopMode.HOLD:
+            self.cmd_hold()
+        elif mode == StopMode.BRAKE:
+            self.cmd_brake()
+        else:
+            self.cmd_stop()
 
     @staticmethod
     def compute_pose_delta(
@@ -288,15 +321,15 @@ class DriveBaseModel:
             x     += v·cos(θ)·dt
             y     += v·sin(θ)·dt
             theta += omega·dt
-        
+
         Nota: este método recibe la velocidad angular en grados/s y retorna
         dtheta en radianes para manipulación interna de la pose.
         """
-        v     = linear_speed_mm_s
+        v = linear_speed_mm_s
         omega = math.radians(angular_speed_deg_s)
         # dx e dy dependen de la orientación actual: se calculan en RobotModel
         # donde se conoce theta. Aquí retornamos los componentes de velocidad.
-        dv     = v * dt
+        dv = v * dt
         dtheta = omega * dt
         return dv, dtheta  # type: ignore[return-value]
 

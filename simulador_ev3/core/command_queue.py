@@ -25,46 +25,47 @@ from enum import Enum, auto
 from queue import Queue
 from typing import Any, Optional
 
-
 # ---------------------------------------------------------------------------
 # Tipos de comando
 # ---------------------------------------------------------------------------
 
+
 class CommandType(Enum):
     # Motor individual
-    MOTOR_RUN         = auto()   # run(speed)            — no bloqueante
-    MOTOR_RUN_TIME    = auto()   # run_time(speed, ms)   — bloqueante
-    MOTOR_RUN_ANGLE   = auto()   # run_angle(speed, deg) — bloqueante
-    MOTOR_STOP        = auto()   # stop()                — no bloqueante
-    MOTOR_BRAKE       = auto()   # brake()               — no bloqueante
-    MOTOR_HOLD        = auto()   # hold()                — no bloqueante
+    MOTOR_RUN = auto()  # run(speed)            — no bloqueante
+    MOTOR_RUN_TIME = auto()  # run_time(speed, ms)   — bloqueante
+    MOTOR_RUN_ANGLE = auto()  # run_angle(speed, deg) — bloqueante
+    MOTOR_STOP = auto()  # stop()                — no bloqueante
+    MOTOR_BRAKE = auto()  # brake()               — no bloqueante
+    MOTOR_HOLD = auto()  # hold()                — no bloqueante
 
     # DriveBase
-    DB_DRIVE          = auto()   # drive(speed, turn_rate) — no bloqueante
-    DB_STOP           = auto()   # stop()                  — no bloqueante
-    DB_STRAIGHT       = auto()   # straight(dist_mm)        — bloqueante
-    DB_TURN           = auto()   # turn(angle_deg)          — bloqueante
-    DB_SETTINGS       = auto()   # settings(...)            — no bloqueante
+    DB_DRIVE = auto()  # drive(speed, turn_rate) — no bloqueante
+    DB_STOP = auto()  # stop()                  — no bloqueante
+    DB_STRAIGHT = auto()  # straight(dist_mm)        — bloqueante
+    DB_TURN = auto()  # turn(angle_deg)          — bloqueante
+    DB_SETTINGS = auto()  # settings(...)            — no bloqueante
 
     # Ladrillo EV3 — LED
-    LED_ON            = auto()   # light.on(LedColor)      — no bloqueante
-    LED_OFF           = auto()   # light.off()             — no bloqueante
+    LED_ON = auto()  # light.on(LedColor)      — no bloqueante
+    LED_OFF = auto()  # light.off()             — no bloqueante
 
     # Ladrillo EV3 — Altavoz
-    PLAY_SOUND        = auto()   # speaker.beep(...)       — no bloqueante*
+    PLAY_SOUND = auto()  # speaker.beep(...)       — no bloqueante*
 
     # Ladrillo EV3 — Pantalla
-    DISPLAY_TEXT      = auto()   # screen.print(text)      — no bloqueante
-    SCREEN_CLEAR      = auto()   # screen.clear()          — no bloqueante
-    SCREEN_PIXEL      = auto()   # screen.draw_pixel(x,y)
-    SCREEN_LINE       = auto()   # screen.draw_line(x1,y1,x2,y2)
-    SCREEN_CIRCLE     = auto()   # screen.draw_circle(x,y,r)
-    SCREEN_BOX        = auto()   # screen.draw_box(x,y,w,h)
+    DISPLAY_TEXT = auto()  # screen.print(text)      — no bloqueante
+    SCREEN_CLEAR = auto()  # screen.clear()          — no bloqueante
+    SCREEN_PIXEL = auto()  # screen.draw_pixel(x,y)
+    SCREEN_LINE = auto()  # screen.draw_line(x1,y1,x2,y2)
+    SCREEN_CIRCLE = auto()  # screen.draw_circle(x,y,r)
+    SCREEN_BOX = auto()  # screen.draw_box(x,y,w,h)
 
 
 # ---------------------------------------------------------------------------
 # Comando
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class SimulationCommand:
@@ -80,10 +81,11 @@ class SimulationCommand:
         done_event  : threading.Event creado automáticamente cuando
                       blocking=True; None en caso contrario.
     """
+
     cmd_type: CommandType
-    port: Optional[str]              = None
-    params: dict[str, Any]          = field(default_factory=dict)
-    blocking: bool                   = False
+    port: Optional[str] = None
+    params: dict[str, Any] = field(default_factory=dict)
+    blocking: bool = False
     done_event: Optional[threading.Event] = field(default=None, init=False)
 
     def __post_init__(self) -> None:
@@ -94,26 +96,27 @@ class SimulationCommand:
 
     @classmethod
     def motor_run(cls, port: str, speed: float) -> "SimulationCommand":
-        return cls(CommandType.MOTOR_RUN, port=port,
-                   params={"speed": speed}, blocking=False)
+        return cls(CommandType.MOTOR_RUN, port=port, params={"speed": speed}, blocking=False)
 
     @classmethod
-    def motor_run_time(
-        cls, port: str, speed: float, time_ms: float, stop_mode: str = "BRAKE"
-    ) -> "SimulationCommand":
-        return cls(CommandType.MOTOR_RUN_TIME, port=port,
-                   params={"speed": speed, "time_ms": time_ms,
-                           "stop_mode": stop_mode},
-                   blocking=True)
+    def motor_run_time(cls, port: str, speed: float, time_ms: float, stop_mode: str = "BRAKE") -> "SimulationCommand":
+        return cls(
+            CommandType.MOTOR_RUN_TIME,
+            port=port,
+            params={"speed": speed, "time_ms": time_ms, "stop_mode": stop_mode},
+            blocking=True,
+        )
 
     @classmethod
     def motor_run_angle(
         cls, port: str, speed: float, angle_deg: float, stop_mode: str = "BRAKE"
     ) -> "SimulationCommand":
-        return cls(CommandType.MOTOR_RUN_ANGLE, port=port,
-                   params={"speed": speed, "angle_deg": angle_deg,
-                           "stop_mode": stop_mode},
-                   blocking=True)
+        return cls(
+            CommandType.MOTOR_RUN_ANGLE,
+            port=port,
+            params={"speed": speed, "angle_deg": angle_deg, "stop_mode": stop_mode},
+            blocking=True,
+        )
 
     @classmethod
     def motor_stop(cls, port: str) -> "SimulationCommand":
@@ -129,25 +132,19 @@ class SimulationCommand:
 
     @classmethod
     def db_drive(cls, speed: float, turn_rate: float) -> "SimulationCommand":
-        return cls(CommandType.DB_DRIVE,
-                   params={"speed": speed, "turn_rate": turn_rate},
-                   blocking=False)
+        return cls(CommandType.DB_DRIVE, params={"speed": speed, "turn_rate": turn_rate}, blocking=False)
 
     @classmethod
-    def db_stop(cls) -> "SimulationCommand":
-        return cls(CommandType.DB_STOP, blocking=False)
+    def db_stop(cls, stop_mode: str = "COAST") -> "SimulationCommand":
+        return cls(CommandType.DB_STOP, params={"stop_mode": stop_mode}, blocking=False)
 
     @classmethod
-    def db_straight(cls, distance_mm: float) -> "SimulationCommand":
-        return cls(CommandType.DB_STRAIGHT,
-                   params={"distance_mm": distance_mm},
-                   blocking=True)
+    def db_straight(cls, distance_mm: float, stop_mode: str = "HOLD") -> "SimulationCommand":
+        return cls(CommandType.DB_STRAIGHT, params={"distance_mm": distance_mm, "stop_mode": stop_mode}, blocking=True)
 
     @classmethod
-    def db_turn(cls, angle_deg: float) -> "SimulationCommand":
-        return cls(CommandType.DB_TURN,
-                   params={"angle_deg": angle_deg},
-                   blocking=True)
+    def db_turn(cls, angle_deg: float, stop_mode: str = "HOLD") -> "SimulationCommand":
+        return cls(CommandType.DB_TURN, params={"angle_deg": angle_deg, "stop_mode": stop_mode}, blocking=True)
 
     @classmethod
     def db_settings(
@@ -157,14 +154,16 @@ class SimulationCommand:
         turn_rate: float,
         turn_acceleration: float,
     ) -> "SimulationCommand":
-        return cls(CommandType.DB_SETTINGS,
-                   params={
-                       "straight_speed": straight_speed,
-                       "straight_acceleration": straight_acceleration,
-                       "turn_rate": turn_rate,
-                       "turn_acceleration": turn_acceleration,
-                   },
-                   blocking=False)
+        return cls(
+            CommandType.DB_SETTINGS,
+            params={
+                "straight_speed": straight_speed,
+                "straight_acceleration": straight_acceleration,
+                "turn_rate": turn_rate,
+                "turn_acceleration": turn_acceleration,
+            },
+            blocking=False,
+        )
 
     @classmethod
     def led_on(cls, color: str) -> "SimulationCommand":
@@ -175,18 +174,16 @@ class SimulationCommand:
         return cls(CommandType.LED_OFF, blocking=False)
 
     @classmethod
-    def play_sound(cls, frequency: int = 440, duration_ms: int = 100,
-                   volume: int = 50) -> "SimulationCommand":
-        return cls(CommandType.PLAY_SOUND,
-                   params={"frequency": frequency, "duration_ms": duration_ms,
-                           "volume": volume},
-                   blocking=False)
+    def play_sound(cls, frequency: int = 440, duration_ms: int = 100, volume: int = 50) -> "SimulationCommand":
+        return cls(
+            CommandType.PLAY_SOUND,
+            params={"frequency": frequency, "duration_ms": duration_ms, "volume": volume},
+            blocking=False,
+        )
 
     @classmethod
     def display_text(cls, text: str, *, newline: bool = True) -> "SimulationCommand":
-        return cls(CommandType.DISPLAY_TEXT,
-                   params={"text": text, "newline": newline},
-                   blocking=False)
+        return cls(CommandType.DISPLAY_TEXT, params={"text": text, "newline": newline}, blocking=False)
 
     @classmethod
     def screen_clear(cls) -> "SimulationCommand":
@@ -289,6 +286,7 @@ class SimulationCommand:
 # Cola thread-safe
 # ---------------------------------------------------------------------------
 
+
 class CommandQueue:
     """
     Contenedor FIFO thread-safe.
@@ -333,10 +331,7 @@ class CommandQueue:
         Lanza ValueError si el comando no es bloqueante.
         """
         if not command.blocking:
-            raise ValueError(
-                f"Comando {command.cmd_type.name} no es bloqueante; "
-                "usa put() directamente."
-            )
+            raise ValueError(f"Comando {command.cmd_type.name} no es bloqueante; usa put() directamente.")
         self.put(command)
         return command.wait(timeout=timeout)
 

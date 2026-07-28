@@ -10,11 +10,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from simulador_ev3.domain.editor.world_editor_model import (
+    MAX_WORLD_PIXELS,
+    SUPPORTED_ROTATIONS,
     Direction,
     EditorWorldModel,
-    MAX_WORLD_PIXELS,
     Placement,
-    SUPPORTED_ROTATIONS,
     get_asset_spec,
 )
 
@@ -151,8 +151,7 @@ class ValidationEngine:
                     ValidationIssue(
                         code="INVALID_ROTATION",
                         message=(
-                            f"Rotacion invalida en {pid}: {placement.rotation}. "
-                            f"Permitidas: {SUPPORTED_ROTATIONS}"
+                            f"Rotacion invalida en {pid}: {placement.rotation}. Permitidas: {SUPPORTED_ROTATIONS}"
                         ),
                         placement_id=pid,
                     )
@@ -162,10 +161,7 @@ class ValidationEngine:
                 issues.append(
                     ValidationIssue(
                         code="MISALIGNED_PLACEMENT",
-                        message=(
-                            f"Placement {pid} fuera de alineacion de grid "
-                            f"({world.grid_size_px}px)."
-                        ),
+                        message=(f"Placement {pid} fuera de alineacion de grid ({world.grid_size_px}px)."),
                         placement_id=pid,
                     )
                 )
@@ -306,10 +302,7 @@ class ValidationEngine:
                     issues.append(
                         ValidationIssue(
                             code="LINE_BROKEN_LINK",
-                            message=(
-                                f"Conexion inconsistente entre {placement_id} y "
-                                f"{line_nodes[neighbor][0]}."
-                            ),
+                            message=(f"Conexion inconsistente entre {placement_id} y {line_nodes[neighbor][0]}."),
                             severity="warning",
                             placement_id=placement_id,
                             cell=node,
@@ -359,9 +352,7 @@ def rotated_connectors(connectors: set[Direction] | frozenset[Direction], rotati
     return out
 
 
-def connected_components(
-    line_nodes: dict[tuple[int, int], tuple[str, set[Direction]]]
-) -> list[set[tuple[int, int]]]:
+def connected_components(line_nodes: dict[tuple[int, int], tuple[str, set[Direction]]]) -> list[set[tuple[int, int]]]:
     remaining = set(line_nodes.keys())
     components: list[set[tuple[int, int]]] = []
     while remaining:

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Operaciones · Simulador EV3{% endblock %}
+{% block body %}
+<main class="app-shell">
+  <h1>Estado operativo</h1>
+  <p id="operationsStatus">Cargando métricas…</p>
+  <pre id="operationsData" aria-live="polite"></pre>
+</main>
+<script src="{{ url_for('static', filename='js/operations_dashboard.js', v=asset_version) }}"></script>
+{% endblock %}

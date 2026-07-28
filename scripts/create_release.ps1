@@ -58,8 +58,14 @@ try {
     }
 
     Write-Host "[5/6] Verificando si el release ya existe..."
+    # `gh release view` devuelve código 1 cuando el release aún no existe:
+    # es el flujo normal previo a crearlo, no un error del script.
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     & gh release view $Tag --repo $Repo *> $null
-    if ($LASTEXITCODE -eq 0) {
+    $releaseExists = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = $previousErrorActionPreference
+    if ($releaseExists) {
         Write-Host "El release '$Tag' ya existe en GitHub."
         exit 0
     }

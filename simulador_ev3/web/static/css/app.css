@@ -719,7 +719,8 @@ dd {
 
 .sim-map-pane #worldCanvas,
 .world-canvas-pane #worldCanvas {
-  width: auto;
+  width: min(100%, 980px);
+  max-width: 100%;
   height: auto;
   min-height: 0;
   display: block;
@@ -730,8 +731,8 @@ dd {
 
 .sim-telemetry-pane {
   display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 34fr) minmax(220px, 34fr) minmax(190px, 32fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: auto;
   padding: 0;
   background: #fff;
@@ -741,10 +742,51 @@ dd {
   grid-column: 1 / -1;
 }
 
+.telemetry-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, auto minmax(64px, 1fr));
+  align-items: stretch;
+  border-bottom: 1px solid #d8e1ec;
+  background: #f7f9fc;
+}
+
+.telemetry-summary span,
+.telemetry-summary strong {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 3px 7px;
+  border-right: 1px solid #d8e1ec;
+  color: #50627b;
+  font-size: 11px;
+}
+
+.telemetry-summary strong {
+  color: #123a69;
+  font-size: 12px;
+}
+
+.telemetry-summary strong:last-child { border-right: 0; }
+.telemetry-summary .is-alert { color: #b42318; }
+
+.mission-result {
+  margin: 8px 10px 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border-color, #9aa4b2);
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.mission-result-success { color: #16753a; background: #edf9f0; }
+.mission-result-failure { color: #a32218; background: #fff2f0; }
+
 .telemetry-section {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 9px 10px;
   margin: 0;
   border-right: 1px solid #e4eaf2;
@@ -768,13 +810,15 @@ dd {
 }
 
 .sim-telemetry-pane dd,
-.sim-telemetry-pane #motors,
+.sim-telemetry-pane #motorsAB,
+.sim-telemetry-pane #motorsCD,
 .sim-telemetry-pane #sensors {
   color: #1f2f46;
   font-family: Segoe UI, Arial, sans-serif;
 }
 
-.sim-telemetry-pane #motors,
+.sim-telemetry-pane #motorsAB,
+.sim-telemetry-pane #motorsCD,
 .sim-telemetry-pane #sensors {
   display: grid;
   gap: 7px;
@@ -840,6 +884,10 @@ dd {
 
 .motor-card {
   padding: 6px 8px;
+}
+
+.is-disconnected {
+  opacity: 0.78;
 }
 
 .motor-metrics {
@@ -1408,6 +1456,34 @@ dd {
   color: #111827;
 }
 
+.brick-robot-state {
+  margin: 14px 12px;
+  border: 1px solid #d8e1ec;
+}
+
+.brick-robot-state h3 {
+  margin: 0;
+  padding: 8px;
+  text-align: center;
+  border-bottom: 1px solid #d8e1ec;
+}
+
+.brick-robot-state dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0;
+}
+
+.brick-robot-state dt,
+.brick-robot-state dd {
+  margin: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e3e9f1;
+}
+
+.brick-robot-state dt { text-align: center; }
+.brick-robot-state dd { text-align: center; font-weight: 700; }
+
 @media (min-height: 940px) {
   .sim-brick-pane .brick-screen {
     width: min(356px, calc(100% - 24px));
@@ -1850,11 +1926,19 @@ html[data-theme="dark"] .center-panel {
 html[data-theme="dark"] .sim-panel-header,
 html[data-theme="dark"] .brick-card h2,
 html[data-theme="dark"] .brick-status-row,
+html[data-theme="dark"] .brick-robot-state,
+html[data-theme="dark"] .brick-robot-state h3,
 html[data-theme="dark"] .sim-code-pane .debug-panel,
 html[data-theme="dark"] .program-name-strip {
   border-color: #2a3e5a;
   background: #16263a;
   color: #c7d8ee;
+}
+
+html[data-theme="dark"] .brick-robot-state dt,
+html[data-theme="dark"] .brick-robot-state dd {
+  border-color: #2a3e5a;
+  color: #dbe5f5;
 }
 
 html[data-theme="dark"] .world-name-inline,
@@ -1912,6 +1996,7 @@ html[data-theme="dark"] .sim-control-bar .robot-location-controls {
 
 html[data-theme="dark"] .telemetry-section,
 html[data-theme="dark"] .telemetry-card,
+html[data-theme="dark"] .telemetry-summary,
 html[data-theme="dark"] .world-status-bar,
 html[data-theme="dark"] .world-editor-toolbar,
 html[data-theme="dark"] .world-size-bar,
@@ -1927,8 +2012,21 @@ html[data-theme="dark"] .telemetry-state {
   color: #4dd082;
 }
 
+html[data-theme="dark"] .mission-result-success {
+  color: #6fe49b;
+  background: #173a2a;
+  border-color: #347a55;
+}
+
+html[data-theme="dark"] .mission-result-failure {
+  color: #ffaaa1;
+  background: #482323;
+  border-color: #90514c;
+}
+
 html[data-theme="dark"] .sim-telemetry-pane dd,
-html[data-theme="dark"] .sim-telemetry-pane #motors,
+html[data-theme="dark"] .sim-telemetry-pane #motorsAB,
+html[data-theme="dark"] .sim-telemetry-pane #motorsCD,
 html[data-theme="dark"] .sim-telemetry-pane #sensors,
 html[data-theme="dark"] .telemetry-mini-list dd,
 html[data-theme="dark"] .motor-metrics,
@@ -2286,6 +2384,24 @@ html[data-theme="dark"] .tutorial-figure img {
 
   .sim-map-pane #worldCanvas {
     margin: 0 !important;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .panel-title-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .map-tools {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .map-tools button,
+  #toggleSensorBeamsBtn {
+    flex: 0 0 auto;
   }
 
   .sim-code-pane {

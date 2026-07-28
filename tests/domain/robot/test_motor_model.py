@@ -11,13 +11,15 @@ Valida:
 """
 
 import math
-import pytest
-from simulador_ev3.domain.robot.motor_model import MotorModel, MotorState, StopMode
 
+import pytest
+
+from simulador_ev3.domain.robot.motor_model import MotorModel, MotorState, StopMode
 
 # ------------------------------------------------------------------ #
 # Fixtures
 # ------------------------------------------------------------------ #
+
 
 @pytest.fixture
 def motor() -> MotorModel:
@@ -27,6 +29,7 @@ def motor() -> MotorModel:
 # ------------------------------------------------------------------ #
 # Estado inicial
 # ------------------------------------------------------------------ #
+
 
 class TestInitialState:
     def test_initial_state_is_idle(self, motor: MotorModel) -> None:
@@ -46,6 +49,7 @@ class TestInitialState:
 # Transiciones de estado
 # ------------------------------------------------------------------ #
 
+
 class TestStateTransitions:
     def test_run_transitions_to_run(self, motor: MotorModel) -> None:
         motor.cmd_run(300.0)
@@ -53,8 +57,10 @@ class TestStateTransitions:
 
     def test_stop_transitions_to_idle(self, motor: MotorModel) -> None:
         motor.cmd_run(300.0)
+        motor.update(0.1)
         motor.cmd_stop()
         assert motor.state == MotorState.IDLE
+        assert motor.speed == 0.0
 
     def test_brake_transitions_to_brake(self, motor: MotorModel) -> None:
         motor.cmd_run(300.0)
@@ -89,10 +95,11 @@ class TestStateTransitions:
 # Evolución temporal — RUN
 # ------------------------------------------------------------------ #
 
+
 class TestRunUpdate:
     def test_angle_accumulates_while_running(self, motor: MotorModel) -> None:
-        motor.cmd_run(360.0)   # 360 deg/s
-        motor.update(dt=1.0)   # 1 segundo → 360 grados
+        motor.cmd_run(360.0)  # 360 deg/s
+        motor.update(dt=1.0)  # 1 segundo → 360 grados
         assert math.isclose(motor.angle, 360.0, abs_tol=1e-6)
 
     def test_negative_speed_decreases_angle(self, motor: MotorModel) -> None:
@@ -102,7 +109,7 @@ class TestRunUpdate:
 
     def test_multiple_updates_accumulate(self, motor: MotorModel) -> None:
         motor.cmd_run(100.0)
-        for _ in range(50):    # 50 ticks * 0.02 s = 1 s
+        for _ in range(50):  # 50 ticks * 0.02 s = 1 s
             motor.update(dt=0.02)
         assert math.isclose(motor.angle, 100.0, abs_tol=0.01)
 
@@ -110,6 +117,7 @@ class TestRunUpdate:
 # ------------------------------------------------------------------ #
 # Evolución temporal — RUN_TIME
 # ------------------------------------------------------------------ #
+
 
 class TestRunTimeUpdate:
     def test_motor_stops_after_time(self, motor: MotorModel) -> None:
@@ -138,6 +146,7 @@ class TestRunTimeUpdate:
 # Evolución temporal — RUN_ANGLE
 # ------------------------------------------------------------------ #
 
+
 class TestRunAngleUpdate:
     def test_motor_completes_target_angle(self, motor: MotorModel) -> None:
         motor.cmd_run_angle(speed=360.0, rotation_angle=360.0, then=StopMode.HOLD)
@@ -156,12 +165,13 @@ class TestRunAngleUpdate:
 
     def test_zero_angle_does_not_change_state(self, motor: MotorModel) -> None:
         motor.cmd_run_angle(speed=200.0, rotation_angle=0.0)
-        assert motor.state == MotorState.IDLE   # sin cambio
+        assert motor.state == MotorState.IDLE  # sin cambio
 
 
 # ------------------------------------------------------------------ #
 # Reset e idle
 # ------------------------------------------------------------------ #
+
 
 class TestUtilities:
     def test_reset_angle(self, motor: MotorModel) -> None:

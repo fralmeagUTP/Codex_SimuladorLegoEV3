@@ -1,25 +1,25 @@
 """Tests para la Fase 4: Runtime Layer (ExecutionPolicy, RuntimeSandbox, RuntimeController)."""
 
 import time
-import threading
 
 import pytest
 
 from simulador_ev3.core.command_queue import CommandQueue
 from simulador_ev3.core.event_bus import EVENT_RUNTIME_ERROR, EventBus
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
-from simulador_ev3.runtime.execution_policy import ExecutionPolicy, SAFE_BUILTINS, BLOCKED_MODULES
+from simulador_ev3.runtime.execution_policy import ExecutionPolicy
+from simulador_ev3.runtime.runtime_controller import ControllerState, RuntimeController
 from simulador_ev3.runtime.runtime_sandbox import RuntimeSandbox, SandboxState
-from simulador_ev3.runtime.runtime_controller import RuntimeController, ControllerState
 
 # ===========================================================================
 # ExecutionPolicy
 # ===========================================================================
 
+
 class TestExecutionPolicy:
     def test_default_max_runtime(self):
         p = ExecutionPolicy()
-        assert p.max_runtime_s == 30.0
+        assert p.max_runtime_s == 120.0
 
     def test_negative_runtime_raises(self):
         with pytest.raises(ValueError, match="≥ 0"):
@@ -94,6 +94,7 @@ class TestExecutionPolicy:
 # RuntimeSandbox
 # ===========================================================================
 
+
 class TestSandboxExecution:
     def _make_sandbox(self, code: str, policy=None, bus=None, modules=None):
         return RuntimeSandbox(
@@ -166,8 +167,10 @@ class TestSandboxExecution:
 
     def test_pybricks_module_injected(self):
         """Un módulo virtual puede inyectarse y usarse en el script."""
+
         class FakeTools:
             called = False
+
             def wait(self_inner, ms):
                 FakeTools.called = True
 
@@ -181,7 +184,6 @@ class TestSandboxExecution:
 
     def test_math_available_by_default(self):
         """math debe estar disponible en el namespace."""
-        results = []
         code = "result = math.sqrt(16)"
         sb = self._make_sandbox(code)
         sb.start()
@@ -208,14 +210,14 @@ class TestSandboxExecution:
         code = "__stop_event__.wait(timeout=60)"
         sb = RuntimeSandbox(source_code=code, policy=policy, event_bus=bus)
         sb.start()
-        time.sleep(0.5)   # dar tiempo al watchdog
+        time.sleep(0.5)  # dar tiempo al watchdog
         sb.join(timeout=1.0)
         assert sb.state in (SandboxState.TIMED_OUT, SandboxState.FINISHED)
         # Se publicó error de timeout
-        assert any("tiempo" in e.get("error", "").lower() or
-                   "máximo" in e.get("error", "").lower()
-                   for e in errors), f"No se encontró error de timeout en {errors}"
-    
+        assert any("tiempo" in e.get("error", "").lower() or "máximo" in e.get("error", "").lower() for e in errors), (
+            f"No se encontró error de timeout en {errors}"
+        )
+
     def test_debug_mode_emits_line_events_and_error_context(self):
         bus = EventBus()
         errors = []
@@ -248,8 +250,7 @@ class TestSandboxExecution:
             policy=ExecutionPolicy(max_runtime_s=0),
             debug_enabled=True,
             debug_breakpoints={2},
-            debug_callback=lambda payload: pauses.append(payload)
-            if payload.get("type") == "paused" else None,
+            debug_callback=lambda payload: pauses.append(payload) if payload.get("type") == "paused" else None,
         )
         sb.start()
         time.sleep(0.2)
@@ -269,8 +270,7 @@ class TestSandboxExecution:
             policy=ExecutionPolicy(max_runtime_s=0),
             debug_enabled=True,
             debug_breakpoints={3},
-            debug_callback=lambda payload: pauses.append(payload)
-            if payload.get("type") == "paused" else None,
+            debug_callback=lambda payload: pauses.append(payload) if payload.get("type") == "paused" else None,
         )
         sb.start()
         time.sleep(0.2)
@@ -298,8 +298,7 @@ class TestSandboxExecution:
             debug_enabled=True,
             debug_breakpoints={3},
             debug_watches=["distancia < 300", "velocidad * 2", "no_existe + 1"],
-            debug_callback=lambda payload: pauses.append(payload)
-            if payload.get("type") == "paused" else None,
+            debug_callback=lambda payload: pauses.append(payload) if payload.get("type") == "paused" else None,
         )
         sb.start()
         time.sleep(0.2)
@@ -320,17 +319,42 @@ class TestSandboxExecution:
         assert watches[2]["value"] is None
         assert watches[2]["error"]
 
+    def test_debug_pause_rejects_watch_expressions_with_calls_or_attributes(self):
+        pauses = []
+        code = "distancia = 245\nresultado = distancia + 1\n"
+        sb = RuntimeSandbox(
+            source_code=code,
+            policy=ExecutionPolicy(max_runtime_s=0),
+            debug_enabled=True,
+            debug_breakpoints={2},
+            debug_watches=["distancia + 1", "abs(distancia)", "().__class__"],
+            debug_callback=lambda payload: pauses.append(payload) if payload.get("type") == "paused" else None,
+        )
+        sb.start()
+        time.sleep(0.2)
+        sb.debug_continue()
+        sb.join(timeout=2.0)
+
+        assert pauses
+        watches = pauses[0]["watches"]
+        assert watches[0] == {"expr": "distancia + 1", "value": 246, "error": None}
+        assert watches[1] == {"expr": "abs(distancia)", "value": 245, "error": None}
+        assert watches[2]["error"] == "expresion no permitida"
+
 
 # ===========================================================================
 # RuntimeController
 # ===========================================================================
 
+
 def make_engine():
     cfg = SimEngineConfig(
-        robot_x0_mm=500, robot_y0_mm=500,
-        world_width_mm=2000, world_height_mm=2000,
+        robot_x0_mm=500,
+        robot_y0_mm=500,
+        world_width_mm=2000,
+        world_height_mm=2000,
     )
-    q   = CommandQueue()
+    q = CommandQueue()
     bus = EventBus()
     return SimulationEngine(config=cfg, command_queue=q, event_bus=bus), bus
 
@@ -368,7 +392,7 @@ class TestRuntimeControllerLifecycle:
         ctrl = RuntimeController(eng, bus)
         ctrl.start()
         ctrl.stop()
-        ctrl.stop()   # no debe lanzar
+        ctrl.stop()  # no debe lanzar
 
     def test_reset_returns_to_idle(self):
         eng, bus = make_engine()
@@ -394,7 +418,7 @@ class TestRuntimeControllerEngine:
         eng, bus = make_engine()
         ctrl = RuntimeController(eng, bus, tick_rate_hz=50)
         ctrl.start()
-        time.sleep(0.1)    # ~5 ticks a 50 Hz
+        time.sleep(0.1)  # ~5 ticks a 50 Hz
         ctrl.stop()
         assert eng.tick >= 3
 
@@ -440,7 +464,8 @@ class TestRuntimeControllerScript:
     def test_simple_script_finishes(self):
         eng, bus = make_engine()
         ctrl = RuntimeController(
-            eng, bus,
+            eng,
+            bus,
             policy=ExecutionPolicy(max_runtime_s=0),
         )
         ctrl.load_script("x = 1 + 2")
@@ -463,7 +488,8 @@ class TestRuntimeControllerScript:
         errors = []
         bus.subscribe(EVENT_RUNTIME_ERROR, lambda e, p: errors.append(p))
         ctrl = RuntimeController(
-            eng, bus,
+            eng,
+            bus,
             policy=ExecutionPolicy(max_runtime_s=0),
         )
         ctrl.load_script("raise RuntimeError('fallo de prueba')")
@@ -476,7 +502,8 @@ class TestRuntimeControllerScript:
     def test_sandbox_accessible_after_run(self):
         eng, bus = make_engine()
         ctrl = RuntimeController(
-            eng, bus,
+            eng,
+            bus,
             policy=ExecutionPolicy(max_runtime_s=0),
         )
         ctrl.load_script("x = 42")

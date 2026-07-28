@@ -81,6 +81,14 @@ class RedisSessionStore:
         if client is None:
             self._stats["delete_failed"] += 1
             return False
+        try:
+            client.delete(self._key(session_id))
+            self._stats["delete_ok"] += 1
+            return True
+        except Exception as exc:  # noqa: BLE001
+            self._last_error = type(exc).__name__
+            self._stats["delete_failed"] += 1
+            return False
 
     def fetch_metadata(self, session_id: str) -> dict[str, str] | None:
         client = self._get_client()
@@ -97,14 +105,6 @@ class RedisSessionStore:
         except Exception as exc:  # noqa: BLE001
             self._last_error = type(exc).__name__
             return None
-        try:
-            client.delete(self._key(session_id))
-            self._stats["delete_ok"] += 1
-            return True
-        except Exception as exc:  # noqa: BLE001
-            self._last_error = type(exc).__name__
-            self._stats["delete_failed"] += 1
-            return False
 
     def _get_client(self) -> Any | None:
         if not self._enabled or not self._url:
@@ -112,7 +112,7 @@ class RedisSessionStore:
         if self._client is not None:
             return self._client
         try:
-            import redis  # type: ignore[import-not-found]
+            import redis
 
             self._client = redis.Redis.from_url(
                 self._url,

@@ -1,0 +1,35 @@
+from pathlib import Path
+
+
+def test_simulation_page_loads_extracted_control_modules() -> None:
+    root = Path(__file__).parents[2]
+    template = (root / "simulador_ev3" / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+    app = (root / "simulador_ev3" / "web" / "static" / "js" / "simulation_app.js").read_text(encoding="utf-8")
+
+    for module in ("api.js", "theme_manager.js", "menu_controller.js", "canvas_world.js"):
+        assert module in template
+    assert "trace_controls.js" in template
+    assert "profile_controls.js" in template
+    assert "session_controller.js" in template
+    assert "stream_health_controller.js" in template
+    assert "snapshot_controller.js" in template
+    assert "telemetry_controller.js" in template
+    assert "world_view_controller.js" in template
+    assert "editor_interaction_controller.js" in template
+    assert "page_lifecycle_controller.js" in template
+    assert "file_input_controller.js" in template
+    assert "live_update_controller.js" in template
+    assert "speaker_audio.js" in template
+    assert "about_dialog.js" in template
+    assert "function playSpeakerTone" not in app
+    assert "EV3SpeakerAudio.handleSpeaker" in app
+    assert "EV3AboutDialog.create" in app
+    assert "EV3SessionController.create" in app
+    assert "EV3StreamHealthController.create" in app
+    assert "EV3SnapshotController.create" in app
+    assert "EV3TelemetryController.create" in app
+    assert "EV3WorldViewController.create" in app
+    assert "EV3EditorInteractionController.bind" in app
+    assert "EV3PageLifecycleController.bind" in app
+    assert "EV3FileInputController.bind" in app
+    assert "EV3LiveUpdateController.create" in app

@@ -1,7 +1,5 @@
 """Tests para SimulationEngine."""
 
-import math
-
 import pytest
 
 from simulador_ev3.core.command_queue import CommandQueue, SimulationCommand
@@ -14,22 +12,18 @@ from simulador_ev3.core.event_bus import (
 from simulador_ev3.core.simulation_engine import (
     SimEngineConfig,
     SimulationEngine,
-    StateSnapshot,
 )
 from simulador_ev3.domain.sensors.gyro_sensor_model import GyroSensorModel
-from simulador_ev3.domain.sensors.touch_sensor_model import TouchSensorModel
 from simulador_ev3.domain.sensors.ultrasonic_sensor_model import UltrasonicSensorModel
-from simulador_ev3.domain.sensors.color_sensor_model import ColorSensorModel
-from simulador_ev3.domain.world.obstacle_model import ObstacleModel
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def make_engine(**kwargs) -> SimulationEngine:
     cfg = SimEngineConfig(**kwargs)
-    q   = CommandQueue()
+    q = CommandQueue()
     bus = EventBus()
     return SimulationEngine(config=cfg, command_queue=q, event_bus=bus)
 
@@ -37,6 +31,7 @@ def make_engine(**kwargs) -> SimulationEngine:
 # ---------------------------------------------------------------------------
 # Inicialización
 # ---------------------------------------------------------------------------
+
 
 class TestEngineInit:
     def test_default_engine_creates_ok(self):
@@ -73,6 +68,7 @@ class TestEngineInit:
 # Comandos — LED
 # ---------------------------------------------------------------------------
 
+
 class TestLEDCommands:
     def test_led_on_reflected_in_snapshot(self):
         eng = make_engine()
@@ -92,6 +88,7 @@ class TestLEDCommands:
 # ---------------------------------------------------------------------------
 # Comandos — Pantalla
 # ---------------------------------------------------------------------------
+
 
 class TestDisplayCommands:
     def test_display_text_appears_in_snapshot(self):
@@ -128,6 +125,7 @@ class TestDisplayCommands:
 # ---------------------------------------------------------------------------
 # Comandos — Altavoz
 # ---------------------------------------------------------------------------
+
 
 class TestSpeakerCommands:
     def test_play_sound_does_not_crash_engine(self):
@@ -172,6 +170,7 @@ class TestSpeakerCommands:
 # Comandos — DriveBase
 # ---------------------------------------------------------------------------
 
+
 class TestDriveBaseCommands:
     def test_db_drive_moves_robot(self):
         eng = make_engine(robot_x0_mm=200, robot_y0_mm=200, robot_theta0_deg=0)
@@ -189,7 +188,7 @@ class TestDriveBaseCommands:
         eng.command_queue.put(SimulationCommand.db_stop())
         eng.update()
         snap_before = eng.update()
-        snap_after  = eng.update()
+        snap_after = eng.update()
         # Con stop, posición no debería cambiar (o cambio mínimo por desaceleración)
         assert abs(snap_after.robot.x_mm - snap_before.robot.x_mm) < 10.0
 
@@ -211,6 +210,7 @@ class TestDriveBaseCommands:
 # Comandos — Motor individual
 # ---------------------------------------------------------------------------
 
+
 class TestMotorCommands:
     def test_motor_run_state_in_snapshot(self):
         eng = make_engine()
@@ -231,7 +231,7 @@ class TestMotorCommands:
 
     def test_unknown_port_does_not_crash(self):
         eng = make_engine()
-        cmd = SimulationCommand.motor_run("Z", 100)   # puerto no existe
+        cmd = SimulationCommand.motor_run("Z", 100)  # puerto no existe
         eng.command_queue.put(cmd)
         # No debe lanzar excepción
         snap = eng.update()
@@ -241,6 +241,7 @@ class TestMotorCommands:
 # ---------------------------------------------------------------------------
 # Sensores
 # ---------------------------------------------------------------------------
+
 
 class TestSensorAttach:
     def test_attach_gyro_produces_sensor_snapshot(self):
@@ -273,8 +274,9 @@ class TestSensorAttach:
         assert all(s.port != "S2" for s in snap.sensors)
 
     def test_ultrasonic_max_range_open_world(self):
-        eng = make_engine(world_width_mm=2000, world_height_mm=2000,
-                          robot_x0_mm=1000, robot_y0_mm=1000, robot_theta0_deg=0)
+        eng = make_engine(
+            world_width_mm=2000, world_height_mm=2000, robot_x0_mm=1000, robot_y0_mm=1000, robot_theta0_deg=0
+        )
         us = UltrasonicSensorModel()
         eng.attach_sensor("S3", us)
         snap = eng.update()
@@ -285,8 +287,7 @@ class TestSensorAttach:
     def test_sensor_updated_event_published(self):
         eng = make_engine()
         received = []
-        eng.event_bus.subscribe(EVENT_SENSOR_UPDATED,
-                                lambda e, p: received.append(p))
+        eng.event_bus.subscribe(EVENT_SENSOR_UPDATED, lambda e, p: received.append(p))
         eng.attach_sensor("S1", GyroSensorModel())
         eng.update()
         assert len(received) >= 1
@@ -297,13 +298,16 @@ class TestSensorAttach:
 # Colisión
 # ---------------------------------------------------------------------------
 
+
 class TestCollision:
     def test_collision_detected_out_of_bounds(self):
         # Robot con radio 75 mm en esquina: si x < radio → colisión con borde
         eng = make_engine(
-            robot_x0_mm=10, robot_y0_mm=200,
+            robot_x0_mm=10,
+            robot_y0_mm=200,
             robot_radius_mm=75,
-            world_width_mm=2000, world_height_mm=2000,
+            world_width_mm=2000,
+            world_height_mm=2000,
         )
         snap = eng.update()
         # En x=10, con radio=75, debería detectar colisión con el borde izquierdo
@@ -311,9 +315,11 @@ class TestCollision:
 
     def test_no_collision_in_center(self):
         eng = make_engine(
-            robot_x0_mm=1000, robot_y0_mm=1000,
+            robot_x0_mm=1000,
+            robot_y0_mm=1000,
             robot_radius_mm=75,
-            world_width_mm=2000, world_height_mm=2000,
+            world_width_mm=2000,
+            world_height_mm=2000,
         )
         snap = eng.update()
         assert snap.colliding is False
@@ -321,13 +327,15 @@ class TestCollision:
     def test_collision_reverts_position(self):
         """Si hay colisión, el robot retrocede a la posición anterior."""
         eng = make_engine(
-            robot_x0_mm=80, robot_y0_mm=1000,
-            robot_theta0_deg=180,   # apuntando al borde izquierdo
+            robot_x0_mm=80,
+            robot_y0_mm=1000,
+            robot_theta0_deg=180,  # apuntando al borde izquierdo
             robot_radius_mm=75,
-            world_width_mm=2000, world_height_mm=2000,
+            world_width_mm=2000,
+            world_height_mm=2000,
         )
         eng.command_queue.put(SimulationCommand.db_drive(200, 0))
-        snap0 = eng.update()
+        eng.update()
         # En la primera actualización la colisión revierte la posición
         snap1 = eng.update()
         # No debe haberse alejado en la dirección de colisión (x no decrece mucho)
@@ -338,29 +346,28 @@ class TestCollision:
 # EventBus integrado
 # ---------------------------------------------------------------------------
 
+
 class TestEngineEvents:
     def test_notify_started_publishes_event(self):
         eng = make_engine()
         received = []
-        eng.event_bus.subscribe(EVENT_SIMULATION_STARTED,
-                                lambda e, p: received.append(e))
+        eng.event_bus.subscribe(EVENT_SIMULATION_STARTED, lambda e, p: received.append(e))
         eng.notify_started()
         assert received == [EVENT_SIMULATION_STARTED]
 
     def test_notify_stopped_publishes_event(self):
         eng = make_engine()
         received = []
-        eng.event_bus.subscribe(EVENT_SIMULATION_STOPPED,
-                                lambda e, p: received.append(p))
+        eng.event_bus.subscribe(EVENT_SIMULATION_STOPPED, lambda e, p: received.append(p))
         eng.notify_stopped("user_request")
         assert received[0]["reason"] == "user_request"
 
     def test_notify_stopped_signals_pending_blocking(self):
         """Los comandos bloqueantes pendientes se señalan al detener."""
         eng = make_engine()
-        cmd = SimulationCommand.db_straight(10000)   # muy larga
+        cmd = SimulationCommand.db_straight(10000)  # muy larga
         eng.command_queue.put(cmd)
-        eng.update()   # el comando entra en pending_blocking
+        eng.update()  # el comando entra en pending_blocking
         assert not cmd.done_event.is_set()
         eng.notify_stopped("reset")
         assert cmd.done_event.is_set()
@@ -369,6 +376,7 @@ class TestEngineEvents:
 # ---------------------------------------------------------------------------
 # Reset
 # ---------------------------------------------------------------------------
+
 
 class TestReset:
     def test_reset_clears_tick_and_time(self):

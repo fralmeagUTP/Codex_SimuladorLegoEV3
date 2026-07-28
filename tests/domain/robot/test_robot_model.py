@@ -11,19 +11,18 @@ Valida:
 """
 
 import math
-import pytest
-from simulador_ev3.domain.robot.robot_model import RobotModel, Pose
+
 from simulador_ev3.domain.robot.drivebase_model import DriveBaseModel
 from simulador_ev3.domain.robot.port_manager import PortManager
-
+from simulador_ev3.domain.robot.robot_model import Pose, RobotModel
 
 WHEEL_D = 55.5
-AXLE_T  = 104.0
+AXLE_T = 104.0
 
 
 def make_robot(x: float = 0.0, y: float = 0.0, theta: float = 0.0) -> RobotModel:
     drivebase = DriveBaseModel(wheel_diameter_mm=WHEEL_D, axle_track_mm=AXLE_T)
-    pm        = PortManager()
+    pm = PortManager()
     return RobotModel(
         drivebase=drivebase,
         port_manager=pm,
@@ -34,6 +33,7 @@ def make_robot(x: float = 0.0, y: float = 0.0, theta: float = 0.0) -> RobotModel
 # ------------------------------------------------------------------ #
 # Pose inicial
 # ------------------------------------------------------------------ #
+
 
 class TestInitialPose:
     def test_default_pose_is_origin(self) -> None:
@@ -57,18 +57,19 @@ class TestInitialPose:
 # Cinemática — avance recto (theta = 0 → avanza en +X)
 # ------------------------------------------------------------------ #
 
+
 class TestKinematicsStraight:
     def test_drive_forward_increases_x(self) -> None:
         robot = make_robot()
         robot.drivebase.cmd_drive(200.0, 0.0)  # 200 mm/s hacia +X
         robot.update(dt=1.0)
         assert math.isclose(robot.x, 200.0, abs_tol=1e-4)
-        assert math.isclose(robot.y,   0.0, abs_tol=1e-4)
+        assert math.isclose(robot.y, 0.0, abs_tol=1e-4)
 
     def test_drive_forward_multiple_ticks(self) -> None:
         robot = make_robot()
         robot.drivebase.cmd_drive(100.0, 0.0)
-        for _ in range(50):   # 50 * 0.02 s = 1 s
+        for _ in range(50):  # 50 * 0.02 s = 1 s
             robot.update(dt=0.02)
         assert math.isclose(robot.x, 100.0, abs_tol=0.5)
 
@@ -77,12 +78,13 @@ class TestKinematicsStraight:
 # Cinemática — giro (avanza en +Y con theta = π/2)
 # ------------------------------------------------------------------ #
 
+
 class TestKinematicsAngle:
     def test_drive_at_90_degrees_increases_y(self) -> None:
         robot = make_robot(theta=math.pi / 2)  # apunta hacia +Y
         robot.drivebase.cmd_drive(200.0, 0.0)
         robot.update(dt=1.0)
-        assert math.isclose(robot.x,   0.0, abs_tol=1e-3)
+        assert math.isclose(robot.x, 0.0, abs_tol=1e-3)
         assert math.isclose(robot.y, 200.0, abs_tol=1e-3)
 
     def test_angular_speed_updates_theta(self) -> None:
@@ -105,6 +107,7 @@ class TestKinematicsAngle:
 # theta_deg
 # ------------------------------------------------------------------ #
 
+
 class TestThetaDeg:
     def test_theta_deg_matches_radians(self) -> None:
         robot = make_robot(theta=math.pi)
@@ -114,6 +117,7 @@ class TestThetaDeg:
 # ------------------------------------------------------------------ #
 # Reset de pose
 # ------------------------------------------------------------------ #
+
 
 class TestResetPose:
     def test_reset_returns_to_origin(self) -> None:

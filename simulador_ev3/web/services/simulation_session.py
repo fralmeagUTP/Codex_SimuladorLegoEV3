@@ -7,30 +7,37 @@ import re
 import tempfile
 import threading
 import time
-from datetime import datetime, timezone
 from collections import deque
+from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from simulador_ev3.application.session_contract import SessionEvent
 from simulador_ev3.application.simulation_service import SimulationService
+from simulador_ev3.application.simulation_session_port import SimulationSessionPort
+from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.core.simulation_engine import SimEngineConfig
+from simulador_ev3.domain.assessment import MissionDefinition
 from simulador_ev3.domain.editor.world_editor_model import (
     ASSET_CATALOG,
     CELL_SIZE_MM,
     DEFAULT_WORLD_CELLS,
     DEFAULT_WORLD_MM,
     GRID_SIZE_PX,
-    MAX_WORLD_MM,
     get_asset_spec,
 )
 from simulador_ev3.persistence.world_repository import WorldRepository
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
+from simulador_ev3.runtime.isolated_worker import IsolatedRuntimeWorker, worker_isolation_enabled
+from simulador_ev3.shared.debug_configuration import normalize_breakpoints, normalize_watches
+from simulador_ev3.shared.session_status import SessionStatus, can_transition
 from simulador_ev3.web.errors import InvalidPayload, InvalidSessionState
 from simulador_ev3.web.services.world_dto import world_to_dict
 
 
-class SimulationSession:
+class SimulationSession(SimulationSessionPort):
     """Isolated state and callbacks for one browser/user session."""
 
     def __init__(
@@ -42,11 +49,14 @@ class SimulationSession:
     ) -> None:
         self.session_id = session_id
         self._config = config
+        self._max_runtime_s = float(max_runtime_s)
         self._lock = threading.RLock()
+        self._events_ready = threading.Condition(self._lock)
         self._events: deque[dict[str, Any]] = deque(maxlen=300)
         self._sequence = 0
         self._source_code: str | None = None
         self._latest_snapshot: dict[str, Any] | None = None
+        self._snapshot_generation = 0
         self._latest_error: dict[str, Any] | None = None
         self._latest_debug: dict[str, Any] | None = None
         self._latest_debug_context: dict[str, Any] | None = None
@@ -58,8 +68,10 @@ class SimulationSession:
         self._debugstate_v2_enabled = bool(self._config.get("DEBUGSTATE_V2_ENABLED", True))
         self._start_idempotency: dict[str, tuple[float, dict[str, Any]]] = {}
         self._start_idempotency_ttl_s = float(self._config.get("START_IDEMPOTENCY_TTL_S", 20.0))
-        self._status = "created"
+        self._status = SessionStatus.CREATED.value
         self._loaded_world_name: str | None = None
+        self._active_mission: MissionDefinition | None = None
+        self._latest_mission_result: dict[str, Any] | None = None
         self._editor = WorldEditorService()
         self._world_has_editor_spec = False
         self._service = SimulationService(
@@ -67,8 +79,29 @@ class SimulationSession:
                 world_width_mm=DEFAULT_WORLD_MM,
                 world_height_mm=DEFAULT_WORLD_MM,
             ),
-            policy=ExecutionPolicy(max_runtime_s=max_runtime_s)
+            policy=ExecutionPolicy(max_runtime_s=max_runtime_s),
         )
+        self._worker_shadow: IsolatedRuntimeWorker | None = None
+        self._worker_shadow_last_sequence = 0
+        self._worker_shadow_snapshot: dict[str, Any] | None = None
+        self._worker_shadow_status: str | None = None
+        self._reset_in_progress = False
+        self._worker_diagnostics: dict[str, int | float | str] = {}
+        if worker_isolation_enabled():
+            self._worker_shadow = IsolatedRuntimeWorker(f"web-shadow-{session_id}")
+            self._worker_shadow.start()
+            self._worker_shadow.receive()
+            self._mirror_worker(
+                "initialize",
+                {
+                    "execution_policy": {
+                        "max_runtime_s": max(1.0, float(max_runtime_s)),
+                        "max_memory_mb": 256,
+                        "max_cpu_s": max(1.0, float(max_runtime_s)),
+                    },
+                    "engine_config": asdict(self._service.engine_config),
+                },
+            )
         self._wire_callbacks()
         self._latest_debug = self._build_debug_state("idle")
 
@@ -86,12 +119,18 @@ class SimulationSession:
         with self._lock:
             self._source_code = source
             self._service.load_script(source)
-            if self._status in {"created", "stopped", "error"}:
-                self._status = "ready"
+            self._mirror_worker("load_script", {"source": source})
+            if self._status in {"created", "stopped", "finished", "error", "timed_out"}:
+                self._transition(SessionStatus.READY)
             self._latest_error = None
             self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
             return self.summary()
+
+    @property
+    def _worker_executes(self) -> bool:
+        """El worker es la unica ruta de ejecucion cuando el aislamiento esta activo."""
+        return self._worker_shadow is not None
 
     def start(self, *, debug: bool = False, step_mode: bool = False) -> dict[str, Any]:
         with self._lock:
@@ -100,8 +139,10 @@ class SimulationSession:
             if debug:
                 self._service.set_debug_breakpoints(self._debug_breakpoints)
                 self._service.set_debug_watches(self._debug_watches)
-            self._service.start(debug=debug, step_mode=step_mode)
-            self._status = "running"
+            if not self._worker_executes:
+                self._service.start(debug=debug, step_mode=step_mode)
+            self._mirror_worker("start", {"debug": debug, "step_mode": step_mode})
+            self._transition(SessionStatus.RUNNING)
             self._set_debug_state("running")
             self._push_event("status", {"status": self._status})
             return self.summary()
@@ -129,48 +170,124 @@ class SimulationSession:
 
     def pause(self) -> dict[str, Any]:
         with self._lock:
-            self._service.pause()
-            self._status = "paused"
+            if not self._worker_executes:
+                self._service.pause()
+            self._mirror_worker("pause")
+            self._transition(SessionStatus.PAUSED)
             self._set_debug_state("paused_manual", reason="manual")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
     def resume(self) -> dict[str, Any]:
         with self._lock:
-            self._service.resume()
-            self._status = "running"
+            if not self._worker_executes:
+                self._service.resume()
+            self._mirror_worker("resume")
+            self._transition(SessionStatus.RUNNING)
             self._set_debug_state("running")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
     def stop(self) -> dict[str, Any]:
         with self._lock:
-            self._status = "stopped"
+            self._transition(SessionStatus.STOPPED)
             self._set_debug_state("stopped")
-            self._service.stop()
+            if not self._worker_executes:
+                self._service.stop()
+            self._mirror_worker("stop")
             self._push_event("status", {"status": self._status})
+            self._complete_mission("cancelled")
             return self.summary()
 
     def reset(self) -> dict[str, Any]:
         with self._lock:
-            self._service.reset()
-            self._wire_callbacks()
-            self._source_code = None
-            self._latest_snapshot = None
-            self._latest_error = None
-            self._latest_debug_context = None
-            self._debug_breakpoints = set()
-            self._debug_watches = []
-            self._start_idempotency.clear()
-            self._status = "created"
-            self._set_debug_state("idle")
-            self._push_event("status", {"status": self._status})
+            self._reset_in_progress = True
+            try:
+                self._transition(SessionStatus.RESETTING)
+                # Descartar el espejo antes de crear una nueva generación: ningún
+                # snapshot de la ejecución anterior debe poder restaurar la UI.
+                self._drain_shadow_worker()
+                self._snapshot_generation += 1
+                self._worker_shadow_snapshot = None
+                self._worker_shadow_status = None
+                self._last_snapshot_event_at = 0.0
+                self._service.reset()
+                self._mirror_worker("reset", discard_unrelated_events=True, wait_for_status="reset")
+                # El comando reset genera primero las notificaciones de parada del
+                # runtime. Su snapshot final pertenece a la ejecución cancelada,
+                # por lo que no puede ser el estado visible posterior al reinicio.
+                self._worker_shadow_snapshot = None
+                self._worker_shadow_status = None
+                self._wire_callbacks()
+                self._source_code = None
+                self._active_mission = None
+                self._latest_mission_result = None
+                self._latest_error = None
+                self._latest_debug_context = None
+                self._debug_breakpoints = set()
+                self._debug_watches = []
+                self._start_idempotency.clear()
+                self._transition(SessionStatus.CREATED)
+                self._set_debug_state("idle")
+                # Se decora tras la transición para que telemetría, canvas y el
+                # resumen de sesión reciban el mismo estado terminal: ``created``.
+                initial_dto = self._service.get_snapshot()
+                initial = self._decorate_snapshot(initial_dto.to_dict() if initial_dto is not None else None)
+                self._latest_snapshot = initial
+                if initial is not None:
+                    self._push_event("snapshot", initial)
+                self._push_event("status", {"status": self._status})
+                return self.summary()
+            finally:
+                self._reset_in_progress = False
+
+    def select_mission(self, mission: MissionDefinition) -> dict[str, Any]:
+        """Activa la evaluación de la misión cargada por la interfaz."""
+        with self._lock:
+            self._active_mission = mission
+            self._latest_mission_result = None
+            self._service.activate_mission(mission)
+            self._push_event(
+                "mission",
+                {
+                    "event_version": 1,
+                    "mission": {"id": mission.identifier, "title": mission.title, "version": mission.version},
+                },
+            )
             return self.summary()
+
+    def _complete_mission(self, outcome: str) -> dict[str, Any] | None:
+        if self._active_mission is None or self._latest_mission_result is not None:
+            return None
+        payload = self._service.complete_active_mission(outcome)
+        if payload is None:
+            return None
+        self._latest_mission_result = payload
+        self._push_event("mission_result", payload)
+        return payload
+
+    def set_max_runtime_s(self, max_runtime_s: float) -> dict[str, Any]:
+        """Configura el watchdog de la sesion antes de iniciar una ejecucion."""
+        value = float(max_runtime_s)
+        if value < 0 or value not in {0.0, 30.0, 60.0, 120.0, 300.0}:
+            raise InvalidPayload("El tiempo maximo debe ser 30, 60, 120, 300 o 0 (sin limite).")
+        with self._lock:
+            if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
+                raise InvalidSessionState("No se puede cambiar el tiempo maximo durante una simulacion activa.")
+            self._service.set_max_runtime_s(value)
+            self._mirror_worker("set_max_runtime", {"max_runtime_s": value})
+            self._max_runtime_s = value
+            payload = {"max_runtime_s": value, "label": "Sin limite" if value == 0 else f"{value:.0f} s"}
+            self._push_event("runtime_limit", payload)
+            return self.summary() | payload
 
     def set_debug_breakpoints(self, breakpoints: set[int]) -> dict[str, Any]:
         with self._lock:
-            self._debug_breakpoints = {int(line) for line in breakpoints if int(line) > 0}
+            self._debug_breakpoints = normalize_breakpoints(breakpoints)
             self._service.set_debug_breakpoints(self._debug_breakpoints)
+            self._mirror_worker(
+                "set_debug", {"breakpoints": sorted(self._debug_breakpoints), "watches": list(self._debug_watches)}
+            )
             payload = {"breakpoints": sorted(self._debug_breakpoints)}
             self._set_debug_state(
                 self._latest_debug.get("debug_state", "idle") if isinstance(self._latest_debug, dict) else "idle",
@@ -180,13 +297,11 @@ class SimulationSession:
 
     def set_debug_watches(self, watches: list[str]) -> dict[str, Any]:
         with self._lock:
-            cleaned: list[str] = []
-            for raw in watches[:20]:
-                expr = str(raw).strip()
-                if expr:
-                    cleaned.append(expr)
-            self._debug_watches = cleaned
+            self._debug_watches = normalize_watches(watches)
             self._service.set_debug_watches(self._debug_watches)
+            self._mirror_worker(
+                "set_debug", {"breakpoints": sorted(self._debug_breakpoints), "watches": list(self._debug_watches)}
+            )
             payload = {"watches": list(self._debug_watches)}
             self._set_debug_state(
                 self._latest_debug.get("debug_state", "idle") if isinstance(self._latest_debug, dict) else "idle",
@@ -194,16 +309,57 @@ class SimulationSession:
             )
             return payload
 
+    def set_simulation_profile(self, profile: str, calibration: dict[str, float] | None = None) -> dict[str, Any]:
+        with self._lock:
+            if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
+                raise InvalidSessionState("No se puede cambiar el perfil durante una simulacion activa.")
+            self._service.set_simulation_profile(profile, calibration)
+            self._mirror_worker("set_simulation_profile", {"profile": profile, "calibration": calibration or {}})
+            self._latest_snapshot = None
+            payload = {
+                "profile": self._service.engine_config.simulation_profile,
+                "calibration": self._service.engine_config.calibration,
+            }
+            self._push_event("profile", payload)
+            return payload
+
+    def step_tick(self) -> dict[str, Any]:
+        with self._lock:
+            if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
+                raise InvalidSessionState("El paso de tick requiere una simulacion detenida.")
+            snapshot = self._decorate_snapshot(self._service.step_tick().to_dict())
+            if snapshot is None:
+                raise RuntimeError("No fue posible generar el snapshot de la sesión.")
+            self._latest_snapshot = snapshot
+            self._push_event("snapshot", snapshot)
+            return snapshot
+
+    def start_trace(self) -> None:
+        with self._lock:
+            self._service.start_trace()
+
+    def stop_trace(self) -> None:
+        with self._lock:
+            self._service.stop_trace()
+
+    def export_trace(self, format: str = "json") -> str:
+        with self._lock:
+            return self._service.export_trace(format)
+
     def debug_continue(self) -> dict[str, Any]:
         with self._lock:
-            self._service.debug_continue()
+            if not self._worker_executes:
+                self._service.debug_continue()
+            self._mirror_worker("debug_continue")
             payload = {"type": "command", "status": self._status, "action": "continue"}
             self._set_debug_state("running", legacy=payload)
             return payload
 
     def debug_step(self) -> dict[str, Any]:
         with self._lock:
-            self._service.debug_step()
+            if not self._worker_executes:
+                self._service.debug_step()
+            self._mirror_worker("debug_step")
             payload = {"type": "command", "status": self._status, "action": "step"}
             self._set_debug_state("running", legacy=payload)
             return payload
@@ -216,6 +372,7 @@ class SimulationSession:
     ) -> dict[str, Any]:
         with self._lock:
             self._service.set_robot_start(float(x_mm), float(y_mm), theta_deg)
+            self._mirror_worker("set_robot_start", {"x_mm": x_mm, "y_mm": y_mm, "theta_deg": theta_deg})
             self._latest_snapshot = None
             return self.summary()
 
@@ -227,10 +384,12 @@ class SimulationSession:
             raise InvalidPayload("Mundo no encontrado.")
         with self._lock:
             self._service.load_world_file(path)
+            self._mirror_worker("load_world", {"source": path.read_text(encoding="utf-8")})
             self._sync_editor_from_world_file(path)
             self._latest_snapshot = None
             self._loaded_world_name = name
-            self._status = "ready" if self._status == "created" else self._status
+            if self._status == SessionStatus.CREATED.value:
+                self._transition(SessionStatus.READY)
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
 
@@ -250,6 +409,7 @@ class SimulationSession:
             tmp_path = Path(fh.name)
         with self._lock:
             self._service.load_world_file(tmp_path)
+            self._mirror_worker("load_world", {"source": raw})
             self._sync_editor_from_world_file(tmp_path)
             self._latest_snapshot = None
             self._loaded_world_name = None
@@ -271,11 +431,13 @@ class SimulationSession:
             w_mm = float(w_cells * CELL_SIZE_MM)
             h_mm = float(h_cells * CELL_SIZE_MM)
             self._service.load_blank_world(width_mm=w_mm, height_mm=h_mm)
+            self._mirror_worker("load_blank_world", {"width_mm": w_mm, "height_mm": h_mm})
             self._editor.reset_formal_world(w_cells, h_cells)
             self._world_has_editor_spec = True
             self._latest_snapshot = None
             self._loaded_world_name = None
-            self._status = "ready" if self._status == "created" else self._status
+            if self._status == SessionStatus.CREATED.value:
+                self._transition(SessionStatus.READY)
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
 
@@ -329,14 +491,17 @@ class SimulationSession:
 
     def snapshot_response(self) -> dict[str, Any]:
         with self._lock:
-            snapshot = self._latest_snapshot
+            self._drain_shadow_worker()
+            snapshot = self._worker_shadow_snapshot or self._latest_snapshot
             if snapshot is None:
                 dto = self._service.get_snapshot()
                 snapshot = dto.to_dict() if dto else None
-                self._latest_snapshot = snapshot
+                self._latest_snapshot = self._decorate_snapshot(snapshot)
+                snapshot = self._latest_snapshot
             return {
                 "session_id": self.session_id,
                 "status": self._status,
+                "sequence": self._sequence,
                 "snapshot": snapshot,
                 "error": self._latest_error,
                 "debug": self._latest_debug,
@@ -408,9 +573,7 @@ class SimulationSession:
                 self._push_event("editor_world", self._editor.current_formal_world().to_dict())
                 return self.editor_response()
 
-        raise InvalidPayload(
-            "Formato de mundo no soportado. Se esperaba editor_spec o editor_objects."
-        )
+        raise InvalidPayload("Formato de mundo no soportado. Se esperaba editor_spec o editor_objects.")
 
     def save_editor_world(self, name: str) -> dict[str, Any]:
         safe_name = _safe_world_filename(name)
@@ -539,8 +702,12 @@ class SimulationSession:
             if robot_start is not None:
                 x_mm, y_mm, theta_deg = robot_start
                 self._service.set_robot_start(x_mm, y_mm, theta_deg)
-            self._service._loaded_world = world
-            self._service.engine.set_world(world)
+            self._service.apply_world_model(world)
+            worker_source = json.dumps(
+                {"version": 1, "editor_spec": self._editor.current_formal_world().to_dict()},
+                ensure_ascii=False,
+            )
+            self._mirror_worker("load_world", {"source": worker_source})
             self._world_has_editor_spec = True
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
@@ -553,16 +720,32 @@ class SimulationSession:
         return response
 
     def current_world(self) -> dict[str, Any] | None:
-        if self._service.engine is None:
+        world = self._service.current_world_model
+        if world is None:
             return None
         editor_spec = self._editor.current_formal_world().to_dict() if self._world_has_editor_spec else None
         return world_to_dict(
-            self._service.engine.world,
+            world,
             editor_spec=editor_spec,
         )
 
     def events_since(self, sequence: int = 0) -> list[dict[str, Any]]:
         with self._lock:
+            self._drain_shadow_worker()
+            return [event for event in self._events if event["sequence"] > sequence]
+
+    def wait_for_events_since(
+        self,
+        sequence: int = 0,
+        *,
+        timeout_s: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        timeout = max(0.0, float(timeout_s))
+        with self._events_ready:
+            self._drain_shadow_worker()
+            if self._sequence <= sequence and timeout > 0:
+                self._events_ready.wait(timeout=timeout)
+            self._drain_shadow_worker()
             return [event for event in self._events if event["sequence"] > sequence]
 
     def summary(self) -> dict[str, Any]:
@@ -576,15 +759,20 @@ class SimulationSession:
             "debug_context": self._latest_debug_context,
             "breakpoints": sorted(self._debug_breakpoints),
             "watches": list(self._debug_watches),
+            "simulation_profile": self._service.engine_config.simulation_profile,
+            "active_mission": (
+                {"id": self._active_mission.identifier, "title": self._active_mission.title}
+                if self._active_mission is not None
+                else None
+            ),
+            "mission_result": self._latest_mission_result,
         }
 
     def runtime_checkpoint(self) -> dict[str, Any]:
         with self._lock:
             world_snapshot = self.current_world()
             world_wrapper = {"version": 1, "world": world_snapshot} if world_snapshot else None
-            editor_world = (
-                self._editor.current_formal_world().to_dict() if self._world_has_editor_spec else None
-            )
+            editor_world = self._editor.current_formal_world().to_dict() if self._world_has_editor_spec else None
             return {
                 "source_code": self._source_code,
                 "loaded_world_name": self._loaded_world_name,
@@ -646,7 +834,7 @@ class SimulationSession:
 
             raw_status = str(checkpoint.get("status", "")).strip().lower()
             if raw_status in {"running", "paused"}:
-                self._status = "ready" if self._source_code else "created"
+                self._transition(SessionStatus.READY if self._source_code else SessionStatus.CREATED)
                 self._set_debug_state("idle", reason="recovered")
                 self._push_event("status", {"status": self._status, "raw_status": "recovered"})
 
@@ -654,10 +842,129 @@ class SimulationSession:
 
     def close(self) -> None:
         with self._lock:
+            if self._worker_shadow is not None:
+                self._worker_shadow.close()
             self._service.stop(reason="session_close")
-            self._status = "expired"
+            self._transition(SessionStatus.EXPIRED)
             self._set_debug_state("stopped")
             self._push_event("status", {"status": self._status})
+
+    def _mirror_worker(
+        self,
+        command: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        discard_unrelated_events: bool = False,
+        wait_for_status: str | None = None,
+    ) -> None:
+        """Espeja un comando en el worker sin publicar sus eventos en la sesión visible."""
+        if self._worker_shadow is None:
+            return
+        command_id = self._worker_shadow.send(command, payload)
+        for _ in range(20):
+            try:
+                event = self._worker_shadow.receive(0.2)
+            except TimeoutError:
+                continue
+            if discard_unrelated_events and event.get("command_id") != command_id:
+                continue
+            self._consume_shadow_event(event)
+            if event.get("command_id") != command_id:
+                continue
+            if wait_for_status is None:
+                return
+            if event.get("type") == "status" and event.get("payload", {}).get("status") == wait_for_status:
+                return
+        raise TimeoutError(f"El worker sombra no confirmó {command}")
+
+    def _drain_shadow_worker(self) -> None:
+        if self._worker_shadow is None:
+            return
+        for event in self._worker_shadow.drain_events():
+            self._consume_shadow_event(event)
+
+    def worker_diagnostics(self) -> dict[str, int | float | str]:
+        """Diagnostico público y no bloqueante del worker asociado a la sesión."""
+        with self._lock:
+            if self._worker_shadow is not None:
+                try:
+                    self._worker_shadow.send("heartbeat")
+                except RuntimeError:
+                    self._worker_diagnostics["worker_alive"] = 0
+                self._drain_shadow_worker()
+            return {"worker_alive": int(self._worker_shadow is not None), **self._worker_diagnostics}
+
+    def recover_worker(self) -> dict[str, Any]:
+        """Recrea un worker caído y repone el contrato mínimo de ejecución."""
+        with self._lock:
+            if self._worker_shadow is None:
+                raise InvalidSessionState("La sesión no usa worker aislado.")
+            self._worker_shadow.close()
+            self._worker_shadow = IsolatedRuntimeWorker(f"web-recovered-{self.session_id}")
+            self._worker_shadow.start()
+            self._consume_shadow_event(self._worker_shadow.receive())
+            self._mirror_worker(
+                "initialize",
+                {
+                    "execution_policy": {
+                        "max_runtime_s": max(1.0, float(self._config.get("SCRIPT_MAX_RUNTIME_S", 30.0))),
+                        "max_memory_mb": 256,
+                        "max_cpu_s": max(1.0, float(self._config.get("SCRIPT_MAX_RUNTIME_S", 30.0))),
+                    },
+                    "engine_config": asdict(self._service.engine_config),
+                },
+            )
+            if self._source_code:
+                self._mirror_worker("load_script", {"source": self._source_code})
+            self._mirror_worker(
+                "set_debug",
+                {"breakpoints": sorted(self._debug_breakpoints), "watches": list(self._debug_watches)},
+            )
+            self._worker_shadow_status = SessionStatus.READY.value if self._source_code else SessionStatus.CREATED.value
+            self._transition(self._worker_shadow_status)
+            self._push_event("status", {"status": self._status, "raw_status": "worker_recovered"})
+            return self.summary()
+
+    def _consume_shadow_event(self, event: dict[str, Any]) -> None:
+        event = SessionEvent.from_dict(event).to_dict()
+        worker_sequence = int(event.get("sequence", 0))
+        # El pipe del worker puede entregar snapshots que estaban encolados
+        # antes del reset. Nunca pueden reescribir una generación ya aplicada.
+        if worker_sequence <= self._worker_shadow_last_sequence:
+            return
+        self._worker_shadow_last_sequence = worker_sequence
+        if event.get("type") == "snapshot" and isinstance(event.get("payload"), dict):
+            if self._reset_in_progress:
+                return
+            # En estado base no existe una ejecución activa que pueda producir
+            # snapshots útiles. Ignorar el último tick que un EngineThread
+            # cancelado pudiera dejar en el pipe evita que reemplace la pose
+            # inicial publicada por ``reset``.
+            if self._status == SessionStatus.CREATED.value and self._source_code is None:
+                return
+            snapshot = self._decorate_snapshot(event["payload"])
+            self._worker_shadow_snapshot = snapshot
+            self._latest_snapshot = snapshot
+            self._service.record_external_snapshot(SnapshotDTO(event["payload"]))
+            if snapshot is not None:
+                self._worker_diagnostics["last_tick"] = int(snapshot.get("tick", 0))
+            now = time.monotonic()
+            if now - self._last_snapshot_event_at >= self._snapshot_event_interval_s:
+                self._last_snapshot_event_at = now
+                self._push_event("snapshot", snapshot)
+        if event.get("type") == "status" and isinstance(event.get("payload"), dict):
+            candidate = event["payload"].get("status")
+            if candidate in {status.value for status in SessionStatus}:
+                self._worker_shadow_status = candidate
+                self._on_status(str(candidate))
+        if event.get("type") == "heartbeat" and isinstance(event.get("payload"), dict):
+            self._worker_diagnostics = {
+                key: value for key, value in event["payload"].items() if isinstance(value, (int, float, str))
+            }
+        if event.get("type") == "error" and isinstance(event.get("payload"), dict):
+            self._on_error(event["payload"])
+        if event.get("type") == "debug" and isinstance(event.get("payload"), dict):
+            self._on_debug(event["payload"])
 
     def _wire_callbacks(self) -> None:
         self._service.set_snapshot_callback(self._on_snapshot)
@@ -666,25 +973,65 @@ class SimulationSession:
         self._service.set_debug_callback(self._on_debug)
 
     def _on_snapshot(self, dto) -> None:
-        data = dto.to_dict()
+        data = self._decorate_snapshot(dto.to_dict())
         with self._lock:
+            if self._reset_in_progress:
+                return
+            # RuntimeController puede finalizar el último callback justo al
+            # detenerse. Tras reset ya no hay código cargado: conservar el
+            # snapshot inicial evita que ese callback tardío restaure ticks,
+            # LCD o telemetría de la misión anterior en modo local.
+            if (
+                self._status == SessionStatus.CREATED.value
+                and self._source_code is None
+                and self._latest_snapshot is not None
+            ):
+                return
             self._latest_snapshot = data
             now = time.monotonic()
             if now - self._last_snapshot_event_at >= self._snapshot_event_interval_s:
                 self._last_snapshot_event_at = now
                 self._push_event("snapshot", data)
 
+    def _decorate_snapshot(self, snapshot: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Añade metadatos de sesión sin alterar el contrato del motor."""
+        if snapshot is None:
+            return None
+        data = dict(snapshot)
+        data["snapshot_generation"] = self._snapshot_generation
+        # La telemetría se renderiza exclusivamente desde este DTO, por lo que
+        # el estado de sesión se incorpora al mismo snapshot que canvas y LCD.
+        data["status"] = self._status
+        return data
+
+    def _publish_current_snapshot(self) -> None:
+        """Publica sin throttling el snapshot que corresponde al estado actual."""
+        snapshot = self._worker_shadow_snapshot or self._latest_snapshot
+        if snapshot is None:
+            dto = self._service.get_snapshot()
+            snapshot = dto.to_dict() if dto is not None else None
+        snapshot = self._decorate_snapshot(snapshot)
+        if snapshot is None:
+            return
+        self._latest_snapshot = snapshot
+        self._push_event("snapshot", snapshot)
+
     def _on_error(self, payload: dict[str, Any]) -> None:
         with self._lock:
             if self._status in {"stopped", "created", "expired"}:
                 return
             self._latest_error = dict(payload)
-            self._status = "error"
             error_reason = "timeout" if "tiempo m" in str(payload.get("error", "")).lower() else "error"
-            self._set_debug_state("error", reason=error_reason)
+            target = SessionStatus.TIMED_OUT if error_reason == "timeout" else SessionStatus.ERROR
+            if not self._transition(target):
+                return
+            self._set_debug_state(self._status, reason=error_reason)
+            self._publish_current_snapshot()
             self._push_event("error", self._latest_error)
 
     def _on_status(self, status: str) -> None:
+        if self._reset_in_progress:
+            return
         if status == "error" and self._status in {"stopped", "created", "expired"}:
             return
         mapped = {
@@ -692,12 +1039,15 @@ class SimulationSession:
             "paused": "paused",
             "resumed": "running",
             "stopped": "stopped",
+            "finished": "finished",
+            "timed_out": "timed_out",
             "reset": "created",
             "error": "error",
             "world_loaded": self._status if self._status != "created" else "ready",
         }.get(status, status)
         with self._lock:
-            self._status = mapped
+            if not self._transition(mapped):
+                return
             if status == "started":
                 self._set_debug_state("running")
             elif status == "paused":
@@ -706,11 +1056,25 @@ class SimulationSession:
                 self._set_debug_state("running")
             elif status == "stopped":
                 self._set_debug_state("stopped")
+            elif status == "finished":
+                self._set_debug_state("finished", reason="script_finished")
+            elif status == "timed_out":
+                self._set_debug_state("timed_out", reason="timeout")
             elif status == "reset":
                 self._set_debug_state("idle")
             elif status == "error":
                 self._set_debug_state("error", reason="error")
+            if status in {"finished", "stopped", "timed_out", "reset", "error"}:
+                self._publish_current_snapshot()
             self._push_event("status", {"status": mapped, "raw_status": status})
+            outcome = {
+                "finished": "finished",
+                "stopped": "cancelled",
+                "timed_out": "timed_out",
+                "error": "error",
+            }.get(mapped)
+            if outcome is not None:
+                self._complete_mission(outcome)
 
     def _on_debug(self, payload: dict[str, Any]) -> None:
         with self._lock:
@@ -797,7 +1161,11 @@ class SimulationSession:
 
         if function:
             payload["function"] = str(function)
-        elif isinstance(self._latest_debug, dict) and self._latest_debug.get("function") and debug_state.startswith("paused_"):
+        elif (
+            isinstance(self._latest_debug, dict)
+            and self._latest_debug.get("function")
+            and debug_state.startswith("paused_")
+        ):
             payload["function"] = str(self._latest_debug["function"])
 
         if reason:
@@ -840,6 +1208,21 @@ class SimulationSession:
                 "payload": payload or {},
             }
         )
+        self._events_ready.notify_all()
+
+    def _transition(self, target: str | SessionStatus) -> bool:
+        """Aplica una transición válida y descarta eventos de estado tardíos."""
+        try:
+            next_status = SessionStatus(target)
+            current_status = SessionStatus(self._status)
+        except ValueError as exc:
+            raise InvalidSessionState(f"Estado de sesion no soportado: {target}.") from exc
+        if current_status == next_status:
+            return False
+        if not can_transition(current_status, next_status):
+            return False
+        self._status = next_status.value
+        return True
 
     def _prune_start_idempotency(self, now: float | None = None) -> None:
         if self._start_idempotency_ttl_s <= 0:
@@ -919,7 +1302,5 @@ def _safe_world_filename(name: str) -> str:
         raise InvalidPayload("El nombre del mundo es demasiado largo.")
     # Permite nombres didacticos con espacios/acentos sin perder seguridad de ruta.
     if not re.fullmatch(r"[0-9A-Za-z_ \-().áéíóúÁÉÍÓÚñÑ]+", raw):
-        raise InvalidPayload(
-            "Use solo letras, numeros, espacios y estos simbolos: _ - ( ) ."
-        )
+        raise InvalidPayload("Use solo letras, numeros, espacios y estos simbolos: _ - ( ) .")
     return f"{raw}.json"

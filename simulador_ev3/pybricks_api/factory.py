@@ -8,7 +8,6 @@ import types
 
 from simulador_ev3.pybricks_api._context import PybricksContext
 
-
 _PYBRICKS_SUBMODULES = (
     "pybricks",
     "pybricks.hubs",
@@ -32,11 +31,13 @@ class PybricksFactory:
         cls,
         engine,
         stop_event: threading.Event,
+        pause_event: threading.Event | None = None,
     ) -> dict[str, object]:
         ctx = PybricksContext(
             command_queue=engine.command_queue,
             engine=engine,
             stop_event=stop_event,
+            pause_event=pause_event,
         )
         PybricksContext.set_current(ctx)
 

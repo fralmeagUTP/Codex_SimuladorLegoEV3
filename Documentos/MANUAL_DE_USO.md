@@ -1,7 +1,7 @@
 # Manual de Uso - Simulador EV3 Pybricks
 
-Version documentada: 1.3.2  
-Fecha de actualizacion: 2026-05-24
+Version documentada: 1.5.0
+Fecha de actualizacion: 2026-07-24
 
 ## 1. Objetivo
 
@@ -13,9 +13,11 @@ Este programa permite:
 
 ## 1.1 Estado de interfaces
 
-- Interfaz principal recomendada: Web Flask.
-- Interfaz de escritorio Tkinter: modo legado, mantenida para compatibilidad y uso offline.
-- Politica del proyecto: nuevas funciones se implementan primero en web; escritorio recibe mantenimiento correctivo.
+- La Web es la referencia de diseno, etiquetas, orden de controles y estados.
+- La interfaz de escritorio Tkinter ofrece el mismo flujo de simulacion y el
+  mismo catalogo de controles para uso local y sin navegador.
+- Toda funcion nueva de simulacion debe conservar la paridad funcional y visual
+  entre ambas interfaces.
 
 ## 2. Uso Web con Flask
 
@@ -65,7 +67,9 @@ Funciones:
 
 La pagina de simulacion no incluye controles para crear o editar mundos.
 
-Nota: cuando un script finaliza naturalmente, la web detiene ejecucion y reinicia estado de simulacion automaticamente para evitar bloqueos de sesion.
+Nota: cuando un script finaliza naturalmente, la sesion publica `finished` y
+conserva el estado final visible. Usa `Detener y reiniciar` para iniciar un
+nuevo ciclo de simulacion.
 
 ### 2.3 Pagina de creacion de mundos
 
@@ -103,7 +107,32 @@ Cada pestana crea una sesion web independiente con `session_id` y token interno.
 
 La version actual usa sesiones temporales en memoria. Si se reinicia el servidor, las pestanas abiertas deben recargarse para crear una sesion nueva.
 
-### 2.6 Tamano del mapa web
+### 2.6 Depuracion, perfiles y trazas
+
+Las dos interfaces permiten configurar puntos de interrupcion, watches, avanzar
+un paso y continuar la ejecucion. El estado de depuracion se recibe mediante el
+contrato de sesion y muestra la linea actual cuando el script se pausa.
+
+El menu **Fidelidad** permite elegir perfiles de simulacion disponibles. Los
+perfiles no sustituyen la calibracion de un robot fisico; consultar
+`Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md` antes de usar una actividad en aula.
+
+El menu **Trazas** inicia o detiene el registro, permite avanzar un tick y
+exportar la evidencia en JSON/CSV. Las trazas no dependen de la interfaz usada.
+
+### 2.7 Accesibilidad y teclado
+
+- `Ctrl+N`: crear script.
+- `Ctrl+O`: abrir script.
+- `Ctrl+S`: guardar script.
+- `Escape`: cerrar cuadros de ayuda o acerca de cuando estan abiertos.
+- Los controles de ejecucion cambian de estado al ejecutar, pausar, finalizar o
+  reiniciar para impedir comandos incompatibles.
+
+La Web es la referencia visual. Tkinter reproduce etiquetas, orden, estados y
+paleta, con diferencias limitadas a bordes, menus y scrollbars nativos.
+
+### 2.8 Tamano del mapa web
 
 El mapa web usa la misma escala que la aplicacion Tkinter:
 
@@ -113,7 +142,7 @@ El mapa web usa la misma escala que la aplicacion Tkinter:
 
 Esta regla mantiene proporciones y posiciones de objetos iguales entre escritorio y web.
 
-### 2.7 Detener el servidor web
+### 2.9 Detener el servidor web
 
 En PowerShell:
 
@@ -148,11 +177,20 @@ Las siguientes secciones corresponden a la version de escritorio basada en `tkin
 
 ## 4. Ventana Principal
 
-La ventana principal esta dividida en tres zonas:
+La ventana de escritorio sigue el mismo orden de la pagina de simulacion Web:
 
-- Mapa de simulacion (izquierda superior).
-- Editor de codigo (izquierda inferior).
-- Telemetria y panel EV3 Brick (columna derecha).
+- Barra de menus: Archivo, Ejemplos, Mundos, Escenarios, Tema, Fidelidad,
+  Trazas y Ayuda.
+- Barra de simulacion: Ejecutar, Pausar, Reanudar y Detener y reiniciar.
+- Mundo a la izquierda y editor/depuracion a la derecha.
+- Telemetria y EV3 Brick debajo del mundo; la telemetria se divide en Robot,
+  Motores y Sensores.
+- Franja de estado al pie de la ventana.
+
+Los temas Claro y Oscuro, el foco de teclado y los estados deshabilitados usan
+la misma semantica de color que la Web. Las diferencias limitadas a bordes,
+desplegables y barras de desplazamiento son propias de los controles nativos
+de Windows.
 
 ### 4.1 Menu Archivo
 
@@ -180,6 +218,22 @@ Carga scripts de ejemplo desde `examples/`.
 ### 4.4 Menu Escenarios
 
 Carga combinaciones predefinidas de mundo + script.
+
+### 4.5 Ayuda contextual
+
+El menú `Ayuda > Manual de uso...` abre los mismos tres tutoriales guiados de
+la Web: crear un mundo, ejecutar una simulación y depurar por pasos. Cada
+tutorial incluye pasos, resultado esperado y recuperación ante fallos. Usa los
+botones `Crear mundos`, `Ir a simulación` y `Preparar depuración` para abrir el
+flujo correspondiente sin tener que buscarlo de nuevo en los menús.
+
+Para verificar la navegación nativa con ratón en un equipo Windows con sesión
+gráfica, instala `.[desktop-e2e]` y ejecuta:
+
+```powershell
+$env:EV3_RUN_DESKTOP_E2E = "1"
+.\.venv\Scripts\python.exe -m pytest tests/e2e/test_desktop_pywinauto.py -q
+```
 
 ## 5. Flujo Basico de Uso
 
@@ -229,6 +283,9 @@ Funciones principales:
 - Colocacion por rejilla.
 - Propiedades del objeto seleccionado.
 - Validacion del mundo.
+- Después de guardar un mundo válido, el botón `Simular mundo guardado` lo
+  aplica directamente a la ventana principal. No es necesario volver a buscar
+  el archivo JSON desde el menú Mundos.
 
 Reglas clave:
 
@@ -255,9 +312,9 @@ Los mundos se guardan en JSON y pueden incluir:
 - Si no ves cambios: confirmar que el mundo correcto esta cargado.
 - Si la telemetria no cambia: verificar puertos y creacion de dispositivos en el script.
 - Si la web parece colgada: revisar `http://127.0.0.1:5050/healthz`; debe responder HTTP 200 y mostrar `running_simulations`.
-- Si un script corto no termina: actualizar a version `1.3.2` o superior; esta version consolida parada + reinicio automatico al finalizar.
+- Si un script corto no termina: verificar que la sesion alcance `finished`; el estado final permanece visible hasta que el usuario reinicie manualmente.
 - Si el mapa parece cortado: usar scroll dentro del panel; el canvas conserva el tamano real de Tkinter.
 
 ## 12. Version
 
-Manual actualizado para la version `1.3.2`.
+Manual actualizado para la version `1.5.0`.

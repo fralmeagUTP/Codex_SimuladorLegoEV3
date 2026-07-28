@@ -33,9 +33,9 @@ class TouchSensorModel:
         port_name: Puerto donde está conectado (para identificación).
     """
 
-    port_name:      str   = "S1"
-    offset_x_mm:   float = 80.0   # montado al frente del robot
-    offset_y_mm:   float = 0.0
+    port_name: str = "S1"
+    offset_x_mm: float = 80.0  # montado al frente del robot
+    offset_y_mm: float = 0.0
     robot_radius_mm: float = 5.0
 
     # Estado interno

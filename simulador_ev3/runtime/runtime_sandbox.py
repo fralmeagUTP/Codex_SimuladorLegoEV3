@@ -1,4 +1,4 @@
-﻿"""
+"""
 runtime_sandbox.py â€” Sandbox de ejecuciÃ³n para el script del usuario.
 
 Ejecuta el cÃ³digo fuente del script en un hilo dedicado con:
@@ -19,11 +19,11 @@ La arquitectura de hilos es:
 
 from __future__ import annotations
 
+import ast
 import sys
 import threading
 import time
 import traceback
-import re
 from collections import deque
 from typing import Callable, Optional
 
@@ -31,23 +31,24 @@ from simulador_ev3.core.event_bus import EVENT_RUNTIME_ERROR, EventBus
 from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
 
-
 # ---------------------------------------------------------------------------
 # Estado del sandbox
 # ---------------------------------------------------------------------------
 
+
 class SandboxState:
-    IDLE      = "IDLE"
-    RUNNING   = "RUNNING"
-    FINISHED  = "FINISHED"
-    ERROR     = "ERROR"
+    IDLE = "IDLE"
+    RUNNING = "RUNNING"
+    FINISHED = "FINISHED"
+    ERROR = "ERROR"
     TIMED_OUT = "TIMED_OUT"
-    STOPPED   = "STOPPED"
+    STOPPED = "STOPPED"
 
 
 # ---------------------------------------------------------------------------
 # Sandbox
 # ---------------------------------------------------------------------------
+
 
 class RuntimeSandbox:
     """
@@ -76,9 +77,9 @@ class RuntimeSandbox:
     def __init__(
         self,
         source_code: str,
-        policy: Optional[ExecutionPolicy]  = None,
-        event_bus: Optional[EventBus]      = None,
-        pybricks_modules: Optional[dict]   = None,
+        policy: Optional[ExecutionPolicy] = None,
+        event_bus: Optional[EventBus] = None,
+        pybricks_modules: Optional[dict] = None,
         on_finished: Optional[Callable[[], None]] = None,
         debug_enabled: bool = False,
         debug_step_mode: bool = False,
@@ -86,31 +87,27 @@ class RuntimeSandbox:
         debug_watches: Optional[list[str]] = None,
         debug_callback: Optional[Callable[[dict], None]] = None,
     ) -> None:
-        self._source       = source_code
-        self._policy       = policy or ExecutionPolicy()
-        self._bus          = event_bus or EventBus()
-        self._pybricks     = pybricks_modules or {}
-        self._on_finished  = on_finished
+        self._source = source_code
+        self._policy = policy or ExecutionPolicy()
+        self._bus = event_bus or EventBus()
+        self._pybricks = pybricks_modules or {}
+        self._on_finished = on_finished
         self._debug_enabled = bool(debug_enabled)
         self._debug_step_mode = bool(debug_step_mode)
         self._debug_callback = debug_callback
-        self._debug_lines = deque(maxlen=40)
-        self._debug_breakpoints = {
-            int(line) for line in (debug_breakpoints or set()) if int(line) > 0
-        }
-        self._debug_watches = [
-            str(expr).strip() for expr in (debug_watches or []) if str(expr).strip()
-        ]
+        self._debug_lines: deque[int] = deque(maxlen=40)
+        self._debug_breakpoints = {int(line) for line in (debug_breakpoints or set()) if int(line) > 0}
+        self._debug_watches = [str(expr).strip() for expr in (debug_watches or []) if str(expr).strip()]
         self._debug_current_line: Optional[int] = None
         self._debug_paused = False
         self._debug_lock = threading.Lock()
         self._debug_resume_event = threading.Event()
         self._debug_resume_event.set()
 
-        self._state        = SandboxState.IDLE
-        self._error: Optional[str]      = None
-        self._tb:   Optional[str]       = None
-        self._stop_event   = threading.Event()   # seÃ±al de parada cooperativa
+        self._state = SandboxState.IDLE
+        self._error: Optional[str] = None
+        self._tb: Optional[str] = None
+        self._stop_event = threading.Event()  # seÃ±al de parada cooperativa
         self._thread: Optional[threading.Thread] = None
         self._watchdog: Optional[threading.Timer] = None
         self._watchdog_lock = threading.Lock()
@@ -151,14 +148,12 @@ class RuntimeSandbox:
     def start(self) -> None:
         """Lanza el hilo de ejecuciÃ³n del script."""
         if self._state != SandboxState.IDLE:
-            raise RuntimeError(
-                f"El sandbox ya fue iniciado (estado: {self._state})"
-            )
-        self._state  = SandboxState.RUNNING
+            raise RuntimeError(f"El sandbox ya fue iniciado (estado: {self._state})")
+        self._state = SandboxState.RUNNING
         self._thread = threading.Thread(
             target=self._run,
             name="ScriptThread",
-            daemon=True,            # muere con el proceso principal
+            daemon=True,  # muere con el proceso principal
         )
         self._thread.start()
 
@@ -211,15 +206,11 @@ class RuntimeSandbox:
 
     def set_debug_breakpoints(self, breakpoints: set[int]) -> None:
         with self._debug_lock:
-            self._debug_breakpoints = {
-                int(line) for line in breakpoints if int(line) > 0
-            }
+            self._debug_breakpoints = {int(line) for line in breakpoints if int(line) > 0}
 
     def set_debug_watches(self, watches: list[str]) -> None:
         with self._debug_lock:
-            self._debug_watches = [
-                str(expr).strip() for expr in (watches or []) if str(expr).strip()
-            ]
+            self._debug_watches = [str(expr).strip() for expr in (watches or []) if str(expr).strip()]
 
     def debug_continue(self) -> None:
         with self._debug_lock:
@@ -275,14 +266,18 @@ class RuntimeSandbox:
                 self._state = SandboxState.FINISHED
 
         except SystemExit:
-            self._state = SandboxState.FINISHED
+            # `wait()` usa SystemExit para salir cooperativamente. Si el
+            # watchdog ya agotó el tiempo, ese estado terminal debe prevalecer
+            # sobre la salida natural que provoca la interrupción.
+            if self._state == SandboxState.RUNNING:
+                self._state = SandboxState.FINISHED
 
         except Exception as exc:  # noqa: BLE001
             if self._state == SandboxState.RUNNING:
-                self._state   = SandboxState.ERROR
+                self._state = SandboxState.ERROR
             self._error = str(exc)
-            self._tb    = traceback.format_exc()
-            payload = {"error": self._error, "traceback": self._tb}
+            self._tb = traceback.format_exc()
+            payload: dict[str, object] = {"error": self._error, "traceback": self._tb}
             if self._debug_enabled and self._debug_lines:
                 payload["debug_last_lines"] = list(self._debug_lines)
             self._bus.publish(
@@ -402,21 +397,21 @@ class RuntimeSandbox:
                 return value[:200] + "...(truncated)"
             return value
         if isinstance(value, (list, tuple, set)):
-            result = []
+            list_result: list[object] = []
             for idx, item in enumerate(value):
                 if idx >= 20:
-                    result.append("...(truncated)")
+                    list_result.append("...(truncated)")
                     break
-                result.append(self._serialize_debug_value(item, depth=depth + 1))
-            return result
+                list_result.append(self._serialize_debug_value(item, depth=depth + 1))
+            return list_result
         if isinstance(value, dict):
-            result: dict[str, object] = {}
+            dict_result: dict[str, object] = {}
             for idx, (k, v) in enumerate(value.items()):
                 if idx >= 20:
-                    result["__truncated__"] = "..."
+                    dict_result["__truncated__"] = "..."
                     break
-                result[str(k)] = self._serialize_debug_value(v, depth=depth + 1)
-            return result
+                dict_result[str(k)] = self._serialize_debug_value(v, depth=depth + 1)
+            return dict_result
         try:
             text = repr(value)
         except Exception:  # noqa: BLE001
@@ -447,9 +442,7 @@ class RuntimeSandbox:
         results: list[dict] = []
         for expr in expressions[:20]:
             item = {"expr": expr, "value": None, "error": None}
-            lowered = expr.lower()
-            # Bloqueo simple de dunder y llamadas de import/exec/eval/open.
-            if "__" in expr or re.search(r"\b(import|exec|eval|open|compile|input)\b", lowered):
+            if not self._is_safe_watch_expression(expr):
                 item["error"] = "expresion no permitida"
                 results.append(item)
                 continue
@@ -460,6 +453,71 @@ class RuntimeSandbox:
                 item["error"] = str(exc)
             results.append(item)
         return results
+
+    @staticmethod
+    def _is_safe_watch_expression(expr: str) -> bool:
+        """Permite expresiones de inspeccion y funciones puras controladas.
+
+        Las Watches se evaluan mientras un script del alumno esta pausado.  Un
+        filtro textual es insuficiente para aislar una expresion de Python, por
+        lo que se valida el arbol sintactico antes de llegar a ``eval``.  Se
+        conservan comparaciones, calculos y las funciones puras expuestas por
+        el sandbox; se rechazan atributos, subindices y toda otra construccion
+        ejecutable.
+        """
+        try:
+            tree = ast.parse(expr, mode="eval")
+        except SyntaxError:
+            return False
+
+        allowed_nodes = (
+            ast.Expression,
+            ast.BoolOp,
+            ast.BinOp,
+            ast.UnaryOp,
+            ast.Compare,
+            ast.Call,
+            ast.Name,
+            ast.Load,
+            ast.Constant,
+            ast.List,
+            ast.Tuple,
+            ast.Set,
+            ast.Dict,
+            ast.Add,
+            ast.Sub,
+            ast.Mult,
+            ast.Div,
+            ast.FloorDiv,
+            ast.Mod,
+            ast.Pow,
+            ast.UAdd,
+            ast.USub,
+            ast.Not,
+            ast.And,
+            ast.Or,
+            ast.Eq,
+            ast.NotEq,
+            ast.Lt,
+            ast.LtE,
+            ast.Gt,
+            ast.GtE,
+            ast.In,
+            ast.NotIn,
+            ast.Is,
+            ast.IsNot,
+        )
+        for node in ast.walk(tree):
+            if not isinstance(node, allowed_nodes):
+                return False
+            if isinstance(node, ast.Name) and node.id.startswith("__"):
+                return False
+            if isinstance(node, ast.Call) and (
+                not isinstance(node.func, ast.Name)
+                or node.func.id not in {"abs", "min", "max", "sum", "len", "round"}
+            ):
+                return False
+        return True
 
     def _on_timeout(self) -> None:
         """Watchdog: script excedio max_runtime_s."""

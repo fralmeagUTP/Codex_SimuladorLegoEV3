@@ -1,14 +1,14 @@
 # Guia Web Flask - Windows
 
-Esta guia describe como operar la version web del Simulador EV3.
+Esta guia describe como operar la version web del Simulador EV3 en Windows.
 
 Estado oficial de interfaces:
 
-- La web es el frontend principal del proyecto.
-- La aplicacion Tkinter queda como interfaz legacy para compatibilidad y soporte offline.
+- La Web y Tkinter son interfaces soportadas con el mismo contrato de sesion.
+- La Web es la referencia visual y ofrece simulacion, mundos, ayuda y operaciones.
 
-Version documentada: 1.3.0  
-Fecha de actualizacion: 2026-05-20
+Version documentada: 1.5.0
+Fecha de actualizacion: 2026-07-24
 
 ## 1. Requisitos
 
@@ -156,14 +156,15 @@ La aplicacion permite configurar valores sin editar codigo:
 | `EV3_WEB_HOST` | Host de escucha del servidor. | `127.0.0.1` |
 | `EV3_WEB_PORT` | Puerto HTTP. | `5050` |
 | `EV3_WEB_THREADS` | Hilos de Waitress. | `8` |
+| `EV3_WEB_APP_ENV` | Entorno de ejecucion (`development` o `production`). | `development` |
 | `EV3_WEB_SECRET_KEY` | Llave Flask para cookies/sesiones. | `dev-simulador-ev3` |
 | `EV3_WEB_EXAMPLES_DIR` | Carpeta de ejemplos Pybricks. | `examples` |
 | `EV3_WEB_WORLDS_DIR` | Carpeta de mundos JSON. | `worlds` |
 | `EV3_WEB_IMAGE_ASSETS_DIR` | Carpeta de imagenes de assets. | `simulador_ev3\assets` |
-| `EV3_WEB_SESSION_IDLE_TIMEOUT_MIN` | Minutos de inactividad antes de expirar sesion. | `30` |
+| `EV3_WEB_SESSION_IDLE_TIMEOUT_MIN` | Minutos de inactividad antes de expirar sesion. | `45` |
 | `EV3_WEB_MAX_ACTIVE_SESSIONS` | Numero maximo de sesiones activas. | `20` |
 | `EV3_WEB_MAX_RUNNING_SIMULATIONS` | Numero maximo de simulaciones corriendo. | `8` |
-| `EV3_WEB_SCRIPT_MAX_RUNTIME_S` | Tiempo maximo por script. | `30.0` |
+| `EV3_WEB_SCRIPT_MAX_RUNTIME_S` | Tiempo maximo por script; obligatorio positivo en produccion. | `0.0` |
 | `EV3_WEB_MAX_SCRIPT_SIZE_BYTES` | Tamano maximo del script. | `131072` |
 | `EV3_WEB_MAX_WORLD_JSON_SIZE_BYTES` | Tamano maximo de mundo JSON. | `2097152` |
 | `EV3_WEB_SSE_HEARTBEAT_S` | Intervalo de heartbeat SSE. | `15` |
@@ -171,6 +172,25 @@ La aplicacion permite configurar valores sin editar codigo:
 | `EV3_WEB_ENABLE_SESSION_CLEANUP_THREAD` | Activa limpieza periodica en segundo plano. | `true` |
 | `EV3_WEB_ENABLE_SECURITY_HEADERS` | Activa cabeceras basicas de seguridad HTTP. | `true` |
 | `EV3_WEB_SESSION_COOKIE_SECURE` | Marca cookies como seguras cuando se use HTTPS. | `false` |
+| `EV3_WEB_WEB_SSE_ENABLED` | Activa actualizaciones SSE; existe fallback por polling. | `true` |
+| `EV3_WEB_WEB_POLLING_INTERVAL_MS` | Intervalo del fallback por polling. | `900` |
+
+La referencia completa, incluidos Redis, file mirror y parametros de UI, esta
+en `Documentos/REFERENCIA_CONFIGURACION.md`; el codigo fuente de verdad es
+`simulador_ev3/web/config.py`.
+
+### Despliegue en produccion
+
+Al definir `EV3_WEB_APP_ENV=production`, la aplicacion rechaza el arranque si se conserva una configuracion insegura. Debes definir una llave propia de al menos 32 caracteres, un limite positivo para cada script y HTTPS para las cookies:
+
+```powershell
+$env:EV3_WEB_APP_ENV = "production"
+$env:EV3_WEB_SECRET_KEY = "reemplaza-esta-clave-por-un-secreto-largo-y-unico"
+$env:EV3_WEB_SCRIPT_MAX_RUNTIME_S = "30"
+$env:EV3_WEB_SESSION_COOKIE_SECURE = "true"
+```
+
+La clave de ejemplo no debe reutilizarse: almacenala en el gestor de secretos o la configuracion segura del servidor.
 
 Compatibilidad temporal:
 
@@ -200,7 +220,17 @@ $env:EV3_WEB_ENABLE_SECURITY_HEADERS = "false"
 .\scripts\restart_web.cmd
 ```
 
-## 11. Flujo operativo recomendado
+## 11. Operacion y observabilidad
+
+- `http://127.0.0.1:5050/healthz` informa version, sesiones, worker y backend.
+- `http://127.0.0.1:5050/metrics` devuelve metricas JSON.
+- `http://127.0.0.1:5050/metrics?format=prometheus` expone formato Prometheus.
+- `http://127.0.0.1:5050/operations` muestra el panel de operaciones local.
+
+No publicar `/metrics` o `/operations` fuera de una red controlada sin aplicar
+la proteccion de acceso que corresponda al entorno.
+
+## 12. Flujo operativo recomendado
 
 1. Iniciar servidor con `.\scripts\start_web.ps1`.
 2. Abrir `/worlds` para crear y guardar un mundo.
@@ -233,7 +263,7 @@ Los eventos de depuracion se reciben por SSE y muestran la linea actual o el pun
 
 ## 14. Estado de ejecucion
 
-Cuando un script termina naturalmente, la sesion debe cambiar a `stopped`. Esta conducta fue corregida en la version `1.3.0`.
+Cuando un script termina naturalmente, la sesion debe cambiar a `finished` y conservar el ultimo snapshot hasta un reinicio manual.
 
 Si la aplicacion parece colgada:
 

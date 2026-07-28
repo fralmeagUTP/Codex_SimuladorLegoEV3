@@ -6,29 +6,34 @@ import time
 
 import pytest
 
-from simulador_ev3.core.command_queue import CommandQueue, CommandType
-from simulador_ev3.core.event_bus import EventBus
+from simulador_ev3.core.command_queue import CommandType
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
 from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.pybricks_api.factory import PybricksFactory
 from simulador_ev3.pybricks_api.parameters import (
-    Color, Direction, Port, Stop,
-    PYBRICKS_TO_SURFACE, SURFACE_TO_PYBRICKS, STOP_TO_STOPMODE,
+    PYBRICKS_TO_SURFACE,
+    STOP_TO_STOPMODE,
+    SURFACE_TO_PYBRICKS,
+    Color,
+    Direction,
+    Port,
+    Stop,
 )
 from simulador_ev3.pybricks_api.tools import StopWatch, wait
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
 from simulador_ev3.runtime.runtime_controller import RuntimeController
-from simulador_ev3.runtime.runtime_sandbox import RuntimeSandbox
-
 
 # ===========================================================================
 # Fixture — engine + contexto Pybricks activo
 # ===========================================================================
 
+
 def make_engine(x=500.0, y=500.0):
     cfg = SimEngineConfig(
-        robot_x0_mm=x, robot_y0_mm=y,
-        world_width_mm=2000, world_height_mm=2000,
+        robot_x0_mm=x,
+        robot_y0_mm=y,
+        world_width_mm=2000,
+        world_height_mm=2000,
     )
     eng = SimulationEngine(config=cfg)
     return eng
@@ -54,15 +59,16 @@ def setup_ctx(engine):
 # parameters.py
 # ===========================================================================
 
+
 class TestParameters:
     def test_port_str_values(self):
-        assert str(Port.A)  == "A"
+        assert str(Port.A) == "A"
         assert str(Port.S1) == "S1"
 
     def test_stop_to_stopmode_mapping(self):
         assert STOP_TO_STOPMODE[Stop.BRAKE] == "BRAKE"
         assert STOP_TO_STOPMODE[Stop.COAST] == "COAST"
-        assert STOP_TO_STOPMODE[Stop.HOLD]  == "HOLD"
+        assert STOP_TO_STOPMODE[Stop.HOLD] == "HOLD"
 
     def test_color_to_surface_mapping_black(self):
         assert PYBRICKS_TO_SURFACE[Color.BLACK] == "BLACK"
@@ -79,6 +85,7 @@ class TestParameters:
 # ===========================================================================
 # PybricksContext
 # ===========================================================================
+
 
 class TestPybricksContext:
     def test_get_current_raises_without_init(self):
@@ -106,6 +113,7 @@ class TestPybricksContext:
 # Factory
 # ===========================================================================
 
+
 class TestPybricksFactory:
     def test_create_does_not_register_pybricks_in_sys_modules(self):
         eng = make_engine()
@@ -121,7 +129,7 @@ class TestPybricksFactory:
         assert "pybricks.hubs" not in sys.modules
 
     def test_cleanup_removes_legacy_pybricks_from_sys_modules(self):
-        eng = make_engine()
+        make_engine()
         sys.modules["pybricks"] = object()  # type: ignore[assignment]
         sys.modules["pybricks.hubs"] = object()  # type: ignore[assignment]
         PybricksFactory.cleanup()
@@ -135,7 +143,7 @@ class TestPybricksFactory:
         assert ctx.engine is eng
 
     def test_create_returns_dict_with_pybricks(self):
-        eng  = make_engine()
+        eng = make_engine()
         stop = threading.Event()
         mods = PybricksFactory.create(eng, stop)
         assert "pybricks" in mods
@@ -144,6 +152,7 @@ class TestPybricksFactory:
 # ===========================================================================
 # tools.py
 # ===========================================================================
+
 
 class TestWait:
     def test_wait_sleeps_approximately(self):
@@ -155,15 +164,35 @@ class TestWait:
         assert 40 <= elapsed <= 200, f"wait(50) tardó {elapsed:.1f} ms"
 
     def test_wait_interrupted_by_stop_event(self):
-        eng  = make_engine()
+        eng = make_engine()
         stop = threading.Event()
         PybricksFactory.create(eng, stop)
-        stop.set()   # ya señalado → wait debe retornar casi inmediatamente
+        stop.set()  # ya señalado → wait debe retornar casi inmediatamente
         t0 = time.perf_counter()
         with pytest.raises(SystemExit):
             wait(500)
         elapsed_ms = (time.perf_counter() - t0) * 1000
         assert elapsed_ms < 100
+
+    def test_wait_preserves_remaining_time_while_the_runtime_is_paused(self):
+        eng = make_engine()
+        stop = threading.Event()
+        pause = threading.Event()
+        PybricksFactory.create(eng, stop, pause)
+        pause.set()
+        completed = threading.Event()
+
+        thread = threading.Thread(target=lambda: (wait(80), completed.set()), daemon=True)
+        started_at = time.perf_counter()
+        thread.start()
+        time.sleep(0.07)
+        assert not completed.is_set()
+
+        pause.clear()
+        thread.join(timeout=0.5)
+
+        assert completed.is_set()
+        assert time.perf_counter() - started_at >= 0.14
 
 
 class TestStopWatch:
@@ -193,26 +222,27 @@ class TestStopWatch:
         sw = StopWatch()
         time.sleep(0.05)
         sw.reset()
-        assert sw.time() < 20   # justo tras reset
+        assert sw.time() < 20  # justo tras reset
 
 
 # ===========================================================================
 # ev3devices.py — Motor
 # ===========================================================================
 
+
 class TestMotorAPI:
     def setup_method(self):
         self.eng = make_engine()
         setup_ctx(self.eng)
         from simulador_ev3.pybricks_api.ev3devices import Motor as PyMotor
+
         self.Motor = PyMotor
 
     def test_motor_run_enqueues_command(self):
         m = self.Motor(Port.A)
         m.run(500)
         items = self.eng.command_queue.drain()
-        assert any(c.cmd_type == CommandType.MOTOR_RUN and c.port == "A"
-                   for c in items)
+        assert any(c.cmd_type == CommandType.MOTOR_RUN and c.port == "A" for c in items)
 
     def test_motor_stop_enqueues_command(self):
         m = self.Motor(Port.B)
@@ -294,6 +324,7 @@ class TestMotorAPI:
 # ev3devices.py — Sensores
 # ===========================================================================
 
+
 class TestSensorAPI:
     def setup_method(self):
         self.eng = make_engine()
@@ -301,36 +332,42 @@ class TestSensorAPI:
 
     def test_touch_sensor_attaches_to_engine(self):
         from simulador_ev3.pybricks_api.ev3devices import TouchSensor
-        ts = TouchSensor(Port.S1)
+
+        TouchSensor(Port.S1)
         # Debe estar adjunto al engine
         assert self.eng._sensors["S1"] is not None
 
     def test_touch_sensor_pressed_false_open_world(self):
         from simulador_ev3.pybricks_api.ev3devices import TouchSensor
+
         ts = TouchSensor(Port.S1)
         self.eng.update()  # tick para actualizar sensor
         assert ts.pressed() is False
 
     def test_ultrasonic_sensor_distance_positive(self):
         from simulador_ev3.pybricks_api.ev3devices import UltrasonicSensor
+
         us = UltrasonicSensor(Port.S2)
         self.eng.update()
         assert us.distance() > 0
 
     def test_color_sensor_reflection_in_range(self):
         from simulador_ev3.pybricks_api.ev3devices import ColorSensor
+
         cs = ColorSensor(Port.S3)
         self.eng.update()
         assert 0 <= cs.reflection() <= 100
 
     def test_gyro_sensor_initial_angle_zero(self):
         from simulador_ev3.pybricks_api.ev3devices import GyroSensor
+
         gs = GyroSensor(Port.S4)
         self.eng.update()
         assert gs.angle() == 0
 
     def test_infrared_sensor_distance_in_range(self):
         from simulador_ev3.pybricks_api.ev3devices import InfraredSensor
+
         ir = InfraredSensor(Port.S1)
         self.eng.update()
         assert 0 <= ir.distance() <= 100
@@ -357,15 +394,17 @@ class TestSensorAPI:
 # robotics.py — DriveBase
 # ===========================================================================
 
+
 class TestDriveBaseAPI:
     def setup_method(self):
         self.eng = make_engine()
         setup_ctx(self.eng)
         from simulador_ev3.pybricks_api.ev3devices import Motor as PyMotor
         from simulador_ev3.pybricks_api.robotics import DriveBase as PyDB
-        l = PyMotor(Port.B)
-        r = PyMotor(Port.C)
-        self.db = PyDB(l, r, wheel_diameter=55.5, axle_track=104)
+
+        left_motor = PyMotor(Port.B)
+        right_motor = PyMotor(Port.C)
+        self.db = PyDB(left_motor, right_motor, wheel_diameter=55.5, axle_track=104)
 
     def test_drive_enqueues_command(self):
         self.db.drive(200, 0)
@@ -386,6 +425,7 @@ class TestDriveBaseAPI:
         self.db.brake()
         items = self.eng.command_queue.drain()
         assert any(c.cmd_type == CommandType.DB_STOP for c in items)
+        assert any(c.params.get("stop_mode") == "BRAKE" for c in items)
 
     def test_curve_enqueues_drive_command(self):
         self.db.curve(radius=120, angle=30, wait=False)
@@ -412,11 +452,13 @@ class TestDriveBaseAPI:
 # hubs.py — EV3Brick
 # ===========================================================================
 
+
 class TestEV3BrickAPI:
     def setup_method(self):
         self.eng = make_engine()
         setup_ctx(self.eng)
         from simulador_ev3.pybricks_api.hubs import EV3Brick as PyBrick
+
         self.ev3 = PyBrick()
 
     def test_light_on_enqueues_led_on(self):
@@ -484,17 +526,18 @@ class TestEV3BrickAPI:
 # End-to-end: script completo corriendo con import pybricks.*
 # ===========================================================================
 
+
 class TestEndToEnd:
     """Ejecuta scripts de usuario reales con el RuntimeController."""
 
     def _run_script(self, code: str, timeout: float = 2.0) -> RuntimeController:
-        eng  = make_engine()
-        bus  = eng.event_bus
+        eng = make_engine()
+        bus = eng.event_bus
         stop = threading.Event()
         mods = PybricksFactory.create(eng, stop)
 
         policy = ExecutionPolicy(max_runtime_s=0)  # sin watchdog para tests
-        ctrl   = RuntimeController(eng, bus, policy)
+        ctrl = RuntimeController(eng, bus, policy)
         ctrl.set_pybricks_modules(mods)
         ctrl.load_script(code)
         ctrl.start()
@@ -558,12 +601,13 @@ wait(50)
     def test_runtime_error_in_script(self):
         errors = []
         from simulador_ev3.core.event_bus import EVENT_RUNTIME_ERROR
-        eng  = make_engine()
+
+        eng = make_engine()
         eng.event_bus.subscribe(EVENT_RUNTIME_ERROR, lambda e, p: errors.append(p))
         stop = threading.Event()
         mods = PybricksFactory.create(eng, stop)
         policy = ExecutionPolicy(max_runtime_s=0)
-        ctrl   = RuntimeController(eng, eng.event_bus, policy)
+        ctrl = RuntimeController(eng, eng.event_bus, policy)
         ctrl.set_pybricks_modules(mods)
         ctrl.load_script("raise ValueError('fallo intencional')")
         ctrl.start()

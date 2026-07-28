@@ -8,6 +8,7 @@ para temporización. En el simulador:
     RuntimeController detenga el script cooperativamente.
   - StopWatch emula el cronómetro Pybricks (tiempo de pared).
 """
+
 from __future__ import annotations
 
 import time as _time
@@ -26,17 +27,25 @@ def wait(time_ms: float) -> None:
     ctx = PybricksContext.get_current()
     # Esperamos en intervalos de 10 ms para reaccionar al stop_event rápido
     remaining_s = max(0.0, float(time_ms)) / 1000.0
-    interval    = 0.01   # 10 ms
+    interval = 0.01  # 10 ms
 
     if ctx.stop_event.is_set():
         raise SystemExit
 
     while remaining_s > 0:
-        sleep_s      = min(remaining_s, interval)
+        # El engine puede quedar pausado durante una misión. En ese estado no
+        # se descuenta el tiempo solicitado: el script conserva la espera que
+        # quedaba al reanudar y Stop sigue siendo inmediato.
+        while ctx.pause_event.is_set():
+            if ctx.stop_event.is_set():
+                raise SystemExit
+            _time.sleep(interval)
+        sleep_s = min(remaining_s, interval)
         _time.sleep(sleep_s)
         if ctx.stop_event.is_set():
             raise SystemExit
-        remaining_s -= sleep_s
+        if not ctx.pause_event.is_set():
+            remaining_s -= sleep_s
 
 
 class StopWatch:
@@ -67,7 +76,7 @@ class StopWatch:
     def pause(self) -> None:
         if not self._paused:
             self._paused_at = _time.perf_counter()
-            self._paused    = True
+            self._paused = True
 
     def resume(self) -> None:
         if self._paused:
@@ -75,7 +84,7 @@ class StopWatch:
             self._paused = False
 
     def reset(self) -> None:
-        self._start          = _time.perf_counter()
-        self._paused         = False
-        self._paused_at      = 0.0
+        self._start = _time.perf_counter()
+        self._paused = False
+        self._paused_at = 0.0
         self._elapsed_paused = 0.0

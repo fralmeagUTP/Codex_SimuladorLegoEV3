@@ -26,6 +26,10 @@ class CapacityExceeded(WebError):
     status_code = 429
     code = "CAPACITY_EXCEEDED"
 
+    def __init__(self, message: str, *, retry_after_s: int | None = None) -> None:
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
+
 
 class InvalidPayload(WebError):
     status_code = 400

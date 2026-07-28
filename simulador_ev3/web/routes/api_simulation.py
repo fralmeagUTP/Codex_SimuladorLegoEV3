@@ -7,9 +7,9 @@ import time
 
 from flask import Blueprint, Response, current_app, jsonify, make_response, request, stream_with_context
 
+from simulador_ev3.shared.mission_catalog import MissionCatalog
 from simulador_ev3.web.errors import CapacityExceeded, InvalidPayload
-from simulador_ev3.web.routes.helpers import get_manager, json_body, require_session, request_token
-
+from simulador_ev3.web.routes.helpers import get_manager, json_body, request_token, require_session
 
 bp = Blueprint("api_simulation", __name__, url_prefix="/api")
 
@@ -18,6 +18,12 @@ bp = Blueprint("api_simulation", __name__, url_prefix="/api")
 def create_session():
     manager = get_manager()
     data = json_body()
+    wait_ms_raw = data.get("wait_ms", 0)
+    try:
+        wait_ms = int(wait_ms_raw)
+    except (TypeError, ValueError) as exc:
+        raise InvalidPayload("wait_ms debe ser un entero >= 0.") from exc
+    wait_ms = max(0, min(wait_ms, 120000))
     if data.get("reuse", False):
         session_id = request.cookies.get("ev3_session_id")
         owner_token = request_token()
@@ -33,7 +39,20 @@ def create_session():
             except Exception:  # noqa: BLE001
                 pass
 
-    session_id, owner_token = manager.create_session(evict_inactive=True)
+    try:
+        session_id, owner_token = manager.create_session(
+            evict_inactive=False,
+            wait_timeout_s=float(wait_ms) / 1000.0,
+        )
+    except CapacityExceeded as exc:
+        stats = manager.stats()
+        raise CapacityExceeded(
+            (
+                "Se alcanzo el limite de sesiones activas. "
+                f"Activas: {stats['active_sessions']}/{stats['max_active_sessions']}."
+            ),
+            retry_after_s=2,
+        ) from exc
     return (
         _session_response(
             session_id=session_id,
@@ -84,6 +103,61 @@ def session_info(session_id: str):
     return jsonify(session.summary())
 
 
+@bp.post("/sessions/<session_id>/mission")
+def select_mission(session_id: str):
+    identifier = str(json_body().get("id", "")).strip()
+    mission = MissionCatalog(current_app.config["EXAMPLES_DIR"], current_app.config["WORLDS_DIR"]).get(identifier)
+    if mission is None:
+        raise InvalidPayload("La misión solicitada no existe.")
+    return jsonify(require_session(session_id).select_mission(mission))
+
+
+@bp.post("/sessions/<session_id>/simulation-profile")
+def set_simulation_profile(session_id: str):
+    data = json_body()
+    profile = data.get("profile")
+    calibration = data.get("calibration")
+    if not isinstance(profile, str):
+        raise InvalidPayload("profile debe ser texto.")
+    if calibration is not None and not isinstance(calibration, dict):
+        raise InvalidPayload("calibration debe ser un objeto.")
+    try:
+        result = require_session(session_id).set_simulation_profile(profile, calibration)
+    except ValueError as exc:
+        raise InvalidPayload(str(exc)) from exc
+    return jsonify(result)
+
+
+@bp.post("/sessions/<session_id>/trace/start")
+def start_trace(session_id: str):
+    require_session(session_id).start_trace()
+    return jsonify({"recording": True})
+
+
+@bp.post("/sessions/<session_id>/trace/stop")
+def stop_trace(session_id: str):
+    require_session(session_id).stop_trace()
+    return jsonify({"recording": False})
+
+
+@bp.post("/sessions/<session_id>/tick-step")
+def step_tick(session_id: str):
+    return jsonify(require_session(session_id).step_tick())
+
+
+@bp.get("/sessions/<session_id>/trace")
+def export_trace(session_id: str):
+    format = request.args.get("format", "json").lower()
+    try:
+        payload = require_session(session_id).export_trace(format)
+    except ValueError as exc:
+        raise InvalidPayload(str(exc)) from exc
+    mimetype = "application/json" if format == "json" else "text/csv"
+    return Response(
+        payload, mimetype=mimetype, headers={"Content-Disposition": f"attachment; filename=ev3-trace.{format}"}
+    )
+
+
 @bp.post("/sessions/<session_id>/script")
 def load_script(session_id: str):
     data = json_body()
@@ -98,14 +172,12 @@ def start(session_id: str):
     manager = get_manager()
     manager.cleanup_expired()
     if not manager.can_start():
-        # Entorno local: liberar una sesion en ejecucion atascada y reintentar.
-        manager.evict_oldest_running()
-        if not manager.can_start():
-            stats = manager.stats()
-            raise CapacityExceeded(
-                "Se alcanzo el limite de simulaciones activas. "
-                f"Activas: {stats['running_simulations']}/{stats['max_running_simulations']}."
-            )
+        stats = manager.stats()
+        raise CapacityExceeded(
+            "Se alcanzo el limite de simulaciones activas. "
+            f"Activas: {stats['running_simulations']}/{stats['max_running_simulations']}.",
+            retry_after_s=2,
+        )
     session = require_session(session_id)
     data = json_body()
     request_id = str(data.get("request_id", "")).strip()
@@ -114,9 +186,9 @@ def start(session_id: str):
         if cached is not None:
             return jsonify(cached)
     result = session.start(
-            debug=bool(data.get("debug", False)),
-            step_mode=bool(data.get("step_mode", False)),
-        )
+        debug=bool(data.get("debug", False)),
+        step_mode=bool(data.get("step_mode", False)),
+    )
     if request_id:
         session.remember_start_idempotency(request_id, result)
     manager.sync_session_metadata(session_id)
@@ -149,6 +221,16 @@ def reset(session_id: str):
     result = require_session(session_id).reset()
     get_manager().sync_session_metadata(session_id)
     return jsonify(result)
+
+
+@bp.post("/sessions/<session_id>/runtime-limit")
+def set_runtime_limit(session_id: str):
+    data = json_body()
+    try:
+        max_runtime_s = float(data["max_runtime_s"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise InvalidPayload("max_runtime_s debe ser un numero valido.") from exc
+    return jsonify(require_session(session_id).set_max_runtime_s(max_runtime_s))
 
 
 @bp.post("/sessions/<session_id>/debug/breakpoints")
@@ -227,43 +309,28 @@ def stream(session_id: str):
         last_sequence = 0
         last_heartbeat = time.monotonic()
         initial = session.snapshot_response()
-        yield (
-            "event: status\n"
-            f"data: {json.dumps({'status': initial['status']}, ensure_ascii=False)}\n\n"
-        )
+        yield (f"event: status\ndata: {json.dumps({'status': initial['status']}, ensure_ascii=False)}\n\n")
         if initial.get("snapshot") is not None:
-            yield (
-                "event: snapshot\n"
-                f"data: {json.dumps(initial['snapshot'], ensure_ascii=False)}\n\n"
-            )
+            yield (f"event: snapshot\ndata: {json.dumps(initial['snapshot'], ensure_ascii=False)}\n\n")
         if initial.get("debug") is not None:
-            yield (
-                "event: debug_state\n"
-                f"data: {json.dumps(initial['debug'], ensure_ascii=False)}\n\n"
-            )
+            yield (f"event: debug_state\ndata: {json.dumps(initial['debug'], ensure_ascii=False)}\n\n")
         if initial.get("debug_context") is not None:
-            yield (
-                "event: debug_context\n"
-                f"data: {json.dumps(initial['debug_context'], ensure_ascii=False)}\n\n"
-            )
+            yield (f"event: debug_context\ndata: {json.dumps(initial['debug_context'], ensure_ascii=False)}\n\n")
         current_world = session.current_world()
         if current_world is not None:
-            yield (
-                "event: world\n"
-                f"data: {json.dumps(current_world, ensure_ascii=False)}\n\n"
-            )
+            yield (f"event: world\ndata: {json.dumps(current_world, ensure_ascii=False)}\n\n")
         while True:
-            events = session.events_since(last_sequence)
+            now = time.monotonic()
+            heartbeat_remaining = max(0.0, heartbeat_s - (now - last_heartbeat))
+            wait_timeout = min(heartbeat_remaining, 1.0) if heartbeat_remaining > 0 else 0.0
+            events = session.wait_for_events_since(last_sequence, timeout_s=wait_timeout)
             if events:
                 for event in events:
                     last_sequence = max(last_sequence, int(event["sequence"]))
-                    yield (
-                        f"event: {event['type']}\n"
-                        f"data: {json.dumps(event['payload'], ensure_ascii=False)}\n\n"
-                    )
-            elif time.monotonic() - last_heartbeat >= heartbeat_s:
+                    yield (f"event: {event['type']}\ndata: {json.dumps(event['payload'], ensure_ascii=False)}\n\n")
+                continue
+            if time.monotonic() - last_heartbeat >= heartbeat_s:
                 last_heartbeat = time.monotonic()
                 yield "event: heartbeat\ndata: {}\n\n"
-            time.sleep(0.05)
 
     return Response(stream_with_context(generate()), mimetype="text/event-stream")

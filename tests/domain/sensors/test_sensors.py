@@ -7,21 +7,23 @@ Prueba los cinco sensores contra un WorldModel sintético controlado.
 """
 
 import math
-import pytest
-from simulador_ev3.domain.world.world_model    import WorldModel
-from simulador_ev3.domain.world.surface_model  import SurfaceModel, SurfaceColor
-from simulador_ev3.domain.world.obstacle_model import ObstacleModel
-from simulador_ev3.domain.world.beacon_model   import BeaconModel
-from simulador_ev3.domain.sensors.touch_sensor_model      import TouchSensorModel
-from simulador_ev3.domain.sensors.ultrasonic_sensor_model import UltrasonicSensorModel
-from simulador_ev3.domain.sensors.color_sensor_model      import ColorSensorModel
-from simulador_ev3.domain.sensors.gyro_sensor_model       import GyroSensorModel
-from simulador_ev3.domain.sensors.infrared_sensor_model   import InfraredSensorModel
 
+import pytest
+
+from simulador_ev3.domain.sensors.color_sensor_model import ColorSensorModel
+from simulador_ev3.domain.sensors.gyro_sensor_model import GyroSensorModel
+from simulador_ev3.domain.sensors.infrared_sensor_model import InfraredSensorModel
+from simulador_ev3.domain.sensors.touch_sensor_model import TouchSensorModel
+from simulador_ev3.domain.sensors.ultrasonic_sensor_model import UltrasonicSensorModel
+from simulador_ev3.domain.world.beacon_model import BeaconModel
+from simulador_ev3.domain.world.obstacle_model import ObstacleModel
+from simulador_ev3.domain.world.surface_model import SurfaceColor, SurfaceModel
+from simulador_ev3.domain.world.world_model import WorldModel
 
 # ------------------------------------------------------------------ #
 # Mundo de prueba compartido
 # ------------------------------------------------------------------ #
+
 
 @pytest.fixture
 def world_open() -> WorldModel:
@@ -51,6 +53,7 @@ def world_black_line() -> WorldModel:
 # TouchSensorModel
 # ================================================================== #
 
+
 class TestTouchSensor:
     def test_not_pressed_in_open_world(self, world_open: WorldModel) -> None:
         sensor = TouchSensorModel(port_name="S1", offset_x_mm=80.0)
@@ -59,9 +62,7 @@ class TestTouchSensor:
 
     def test_pressed_when_against_wall(self, world_with_wall: WorldModel) -> None:
         # Robot a x=400 mm, sensor a +80 mm → x=480, cerca de la pared en x=500
-        sensor = TouchSensorModel(
-            port_name="S1", offset_x_mm=80.0, robot_radius_mm=25.0
-        )
+        sensor = TouchSensorModel(port_name="S1", offset_x_mm=80.0, robot_radius_mm=25.0)
         sensor.update(400.0, 1000.0, 0.0, world_with_wall)
         assert sensor.pressed()
 
@@ -81,12 +82,13 @@ class TestTouchSensor:
 # UltrasonicSensorModel
 # ================================================================== #
 
+
 class TestUltrasonicSensor:
     def test_reads_max_in_open_world(self, world_open: WorldModel) -> None:
         sensor = UltrasonicSensorModel(port_name="S4", offset_x_mm=0.0)
         # Robot en el centro apuntando al este — borde a 1000 mm
         sensor.update(1000.0, 1000.0, 0.0, world_open)
-        assert sensor.distance() > 500   # al menos 500 mm libre
+        assert sensor.distance() > 500  # al menos 500 mm libre
 
     def test_detects_wall(self, world_with_wall: WorldModel) -> None:
         # Robot en x=100, pared en x=500 → distancia ~400 mm
@@ -116,6 +118,7 @@ class TestUltrasonicSensor:
 # ================================================================== #
 # ColorSensorModel
 # ================================================================== #
+
 
 class TestColorSensor:
     def test_reads_white_on_white_surface(self, world_open: WorldModel) -> None:
@@ -155,6 +158,7 @@ class TestColorSensor:
 # GyroSensorModel
 # ================================================================== #
 
+
 class TestGyroSensor:
     def test_initial_angle_is_zero(self) -> None:
         sensor = GyroSensorModel()
@@ -163,26 +167,26 @@ class TestGyroSensor:
 
     def test_angle_after_rotation(self) -> None:
         sensor = GyroSensorModel()
-        sensor.update(0.0, 0.02)             # primer tick (inicializa)
-        sensor.update(math.pi / 2, 0.02)    # 90° de rotación
-        assert 85 <= sensor.angle() <= 95   # ~90°
+        sensor.update(0.0, 0.02)  # primer tick (inicializa)
+        sensor.update(math.pi / 2, 0.02)  # 90° de rotación
+        assert 85 <= sensor.angle() <= 95  # ~90°
 
     def test_speed_during_rotation(self) -> None:
         sensor = GyroSensorModel()
         sensor.update(0.0, 0.02)
         # 90° en 0.02 s → ~4500 °/s
         sensor.update(math.pi / 2, 0.02)
-        assert sensor.speed() > 1000   # claramente positivo
+        assert sensor.speed() > 1000  # claramente positivo
 
     def test_speed_idle_is_zero(self) -> None:
         sensor = GyroSensorModel()
         sensor.update(0.5, 0.02)
-        sensor.update(0.5, 0.02)          # sin cambio de theta
+        sensor.update(0.5, 0.02)  # sin cambio de theta
         assert sensor.speed() == 0
 
     def test_reset_angle(self) -> None:
         sensor = GyroSensorModel()
-        sensor.update(math.pi, 0.02)    # 180°
+        sensor.update(math.pi, 0.02)  # 180°
         sensor.update(math.pi, 0.02)
         sensor.reset_angle(0)
         assert sensor.angle() == 0
@@ -198,6 +202,7 @@ class TestGyroSensor:
 # InfraredSensorModel
 # ================================================================== #
 
+
 class TestInfraredSensor:
     def test_proximity_in_open_world(self, world_open: WorldModel) -> None:
         sensor = InfraredSensorModel(port_name="S2", offset_x_mm=0.0)
@@ -208,9 +213,9 @@ class TestInfraredSensor:
         world = WorldModel(width_mm=2000, height_mm=2000)
         world.add_obstacle(ObstacleModel.from_rect(300, 0, 50, 2000, "wall"))
         sensor = InfraredSensorModel(offset_x_mm=0.0)
-        sensor.update(1000.0, 1000.0, 0.0, world)   # lejos
+        sensor.update(1000.0, 1000.0, 0.0, world)  # lejos
         d_far = sensor.distance()
-        sensor.update(100.0, 1000.0, 0.0, world)    # cerca
+        sensor.update(100.0, 1000.0, 0.0, world)  # cerca
         d_near = sensor.distance()
         assert d_near >= d_far
 

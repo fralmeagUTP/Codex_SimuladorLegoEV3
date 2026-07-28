@@ -13,10 +13,10 @@ from simulador_ev3.core.event_bus import (
     EventBus,
 )
 
-
 # ---------------------------------------------------------------------------
 # Subscripción y desuscripción
 # ---------------------------------------------------------------------------
+
 
 class TestSubscription:
     def setup_method(self):
@@ -70,14 +70,19 @@ class TestSubscription:
 # Publicación
 # ---------------------------------------------------------------------------
 
+
 class TestPublish:
     def setup_method(self):
         self.bus = EventBus()
         self.received: list[dict] = []
 
     def test_publish_returns_handler_count(self):
-        def h1(e, p): pass
-        def h2(e, p): pass
+        def h1(e, p):
+            pass
+
+        def h2(e, p):
+            pass
+
         self.bus.subscribe(EVENT_SENSOR_UPDATED, h1)
         self.bus.subscribe(EVENT_SENSOR_UPDATED, h2)
         count = self.bus.publish(EVENT_SENSOR_UPDATED, {"port": "S1", "data": {}})
@@ -89,8 +94,7 @@ class TestPublish:
 
     def test_payload_passed_to_handler(self):
         payloads = []
-        self.bus.subscribe(EVENT_SIMULATION_STOPPED,
-                           lambda e, p: payloads.append(p))
+        self.bus.subscribe(EVENT_SIMULATION_STOPPED, lambda e, p: payloads.append(p))
         self.bus.publish(EVENT_SIMULATION_STOPPED, {"reason": "user"})
         assert payloads[0]["reason"] == "user"
 
@@ -112,10 +116,8 @@ class TestPublish:
 
     def test_multiple_events_independent(self):
         log: list[str] = []
-        self.bus.subscribe(EVENT_SIMULATION_STARTED,
-                           lambda e, p: log.append("start"))
-        self.bus.subscribe(EVENT_SIMULATION_STOPPED,
-                           lambda e, p: log.append("stop"))
+        self.bus.subscribe(EVENT_SIMULATION_STARTED, lambda e, p: log.append("start"))
+        self.bus.subscribe(EVENT_SIMULATION_STOPPED, lambda e, p: log.append("stop"))
         self.bus.publish(EVENT_SIMULATION_STARTED, {})
         self.bus.publish(EVENT_SIMULATION_STOPPED, {"reason": "ok"})
         assert log == ["start", "stop"]
@@ -124,6 +126,7 @@ class TestPublish:
 # ---------------------------------------------------------------------------
 # Validación de eventos
 # ---------------------------------------------------------------------------
+
 
 class TestStrictEvents:
     def test_unknown_event_raises_in_strict_mode(self):
@@ -143,6 +146,7 @@ class TestStrictEvents:
 # Thread-safety
 # ---------------------------------------------------------------------------
 
+
 class TestThreadSafety:
     def test_concurrent_subscribe_and_publish(self):
         """Suscribirse y publicar desde múltiples hilos no debe corromper estado."""
@@ -155,6 +159,7 @@ class TestThreadSafety:
             def h(e, p):
                 with lock:
                     results.append(i)
+
             bus.subscribe(EVENT_SENSOR_UPDATED, h)
 
         def publisher_thread():
@@ -162,8 +167,7 @@ class TestThreadSafety:
                 bus.publish(EVENT_SENSOR_UPDATED, {"port": "S1", "data": {}})
                 time.sleep(0.001)
 
-        sub_threads = [threading.Thread(target=subscriber_thread, args=(i,))
-                       for i in range(5)]
+        sub_threads = [threading.Thread(target=subscriber_thread, args=(i,)) for i in range(5)]
         pub_thread = threading.Thread(target=publisher_thread)
 
         for t in sub_threads:
@@ -180,6 +184,7 @@ class TestThreadSafety:
 # ---------------------------------------------------------------------------
 # subscriber_count y all_events
 # ---------------------------------------------------------------------------
+
 
 class TestQueryMethods:
     def test_subscriber_count(self):

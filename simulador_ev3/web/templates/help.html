@@ -32,50 +32,21 @@
       Sigue estos mini tutoriales en orden. Cada bloque te dice que hacer, que debes ver al final y que revisar si algo falla.
     </p>
     <div class="help-tutorial-grid">
+      {% for tutorial in tutorials %}
       <article class="tutorial-card">
-        <h3>Tutorial A: Crear tu primer mundo</h3>
+        <h3>{{ tutorial.title }}</h3>
         <figure class="tutorial-figure">
-          <img src="{{ url_for('static', filename='images/help/tutorial_mundo.svg', v=asset_version) }}" alt="Pasos para crear, validar y guardar un mundo" loading="lazy">
+          <img src="{{ url_for('static', filename='images/help/' + tutorial.image_name, v=asset_version) }}" alt="{{ tutorial.image_alt }}" loading="lazy">
         </figure>
         <ol class="tutorial-steps">
-          <li>Abre la seccion <strong>Mundos</strong> desde el menu superior.</li>
-          <li>Selecciona muros o lineas y colocalos con clic en el canvas.</li>
-          <li>Pulsa <strong>Validar</strong>.</li>
-          <li>Pulsa <strong>Guardar como</strong> y guarda el archivo JSON.</li>
+          {% for step in tutorial.steps %}
+          <li>{{ step }}</li>
+          {% endfor %}
         </ol>
-        <p class="tutorial-result"><strong>Resultado esperado:</strong> el mundo queda exportado como <code>.json</code>.</p>
-        <p class="tutorial-fallback"><strong>Si falla:</strong> revisa la consola inferior del editor y corrige validaciones pendientes.</p>
+        <p class="tutorial-result"><strong>Resultado esperado:</strong> {{ tutorial.expected_result }}</p>
+        <p class="tutorial-fallback"><strong>Si falla:</strong> {{ tutorial.recovery }}</p>
       </article>
-
-      <article class="tutorial-card">
-        <h3>Tutorial B: Ejecutar un script en simulacion</h3>
-        <figure class="tutorial-figure">
-          <img src="{{ url_for('static', filename='images/help/tutorial_simulacion.svg', v=asset_version) }}" alt="Vista guiada de simulacion con controles y telemetria" loading="lazy">
-        </figure>
-        <ol class="tutorial-steps">
-          <li>Abre la seccion <strong>Simulacion</strong> desde el menu superior.</li>
-          <li>Abre un ejemplo desde el menu <strong>Ejemplos</strong>.</li>
-          <li>Selecciona un mundo desde <strong>Mundos</strong>.</li>
-          <li>Pulsa ejecutar y observa la telemetria.</li>
-        </ol>
-        <p class="tutorial-result"><strong>Resultado esperado:</strong> el robot cambia estado y ves datos en sensores, motores y altavoz EV3.</p>
-        <p class="tutorial-fallback"><strong>Si falla:</strong> valida que exista mundo cargado y que el script no tenga errores de sintaxis.</p>
-      </article>
-
-      <article class="tutorial-card">
-        <h3>Tutorial C: Depurar por pasos</h3>
-        <figure class="tutorial-figure">
-          <img src="{{ url_for('static', filename='images/help/tutorial_debug.svg', v=asset_version) }}" alt="Depuracion con breakpoints y ejecucion paso a paso" loading="lazy">
-        </figure>
-        <ol class="tutorial-steps">
-          <li>En simulacion, haz clic en el margen del editor para poner breakpoints.</li>
-          <li>Ejecuta el script en modo debug.</li>
-          <li>Usa continuar/paso para inspeccionar el flujo.</li>
-          <li>Usa <code>Ctrl+Space</code> para ayudarte con APIs Pybricks.</li>
-        </ol>
-        <p class="tutorial-result"><strong>Resultado esperado:</strong> puedes identificar exactamente donde se detiene o falla tu codigo.</p>
-        <p class="tutorial-fallback"><strong>Si falla:</strong> limpia breakpoints y vuelve a correr desde inicio.</p>
-      </article>
+      {% endfor %}
     </div>
   </section>
 

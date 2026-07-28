@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
+from simulador_ev3._version import WEB_ASSET_VERSION
 from simulador_ev3.shared.paths import (
     resolve_examples_dir,
     resolve_image_assets_dir,
@@ -14,22 +16,26 @@ from simulador_ev3.shared.paths import (
 )
 from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
+DEVELOPMENT_SECRET_KEY = hashlib.sha256(b"ev3-local-development-key").hexdigest()
+PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod"})
+
 
 class DefaultWebConfig:
-    SECRET_KEY = "dev-simulador-ev3"
+    APP_ENV = "development"
+    SECRET_KEY = DEVELOPMENT_SECRET_KEY
     EXAMPLES_DIR = resolve_examples_dir()
     WORLDS_DIR = resolve_worlds_dir()
     IMAGE_ASSETS_DIR = resolve_image_assets_dir()
     SESSION_IDLE_TIMEOUT_MIN = 45
     MAX_ACTIVE_SESSIONS = 20
     MAX_RUNNING_SIMULATIONS = 8
-    SCRIPT_MAX_RUNTIME_S = 0.0
+    SCRIPT_MAX_RUNTIME_S = 120.0
     MAX_SCRIPT_SIZE_BYTES = 128 * 1024
     MAX_WORLD_JSON_SIZE_BYTES = 2 * 1024 * 1024
     SSE_HEARTBEAT_S = 15
     WEB_SNAPSHOT_MAX_HZ = 12.0
     START_IDEMPOTENCY_TTL_S = 20.0
-    STATIC_ASSET_VERSION = "2026-05-25-session-retry-v4"
+    STATIC_ASSET_VERSION = WEB_ASSET_VERSION
     SESSION_CLEANUP_INTERVAL_S = 60
     ENABLE_SESSION_CLEANUP_THREAD = True
     ENABLE_SECURITY_HEADERS = True
@@ -48,9 +54,13 @@ class DefaultWebConfig:
     DEBUGSTATE_V2_ENABLED = True
     WEB_DEBUGSTATE_V2 = True
     TK_DEBUGSTATE_V2 = True
+    WEB_SSE_ENABLED = True
+    WEB_POLLING_INTERVAL_MS = 900
+    WEB_SESSION_CREATE_WAIT_MS = 0
 
 
 _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
+    "APP_ENV": str,
     "SECRET_KEY": str,
     "EXAMPLES_DIR": Path,
     "WORLDS_DIR": Path,
@@ -83,6 +93,9 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "DEBUGSTATE_V2_ENABLED": lambda value: _parse_bool(value),
     "WEB_DEBUGSTATE_V2": lambda value: _parse_bool(value),
     "TK_DEBUGSTATE_V2": lambda value: _parse_bool(value),
+    "WEB_SSE_ENABLED": lambda value: _parse_bool(value),
+    "WEB_POLLING_INTERVAL_MS": int,
+    "WEB_SESSION_CREATE_WAIT_MS": int,
 }
 
 
@@ -104,3 +117,35 @@ def apply_env_overrides(config: dict[str, Any]) -> None:
         if raw is None:
             continue
         config[key] = caster(raw)
+
+
+def is_production(config: dict[str, Any]) -> bool:
+    """Return whether the effective configuration targets a production deployment."""
+
+    environment = str(config.get("APP_ENV", "development")).strip().lower()
+    return environment in PRODUCTION_ENVIRONMENTS
+
+
+def validate_runtime_config(config: dict[str, Any]) -> None:
+    """Reject insecure settings when the web app is explicitly deployed to production."""
+
+    if not is_production(config):
+        return
+
+    problems: list[str] = []
+    secret_key = str(config.get("SECRET_KEY", ""))
+    if secret_key == DEVELOPMENT_SECRET_KEY or len(secret_key) < 32:
+        problems.append("EV3_WEB_SECRET_KEY debe ser distinta de la clave de desarrollo y tener al menos 32 caracteres")
+
+    try:
+        timeout_s = float(config.get("SCRIPT_MAX_RUNTIME_S", 0.0))
+    except (TypeError, ValueError):
+        timeout_s = 0.0
+    if timeout_s <= 0:
+        problems.append("EV3_WEB_SCRIPT_MAX_RUNTIME_S debe ser un valor positivo")
+
+    if not bool(config.get("SESSION_COOKIE_SECURE", False)):
+        problems.append("EV3_WEB_SESSION_COOKIE_SECURE debe ser true en produccion HTTPS")
+
+    if problems:
+        raise RuntimeError("Configuracion de produccion invalida: " + "; ".join(problems))

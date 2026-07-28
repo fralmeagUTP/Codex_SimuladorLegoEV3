@@ -37,8 +37,9 @@ class Pose:
         y:     Posición vertical en mm.
         theta: Orientación en radianes (0 = +X, antihorario positivo).
     """
-    x:     float = 0.0
-    y:     float = 0.0
+
+    x: float = 0.0
+    y: float = 0.0
     theta: float = 0.0  # radianes
 
     @property
@@ -47,10 +48,7 @@ class Pose:
         return math.degrees(self.theta)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"Pose(x={self.x:.2f}mm, y={self.y:.2f}mm, "
-            f"θ={self.theta_deg:.2f}°)"
-        )
+        return f"Pose(x={self.x:.2f}mm, y={self.y:.2f}mm, θ={self.theta_deg:.2f}°)"
 
 
 @dataclass
@@ -68,7 +66,7 @@ class RobotModel:
         initial_pose: Pose inicial en el mundo (por defecto origen).
     """
 
-    drivebase:    DriveBaseModel
+    drivebase: DriveBaseModel
     port_manager: PortManager
     initial_pose: Pose = field(default_factory=Pose)
 
@@ -133,9 +131,9 @@ class RobotModel:
 
         # Integración cinemática (SAD §13)
         theta = self._pose.theta
-        self._pose.x     += delta_distance_mm * math.cos(theta)
-        self._pose.y     += delta_distance_mm * math.sin(theta)
-        self._pose.theta  = theta + delta_theta
+        self._pose.x += delta_distance_mm * math.cos(theta)
+        self._pose.y += delta_distance_mm * math.sin(theta)
+        self._pose.theta = theta + delta_theta
 
         # Normalizar theta en [-π, π] para evitar acumulación ilimitada
         self._pose.theta = math.atan2(
@@ -158,7 +156,4 @@ class RobotModel:
         self._pose = Pose(x=target.x, y=target.y, theta=target.theta)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return (
-            f"RobotModel(pose={self._pose!r}, "
-            f"drivebase={self.drivebase.state.name})"
-        )
+        return f"RobotModel(pose={self._pose!r}, drivebase={self.drivebase.state.name})"

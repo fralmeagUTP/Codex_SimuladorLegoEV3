@@ -5,11 +5,11 @@ Tests unitarios para PortManager (domain/robot/port_manager.py).
 """
 
 import pytest
+
 from simulador_ev3.domain.robot.port_manager import (
-    PortManager,
     DeviceCategory,
     PortError,
-    PortType,
+    PortManager,
 )
 
 

@@ -8,15 +8,17 @@ Muestra en tiempo real:
 
 Actualizacion: llamar a update_from_dto(dto) en cada tick.
 """
+
 from __future__ import annotations
 
 import tkinter as tk
 from typing import Optional
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS
 
 # Paleta de colores LED
-_LED_COLORS: dict[str, str] = {
+_LED_COLORS: dict[str | None, str] = {
     "RED": "#F44336",
     "GREEN": "#4CAF50",
     "ORANGE": "#FF9800",
@@ -25,9 +27,9 @@ _LED_COLORS: dict[str, str] = {
 }
 
 # Paleta general del panel
-_BRICK_BG = "#FFFFFF"
-_LABEL_FG = "#1F2F46"
-_DIVIDER = "#E3E9F1"
+_BRICK_BG = LIGHT_TOKENS.surface
+_LABEL_FG = LIGHT_TOKENS.text
+_DIVIDER = LIGHT_TOKENS.border
 
 # Paleta de LCD EV3 simulado (monocromo)
 _LCD_FRAME = "#4F585F"
@@ -36,8 +38,10 @@ _LCD_FG = "#111111"
 _LCD_SCANLINE = "#D7DFCA"
 _LCD_LED_ON = "#F8F8EF"
 _LCD_LED_OFF = "#A4AA95"
-_LCD_CANVAS_W = 423  # +30% respecto a 325
-_LCD_CANVAS_H = 304  # +30% respecto a 234
+_LCD_CANVAS_W = 300
+# Debe dejar espacio visible para la tabla Robot/Estado bajo la LCD en la
+# franja inferior de la ventana, incluso sin redimensionar el panel.
+_LCD_CANVAS_H = 100
 
 
 class BrickPanel(tk.Frame):
@@ -56,6 +60,15 @@ class BrickPanel(tk.Frame):
         super().__init__(parent, **kwargs)
 
         self._screen_state = self._default_screen_state()
+        self._scroll_canvas = tk.Canvas(self, bg=_BRICK_BG, highlightthickness=0)
+        self._scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=self._scroll_canvas.yview)
+        self._scroll_canvas.configure(yscrollcommand=self._scrollbar.set)
+        self._scroll_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self._scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self._content = tk.Frame(self._scroll_canvas, bg=_BRICK_BG)
+        self._content_window = self._scroll_canvas.create_window((0, 0), window=self._content, anchor=tk.NW)
+        self._content.bind("<Configure>", self._on_content_configure)
+        self._scroll_canvas.bind("<Configure>", self._on_panel_configure)
         self._build()
 
     # ------------------------------------------------------------------
@@ -68,41 +81,40 @@ class BrickPanel(tk.Frame):
         self._update_led(brick.get("led"))
         self._update_screen(brick.get("screen"))
         self._update_speaker(brick.get("speaker"))
+        self._update_robot_state(dto)
 
     def reset(self) -> None:
         """Devuelve el panel a su estado inicial (brick apagado)."""
         self._update_led(None)
         self._update_screen(None)
         self._update_speaker(None)
+        for variable in self._robot_vars.values():
+            variable.set("-")
 
     # ------------------------------------------------------------------
     # Construccion
     # ------------------------------------------------------------------
 
     def _build(self) -> None:
-        tk.Label(
-            self,
-            text="EV3 Brick",
-            bg=_BRICK_BG,
-            fg=_LABEL_FG,
-            font=("Segoe UI", 9, "bold"),
-            anchor=tk.W,
-            padx=12,
-        ).pack(fill=tk.X, pady=(8, 0))
-        self._build_led()
-        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
+        tk.Label(self._content, text="EV3 Brick", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 14, "bold"),
+                 anchor="center", relief=tk.SOLID, bd=1).pack(fill=tk.X, padx=8, pady=(8, 0), ipady=12)
+        status_row = tk.Frame(self._content, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
+        status_row.pack(fill=tk.X, padx=8)
+        status_row.grid_columnconfigure(0, weight=1)
+        status_row.grid_columnconfigure(1, weight=1)
+        self._build_led(status_row)
+        self._build_speaker(status_row)
         self._build_screen()
-        tk.Frame(self, height=1, bg=_DIVIDER).pack(fill=tk.X, pady=(8, 0))
-        self._build_speaker()
+        self._build_robot_state()
 
-    def _build_led(self) -> None:
-        row = tk.Frame(self, bg=_BRICK_BG)
-        row.pack(fill=tk.X, padx=12, pady=8)
-        tk.Label(row, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(
-            side=tk.LEFT
+    def _build_led(self, row: tk.Widget) -> None:
+        cell = tk.Frame(row, bg=_BRICK_BG, relief=tk.SOLID, bd=0)
+        cell.grid(row=0, column=0, sticky="nsew")
+        tk.Label(cell, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 11)).pack(
+            side=tk.LEFT, padx=(16, 6), pady=12
         )
         self._led_canvas = tk.Canvas(
-            row,
+            cell,
             width=24,
             height=24,
             bg=_BRICK_BG,
@@ -117,45 +129,77 @@ class BrickPanel(tk.Frame):
             fill=_LED_COLORS[None],
             outline="#778",
         )
-        self._led_label = tk.Label(row, text="Apagado", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9))
+        self._led_label = tk.Label(cell, text="Apagado", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9))
         self._led_label.pack(side=tk.LEFT)
 
     def _build_screen(self) -> None:
         tk.Label(
-            self,
+            self._content,
             text="Pantalla LCD EV3 (178x128):",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
-            font=("Segoe UI", 9, "bold"),
-        ).pack(anchor=tk.W, padx=12, pady=(8, 4))
+            font=("Segoe UI", 11), anchor="center",
+        ).pack(fill=tk.X, padx=16, pady=(10, 4))
 
         self._screen_canvas = tk.Canvas(
-            self,
+            self._content,
             width=_LCD_CANVAS_W,
             height=_LCD_CANVAS_H,
-            bg=_BRICK_BG,
-            highlightthickness=0,
-            bd=0,
-            relief=tk.FLAT,
+            bg=_BRICK_BG, highlightthickness=0, bd=1, relief=tk.SOLID,
         )
-        self._screen_canvas.pack(fill=tk.X, padx=2)
+        self._screen_canvas.pack(fill=tk.X, padx=16)
         self._screen_canvas.bind("<Configure>", self._on_screen_resize)
         self._render_screen()
 
-    def _build_speaker(self) -> None:
-        row = tk.Frame(self, bg=_BRICK_BG)
-        row.pack(fill=tk.X, padx=12, pady=8)
-        tk.Label(row, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9)).pack(
-            side=tk.LEFT
+    def _build_speaker(self, row: tk.Widget) -> None:
+        cell = tk.Frame(row, bg=_BRICK_BG, relief=tk.SOLID, bd=0)
+        cell.grid(row=0, column=1, sticky="nsew")
+        tk.Label(cell, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 11)).pack(
+            side=tk.LEFT, padx=(18, 8), pady=12
         )
         self._speaker_label = tk.Label(
-            row,
+            cell,
             text="Inactivo",
             bg=_BRICK_BG,
             fg=_LABEL_FG,
             font=("Segoe UI", 9),
         )
         self._speaker_label.pack(side=tk.LEFT, padx=6)
+
+    def _build_robot_state(self) -> None:
+        """Muestra el estado del robot junto al brick, debajo de la LCD."""
+        section = tk.Frame(self._content, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
+        self._robot_state_section = section
+        section.pack(fill=tk.X, padx=16, pady=(8, 8))
+        tk.Label(
+            section,
+            text="ROBOT / ESTADO",
+            bg=_BRICK_BG,
+            fg=_LABEL_FG,
+            font=("Segoe UI", 11, "bold"),
+            anchor="center",
+        ).grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(4, 2))
+        self._robot_vars = {key: tk.StringVar(value="-") for key in ("x", "y", "theta")}
+        labels = (("X:", "x", ""), ("Y:", "y", ""), ("Theta:", "theta", ""))
+        for row, (label, key, unit) in enumerate(labels, start=1):
+            tk.Label(section, text=label, bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 10), anchor=tk.W).grid(
+                row=row, column=0, sticky="nsew", padx=(10, 4), pady=1
+            )
+            value = tk.Label(section, textvariable=self._robot_vars[key], bg=_BRICK_BG, fg=_LABEL_FG,
+                             font=("Segoe UI", 10), anchor="center")
+            value.grid(row=row, column=1, sticky="nsew", padx=(4, 10), pady=1)
+            if unit:
+                tk.Label(section, text=unit, bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 9), anchor=tk.W).grid(
+                    row=row, column=2, sticky=tk.W, padx=(0, 10), pady=1
+                )
+        section.grid_columnconfigure(0, weight=1)
+        section.grid_columnconfigure(1, weight=1)
+
+    def _on_content_configure(self, _event) -> None:
+        self._scroll_canvas.configure(scrollregion=self._scroll_canvas.bbox("all"))
+
+    def _on_panel_configure(self, event) -> None:
+        self._scroll_canvas.itemconfigure(self._content_window, width=event.width)
 
     # ------------------------------------------------------------------
     # Actualizaciones
@@ -173,9 +217,7 @@ class BrickPanel(tk.Frame):
             state["draw_ops"] = [dict(op) for op in screen_data.get("draw_ops", []) if isinstance(op, dict)]
             state["width_px"] = int(screen_data.get("width_px", state["width_px"]))
             state["height_px"] = int(screen_data.get("height_px", state["height_px"]))
-            state["backlight_leds"] = int(
-                screen_data.get("backlight_leds", state["backlight_leds"])
-            )
+            state["backlight_leds"] = int(screen_data.get("backlight_leds", state["backlight_leds"]))
         elif isinstance(screen_data, str):
             state["lines"] = screen_data.splitlines() or [screen_data]
         elif screen_data:
@@ -194,6 +236,12 @@ class BrickPanel(tk.Frame):
         else:
             label = "-"
         self._speaker_label.configure(text=label)
+
+    def _update_robot_state(self, dto: SnapshotDTO) -> None:
+        robot = dto.robot
+        self._robot_vars["x"].set(f"{float(robot.get('x_mm', 0)) / 10.0:.1f}")
+        self._robot_vars["y"].set(f"{float(robot.get('y_mm', 0)) / 10.0:.1f}")
+        self._robot_vars["theta"].set(f"{float(robot.get('theta_deg', 0)):.1f}")
 
     # ------------------------------------------------------------------
     # Render LCD
@@ -231,7 +279,7 @@ class BrickPanel(tk.Frame):
 
         # Scanlines para dar sensacion de matriz monocromo
         scan_step = max(2, int(round(scale * 2.5)))
-        y = int(y0)
+        y: float = float(int(y0))
         while y <= int(y1):
             canvas.create_line(x0, y, x1, y, fill=_LCD_SCANLINE)
             y += scan_step

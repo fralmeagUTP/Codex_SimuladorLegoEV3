@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import time
-from io import BytesIO
 from datetime import timedelta
+from io import BytesIO
 
 import pytest
 
+from simulador_ev3.shared.session_status import SessionStatus
 from simulador_ev3.web.app import create_app
 from simulador_ev3.web.errors import InvalidPayload, SessionNotFound
 from simulador_ev3.web.file_session_store import FileSessionStore
@@ -102,6 +103,22 @@ def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path)
 
     assert 1 <= len(snapshot_events) <= 4
     assert latest["tick"] > snapshot_events[-1]["payload"]["tick"]
+    assert latest["snapshot_version"] == 1
+    assert latest["snapshot_generation"] == 0
+
+
+def test_web_session_discards_late_transition_after_finished(tmp_path):
+    session = SimulationSession(
+        session_id="state-session",
+        config={"WORLDS_DIR": tmp_path / "worlds", "EXAMPLES_DIR": tmp_path / "examples"},
+        max_runtime_s=1.0,
+    )
+
+    assert session._transition(SessionStatus.READY)
+    assert session._transition(SessionStatus.RUNNING)
+    assert session._transition(SessionStatus.FINISHED)
+    assert not session._transition(SessionStatus.PAUSED)
+    assert session.status == "finished"
 
 
 def test_error_response_for_non_object_json_payload(tmp_path):

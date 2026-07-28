@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name    = "simulador-ev3"
-version = "1.3.2"
+dynamic = ["version"]
 description = "Simulador educativo LEGO EV3 compatible con API Pybricks"
 requires-python = ">=3.11"
-dependencies = ["Flask>=3.1"]   # tkinter para escritorio, Flask para web
+dependencies = ["Flask>=3.1", "opentelemetry-api>=1.28"]   # tkinter para escritorio, Flask para web
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov", "playwright>=1.45"]
+dev = ["pytest>=8.0", "pytest-cov", "playwright>=1.45", "Pillow>=10", "ruff>=0.8", "mypy>=1.13", "bandit>=1.8", "pip-audit>=2.7", "pre-commit>=4.0"]
+desktop-e2e = ["pywinauto>=0.6.9", "Pillow>=10"]
 web-prod = ["waitress>=3.0"]
 web-redis = ["redis>=5.1,<8"]
 
@@ -20,7 +21,51 @@ python_files  = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+markers = [
+    "desktop_e2e: prueba Windows con escritorio interactivo y controles nativos",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+extend-exclude = [".git", ".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+files = [
+    "simulador_ev3/app",
+    "simulador_ev3/core",
+    "simulador_ev3/domain",
+    "simulador_ev3/application",
+    "simulador_ev3/infrastructure",
+    "simulador_ev3/persistence",
+    "simulador_ev3/pybricks_api",
+    "simulador_ev3/runtime",
+    "simulador_ev3/shared",
+    "simulador_ev3/ui",
+    "simulador_ev3/web",
+]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B102", "B110", "B112", "B307"]
+
+[tool.coverage.run]
+source = ["simulador_ev3"]
+
+[tool.coverage.report]
+fail_under = 70
+precision = 1
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["simulador_ev3*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "simulador_ev3.__version__"}

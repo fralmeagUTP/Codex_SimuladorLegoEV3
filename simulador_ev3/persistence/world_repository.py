@@ -23,6 +23,7 @@ Formato JSON estable:
   }
 }
 """
+
 from __future__ import annotations
 
 import json
@@ -88,13 +89,15 @@ class WorldRepository:
     @staticmethod
     def _surface_to_dict(surface: SurfaceModel) -> dict[str, Any]:
         cells: list[dict[str, Any]] = []
-        for (col, row), cell in sorted(surface._grid.items()):
-            cells.append({
-                "col": col,
-                "row": row,
-                "color": cell.color.name,
-                "reflectance": cell.reflectance,
-            })
+        for col, row, cell in sorted(surface.iter_defined_cells()):
+            cells.append(
+                {
+                    "col": col,
+                    "row": row,
+                    "color": cell.color.name,
+                    "reflectance": cell.reflectance,
+                }
+            )
         return {
             "cell_size_mm": surface.cell_size_mm,
             "default_color": surface.default_color.name,

@@ -1,4 +1,4 @@
-﻿"""Smoke tests E2E para ejemplos crÃ­ticos de release (Fase 9)."""
+"""Smoke tests E2E para ejemplos crÃ­ticos de release (Fase 9)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import pytest
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.pybricks_api.factory import PybricksFactory
-
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 EXAMPLES_DIR = ROOT_DIR / "Documentos" / "Ejemplos"
@@ -60,4 +59,3 @@ def test_critical_examples_smoke(world_file: str, example_file: str, run_s: floa
     assert "started" in statuses
     assert "stopped" in statuses
     assert runtime_errors == []
-

@@ -5,7 +5,19 @@ window.EV3Api = (() => {
   let lastWorkerInfo = null;
   const inFlightByKey = new Map();
   const MAX_SESSION_RECOVERY_ATTEMPTS = 4;
+  const MAX_SESSION_FORBIDDEN_RECOVERY_ATTEMPTS = 1;
   const TRANSIENT_HTTP_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+  const DEFAULT_CAPACITY_WAIT_MS = 180000;
+  const DEFAULT_CAPACITY_BASE_DELAY_MS = 900;
+  const DEFAULT_CAPACITY_MAX_DELAY_MS = 5000;
+  const DEFAULT_CAPACITY_JITTER_MS = 350;
+  const DEFAULT_SESSION_CREATE_WAIT_MS = (() => {
+    const raw = Number.parseInt(
+      document?.documentElement?.dataset?.ev3SessionCreateWaitMs || "0",
+      10,
+    );
+    return Number.isFinite(raw) ? Math.max(0, raw) : 0;
+  })();
 
   const rootData = document.documentElement?.dataset?.ev3BasePath || "";
   const basePath = rootData === "/" ? "" : rootData.replace(/\/+$/, "");
@@ -66,6 +78,13 @@ window.EV3Api = (() => {
       error.code = data.error?.code || null;
       error.workerId = workerId || null;
       error.workerPid = workerPid || null;
+      const retryAfterRaw = response.headers.get("Retry-After");
+      if (retryAfterRaw !== null) {
+        const retryAfterInt = Number.parseInt(String(retryAfterRaw), 10);
+        if (Number.isFinite(retryAfterInt) && retryAfterInt > 0) {
+          error.retryAfterS = retryAfterInt;
+        }
+      }
       if (error.workerId || error.workerPid) {
         const workerLabel = [
           error.workerId ? `worker=${error.workerId}` : null,
@@ -109,13 +128,26 @@ window.EV3Api = (() => {
   async function request(path, options = {}) {
     let requestPath = path;
     let lastError = null;
+    let forbiddenRecoveries = 0;
     for (let attempt = 0; attempt <= MAX_SESSION_RECOVERY_ATTEMPTS; attempt += 1) {
       try {
         return await rawRequest(requestPath, options);
       } catch (error) {
         lastError = error;
-        const canRecover = error?.status === 404 && error?.code === "SESSION_NOT_FOUND";
-        if (!canRecover || attempt >= MAX_SESSION_RECOVERY_ATTEMPTS) break;
+        const canRecoverNotFound = error?.status === 404 && error?.code === "SESSION_NOT_FOUND";
+        const canRecoverForbidden = error?.status === 403 && error?.code === "SESSION_FORBIDDEN";
+        if (
+          canRecoverForbidden
+          && forbiddenRecoveries < MAX_SESSION_FORBIDDEN_RECOVERY_ATTEMPTS
+        ) {
+          forbiddenRecoveries += 1;
+          // Si el token en memoria quedo desfasado, forzar reutilizacion por cookie.
+          ownerToken = null;
+          const recovered = await recoverSession();
+          requestPath = withSessionPath(path, recovered?.session_id || sessionId);
+          continue;
+        }
+        if (!canRecoverNotFound || attempt >= MAX_SESSION_RECOVERY_ATTEMPTS) break;
         const recovered = await recoverSession();
         requestPath = withSessionPath(path, recovered?.session_id || sessionId);
       }
@@ -131,6 +163,13 @@ window.EV3Api = (() => {
     if (code.includes("NETWORK") || code.includes("TIMEOUT")) return true;
     const msg = String(error.message || "").toLowerCase();
     return msg.includes("http2") || msg.includes("networkerror");
+  }
+
+  function isCapacityError(error) {
+    if (!error) return false;
+    if (Number(error.status) === 429) return true;
+    const code = String(error.code || "").toUpperCase();
+    return code === "CAPACITY_EXCEEDED";
   }
 
   function sleep(ms) {
@@ -152,6 +191,65 @@ window.EV3Api = (() => {
       }
     }
     throw new Error("No se pudo completar la solicitud.");
+  }
+
+  function nextCapacityDelayMs(attempt, baseDelayMs, maxDelayMs, jitterMs) {
+    const expDelay = Math.min(maxDelayMs, baseDelayMs * (2 ** Math.max(0, attempt)));
+    const jitter = Math.floor(Math.random() * Math.max(0, jitterMs));
+    return expDelay + jitter;
+  }
+
+  async function requestWithCapacityWait(factory, policy = {}) {
+    const maxWaitMs = Number.isFinite(policy.maxWaitMs)
+      ? Math.max(0, Number(policy.maxWaitMs))
+      : DEFAULT_CAPACITY_WAIT_MS;
+    if (maxWaitMs <= 0) {
+      return factory();
+    }
+    const baseDelayMs = Number.isFinite(policy.baseDelayMs)
+      ? Math.max(50, Number(policy.baseDelayMs))
+      : DEFAULT_CAPACITY_BASE_DELAY_MS;
+    const maxDelayMs = Number.isFinite(policy.maxDelayMs)
+      ? Math.max(baseDelayMs, Number(policy.maxDelayMs))
+      : DEFAULT_CAPACITY_MAX_DELAY_MS;
+    const jitterMs = Number.isFinite(policy.jitterMs)
+      ? Math.max(0, Number(policy.jitterMs))
+      : DEFAULT_CAPACITY_JITTER_MS;
+
+    const startedAt = Date.now();
+    let attempt = 0;
+    let lastError = null;
+
+    while (Date.now() - startedAt <= maxWaitMs) {
+      try {
+        return await factory();
+      } catch (error) {
+        lastError = error;
+        if (!isCapacityError(error)) {
+          throw error;
+        }
+        const elapsed = Date.now() - startedAt;
+        const remaining = maxWaitMs - elapsed;
+        if (remaining <= 0) {
+          break;
+        }
+        const retryAfterMs = Number.isFinite(Number(error?.retryAfterS))
+          ? Math.max(0, Number(error.retryAfterS) * 1000)
+          : 0;
+        const delayMs = Math.min(
+          remaining,
+          Math.max(
+            retryAfterMs,
+            nextCapacityDelayMs(attempt, baseDelayMs, maxDelayMs, jitterMs),
+          ),
+        );
+        attempt += 1;
+        await sleep(delayMs);
+      }
+    }
+
+    if (lastError) throw lastError;
+    throw new Error("No se pudo reservar capacidad del servidor.");
   }
 
   function randomRequestId() {
@@ -182,10 +280,23 @@ window.EV3Api = (() => {
   }
 
   async function createSession(options = {}) {
-    const data = await request("/api/sessions", {
-      method: "POST",
-      body: JSON.stringify({ reuse: Boolean(options.reuse) }),
-    });
+    const createWaitMs = Number.isFinite(options.waitMs)
+      ? Math.max(0, Number(options.waitMs))
+      : DEFAULT_SESSION_CREATE_WAIT_MS;
+    const data = await requestWithCapacityWait(
+      () => requestWithPolicy("/api/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          reuse: Boolean(options.reuse),
+          wait_ms: Math.floor(createWaitMs),
+        }),
+      }, { retries: 2, baseDelayMs: 180 }),
+      {
+        maxWaitMs: Number.isFinite(options.maxWaitMs)
+          ? Number(options.maxWaitMs)
+          : Math.max(DEFAULT_CAPACITY_WAIT_MS, createWaitMs + 5000),
+      },
+    );
     sessionId = data.session_id;
     ownerToken = data.owner_token;
     return data;
@@ -242,6 +353,7 @@ window.EV3Api = (() => {
         }
       });
       source.addEventListener("world", (event) => handlers.world?.(parse(event)));
+      source.addEventListener("mission_result", (event) => handlers.missionResult?.(parse(event)));
       source.addEventListener("heartbeat", () => handlers.heartbeat?.());
       source.onerror = () => handlers.connectionError?.(source);
       return source;
@@ -255,15 +367,34 @@ window.EV3Api = (() => {
     ),
     start: (options = {}) => singleFlight(
       `start:${sessionId}`,
-      () => requestWithPolicy(`/api/sessions/${sessionId}/start`, {
-        method: "POST",
-        body: JSON.stringify(Object.assign({}, options, { request_id: randomRequestId() })),
-      }, { retries: 2, baseDelayMs: 160 }),
+      () => requestWithCapacityWait(
+        () => requestWithPolicy(`/api/sessions/${sessionId}/start`, {
+          method: "POST",
+          body: JSON.stringify(Object.assign({}, options, { request_id: randomRequestId() })),
+        }, { retries: 2, baseDelayMs: 160 }),
+        {
+          maxWaitMs: Number.isFinite(options.maxWaitMs)
+            ? Number(options.maxWaitMs)
+            : DEFAULT_CAPACITY_WAIT_MS,
+        },
+      ),
     ),
     pause: () => request(`/api/sessions/${sessionId}/pause`, { method: "POST", body: "{}" }),
     resume: () => request(`/api/sessions/${sessionId}/resume`, { method: "POST", body: "{}" }),
     stop: () => request(`/api/sessions/${sessionId}/stop`, { method: "POST", body: "{}" }),
     reset: () => request(`/api/sessions/${sessionId}/reset`, { method: "POST", body: "{}" }),
+    setRuntimeLimit: (maxRuntimeS) => request(`/api/sessions/${sessionId}/runtime-limit`, {
+      method: "POST",
+      body: JSON.stringify({ max_runtime_s: maxRuntimeS }),
+    }),
+    setSimulationProfile: (profile, calibration = {}) => request(`/api/sessions/${sessionId}/simulation-profile`, {
+      method: "POST",
+      body: JSON.stringify({ profile, calibration }),
+    }),
+    startTrace: () => request(`/api/sessions/${sessionId}/trace/start`, { method: "POST", body: "{}" }),
+    stopTrace: () => request(`/api/sessions/${sessionId}/trace/stop`, { method: "POST", body: "{}" }),
+    stepTick: () => request(`/api/sessions/${sessionId}/tick-step`, { method: "POST", body: "{}" }),
+    traceUrl: (format) => resolvePath(`/api/sessions/${sessionId}/trace?format=${encodeURIComponent(format)}`),
     setBreakpoints: (breakpoints) => request(`/api/sessions/${sessionId}/debug/breakpoints`, {
       method: "POST",
       body: JSON.stringify({ breakpoints }),
@@ -290,6 +421,11 @@ window.EV3Api = (() => {
     ),
     listExamples: () => request("/api/examples"),
     getExample: (name) => request(`/api/examples/${encodeURIComponent(name)}`),
+    listMissions: () => request("/api/missions"),
+    selectMission: (id) => request(`/api/sessions/${sessionId}/mission`, {
+      method: "POST",
+      body: JSON.stringify({ id }),
+    }),
     listWorlds: () => request("/api/worlds"),
     loadWorld: (name) => request(`/api/sessions/${sessionId}/world`, {
       method: "POST",

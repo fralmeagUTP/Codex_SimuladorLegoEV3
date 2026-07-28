@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, jsonify
+from pathlib import Path
+
+from flask import Blueprint, current_app, jsonify
 
 from simulador_ev3.domain.editor.world_editor_model import DEFAULT_WORLD_CELLS
-from simulador_ev3.web.routes.helpers import get_manager, json_body, require_session
+from simulador_ev3.web.errors import InvalidPayload
+from simulador_ev3.web.routes.helpers import get_manager, json_body, require_session, safe_child
 from simulador_ev3.web.services.simulation_session import asset_catalog_dict
 
-
 bp = Blueprint("api_editor", __name__, url_prefix="/api")
+
+_BUILTIN_WORLD_FILENAMES = frozenset(
+    {
+        "01_linea_negra_basica.json", "02_linea_negra_v1.json", "03_linea_negra_v2.json",
+        "04_linea_negra_v3.json", "05_obstaculos_baliza_ir.json", "06_pasillo_gyro_rumbo.json",
+        "07_laberinto_v1.json", "08_laberinto_v2.json", "09_laberinto_v3.json",
+        "10_laberinto_v4.json", "11_laberinto_v5.json", "12_radar_ultrasonido_360.json",
+    }
+)
 
 
 def _sync_metadata(session_id: str) -> None:
@@ -40,9 +51,9 @@ def create_editor_world(session_id: str):
         _sync_metadata(session_id)
         return jsonify(result)
     result = require_session(session_id).create_editor_world(
-            data.get("width_cells", DEFAULT_WORLD_CELLS),
-            data.get("height_cells", DEFAULT_WORLD_CELLS),
-        )
+        data.get("width_cells", DEFAULT_WORLD_CELLS),
+        data.get("height_cells", DEFAULT_WORLD_CELLS),
+    )
     _sync_metadata(session_id)
     return jsonify(result)
 
@@ -107,3 +118,18 @@ def save_world(session_id: str):
     result = require_session(session_id).save_editor_world(str(data.get("name", "")))
     _sync_metadata(session_id)
     return jsonify(result)
+
+
+@bp.delete("/sessions/<session_id>/editor/world/save/<name>")
+def delete_saved_world(session_id: str, name: str):
+    """Elimina un mundo guardado por el usuario, nunca un preestablecido."""
+    require_session(session_id)
+    if name in _BUILTIN_WORLD_FILENAMES:
+        raise InvalidPayload("Los mundos preestablecidos no se pueden eliminar.")
+    path = safe_child(Path(current_app.config["WORLDS_DIR"]), name, ".json")
+    try:
+        path.unlink()
+    except OSError as exc:
+        raise InvalidPayload(f"No se pudo eliminar el mundo: {exc}") from exc
+    _sync_metadata(session_id)
+    return jsonify({"status": "deleted", "name": path.name})

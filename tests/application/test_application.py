@@ -1,28 +1,27 @@
 """Tests para la Fase 6: Capa de Aplicación (SnapshotDTO + SimulationService)."""
 
 import json
-import sys
 import time
-import threading
 from pathlib import Path
 
 import pytest
 
-from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
-from simulador_ev3.core.command_queue import SimulationCommand
-from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.application.simulation_service import SimulationService
-from simulador_ev3.persistence.world_repository import WorldRepository
-from simulador_ev3.domain.world.world_model import WorldModel
+from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.core.command_queue import SimulationCommand
+from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
+from simulador_ev3.domain.assessment import MissionAcceptanceCriterion, MissionDefinition, MissionRubricCriterion
 from simulador_ev3.domain.world.obstacle_model import ObstacleModel
-from simulador_ev3.pybricks_api.factory import PybricksFactory
+from simulador_ev3.domain.world.world_model import WorldModel
+from simulador_ev3.persistence.world_repository import WorldRepository
 from simulador_ev3.pybricks_api._context import PybricksContext
+from simulador_ev3.pybricks_api.factory import PybricksFactory
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
-
 
 # ===========================================================================
 # Fixture global: limpiar contexto Pybricks entre tests
 # ===========================================================================
+
 
 @pytest.fixture(autouse=True)
 def clean_pybricks():
@@ -37,10 +36,13 @@ def clean_pybricks():
 # Helpers
 # ===========================================================================
 
+
 def make_engine():
     cfg = SimEngineConfig(
-        robot_x0_mm=500.0, robot_y0_mm=500.0,
-        world_width_mm=2000, world_height_mm=2000,
+        robot_x0_mm=500.0,
+        robot_y0_mm=500.0,
+        world_width_mm=2000,
+        world_height_mm=2000,
     )
     return SimulationEngine(config=cfg)
 
@@ -51,9 +53,52 @@ def make_snapshot(engine=None):
     return eng.update()
 
 
+def make_mission(expected: dict) -> MissionDefinition:
+    return MissionDefinition(
+        identifier="mision-prueba",
+        version=1,
+        title="Misión de prueba",
+        objective="Verificar contrato",
+        world_file="mundo.json",
+        starter_script="script.py",
+        acceptance_criteria=(MissionAcceptanceCriterion("criterio", "Debe cumplir", expected),),
+        rubric=(MissionRubricCriterion("puntaje", "Puntaje", "Puntaje máximo", 10.0),),
+    )
+
+
+def test_service_emits_single_completed_mission_result_from_recorded_trace():
+    service = SimulationService()
+    service.activate_mission(make_mission({"min_ticks": 1}))
+    service.record_external_snapshot(service.get_snapshot())
+
+    result = service.complete_active_mission("finished")
+
+    assert result is not None
+    assert result["event_version"] == 1
+    assert result["outcome"] == "finished"
+    assert result["result"]["passed"] is True
+    assert result["result"]["score"] == 10.0
+    assert service.complete_active_mission("finished") is None
+
+
+@pytest.mark.parametrize("outcome", ["cancelled", "error", "timed_out"])
+def test_service_mission_terminal_outcomes_never_report_success(outcome):
+    service = SimulationService()
+    service.activate_mission(make_mission({"min_ticks": 1}))
+    service.record_external_snapshot(service.get_snapshot())
+
+    result = service.complete_active_mission(outcome)
+
+    assert result is not None
+    assert result["outcome"] == outcome
+    assert result["result"]["passed"] is False
+    assert result["result"]["score"] == 0.0
+
+
 # ===========================================================================
 # SnapshotDTO
 # ===========================================================================
+
 
 class TestSnapshotDTO:
     def test_from_snapshot_returns_dto(self):
@@ -67,6 +112,11 @@ class TestSnapshotDTO:
         snap = eng.update()
         dto = SnapshotDTO.from_snapshot(snap)
         assert dto.tick == snap.tick
+
+    def test_snapshot_dto_declares_contract_version(self):
+        dto = SnapshotDTO.from_snapshot(make_snapshot())
+        assert dto.snapshot_version == 1
+        assert dto.to_dict()["snapshot_version"] == 1
 
     def test_robot_dict_has_expected_keys(self):
         dto = SnapshotDTO.from_snapshot(make_snapshot())
@@ -113,9 +163,10 @@ class TestSnapshotDTO:
 
     def test_to_dict_is_json_serializable(self):
         import json
+
         dto = SnapshotDTO.from_snapshot(make_snapshot())
         data = dto.to_dict()
-        s = json.dumps(data)   # no debe lanzar excepción
+        s = json.dumps(data)  # no debe lanzar excepción
         assert "tick" in s
 
     def test_colliding_is_bool(self):
@@ -138,10 +189,12 @@ class TestSnapshotDTO:
 # SimulationService — ciclo de vida básico
 # ===========================================================================
 
+
 class TestSimulationServiceLifecycle:
     def test_service_starts_idle(self):
         svc = SimulationService()
         from simulador_ev3.runtime.runtime_controller import ControllerState
+
         assert svc.controller_state == ControllerState.IDLE
         svc.stop()
 
@@ -157,6 +210,7 @@ class TestSimulationServiceLifecycle:
         svc.stop()
         assert not svc.is_running
         from simulador_ev3.runtime.runtime_controller import ControllerState
+
         assert svc.controller_state == ControllerState.STOPPED
 
     def test_pause_and_resume(self):
@@ -171,19 +225,31 @@ class TestSimulationServiceLifecycle:
     def test_double_start_is_idempotent(self):
         svc = SimulationService()
         svc.start()
-        svc.start()   # segunda llamada no debe lanzar excepción
+        svc.start()  # segunda llamada no debe lanzar excepción
         assert svc.is_running
         svc.stop()
 
     def test_stop_without_start_is_safe(self):
         svc = SimulationService()
-        svc.stop()    # no debe lanzar
+        svc.stop()  # no debe lanzar
 
     def test_reset_clears_script(self):
         svc = SimulationService()
         svc.load_script("x = 1")
         svc.reset()
         assert svc._source_code is None
+
+    def test_current_snapshot_after_reset_uses_configured_robot_start(self):
+        svc = SimulationService()
+        svc.set_robot_start(320.0, 480.0, 35.0)
+        svc.reset()
+
+        snapshot = svc.current_snapshot()
+
+        assert snapshot is not None
+        assert snapshot.robot == {"x_mm": 320.0, "y_mm": 480.0, "theta_deg": 35.0}
+        assert snapshot.tick == 0
+        assert snapshot.sim_time_s == 0.0
 
     def test_engine_accessible(self):
         svc = SimulationService()
@@ -193,6 +259,7 @@ class TestSimulationServiceLifecycle:
 # ===========================================================================
 # SimulationService — script y callbacks
 # ===========================================================================
+
 
 class TestSimulationServiceScript:
     def test_load_and_run_script(self):
@@ -234,17 +301,17 @@ class TestSimulationServiceScript:
         assert "started" in statuses
         assert "stopped" in statuses
 
-    def test_status_callback_stopped_when_script_finishes(self):
+    def test_status_callback_finished_when_script_finishes(self):
         statuses = []
         svc = SimulationService(policy=ExecutionPolicy(max_runtime_s=2.0))
         svc.set_status_callback(lambda s: statuses.append(s))
         svc.load_script("from pybricks.tools import wait\nwait(100)\n")
         svc.start()
         for _ in range(30):
-            if "stopped" in statuses:
+            if "finished" in statuses:
                 break
             time.sleep(0.1)
-        assert "stopped" in statuses
+        assert "finished" in statuses
         assert not svc.is_running
 
     def test_tick_returns_dto_in_manual_mode(self):
@@ -382,6 +449,6 @@ class TestSimulationServiceWorlds:
 
         assert svc.engine.world.width_mm == pytest.approx(2000.0)
         assert svc.engine.world.height_mm == pytest.approx(2000.0)
-        assert svc.engine._cfg.robot_x0_mm == pytest.approx(250.0)
-        assert svc.engine._cfg.robot_y0_mm == pytest.approx(350.0)
-        assert svc.engine._cfg.robot_theta0_deg == pytest.approx(90.0)
+        assert svc.engine_config.robot_x0_mm == pytest.approx(250.0)
+        assert svc.engine_config.robot_y0_mm == pytest.approx(350.0)
+        assert svc.engine_config.robot_theta0_deg == pytest.approx(90.0)

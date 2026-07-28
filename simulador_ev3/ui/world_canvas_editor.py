@@ -9,10 +9,10 @@ from __future__ import annotations
 import math
 import os
 import tkinter as tk
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
 from simulador_ev3.application.world_validation_engine import rotated_connectors
-from simulador_ev3.domain.editor.world_editor_model import CELL_SIZE_MM, GRID_SIZE_PX, get_asset_spec
+from simulador_ev3.domain.editor.world_editor_model import CELL_SIZE_MM, GRID_SIZE_PX, Direction, get_asset_spec
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
@@ -158,9 +158,7 @@ class WorldCanvasEditor(tk.Canvas):
         sy_px = _snap_editor_px(sy_px)
         self._hover_cell_px = (sx_px, sy_px)
         self._draw_preview()
-        self._on_status(
-            f"Cursor: ({x_mm:.0f} mm, {y_mm:.0f} mm) | Snap: ({sx_px}px, {sy_px}px) | Tool: {self._tool}"
-        )
+        self._on_status(f"Cursor: ({x_mm:.0f} mm, {y_mm:.0f} mm) | Snap: ({sx_px}px, {sy_px}px) | Tool: {self._tool}")
 
     def _on_left_down(self, event) -> None:
         canvas_x = self.canvasx(event.x)
@@ -261,9 +259,7 @@ class WorldCanvasEditor(tk.Canvas):
             cy = (py0 + py1) / 2.0
             item_ids.append(self.create_image(cx, cy, image=asset_image))
         elif spec.asset_type == "floor":
-            item_ids.append(
-                self.create_rectangle(px0, py0, px1, py1, fill="#D7CCC8", outline="#BCAAA4", width=1)
-            )
+            item_ids.append(self.create_rectangle(px0, py0, px1, py1, fill="#D7CCC8", outline="#BCAAA4", width=1))
         elif spec.asset_type == "zone":
             fill = "#ECEFF1"
             outline = "#B0BEC5"
@@ -283,9 +279,7 @@ class WorldCanvasEditor(tk.Canvas):
             item_ids.extend(self._draw_line_tile(spec.connectors, rotation, x_mm, y_mm, w_mm, h_mm))
 
         if selected:
-            item_ids.append(
-                self.create_rectangle(px0, py0, px1, py1, outline="#FFC107", width=2, dash=(4, 3))
-            )
+            item_ids.append(self.create_rectangle(px0, py0, px1, py1, outline="#FFC107", width=2, dash=(4, 3)))
         for item_id in item_ids:
             self._item_to_obj_id[item_id] = placement_id
 
@@ -326,7 +320,7 @@ class WorldCanvasEditor(tk.Canvas):
         item_ids: list[int] = []
         cx_mm = x_mm + w_mm / 2.0
         cy_mm = y_mm + h_mm / 2.0
-        oriented = rotated_connectors(set(connectors), int(rotation))
+        oriented = rotated_connectors({cast(Direction, direction) for direction in connectors}, int(rotation))
         cells: set[tuple[int, int]] = set()
         for direction in oriented:
             ex_mm, ey_mm = _line_endpoint(direction, x_mm, y_mm, w_mm, h_mm)
@@ -696,7 +690,7 @@ def _segment_intersects_expanded_aabb(
 
     u1 = 0.0
     u2 = 1.0
-    for pi, qi in zip(p, q):
+    for pi, qi in zip(p, q, strict=False):
         if abs(pi) < 1e-12:
             if qi < 0:
                 return False

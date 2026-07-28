@@ -1,0 +1,107 @@
+name: calidad
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest --cov=simulador_ev3 --cov-report=term-missing
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m ruff check simulador_ev3 tests
+      - run: python -m mypy
+      - run: python -m bandit -q -c pyproject.toml -r simulador_ev3 --severity-level medium
+      - run: python -m pip_audit -r requirements-audit.txt
+
+  load-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest tests/load -q
+
+  e2e-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest tests/e2e/test_web_playwright.py -q
+
+  desktop-visual:
+    name: evidencia visual Tkinter
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Capturar referencia actual de Tkinter
+        run: python scripts/capture_desktop_evidence.py --output-dir artifacts/tkinter --theme light
+      - name: Comparar contra referencia aprobada
+        run: >-
+          python scripts/compare_visual_evidence.py
+          Documentos/EVIDENCIA_PARIDAD_2026-07-24/tkinter/simulacion_light_1280x800.png
+          artifacts/tkinter/simulacion_light_1280x800.png
+          --threshold 0.08
+      - name: Conservar evidencia visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencia-visual-tkinter
+          path: artifacts/tkinter
+          if-no-files-found: warn
+
+  runtime-resilience:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest tests/runtime/test_isolated_worker.py tests/load -q
+
+  coverage-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest tests/core tests/domain --cov=simulador_ev3.core --cov=simulador_ev3.domain --cov-fail-under=90 -q

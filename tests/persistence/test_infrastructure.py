@@ -1,4 +1,5 @@
-﻿"""Tests de Fase 8: persistencia JSON y catÃ¡logo de ejemplos."""
+"""Tests de Fase 8: persistencia JSON y catÃ¡logo de ejemplos."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,7 +12,6 @@ from simulador_ev3.domain.world.surface_model import SurfaceColor, SurfaceModel
 from simulador_ev3.domain.world.world_model import WorldModel
 from simulador_ev3.examples.example_catalog import ExampleCatalog
 from simulador_ev3.persistence.world_repository import WorldRepository
-
 
 EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "Documentos" / "Ejemplos"
 
@@ -71,7 +71,7 @@ class TestWorldRepository:
     def test_from_dict_roundtrip_surface_cells(self):
         world = make_world()
         loaded = WorldRepository.from_dict(WorldRepository.to_dict(world))
-        color, refl = loaded.surface.query(26, 51)   # cell (1,2)
+        color, refl = loaded.surface.query(26, 51)  # cell (1,2)
         assert color == SurfaceColor.BLACK
         assert refl == pytest.approx(5.0)
 
@@ -109,4 +109,3 @@ class TestExampleCatalog:
         path = EXAMPLES_DIR / "14_navegacion_hasta_pared.py"
         code = catalog.read_example(str(path))
         assert "DriveBase" in code
-

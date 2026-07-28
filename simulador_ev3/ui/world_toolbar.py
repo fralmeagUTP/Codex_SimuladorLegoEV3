@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import tkinter as tk
-from typing import Callable
+from typing import Any, Callable, Literal, Optional
 
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 
@@ -34,7 +34,7 @@ class WorldToolbar(tk.Frame):
 
     def __init__(
         self,
-        parent: tk.Widget,
+        parent: Any,
         on_tool_change: Callable[[str], None],
         on_new: Callable[[], None],
         on_open: Callable[[], None],
@@ -44,6 +44,8 @@ class WorldToolbar(tk.Frame):
         on_duplicate: Callable[[], None],
         on_rotate: Callable[[], None],
         on_apply_props: Callable[[], None],
+        on_delete_world_file: Optional[Callable[[], None]] = None,
+        on_simulate_saved: Optional[Callable[[], None]] = None,
     ) -> None:
         super().__init__(parent, bg=_BAR_BG, padx=6, pady=4)
         self._on_tool_change = on_tool_change
@@ -56,6 +58,16 @@ class WorldToolbar(tk.Frame):
         self._add_action_button("Abrir", on_open)
         self._add_action_button("Guardar", on_save)
         self._add_action_button("Guardar como", on_save_as)
+        self._delete_world_file_button = self._add_action_button(
+            "Eliminar archivo",
+            on_delete_world_file or (lambda: None),
+            state=tk.DISABLED,
+        )
+        self._simulate_saved_button = self._add_action_button(
+            "Simular mundo guardado",
+            on_simulate_saved or (lambda: None),
+            state=tk.DISABLED,
+        )
         self._add_separator()
 
         self._add_tool_button("select", "Select")
@@ -88,7 +100,13 @@ class WorldToolbar(tk.Frame):
 
         self._refresh_tool_styles()
 
-    def _add_action_button(self, label: str, command: Callable[[], None]) -> None:
+    def _add_action_button(
+        self,
+        label: str,
+        command: Callable[[], None],
+        *,
+        state: Literal["normal", "active", "disabled"] = "normal",
+    ) -> tk.Button:
         btn = tk.Button(
             self,
             text=label,
@@ -99,12 +117,24 @@ class WorldToolbar(tk.Frame):
             bd=1,
             padx=6,
             pady=2,
+            state=state,
         )
         btn.pack(side=tk.LEFT, padx=2)
+        return btn
+
+    def set_simulate_saved_enabled(self, enabled: bool) -> None:
+        """Habilita el retorno explícito a simulación tras un guardado válido."""
+
+        self._simulate_saved_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+
+    def set_delete_world_file_enabled(self, enabled: bool) -> None:
+        """Habilita borrar solo cuando existe un archivo de mundo editable."""
+
+        self._delete_world_file_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
 
     def _add_tool_button(self, tool_id: str, label: str) -> None:
         icon = self._get_tool_icon(tool_id)
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "command": lambda t=tool_id: self._set_tool(t),
             "bg": _BTN_BG,
             "activebackground": _BTN_ACTIVE,

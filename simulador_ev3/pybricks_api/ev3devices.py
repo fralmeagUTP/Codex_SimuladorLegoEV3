@@ -9,27 +9,32 @@ Implementa Motor y todos los sensores del EV3.  Cada clase:
 
 Los sensores quedan adjuntos al engine para ser actualizados en cada tick.
 """
+
 from __future__ import annotations
 
 from typing import Optional
 
 from simulador_ev3.core.command_queue import SimulationCommand
 from simulador_ev3.domain.robot.motor_model import MotorState
-from simulador_ev3.domain.sensors.color_sensor_model   import ColorSensorModel
-from simulador_ev3.domain.sensors.gyro_sensor_model    import GyroSensorModel
+from simulador_ev3.domain.sensors.color_sensor_model import ColorSensorModel
+from simulador_ev3.domain.sensors.gyro_sensor_model import GyroSensorModel
 from simulador_ev3.domain.sensors.infrared_sensor_model import InfraredSensorModel
-from simulador_ev3.domain.sensors.touch_sensor_model   import TouchSensorModel
+from simulador_ev3.domain.sensors.touch_sensor_model import TouchSensorModel
 from simulador_ev3.domain.sensors.ultrasonic_sensor_model import UltrasonicSensorModel
 from simulador_ev3.pybricks_api._context import PybricksContext
 from simulador_ev3.pybricks_api.parameters import (
-    Color, Direction, Port, Stop,
-    STOP_TO_STOPMODE, SURFACE_TO_PYBRICKS,
+    STOP_TO_STOPMODE,
+    SURFACE_TO_PYBRICKS,
+    Color,
+    Direction,
+    Port,
+    Stop,
 )
-
 
 # ---------------------------------------------------------------------------
 # Motor
 # ---------------------------------------------------------------------------
+
 
 class Motor:
     """
@@ -47,8 +52,8 @@ class Motor:
     ) -> None:
         ctx = PybricksContext.get_current()
         self._queue = ctx.command_queue
-        self._port  = str(port)
-        self._dir   = positive_direction
+        self._port = str(port)
+        self._dir = positive_direction
         # Acceso directo al MotorModel del engine
         self._model = ctx.engine._motors.get(self._port)
         # Aproximacion para convertir duty cycle (%) a deg/s.
@@ -100,7 +105,9 @@ class Motor:
         """
         s = speed if self._dir == Direction.CLOCKWISE else -speed
         cmd = SimulationCommand.motor_run_time(
-            self._port, s, time,
+            self._port,
+            s,
+            time,
             stop_mode=STOP_TO_STOPMODE.get(then, "BRAKE"),
         )
         if wait:
@@ -119,10 +126,12 @@ class Motor:
         Gira `rotation_angle` grados a `speed` deg/s.
         Si `wait=True`, bloquea hasta completar.
         """
-        s  = speed if self._dir == Direction.CLOCKWISE else -speed
+        s = speed if self._dir == Direction.CLOCKWISE else -speed
         ra = rotation_angle if self._dir == Direction.CLOCKWISE else -rotation_angle
         cmd = SimulationCommand.motor_run_angle(
-            self._port, s, ra,
+            self._port,
+            s,
+            ra,
             stop_mode=STOP_TO_STOPMODE.get(then, "HOLD"),
         )
         if wait:
@@ -224,6 +233,7 @@ class Motor:
         """Resetea el encoder a `angle` (funcionalidad mínima — pone en 0)."""
         if self._model:
             self._model._angle = float(angle)  # acceso interno al dominio
+
     def done(self) -> bool:
         """True si no hay maniobra pendiente del motor."""
         if self._model is None:
@@ -271,6 +281,7 @@ class Motor:
 # TouchSensor
 # ---------------------------------------------------------------------------
 
+
 class TouchSensor:
     """Sensor de contacto EV3 (pybricks.ev3devices.TouchSensor)."""
 
@@ -287,6 +298,7 @@ class TouchSensor:
 # ---------------------------------------------------------------------------
 # UltrasonicSensor
 # ---------------------------------------------------------------------------
+
 
 class UltrasonicSensor:
     """Sensor ultrasónico EV3 (pybricks.ev3devices.UltrasonicSensor)."""
@@ -308,6 +320,7 @@ class UltrasonicSensor:
 # ---------------------------------------------------------------------------
 # ColorSensor
 # ---------------------------------------------------------------------------
+
 
 class ColorSensor:
     """Sensor de color EV3 (pybricks.ev3devices.ColorSensor)."""
@@ -359,6 +372,7 @@ class ColorSensor:
 # GyroSensor
 # ---------------------------------------------------------------------------
 
+
 class GyroSensor:
     """Sensor giroscópico EV3 (pybricks.ev3devices.GyroSensor)."""
 
@@ -383,6 +397,7 @@ class GyroSensor:
 # ---------------------------------------------------------------------------
 # InfraredSensor
 # ---------------------------------------------------------------------------
+
 
 class InfraredSensor:
     """Sensor infrarrojo EV3 (pybricks.ev3devices.InfraredSensor)."""
@@ -413,7 +428,7 @@ class InfraredSensor:
         Devuelve (distance: int 0-100, heading: int -25..25).
         """
         ctx = PybricksContext.get_current()
-        rx  = ctx.engine.robot.pose.x
-        ry  = ctx.engine.robot.pose.y
-        th  = ctx.engine.robot.pose.theta
+        rx = ctx.engine.robot.pose.x
+        ry = ctx.engine.robot.pose.y
+        th = ctx.engine.robot.pose.theta
         return self._model.beacon(channel, ctx.engine.world, rx, ry, th)

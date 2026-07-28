@@ -22,7 +22,7 @@ def redis_runtime_state(config: dict[str, Any]) -> dict[str, Any]:
         "error": None,
     }
     try:
-        import redis  # type: ignore[import-not-found]
+        import redis
     except Exception:  # noqa: BLE001
         result["error"] = "redis_package_not_installed"
         return result
@@ -48,4 +48,3 @@ def redis_runtime_state(config: dict[str, Any]) -> dict[str, Any]:
         result["ping_ok"] = False
         result["error"] = type(exc).__name__
     return result
-

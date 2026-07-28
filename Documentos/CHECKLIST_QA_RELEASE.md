@@ -2,12 +2,12 @@
 
 Usar esta lista antes de publicar un build o entregar una version web/escritorio.
 
-Version vigente del checklist: 1.3.0  
-Fecha de actualizacion: 2026-05-20
+Version aplicable: leer `simulador_ev3/_version.py` (actual: 1.5.0)
+Fecha de actualizacion: 2026-07-24
 
 ## 1. Preparacion
 
-- Confirmar version en `pyproject.toml`.
+- Confirmar version en `simulador_ev3/_version.py` y `GET /healthz`.
 - Confirmar entrada nueva en `CHANGELOG.md`.
 - Confirmar que `ROADMAP.md` refleja el estado real.
 - Confirmar que `README.md` resume la version publicada y rutas principales.
@@ -17,14 +17,12 @@ Fecha de actualizacion: 2026-05-20
 
 ## 2. Pruebas automatizadas
 
-- Ejecutar `.\.venv\Scripts\python.exe -m pytest tests\web`.
-- Ejecutar `.\.venv\Scripts\python.exe -m pytest tests\web\test_web_units.py`.
-- Ejecutar `.\.venv\Scripts\python.exe -m pytest tests\application tests\runtime tests\pybricks_api`.
-- Ejecutar `.\.venv\Scripts\python.exe -m pytest tests\core tests\domain tests\persistence`.
-- Ejecutar `.\.venv\Scripts\python.exe -m pytest tests\ui`.
-- Ejecutar `.\.venv\Scripts\python.exe -m pytest tests\release`.
-- Ejecutar `.\.venv\Scripts\python.exe -m pytest tests\e2e` en un entorno con Chromium de Playwright instalado.
-- Revisar que GitHub Actions ejecute `pytest` en Windows sin fallos.
+- Ejecutar `py -3.12 -m pytest -q`.
+- Ejecutar `py -3.12 -m pytest --cov=simulador_ev3 --cov-report=term-missing -q`.
+- Ejecutar `py -3.12 -m pytest tests\e2e\test_web_playwright.py -q` con Chromium instalado.
+- Ejecutar `py -3.12 -m ruff check simulador_ev3 tests` y `py -3.12 -m mypy`.
+- Ejecutar Bandit y Pip-Audit como se indica en `docs/testing/estrategia_pruebas.md`.
+- Revisar los jobs Windows/Linux, E2E, carga, resiliencia y cobertura en GitHub Actions.
 
 ## 3. Smoke web
 
@@ -43,7 +41,7 @@ Fecha de actualizacion: 2026-05-20
 - Cargar un escenario desde el menu `Escenarios`.
 - Cargar un mundo existente.
 - Ejecutar, pausar, reanudar y detener.
-- Ejecutar un script corto con `wait(100)` y confirmar que el estado final sea `stopped`.
+- Ejecutar un script corto con `wait(100)` y confirmar que el estado final sea `finished`.
 - Confirmar movimiento del robot en canvas.
 - Confirmar actualizacion de telemetria.
 - Confirmar LED, pantalla y speaker en panel EV3.
@@ -77,7 +75,8 @@ Fecha de actualizacion: 2026-05-20
 
 ## 7. Revision visual
 
-- Generar evidencia visual con `.\.venv\Scripts\python.exe scripts\capture_web_evidence.py`.
+- Generar evidencia visual Web con `py -3.12 scripts\capture_web_evidence.py`.
+- Generar evidencia visual Tkinter con `py -3.12 scripts\capture_desktop_evidence.py`.
 - Revisar `/` en 1366x768 y 1570x900.
 - Revisar `/worlds` en 1366x768 y 1570x900.
 - Confirmar paridad de mapa con Tkinter: mundo base `2000 x 2000 mm` debe renderizarse como `640 x 640 px`.
@@ -91,7 +90,14 @@ Fecha de actualizacion: 2026-05-20
 - Confirmar que canvas, editor, telemetria y brick son visibles sin desplazamientos incoherentes.
 - Confirmar que controles principales siguen accesibles en viewport angosto.
 
-## 8. Build Windows opcional
+## 8. Documentacion y operacion
+
+- Confirmar que `Documentos/INDICE_DOCUMENTACION.md` clasifica toda evidencia historica.
+- Confirmar que README, manual, arquitectura, seguridad y configuracion reflejan la version actual.
+- Ejecutar las comprobaciones documentales y verificar que no hay enlaces locales rotos.
+- No publicar secretos, URLs Redis privadas ni trazas con datos personales.
+
+## 9. Build Windows opcional
 
 Ejecutar solo si se va a distribuir un ejecutable:
 
@@ -100,7 +106,7 @@ Ejecutar solo si se va a distribuir un ejecutable:
 - Confirmar que ejemplos y mundos se incluyen.
 - Revisar logs si falla audio o carga de assets.
 
-## 9. Publicacion GitHub
+## 10. Publicacion GitHub
 
 - Confirmar `git status --short --branch` sin cambios de release pendientes.
 - Crear commit de release.

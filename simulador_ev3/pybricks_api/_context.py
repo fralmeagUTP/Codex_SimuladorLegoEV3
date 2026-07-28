@@ -5,11 +5,12 @@ Se inicializa por PybricksFactory.create() antes de ejecutar el script.
 Los módulos virtuales (hubs, ev3devices, robotics, tools) leen de aquí
 para acceder al CommandQueue y al SimulationEngine.
 """
+
 from __future__ import annotations
 
 import threading
 from contextvars import ContextVar
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from simulador_ev3.core.command_queue import CommandQueue
@@ -22,6 +23,7 @@ class PybricksContext:
 
     Solo existe una instancia activa durante la ejecución de un script.
     """
+
     _instance: Optional["PybricksContext"] = None
     _current: ContextVar[Optional["PybricksContext"]] = ContextVar(
         "pybricks_context",
@@ -34,10 +36,14 @@ class PybricksContext:
         command_queue: "CommandQueue",
         engine: "SimulationEngine",
         stop_event: threading.Event,
+        pause_event: threading.Event | None = None,
     ) -> None:
         self.command_queue = command_queue
-        self.engine        = engine
-        self.stop_event    = stop_event
+        self.engine = engine
+        self.stop_event = stop_event
+        # Se comparte con el runtime para que las esperas cooperativas no
+        # consuman tiempo de script mientras la simulación está pausada.
+        self.pause_event = pause_event or threading.Event()
 
     # ------------------------------------------------------------------
     # Registro global thread-safe
@@ -57,8 +63,7 @@ class PybricksContext:
         with cls._lock:
             if cls._instance is None:
                 raise RuntimeError(
-                    "PybricksContext no inicializado. "
-                    "Llama a PybricksFactory.create() antes de ejecutar el script."
+                    "PybricksContext no inicializado. Llama a PybricksFactory.create() antes de ejecutar el script."
                 )
             return cls._instance
 

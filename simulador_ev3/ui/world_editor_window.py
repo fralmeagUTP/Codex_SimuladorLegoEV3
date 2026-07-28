@@ -9,7 +9,7 @@ from __future__ import annotations
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.domain.editor.world_editor_model import (
@@ -24,6 +24,22 @@ from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
 from simulador_ev3.ui.world_toolbar import WorldToolbar
 
 _WORLDS_DIR = resolve_worlds_dir()
+_BUILTIN_WORLD_FILENAMES = frozenset(
+    {
+        "01_linea_negra_basica.json",
+        "02_linea_negra_v1.json",
+        "03_linea_negra_v2.json",
+        "04_linea_negra_v3.json",
+        "05_obstaculos_baliza_ir.json",
+        "06_pasillo_gyro_rumbo.json",
+        "07_laberinto_v1.json",
+        "08_laberinto_v2.json",
+        "09_laberinto_v3.json",
+        "10_laberinto_v4.json",
+        "11_laberinto_v5.json",
+        "12_radar_ultrasonido_360.json",
+    }
+)
 
 
 class WorldEditorWindow(tk.Toplevel):
@@ -31,8 +47,9 @@ class WorldEditorWindow(tk.Toplevel):
 
     def __init__(
         self,
-        parent: tk.Widget,
+        parent: Any,
         on_world_saved: Optional[Callable[[str], None]] = None,
+        on_simulate_saved: Optional[Callable[[str], None]] = None,
     ) -> None:
         super().__init__(parent)
         self.title("Editor de Mundos EV3")
@@ -41,6 +58,7 @@ class WorldEditorWindow(tk.Toplevel):
         self.configure(bg="#ECEFF1")
 
         self._on_world_saved = on_world_saved
+        self._on_simulate_saved = on_simulate_saved
         self._service = WorldEditorService()
         self._selected_id: Optional[str] = None
         self._current_path: Optional[Path] = None
@@ -61,10 +79,12 @@ class WorldEditorWindow(tk.Toplevel):
             on_open=self._cmd_open,
             on_save=self._cmd_save,
             on_save_as=self._cmd_save_as,
+            on_delete_world_file=self._cmd_delete_world_file,
             on_delete=self._cmd_delete_selected,
             on_duplicate=self._cmd_duplicate_selected,
             on_rotate=self._cmd_rotate_selected,
             on_apply_props=self._cmd_apply_properties,
+            on_simulate_saved=self._cmd_simulate_saved,
         )
         self._toolbar.pack(fill=tk.X, side=tk.TOP)
 
@@ -132,6 +152,8 @@ class WorldEditorWindow(tk.Toplevel):
         self._service.reset_formal_world()
         self._selected_id = None
         self._current_path = None
+        self._toolbar.set_delete_world_file_enabled(False)
+        self._toolbar.set_simulate_saved_enabled(False)
         self._props.set_object(None)
         self._sync_world_size_inputs()
         self._refresh_canvas()
@@ -148,6 +170,8 @@ class WorldEditorWindow(tk.Toplevel):
         try:
             loaded_path, note = self._service.load_json(path)
             self._current_path = loaded_path
+            self._toolbar.set_delete_world_file_enabled(self._is_deletable_world_path(loaded_path))
+            self._toolbar.set_simulate_saved_enabled(True)
             self._selected_id = None
             self._props.set_object(None)
             self._sync_world_size_inputs()
@@ -178,13 +202,106 @@ class WorldEditorWindow(tk.Toplevel):
 
     def _save_to_path(self, path: Path) -> None:
         try:
+            issues = self._service.validate_current_world()
+            if issues:
+                self._refresh_validation_status()
+                messagebox.showerror("Editor de mundos", f"No se puede guardar un mundo inválido:\n{issues[0]}")
+                return
             saved = self._service.save_json(path)
             self._current_path = saved
             self._set_status(f"Mundo guardado: {saved.name}")
-            if self._on_world_saved:
+            self._toolbar.set_simulate_saved_enabled(True)
+            self._toolbar.set_delete_world_file_enabled(self._is_deletable_world_path(saved))
+            # Compatibilidad con integraciones anteriores que reaccionaban al
+            # guardado; la ventana principal usa la acción explícita de simular.
+            if self._on_world_saved is not None:
                 self._on_world_saved(str(saved))
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Editor de mundos", f"No se pudo guardar el archivo:\n{exc}")
+
+    def _cmd_delete_world_file(self) -> None:
+        """Elimina exclusivamente el archivo abierto, nunca un mundo incluido."""
+        path = self._current_path
+        if path is None:
+            self._set_status("Abre o guarda un mundo editable antes de eliminarlo")
+            return
+        if not self._is_deletable_world_path(path):
+            messagebox.showwarning(
+                "Editor de mundos",
+                "Solo se pueden eliminar mundos personalizados guardados en el directorio de mundos.",
+            )
+            return
+        try:
+            resolved = path.resolve(strict=True)
+        except FileNotFoundError:
+            self._set_status("El archivo de mundo ya no existe")
+            self._current_path = None
+            self._toolbar.set_delete_world_file_enabled(False)
+            return
+        if not resolved.is_file() or resolved.suffix.lower() != ".json":
+            messagebox.showerror("Editor de mundos", "El archivo abierto no es un mundo JSON válido.")
+            return
+        if not messagebox.askyesno(
+            "Eliminar archivo de mundo",
+            f"Se eliminará permanentemente este mundo:\n{resolved.name}\n\n¿Deseas continuar?",
+            icon="warning",
+        ):
+            return
+        try:
+            resolved.unlink()
+        except OSError as exc:
+            messagebox.showerror("Editor de mundos", f"No se pudo eliminar el archivo:\n{exc}")
+            return
+
+        self._service.reset_formal_world()
+        self._selected_id = None
+        self._current_path = None
+        self._props.set_object(None)
+        self._sync_world_size_inputs()
+        self._refresh_canvas()
+        self._toolbar.set_delete_world_file_enabled(False)
+        self._toolbar.set_simulate_saved_enabled(False)
+        self._set_status(f"Mundo eliminado: {resolved.name}. Se creó un mundo nuevo.")
+
+    @staticmethod
+    def _is_builtin_world_path(path: Path) -> bool:
+        """Identifica solo los mundos distribuidos por el proyecto."""
+        try:
+            return path.resolve().parent == _WORLDS_DIR.resolve() and path.name in _BUILTIN_WORLD_FILENAMES
+        except OSError:
+            return False
+
+    @classmethod
+    def _is_deletable_world_path(cls, path: Path) -> bool:
+        """Autoriza únicamente JSON personalizados del directorio configurado."""
+        try:
+            resolved = path.resolve()
+            return (
+                resolved.parent == _WORLDS_DIR.resolve()
+                and resolved.suffix.lower() == ".json"
+                and not cls._is_builtin_world_path(resolved)
+            )
+        except OSError:
+            return False
+
+    def _cmd_simulate_saved(self) -> None:
+        """Aplica explícitamente el último mundo válido guardado a simulación."""
+
+        if self._current_path is None:
+            self._set_status("Guarda un mundo válido antes de simularlo")
+            return
+        if self._service.validate_current_world():
+            self._refresh_validation_status()
+            self._set_status("Corrige las validaciones antes de simular el mundo")
+            return
+        if self._on_simulate_saved is None:
+            self._set_status("No hay simulación disponible para aplicar el mundo")
+            return
+        try:
+            self._on_simulate_saved(str(self._current_path))
+            self._set_status(f"Mundo aplicado a simulación: {self._current_path.name}")
+        except Exception as exc:  # noqa: BLE001
+            messagebox.showerror("Editor de mundos", f"No se pudo aplicar el mundo a simulación:\n{exc}")
 
     def _cmd_delete_selected(self) -> None:
         if not self._selected_id:

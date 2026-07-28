@@ -14,12 +14,10 @@ Todos los valores en milímetros (mm) en el sistema de coordenadas del mundo.
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Tuple
 
-
-Point = Tuple[float, float]   # (x_mm, y_mm)
+Point = Tuple[float, float]  # (x_mm, y_mm)
 
 
 @dataclass
@@ -36,7 +34,7 @@ class ObstacleModel:
     """
 
     vertices: List[Point]
-    name:     str = "obstacle"
+    name: str = "obstacle"
 
     def __post_init__(self) -> None:
         if len(self.vertices) < 3:
@@ -63,10 +61,10 @@ class ObstacleModel:
             width, height: Dimensiones en mm.
         """
         verts: List[Point] = [
-            (x,         y),
+            (x, y),
             (x + width, y),
             (x + width, y + height),
-            (x,         y + height),
+            (x, y + height),
         ]
         return cls(vertices=verts, name=name)
 
@@ -93,15 +91,13 @@ class ObstacleModel:
         True si el punto (px, py) está dentro del polígono.
         Utiliza el algoritmo de cruce de rayos (ray casting).
         """
-        n      = len(self.vertices)
+        n = len(self.vertices)
         inside = False
-        j      = n - 1
+        j = n - 1
         for i in range(n):
             xi, yi = self.vertices[i]
             xj, yj = self.vertices[j]
-            if ((yi > py) != (yj > py)) and (
-                px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi
-            ):
+            if ((yi > py) != (yj > py)) and (px < (xj - xi) * (py - yi) / (yj - yi + 1e-12) + xi):
                 inside = not inside
             j = i
         return inside
@@ -134,9 +130,9 @@ class ObstacleModel:
             # Segmento del borde: P = A + s*(B-A), s ∈ [0,1]
             # Rayo:               R = O + t*(dx,dy), t ∈ [0, max_dist]
             ex, ey = bx - ax, by - ay
-            denom  = dx * ey - dy * ex
+            denom = dx * ey - dy * ex
             if abs(denom) < 1e-10:
-                continue   # paralelos
+                continue  # paralelos
 
             fx, fy = ax - ox, ay - oy
             t = (fx * ey - fy * ex) / denom
