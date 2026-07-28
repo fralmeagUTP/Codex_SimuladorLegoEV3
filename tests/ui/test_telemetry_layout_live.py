@@ -39,6 +39,8 @@ def test_long_sensor_readings_do_not_reflow_telemetry_tables() -> None:
         root.deiconify()
         root.update()
         before = _block_sizes(panel)
+        assert len(panel._motor_frames) == 4  # noqa: SLF001 - estructura visible del tablero.
+        assert all(width > 0 and height > 0 for width, height in before[0])
 
         panel._update_sensors(  # noqa: SLF001 - se prueba el punto que recibe el DTO.
             [

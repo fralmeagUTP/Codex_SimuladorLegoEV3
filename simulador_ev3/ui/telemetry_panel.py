@@ -61,7 +61,7 @@ class TelemetryPanel(tk.Frame):
         self._motor_frames: dict[str, tk.Frame] = {}
         self._sensor_frames: dict[str, tk.Frame] = {}
         self._theme = "light"
-        self._compact_layout = False
+        self._layout_mode = ""
         self._summary_cells: list[tuple[tk.Label, tk.Label]] = []
 
         self._scroll_canvas = tk.Canvas(self, bg=_BG, highlightthickness=0)
@@ -216,21 +216,18 @@ class TelemetryPanel(tk.Frame):
         # El contenido de telemetría se actualiza en cada tick.  No dejamos que
         # una lectura larga (por ejemplo ``UltrasonicSensorModel``) cambie el
         # ancho solicitado de una columna y desplace las otras tablas.
-        columns.grid_columnconfigure(0, weight=34, uniform="telemetry-columns")
-        columns.grid_columnconfigure(1, weight=34, uniform="telemetry-columns")
-        columns.grid_columnconfigure(2, weight=32, uniform="telemetry-columns")
-        motors_ab_column = tk.Frame(columns, bg=_BG)
-        motors_cd_column = tk.Frame(columns, bg=_BG)
+        columns.grid_columnconfigure(0, weight=58)
+        columns.grid_columnconfigure(1, weight=42)
+        motors_column = tk.Frame(columns, bg=_BG)
         sensors_column = tk.Frame(columns, bg=_BG)
-        for column, frame in enumerate((motors_ab_column, motors_cd_column, sensors_column)):
+        for column, frame in enumerate((motors_column, sensors_column)):
             frame.grid(row=0, column=column, sticky="nsew")
             frame.configure(relief=tk.FLAT, bd=0, highlightthickness=1, highlightbackground=_BORDER)
             setattr(frame, "_telemetry_role", "card")  # noqa: B010
 
-        self._section_columns = (motors_ab_column, motors_cd_column, sensors_column)
+        self._section_columns = (motors_column, sensors_column)
 
-        self._build_motors_section(motors_ab_column, ("A", "B"), "Motores A-B")
-        self._build_motors_section(motors_cd_column, ("C", "D"), "Motores C-D")
+        self._build_motors_section(motors_column)
         self._build_sensors_section(sensors_column)
 
     def _build_robot_section(self, parent: tk.Widget) -> None:
@@ -246,8 +243,23 @@ class TelemetryPanel(tk.Frame):
         _table_cell(grid, "Colisión:", 3, 0, value=False)
         self._lbl_col = _table_cell(grid, self._var_col, 3, 1, value=True)
 
-    def _build_motors_section(self, parent: tk.Widget, ports: tuple[str, str], title: str) -> None:
-        _table_section_header(parent, title.upper())
+    def _build_motors_section(
+        self, parent: tk.Widget, ports: tuple[str, str] | None = None, title: str = ""
+    ) -> None:
+        if ports is None:
+            _table_section_header(parent, "MOTORES A-D")
+            groups = tk.Frame(parent, bg=_BG)
+            groups.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
+            groups.grid_columnconfigure(0, weight=1)
+            groups.grid_columnconfigure(1, weight=1)
+            for column, group_ports in enumerate((("A", "B"), ("C", "D"))):
+                group = tk.Frame(groups, bg=_BG)
+                group.grid(row=0, column=column, sticky="nsew")
+                self._build_motors_section(group, group_ports)
+            return
+
+        if title:
+            _table_section_header(parent, title.upper())
         container = tk.Frame(parent, bg=_BG)
         container.pack(fill=tk.BOTH, expand=True)
         for port in ports:
@@ -294,15 +306,16 @@ class TelemetryPanel(tk.Frame):
         """Refluye el tablero: tres columnas amplias o una columna legible."""
         # Tres columnas sólo son legibles desde ~560 px; por debajo se apilan
         # para preservar contenido en vez de recortar texto.
-        compact = width < 560
-        if compact == self._compact_layout:
+        layout_mode = "single" if width < 560 else "wide"
+        if layout_mode == self._layout_mode:
             return
-        self._compact_layout = compact
+        self._layout_mode = layout_mode
 
         for frame in self._section_columns:
             frame.grid_forget()
-        if compact:
+        if layout_mode == "single":
             self._columns.grid_columnconfigure(0, weight=1)
+            self._columns.grid_columnconfigure(1, weight=0)
             for row, frame in enumerate(self._section_columns):
                 frame.grid(row=row, column=0, sticky="nsew")
             for index, (label, value) in enumerate(self._summary_cells):
@@ -311,6 +324,8 @@ class TelemetryPanel(tk.Frame):
             self._summary.grid_columnconfigure(0, weight=1)
             self._summary.grid_columnconfigure(1, weight=1)
         else:
+            self._columns.grid_columnconfigure(0, weight=58)
+            self._columns.grid_columnconfigure(1, weight=42)
             for column, frame in enumerate(self._section_columns):
                 frame.grid(row=0, column=column, sticky="nsew")
             for index, (label, value) in enumerate(self._summary_cells):
