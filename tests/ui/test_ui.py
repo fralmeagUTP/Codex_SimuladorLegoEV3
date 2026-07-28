@@ -436,6 +436,7 @@ class TestWorldCanvas:
         wc.set_obstacles(obs)
         assert wc._obstacles == obs
 
+
     def test_robot_sprite_preserves_square_aspect_ratio(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
         assert wc._robot_sprite is not None
@@ -516,6 +517,27 @@ class TestWorldCanvas:
 
         wc.delete.assert_any_call("placement_ghost")
         wc.delete.assert_any_call("placement_marker")
+
+
+class TestWorldCanvasEditor:
+    def test_empty_world_guide_explains_how_to_start(self):
+        from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
+
+        editor = WorldCanvasEditor(
+            mock.MagicMock(),
+            on_place_asset=lambda *_args: None,
+            on_select=lambda _object_id: None,
+            on_move=lambda *_args: None,
+            on_delete=lambda _object_id: None,
+            on_status=lambda _status: None,
+        )
+        editor.create_rectangle = mock.Mock()
+        editor.create_text = mock.Mock()
+
+        editor._draw_empty_world_guide()
+
+        assert editor.create_text.call_count == 3
+        assert "Comienza a crear tu mundo" in editor.create_text.call_args_list[0].kwargs["text"]
 
 
 # ===========================================================================

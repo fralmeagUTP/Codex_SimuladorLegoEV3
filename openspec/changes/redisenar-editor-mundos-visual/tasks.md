@@ -6,7 +6,7 @@
   estados habilitados coherentes y una única acción contextual de eliminar.
 - [x] 3. Implementar biblioteca lateral con búsqueda, categorías, tarjetas de
   asset, selección visible y accesibilidad.
-- [ ] 4. Añadir guía de lienzo vacío y mantener cuadrícula, snap, zoom, paneo,
+- [x] 4. Añadir guía de lienzo vacío y mantener cuadrícula, snap, zoom, paneo,
   coordenadas y validación existentes.
 - [ ] 5. Rediseñar el inspector para mostrar propiedades de dominio por tipo de
   objeto, unidades legibles y estado sin selección.

@@ -215,7 +215,54 @@ class WorldCanvasEditor(tk.Canvas):
         self._draw_background()
         for placement in self._placements:
             self._draw_placement(placement)
+        if not self._placements:
+            self._draw_empty_world_guide()
         self._draw_preview()
+
+    def _draw_empty_world_guide(self) -> None:
+        """Da un primer paso visible sin reemplazar la cuadrícula de trabajo."""
+
+        x0, y0, x1, y1 = 48, 48, 460, 196
+        self.create_rectangle(
+            x0,
+            y0,
+            x1,
+            y1,
+            fill="#FFFFFF",
+            outline="#90A4AE",
+            width=1,
+            tags="empty_guide",
+        )
+        self.create_text(
+            x0 + 18,
+            y0 + 24,
+            text="Comienza a crear tu mundo",
+            anchor=tk.W,
+            fill="#0D47A1",
+            font=("Segoe UI", 12, "bold"),
+            tags="empty_guide",
+        )
+        self.create_text(
+            x0 + 18,
+            y0 + 54,
+            text="1. Elige un elemento en la Biblioteca.\n"
+            "2. Haz clic en la cuadrícula para colocarlo.\n"
+            "3. Guarda y usa ‘Probar mundo guardado’.",
+            anchor=tk.NW,
+            justify=tk.LEFT,
+            fill="#37474F",
+            font=("Segoe UI", 9),
+            tags="empty_guide",
+        )
+        self.create_text(
+            x0 + 18,
+            y1 - 18,
+            text="Consejo: usa Seleccionar para mover o editar un elemento.",
+            anchor=tk.W,
+            fill="#546E7A",
+            font=("Segoe UI", 8, "italic"),
+            tags="empty_guide",
+        )
 
     def _draw_background(self) -> None:
         world_w_px, world_h_px = self._world_px_size()
