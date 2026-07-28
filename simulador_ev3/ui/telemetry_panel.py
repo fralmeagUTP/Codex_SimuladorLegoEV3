@@ -206,9 +206,12 @@ class TelemetryPanel(tk.Frame):
         self._columns = columns
         setattr(columns, "_telemetry_role", "card")  # noqa: B010
         columns.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
-        columns.grid_columnconfigure(0, weight=34)
-        columns.grid_columnconfigure(1, weight=34)
-        columns.grid_columnconfigure(2, weight=32)
+        # El contenido de telemetría se actualiza en cada tick.  No dejamos que
+        # una lectura larga (por ejemplo ``UltrasonicSensorModel``) cambie el
+        # ancho solicitado de una columna y desplace las otras tablas.
+        columns.grid_columnconfigure(0, weight=34, uniform="telemetry-columns")
+        columns.grid_columnconfigure(1, weight=34, uniform="telemetry-columns")
+        columns.grid_columnconfigure(2, weight=32, uniform="telemetry-columns")
         motors_ab_column = tk.Frame(columns, bg=_BG)
         motors_cd_column = tk.Frame(columns, bg=_BG)
         sensors_column = tk.Frame(columns, bg=_BG)
@@ -473,9 +476,18 @@ def _table_data_row(parent: tk.Widget, label: str, row: int, *, suffix: str = ""
 
 
 def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
-    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
+    # Altura y filas explícitas: los cambios de valor no deben hacer que Motor
+    # B/D salte de posición mientras se ejecuta una misión.
+    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1, height=144)
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=16, pady=18)
+    block.pack(fill=tk.X, padx=10, pady=8)
+    block.grid_propagate(False)
+    block.grid_columnconfigure(0, weight=3)
+    block.grid_columnconfigure(1, weight=2)
+    block.grid_rowconfigure(0, minsize=34)
+    block.grid_rowconfigure(1, minsize=36)
+    block.grid_rowconfigure(2, minsize=36)
+    block.grid_rowconfigure(3, minsize=36)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
     header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=8)
@@ -483,9 +495,17 @@ def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
 
 
 def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
-    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
+    # Reservamos dos líneas para el valor. Así una lectura extensa no aumenta
+    # únicamente el bloque activo y no mueve S2, S3 y S4 durante la ejecución.
+    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1, height=108)
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=16, pady=6)
+    block.pack(fill=tk.X, padx=8, pady=4)
+    block.grid_propagate(False)
+    block.grid_columnconfigure(0, weight=1)
+    block.grid_columnconfigure(1, weight=2)
+    block.grid_rowconfigure(0, minsize=27)
+    block.grid_rowconfigure(1, minsize=28)
+    block.grid_rowconfigure(2, minsize=49)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
     header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=6)
@@ -493,12 +513,19 @@ def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
 
 
 def _table_sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = False) -> tk.StringVar:
-    parent.grid_columnconfigure(0, weight=1)
-    parent.grid_columnconfigure(1, weight=2)
     value = tk.StringVar(value=_EMPTY)
     _table_cell(parent, label, row, 0, value=False)
     widget = _table_cell(parent, value, row, 1, value=True)
-    widget.configure(anchor=tk.W, justify=tk.LEFT, wraplength=150, font=_BOLD if emphasize else _MONO)
+    # ``width`` y ``height`` hacen que el tamaño solicitado sea independiente
+    # del texto recibido. El tooltip conserva el texto completo si se recorta.
+    widget.configure(
+        anchor=tk.W,
+        justify=tk.LEFT,
+        wraplength=130,
+        width=15,
+        height=2 if emphasize else 1,
+        font=_BOLD if emphasize else _MONO,
+    )
     _attach_value_tooltip(widget, value)
     return value
 
