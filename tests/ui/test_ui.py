@@ -1460,7 +1460,7 @@ class TestMainWindow:
         mw._center_splash_window(splash)
         mw._maximize_main_window(app)
 
-        assert splash.geometry_value == "800x600+560+240"
+        assert splash.geometry_value == "800x450+560+315"
         assert app.state_value == "zoomed"
 
     def test_intro_image_is_resized_to_exact_startup_dimensions(self):
@@ -1477,7 +1477,7 @@ class TestMainWindow:
             result = mw._load_intro_image()
 
         source.convert.assert_called_once_with("RGBA")
-        source.convert.return_value.resize.assert_called_once_with((800, 600), mw.Image.Resampling.LANCZOS)
+        source.convert.return_value.resize.assert_called_once_with((800, 450), mw.Image.Resampling.LANCZOS)
         photo_image.assert_called_once_with("scaled-image")
         assert result == "tk-image"
 

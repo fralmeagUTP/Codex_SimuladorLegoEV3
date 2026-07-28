@@ -7,4 +7,4 @@ Fecha: 2026-07-28. Entorno: Windows, Python 3.12.5.
 - Ruff y Mypy sobre `main_window.py`: aprobados.
 - OpenSpec estricto: aprobado.
 
-La regresión unitaria confirma que una pantalla de 1920×1080 centra la introducción en `800x600+560+240`, que Pillow redimensiona la imagen con `LANCZOS` a `(800, 600)` y que el lanzador solicita el estado Tk `zoomed` para la ventana principal.
+La regresión unitaria confirma que una pantalla de 1920×1080 centra la introducción en `800x450+560+315`, que Pillow redimensiona la imagen con `LANCZOS` a `(800, 450)` y que el lanzador solicita el estado Tk `zoomed` para la ventana principal.

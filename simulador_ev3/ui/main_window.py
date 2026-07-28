@@ -85,7 +85,7 @@ _SCENARIOS: list[tuple[str, str, str]] = [
 # Periodo del tick en ms (â‰ˆ50 Hz)
 _TICK_MS = 20
 _INTRO_WIDTH_PX = 800
-_INTRO_HEIGHT_PX = 600
+_INTRO_HEIGHT_PX = 450
 
 
 class EV3SimulatorApp(tk.Tk):
@@ -1883,7 +1883,7 @@ def _intro_image_path() -> Path:
 
 
 def _load_intro_image() -> Any:
-    """Carga la introducción reescalada exactamente a 800×600 px."""
+    """Carga la introducción reescalada exactamente a 800×450 px."""
 
     with Image.open(_intro_image_path()) as source:
         scaled = source.convert("RGBA").resize((_INTRO_WIDTH_PX, _INTRO_HEIGHT_PX), Image.Resampling.LANCZOS)
@@ -1891,7 +1891,7 @@ def _load_intro_image() -> Any:
 
 
 def _center_splash_window(splash: tk.Tk | tk.Toplevel) -> None:
-    """Fija la introducción a 800×600 px y la centra en el escritorio activo."""
+    """Fija la introducción a 800×450 px y la centra en el escritorio activo."""
 
     screen_w = max(1, splash.winfo_screenwidth())
     screen_h = max(1, splash.winfo_screenheight())
