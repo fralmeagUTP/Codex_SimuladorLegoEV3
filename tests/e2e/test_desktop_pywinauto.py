@@ -157,3 +157,51 @@ def test_desktop_controls_cover_execution_debug_and_keyboard() -> None:
             application.kill()
         except Exception:  # noqa: BLE001
             pass
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_menus_unlock_after_execution_finishes_or_resets() -> None:
+    """Evita que una ejecución terminal deje la navegación de Tkinter bloqueada."""
+
+    pytest.importorskip("pywinauto")
+    from pywinauto.application import Application
+
+    root = Path(__file__).resolve().parents[2]
+    source = (
+        "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); app.mainloop()"
+    )
+    application = Application(backend="win32").start(
+        cmd_line=f'"{sys.executable}" -c "{source}"', work_dir=str(root), wait_for_idle=False
+    )
+    main = application.window(title="Simulador EV3 Pybricks")
+    try:
+        try:
+            main.wait("visible", timeout=15)
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
+        main.set_focus()
+
+        archivo = main.child_window(title="Archivo", class_name="Menubutton")
+        run = main.child_window(title="Ejecutar", control_type="Button")
+        stop = main.child_window(title="Detener y reiniciar", control_type="Button")
+        for control in (archivo, run):
+            control.wait("enabled", timeout=8)
+
+        run.click_input()
+        archivo.wait_not("enabled", timeout=5)
+
+        stop.wait("enabled", timeout=8)
+        stop.click_input()
+        archivo.wait("enabled", timeout=8)
+
+        run.click_input()
+        archivo.wait_not("enabled", timeout=5)
+        # El script inicial es finito; cuando termina de forma natural, la
+        # navegación debe reactivarse sin requerir un nuevo reinicio manual.
+        archivo.wait("enabled", timeout=15)
+    finally:
+        try:
+            application.kill()
+        except Exception:  # noqa: BLE001
+            pass

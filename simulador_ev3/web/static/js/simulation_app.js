@@ -58,6 +58,7 @@
       clearDebugState();
       hideRobotStartMarker();
       executionMenuLocked = true;
+      updateMenuLockState();
     },
     afterStart: forceStateRefreshAfterStart,
     onDebug: handleDebug,
@@ -222,6 +223,7 @@
   let selectedWorldName = null;
   let selectedBlankWorld = false;
   let currentScriptName = "editor_actual.py";
+  const ACTIVE_EXECUTION_STATUSES = new Set(["running", "paused"]);
   let executionMenuLocked = false;
   const initialSensorBeamsFlag =
     String(document?.documentElement?.dataset?.ev3SensorBeamsEnabled || "true").toLowerCase() !== "false";
@@ -270,12 +272,7 @@
     currentStatus = status || currentStatus;
     statusEl.textContent = status;
     const resetDebugVisuals = ["created", "ready", "stopped", "finished", "timed_out", "error"].includes(currentStatus);
-    if (["running", "paused", "stopped", "finished", "timed_out"].includes(currentStatus)) {
-      executionMenuLocked = true;
-    }
-    if (currentStatus === "created") {
-      executionMenuLocked = false;
-    }
+    executionMenuLocked = isExecutionActive(currentStatus);
     if (resetDebugVisuals) {
       debugPaused = false;
       currentDebugState = null;
@@ -302,6 +299,10 @@
       return;
     }
     statusEl.textContent = currentStatus;
+  }
+
+  function isExecutionActive(status) {
+    return ACTIVE_EXECUTION_STATUSES.has(status);
   }
 
   function setMenuActionState(element, disabled) {
@@ -333,13 +334,10 @@
 
   function updateMenuLockState() {
     const locked = executionMenuLocked;
-    setMenuActionState(document.getElementById("newScriptMenuBtn"), locked);
-    setMenuActionState(document.getElementById("openScriptMenuBtn"), locked);
-    setMenuActionState(document.getElementById("saveScriptMenuBtn"), locked);
-    for (const button of document.querySelectorAll("#examplesMenu button, #worldsMenu button, #scenariosMenu button")) {
+    for (const button of document.querySelectorAll("[data-execution-lockable] button")) {
       setMenuActionState(button, locked);
     }
-    for (const anchor of document.querySelectorAll("#worldsMenu a")) {
+    for (const anchor of document.querySelectorAll("[data-execution-lockable] a")) {
       setMenuActionState(anchor, locked);
     }
   }
@@ -1402,6 +1400,7 @@
       if (guardMenuAction()) return;
       action();
     });
+    setMenuActionState(button, executionMenuLocked);
     return button;
   }
 

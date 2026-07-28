@@ -289,19 +289,19 @@ class EV3SimulatorApp(tk.Tk):
         theme_menu = tk.Menu(header, tearoff=0, **menu_style)
         theme_menu.add_command(label="Tema claro", command=lambda: self._set_theme("light"))
         theme_menu.add_command(label="Tema oscuro", command=lambda: self._set_theme("dark"))
-        add_menu_button("Tema", theme_menu)
+        add_menu_button("Tema", theme_menu, lockable=True)
 
         profile_menu = tk.Menu(header, tearoff=0, **menu_style)
         profile_menu.add_command(label="Ideal", command=lambda: self._set_simulation_profile("ideal"))
         profile_menu.add_command(label="Realista", command=lambda: self._set_simulation_profile("realistic"))
         profile_menu.add_command(label="Calibrado", command=lambda: self._set_simulation_profile("calibrated"))
-        add_menu_button("Fidelidad", profile_menu)
+        add_menu_button("Fidelidad", profile_menu, lockable=True)
 
         runtime_menu = tk.Menu(header, tearoff=0, **menu_style)
         for seconds in (30, 60, 120, 300):
             runtime_menu.add_command(label=f"{seconds} s", command=partial(self._set_max_runtime, seconds))
         runtime_menu.add_command(label="Sin limite", command=lambda: self._set_max_runtime(0))
-        add_menu_button("Tiempo maximo", runtime_menu)
+        add_menu_button("Tiempo maximo", runtime_menu, lockable=True)
 
         trace_menu = tk.Menu(header, tearoff=0, **menu_style)
         trace_menu.add_command(label="Iniciar registro", command=self._start_trace)
@@ -310,7 +310,7 @@ class EV3SimulatorApp(tk.Tk):
         trace_menu.add_separator()
         trace_menu.add_command(label="Exportar JSON...", command=lambda: self._export_trace("json"))
         trace_menu.add_command(label="Exportar CSV...", command=lambda: self._export_trace("csv"))
-        add_menu_button("Trazas", trace_menu)
+        add_menu_button("Trazas", trace_menu, lockable=True)
 
         # MenÃº Ayuda
         help_menu = tk.Menu(header, tearoff=0, **menu_style)
@@ -568,6 +568,11 @@ class EV3SimulatorApp(tk.Tk):
     def _set_execution_menu_locked(self, locked: bool) -> None:
         self._execution_menu_locked = bool(locked)
         self._update_menu_lock_state()
+
+    @staticmethod
+    def _is_execution_active(status: str) -> bool:
+        """Indica si una sesión todavía debe conservar bloqueado el menú."""
+        return status in {"started", "running", "paused", "resumed"}
 
     def _guard_menu_locked(self) -> bool:
         if not self._execution_menu_locked:
@@ -1118,10 +1123,7 @@ class EV3SimulatorApp(tk.Tk):
         self.after_idle(self._telemetry_panel.set_execution_status, status)
         self.after_idle(self._sync_sim_control_states, status)
 
-        if status in ("started", "paused", "resumed", "stopped", "finished", "timed_out"):
-            self.after_idle(self._set_execution_menu_locked, True)
-        elif status == "reset":
-            self.after_idle(self._set_execution_menu_locked, False)
+        self.after_idle(self._set_execution_menu_locked, self._is_execution_active(status))
 
         # Re-habilitar modo de colocaciÃ³n al terminar la simulaciÃ³n
         if status in ("stopped", "finished", "timed_out", "error", "reset"):

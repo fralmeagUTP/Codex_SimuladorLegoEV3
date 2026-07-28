@@ -424,7 +424,6 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     client = make_client(tmp_path)
 
     js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
-    api_js = client.get("/static/js/api.js").get_data(as_text=True)
     speaker_audio = client.get("/static/js/speaker_audio.js").get_data(as_text=True)
 
     for expected in (
@@ -486,11 +485,14 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "watchesInput",
         "setWatches",
         "let executionMenuLocked = false",
+        "const ACTIVE_EXECUTION_STATUSES = new Set([\"running\", \"paused\"]);",
+        "function isExecutionActive(status)",
         "function updateMenuLockState()",
         "function guardMenuAction()",
         "MENU_LOCK_MESSAGE",
-        "executionMenuLocked = true;",
-        "executionMenuLocked = false;",
+        "executionMenuLocked = isExecutionActive(currentStatus);",
+        "[data-execution-lockable] button",
+        "[data-execution-lockable] a",
         "if (guardMenuAction()) return;",
     ):
         assert expected in js
@@ -505,6 +507,20 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "closeSession();" in lifecycle_js
     assert "recoveryFailures" in js
     assert "const configuredPollingIntervalMs = Number.parseInt(" in js
+
+
+def test_execution_context_menus_are_marked_for_a_shared_lock_policy(tmp_path):
+    client = make_client(tmp_path)
+
+    js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    api_js = client.get("/static/js/api.js").get_data(as_text=True)
+    lifecycle_js = client.get("/static/js/page_lifecycle_controller.js").get_data(as_text=True)
+    page = client.get("/").get_data(as_text=True)
+
+    # Archivo, Ejemplos, Mundos, Escenarios, Misiones y los cuatro menús que
+    # modifican configuración de ejecución deben compartir el mismo bloqueo.
+    assert page.count("data-execution-lockable") == 9
+    assert "<button type=\"button\" class=\"menu-trigger\"" in page
     assert "const POLLING_INTERVAL_MS = Number.isFinite(configuredPollingIntervalMs)" in js
     assert "const SSE_ENABLED =" in js
     assert "setInterval(refreshSnapshot, POLLING_INTERVAL_MS)" in js

@@ -1291,18 +1291,22 @@ class TestMainWindow:
         app = self.EV3SimulatorApp()
 
         assert app._execution_menu_locked is False
+        assert len(app._lockable_menu_buttons) == 9
 
         app._on_status("started")
         assert app._execution_menu_locked is True
 
         app._on_status("stopped")
-        assert app._execution_menu_locked is True
+        assert app._execution_menu_locked is False
 
         app._on_status("finished")
-        assert app._execution_menu_locked is True
+        assert app._execution_menu_locked is False
 
         app._on_status("timed_out")
-        assert app._execution_menu_locked is True
+        assert app._execution_menu_locked is False
+
+        app._on_status("error")
+        assert app._execution_menu_locked is False
 
         app._on_status("reset")
         assert app._execution_menu_locked is False
