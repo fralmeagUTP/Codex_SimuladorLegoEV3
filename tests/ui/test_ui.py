@@ -539,6 +539,25 @@ class TestWorldCanvasEditor:
         assert editor.create_text.call_count == 3
         assert "Comienza a crear tu mundo" in editor.create_text.call_args_list[0].kwargs["text"]
 
+    def test_hidden_layer_is_not_drawn_on_canvas(self):
+        from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
+
+        editor = WorldCanvasEditor(
+            mock.MagicMock(),
+            on_place_asset=lambda *_args: None,
+            on_select=lambda _object_id: None,
+            on_move=lambda *_args: None,
+            on_delete=lambda _object_id: None,
+            on_status=lambda _status: None,
+        )
+        editor.create_rectangle = mock.Mock()
+        editor.set_presentation_layers({"wall-1"}, set())
+        editor.create_rectangle.reset_mock()
+
+        editor._draw_placement({"id": "wall-1", "asset_key": "wall_64x64_a", "x_px": 0, "y_px": 0})
+
+        editor.create_rectangle.assert_not_called()
+
 
 # ===========================================================================
 # EditorPanel

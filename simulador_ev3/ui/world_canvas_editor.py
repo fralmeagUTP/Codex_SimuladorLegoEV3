@@ -67,6 +67,8 @@ class WorldCanvasEditor(tk.Canvas):
         self._tool = "select"
         self._placements: list[dict[str, Any]] = []
         self._selected_id: Optional[str] = None
+        self._hidden_layer_ids: set[str] = set()
+        self._locked_layer_ids: set[str] = set()
         self._item_to_obj_id: dict[int, str] = {}
         self._placement_index: dict[str, dict[str, Any]] = {}
         self._image_lookup = self._build_image_lookup()
@@ -110,6 +112,13 @@ class WorldCanvasEditor(tk.Canvas):
 
     def set_selected_id(self, object_id: Optional[str]) -> None:
         self._selected_id = object_id
+        self._redraw()
+
+    def set_presentation_layers(self, hidden_ids: set[str], locked_ids: set[str]) -> None:
+        """Configura capas locales; no se persisten ni afectan la simulación."""
+
+        self._hidden_layer_ids = set(hidden_ids)
+        self._locked_layer_ids = set(locked_ids)
         self._redraw()
 
     def zoom_in(self) -> float:
@@ -166,13 +175,16 @@ class WorldCanvasEditor(tk.Canvas):
         obj_id = self._pick_object_id(canvas_x, canvas_y)
         if self._tool == "delete":
             if obj_id:
+                if obj_id in self._locked_layer_ids:
+                    self._on_status("El elemento está bloqueado. Desbloquéalo desde Capas para eliminarlo.")
+                    return
                 self._on_delete(obj_id)
             return
 
         if self._tool == "select":
             self._selected_id = obj_id
             self._on_select(obj_id)
-            if obj_id:
+            if obj_id and obj_id not in self._locked_layer_ids:
                 placement = self._placement_index.get(obj_id)
                 if placement is not None:
                     cursor_x_px, cursor_y_px = self._cursor_to_editor_px(canvas_x, canvas_y)
@@ -276,6 +288,8 @@ class WorldCanvasEditor(tk.Canvas):
 
     def _draw_placement(self, placement: dict[str, Any]) -> None:
         placement_id = str(placement.get("id", ""))
+        if placement_id in self._hidden_layer_ids:
+            return
         asset_key = str(placement.get("asset_key", ""))
         spec = get_asset_spec(asset_key)
         if spec is None:

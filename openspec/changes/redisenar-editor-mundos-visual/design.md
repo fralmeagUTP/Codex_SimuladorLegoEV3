@@ -41,6 +41,13 @@ La lista de capas consume la colección actual de objetos; seleccionar una fila
 selecciona el objeto en el lienzo y viceversa. Visibilidad, bloqueo y orden se
 reflejan en el renderizado sin cambiar la semántica física del mundo.
 
+El orden de capas actualmente deriva de la prioridad canónica del modelo
+(suelo, zona, línea, muro y robot), que también garantiza proyección y
+persistencia deterministas. Por ello no se ofrece reordenamiento manual entre
+tipos: alterarlo podría modificar qué elementos son seleccionables o visibles
+sin una semántica física definida. La lista se presenta en orden inverso de
+dibujado para facilitar la selección de elementos superpuestos.
+
 Eliminar existe solo como acción contextual sobre la selección. La eliminación
 simple de un objeto no requiere confirmación; la eliminación de múltiples
 objetos o de un archivo de mundo utiliza el mecanismo seguro ya definido.

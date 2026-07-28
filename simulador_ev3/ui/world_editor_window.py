@@ -20,6 +20,7 @@ from simulador_ev3.domain.editor.world_editor_model import (
 )
 from simulador_ev3.shared.paths import resolve_worlds_dir
 from simulador_ev3.ui.asset_library_panel import AssetLibraryPanel
+from simulador_ev3.ui.layer_list_panel import LayerListPanel
 from simulador_ev3.ui.object_properties_panel import ObjectPropertiesPanel
 from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
 from simulador_ev3.ui.world_toolbar import WorldToolbar
@@ -63,6 +64,8 @@ class WorldEditorWindow(tk.Toplevel):
         self._service = WorldEditorService()
         self._selected_id: Optional[str] = None
         self._current_path: Optional[Path] = None
+        self._hidden_layer_ids: set[str] = set()
+        self._locked_layer_ids: set[str] = set()
 
         self._build()
         self._sync_world_size_inputs()
@@ -145,8 +148,17 @@ class WorldEditorWindow(tk.Toplevel):
         x_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self._props = ObjectPropertiesPanel(content)
-        content.add(self._props, minsize=300, stretch="never")
+        right_panel = tk.Frame(content, bg="#ECEFF1")
+        content.add(right_panel, minsize=300, stretch="never")
+        self._props = ObjectPropertiesPanel(right_panel)
+        self._props.pack(fill=tk.X, padx=2, pady=(0, 6))
+        self._layers = LayerListPanel(
+            right_panel,
+            on_select=self._on_select,
+            on_toggle_visibility=self._toggle_layer_visibility,
+            on_toggle_lock=self._toggle_layer_lock,
+        )
+        self._layers.pack(fill=tk.BOTH, expand=True, padx=2)
 
         status_bar = tk.Frame(self, bg="#CFD8DC", padx=8, pady=3)
         status_bar.pack(fill=tk.X, side=tk.BOTTOM)
@@ -173,6 +185,8 @@ class WorldEditorWindow(tk.Toplevel):
             return
         self._service.reset_formal_world()
         self._selected_id = None
+        self._hidden_layer_ids = set()
+        self._locked_layer_ids = set()
         self._current_path = None
         self._toolbar.set_delete_world_file_enabled(False)
         self._toolbar.set_simulate_saved_enabled(False)
@@ -197,6 +211,8 @@ class WorldEditorWindow(tk.Toplevel):
             self._toolbar.set_simulate_saved_enabled(True)
             self._toolbar.set_selection_actions_enabled(False)
             self._selected_id = None
+            self._hidden_layer_ids = set()
+            self._locked_layer_ids = set()
             self._props.set_object(None)
             self._sync_world_size_inputs()
             self._refresh_canvas()
@@ -279,6 +295,8 @@ class WorldEditorWindow(tk.Toplevel):
 
         self._service.reset_formal_world()
         self._selected_id = None
+        self._hidden_layer_ids = set()
+        self._locked_layer_ids = set()
         self._current_path = None
         self._props.set_object(None)
         self._sync_world_size_inputs()
@@ -331,6 +349,9 @@ class WorldEditorWindow(tk.Toplevel):
     def _cmd_delete_selected(self) -> None:
         if not self._selected_id:
             return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para eliminarlo.")
+            return
         if self._service.remove_asset_current(self._selected_id):
             self._selected_id = None
             self._props.set_object(None)
@@ -339,6 +360,9 @@ class WorldEditorWindow(tk.Toplevel):
 
     def _cmd_duplicate_selected(self) -> None:
         if not self._selected_id:
+            return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para duplicarlo.")
             return
         duplicated = self._service.duplicate_asset_current(self._selected_id, dx_px=GRID_SIZE_PX, dy_px=GRID_SIZE_PX)
         if duplicated is None:
@@ -351,6 +375,9 @@ class WorldEditorWindow(tk.Toplevel):
     def _cmd_rotate_selected(self) -> None:
         if not self._selected_id:
             return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para rotarlo.")
+            return
         if not self._service.rotate_asset_current(self._selected_id, 90):
             self._set_status("No fue posible rotar: validación fallida")
             return
@@ -360,6 +387,9 @@ class WorldEditorWindow(tk.Toplevel):
 
     def _cmd_apply_properties(self) -> None:
         if not self._selected_id:
+            return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para editarlo.")
             return
         updates = self._props.collect_updates()
         if updates is None:
@@ -465,8 +495,29 @@ class WorldEditorWindow(tk.Toplevel):
         self._props.set_object(placement.to_dict() if placement else None)
         self._toolbar.set_selection_actions_enabled(placement is not None)
         self._canvas.set_selected_id(object_id)
+        self._refresh_layer_panel()
+
+    def _toggle_layer_visibility(self, object_id: str) -> None:
+        if object_id in self._hidden_layer_ids:
+            self._hidden_layer_ids.remove(object_id)
+        else:
+            self._hidden_layer_ids.add(object_id)
+        self._refresh_canvas()
+
+    def _toggle_layer_lock(self, object_id: str) -> None:
+        if object_id in self._locked_layer_ids:
+            self._locked_layer_ids.remove(object_id)
+        else:
+            self._locked_layer_ids.add(object_id)
+        self._refresh_canvas()
+
+    def _is_layer_locked(self, object_id: Optional[str]) -> bool:
+        return bool(object_id and object_id in self._locked_layer_ids)
 
     def _on_move(self, object_id: str, x_px: int, y_px: int) -> None:
+        if self._is_layer_locked(object_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para moverlo.")
+            return
         if self._service.move_asset_current(object_id, x_px, y_px):
             self._refresh_canvas()
             if self._selected_id == object_id:
@@ -474,6 +525,9 @@ class WorldEditorWindow(tk.Toplevel):
                 self._props.set_object(placement.to_dict() if placement else None)
 
     def _on_delete(self, object_id: str) -> None:
+        if self._is_layer_locked(object_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para eliminarlo.")
+            return
         if self._service.remove_asset_current(object_id):
             if self._selected_id == object_id:
                 self._selected_id = None
@@ -501,7 +555,25 @@ class WorldEditorWindow(tk.Toplevel):
             world.world_width_cells * CELL_SIZE_MM,
             world.world_height_cells * CELL_SIZE_MM,
         )
-        self._canvas.set_placements([placement.to_dict() for placement in world.placements])
+        placements = [placement.to_dict() for placement in world.placements]
+        valid_ids = {str(placement["id"]) for placement in placements}
+        self._hidden_layer_ids.intersection_update(valid_ids)
+        self._locked_layer_ids.intersection_update(valid_ids)
+        self._canvas.set_presentation_layers(self._hidden_layer_ids, self._locked_layer_ids)
+        self._canvas.set_placements(placements)
+        self._refresh_layer_panel(placements)
+
+    def _refresh_layer_panel(self, placements: list[dict[str, Any]] | None = None) -> None:
+        """Mantiene sincronizada la selección entre lienzo e inventario de capas."""
+
+        if placements is None:
+            placements = [placement.to_dict() for placement in self._service.current_formal_world().placements]
+        self._layers.set_layers(
+            placements,
+            selected_id=self._selected_id,
+            hidden_ids=self._hidden_layer_ids,
+            locked_ids=self._locked_layer_ids,
+        )
         self._canvas.set_selected_id(self._selected_id)
         self._refresh_validation_status()
 

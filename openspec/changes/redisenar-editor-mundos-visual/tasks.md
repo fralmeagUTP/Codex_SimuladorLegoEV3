@@ -12,7 +12,7 @@
   objeto, unidades legibles y estado sin selección.
 - [x] 6. Implementar dimensiones en Ancho/Alto de celdas, presets y
   equivalencias físicas, preservando validación ante cambios destructivos.
-- [ ] 7. Implementar lista de capas con selección bidireccional, visibilidad,
+- [x] 7. Implementar lista de capas con selección bidireccional, visibilidad,
   bloqueo y reordenamiento donde aplique.
 - [ ] 8. Adaptar el diseño a escritorio y móvil, y aplicar tema claro/oscuro a
   todos los paneles, estados y controles.
