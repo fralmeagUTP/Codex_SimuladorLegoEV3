@@ -143,6 +143,10 @@ class EV3SimulatorApp(tk.Tk):
         self._next_execution_notification_id = 0
         self._active_execution_notification_id: int | None = None
         self._notified_execution_notification_id: int | None = None
+        # Descarta snapshots encolados por la ejecución que se acaba de
+        # cancelar. Sin esta barrera, un callback tardío podía volver a dibujar
+        # haces/trazas azules justo después de "Detener y reiniciar".
+        self._snapshot_epoch = 0
         self._lockable_menu_buttons: list[tk.Menubutton] = []
         self._persist_session = persist_session
 
@@ -1063,7 +1067,14 @@ class EV3SimulatorApp(tk.Tk):
             return
         # after_idle garantiza que la actualizaciÃ³n de widgets ocurre
         # en el hilo de Tkinter (MainThread)
-        self.after_idle(self._apply_snapshot, dto)
+        snapshot_epoch = self._snapshot_epoch
+        self.after_idle(self._apply_snapshot_if_current, dto, snapshot_epoch)
+
+    def _apply_snapshot_if_current(self, dto, snapshot_epoch: int) -> None:
+        """Aplica solo snapshots pertenecientes a la ejecución vigente."""
+        if snapshot_epoch != self._snapshot_epoch:
+            return
+        self._apply_snapshot(dto)
 
     def _apply_snapshot(self, dto) -> None:
         """Actualiza los widgets con el snapshot (ejecutado en MainThread)."""
@@ -1281,6 +1292,9 @@ class EV3SimulatorApp(tk.Tk):
 
     def _cmd_reset(self) -> None:
         self._active_execution_notification_id = None
+        # Invalida los callbacks de snapshot que el hilo de ejecución hubiera
+        # dejado pendientes antes de detenerse.
+        self._snapshot_epoch += 1
         self._service.reset()
         self._set_execution_menu_locked(False)
         self._canvas.reset()

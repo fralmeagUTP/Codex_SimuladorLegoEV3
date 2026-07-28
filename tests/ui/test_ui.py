@@ -929,6 +929,27 @@ class TestMainWindow:
         assert not app._service.is_running
         app._on_close()
 
+    def test_reset_discards_late_snapshot_from_stopped_execution(self):
+        """Un snapshot antiguo no puede restaurar haces o trazas tras reset."""
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        old_epoch = app._snapshot_epoch
+        app._apply_snapshot = mock.Mock()
+
+        with (
+            mock.patch.object(app._service, "reset"),
+            mock.patch.object(app._service, "current_snapshot", return_value=None),
+        ):
+            app._cmd_reset()
+
+        app._apply_snapshot_if_current(_snap(), old_epoch)
+        app._apply_snapshot.assert_not_called()
+        app._on_close()
+
     def test_simulation_control_states_follow_execution_state(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory
