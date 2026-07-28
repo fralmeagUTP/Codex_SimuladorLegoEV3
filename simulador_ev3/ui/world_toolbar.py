@@ -40,11 +40,11 @@ class WorldToolbar(tk.Frame):
         on_open: Callable[[], None],
         on_save: Callable[[], None],
         on_save_as: Callable[[], None],
-        on_delete_world_file: Callable[[], None],
         on_delete: Callable[[], None],
         on_duplicate: Callable[[], None],
         on_rotate: Callable[[], None],
         on_apply_props: Callable[[], None],
+        on_delete_world_file: Optional[Callable[[], None]] = None,
         on_simulate_saved: Optional[Callable[[], None]] = None,
     ) -> None:
         super().__init__(parent, bg=_BAR_BG, padx=6, pady=4)
@@ -60,7 +60,7 @@ class WorldToolbar(tk.Frame):
         self._add_action_button("Guardar como", on_save_as)
         self._delete_world_file_button = self._add_action_button(
             "Eliminar archivo",
-            on_delete_world_file,
+            on_delete_world_file or (lambda: None),
             state=tk.DISABLED,
         )
         self._simulate_saved_button = self._add_action_button(
