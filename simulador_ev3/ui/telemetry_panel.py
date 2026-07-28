@@ -16,10 +16,11 @@ from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, ThemeTokens, tokens_for_theme
 
 _BG = LIGHT_TOKENS.surface
-_HDR_BG = LIGHT_TOKENS.surface
+_HDR_BG = LIGHT_TOKENS.surface_muted
 _HDR_FG = LIGHT_TOKENS.text
 _VAL_FG = LIGHT_TOKENS.text
 _COL_FG = LIGHT_TOKENS.danger
+_BORDER = LIGHT_TOKENS.border
 _MONO = ("Segoe UI", 9)
 _LABEL = ("Segoe UI", 9)
 _BOLD = ("Segoe UI", 9, "bold")
@@ -182,7 +183,10 @@ class TelemetryPanel(tk.Frame):
         self._var_time = self._summary_time
         self._summary_status_cell: tk.Label | None = None
         self._summary_collision_cell: tk.Label | None = None
-        summary = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
+        summary = tk.Frame(
+            self._content, bg=_BG, relief=tk.FLAT, bd=0,
+            highlightthickness=1, highlightbackground=_BORDER,
+        )
         self._summary = summary
         setattr(summary, "_telemetry_role", "card")  # noqa: B010
         summary.pack(fill=tk.X, padx=8, pady=(0, 4))
@@ -202,7 +206,10 @@ class TelemetryPanel(tk.Frame):
                 self._summary_status_cell = cell
             elif column == 3:
                 self._summary_collision_cell = cell
-        columns = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
+        columns = tk.Frame(
+            self._content, bg=_BG, relief=tk.FLAT, bd=0,
+            highlightthickness=1, highlightbackground=_BORDER,
+        )
         self._columns = columns
         setattr(columns, "_telemetry_role", "card")  # noqa: B010
         columns.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
@@ -217,7 +224,7 @@ class TelemetryPanel(tk.Frame):
         sensors_column = tk.Frame(columns, bg=_BG)
         for column, frame in enumerate((motors_ab_column, motors_cd_column, sensors_column)):
             frame.grid(row=0, column=column, sticky="nsew")
-            frame.configure(relief=tk.SOLID, bd=1)
+            frame.configure(relief=tk.FLAT, bd=0, highlightthickness=1, highlightbackground=_BORDER)
             setattr(frame, "_telemetry_role", "card")  # noqa: B010
 
         self._section_columns = (motors_ab_column, motors_cd_column, sensors_column)
@@ -401,11 +408,14 @@ class TelemetryPanel(tk.Frame):
                 parts: list[str] = []
                 dist_mm = val.get("distance_mm")
                 if isinstance(dist_mm, (int, float)):
-                    parts.append(f"distance_cm={_mm_to_cm(dist_mm):.1f}")
+                    parts.append(f"Distancia={_mm_to_cm(dist_mm):.1f} cm")
                 for key, item in val.items():
-                    if key == "distance_mm":
+                    if key in {"distance_mm", "port"}:
                         continue
                     parts.append(f"{key}={item}")
+                vars_by_key["value"].set(", ".join(parts) if parts else _EMPTY)
+            elif isinstance(val, dict):
+                parts = [f"{key}={item}" for key, item in val.items() if key != "port"]
                 vars_by_key["value"].set(", ".join(parts) if parts else _EMPTY)
             else:
                 vars_by_key["value"].set(str(val))
@@ -454,10 +464,10 @@ def _table_cell(
 ) -> tk.Label:
     if isinstance(text, tk.StringVar):
         widget = tk.Label(parent, textvariable=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=10)
+                          relief=tk.SOLID, bd=0, padx=5, pady=5)
     else:
         widget = tk.Label(parent, text=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=10)
+                          relief=tk.SOLID, bd=0, padx=5, pady=5)
     setattr(widget, "_telemetry_role", "value" if value else "label")  # noqa: B010
     widget.grid(row=row, column=column, sticky="nsew")
     return widget
@@ -478,37 +488,34 @@ def _table_data_row(parent: tk.Widget, label: str, row: int, *, suffix: str = ""
 def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
     # Altura y filas explícitas: los cambios de valor no deben hacer que Motor
     # B/D salte de posición mientras se ejecuta una misión.
-    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1, height=144)
+    block = tk.Frame(
+        parent, bg=_BG, relief=tk.FLAT, bd=0,
+        highlightthickness=1, highlightbackground=_BORDER,
+    )
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.X, padx=10, pady=8)
-    block.grid_propagate(False)
+    block.pack(fill=tk.X, padx=8, pady=7)
     block.grid_columnconfigure(0, weight=3)
     block.grid_columnconfigure(1, weight=2)
-    block.grid_rowconfigure(0, minsize=34)
-    block.grid_rowconfigure(1, minsize=36)
-    block.grid_rowconfigure(2, minsize=36)
-    block.grid_rowconfigure(3, minsize=36)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
-    header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=8)
+    header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=5)
     return block
 
 
 def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
     # Reservamos dos líneas para el valor. Así una lectura extensa no aumenta
     # únicamente el bloque activo y no mueve S2, S3 y S4 durante la ejecución.
-    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1, height=108)
+    block = tk.Frame(
+        parent, bg=_BG, relief=tk.FLAT, bd=0,
+        highlightthickness=1, highlightbackground=_BORDER,
+    )
     setattr(block, "_telemetry_role", "card")  # noqa: B010
     block.pack(fill=tk.X, padx=8, pady=4)
-    block.grid_propagate(False)
     block.grid_columnconfigure(0, weight=1)
     block.grid_columnconfigure(1, weight=2)
-    block.grid_rowconfigure(0, minsize=27)
-    block.grid_rowconfigure(1, minsize=28)
-    block.grid_rowconfigure(2, minsize=49)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
-    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=6)
+    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=4)
     return block
 
 
