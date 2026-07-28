@@ -154,6 +154,7 @@ class WorldEditorWindow(tk.Toplevel):
         self._current_path = None
         self._toolbar.set_delete_world_file_enabled(False)
         self._toolbar.set_simulate_saved_enabled(False)
+        self._toolbar.set_selection_actions_enabled(False)
         self._props.set_object(None)
         self._sync_world_size_inputs()
         self._refresh_canvas()
@@ -172,6 +173,7 @@ class WorldEditorWindow(tk.Toplevel):
             self._current_path = loaded_path
             self._toolbar.set_delete_world_file_enabled(self._is_deletable_world_path(loaded_path))
             self._toolbar.set_simulate_saved_enabled(True)
+            self._toolbar.set_selection_actions_enabled(False)
             self._selected_id = None
             self._props.set_object(None)
             self._sync_world_size_inputs()
@@ -261,6 +263,7 @@ class WorldEditorWindow(tk.Toplevel):
         self._refresh_canvas()
         self._toolbar.set_delete_world_file_enabled(False)
         self._toolbar.set_simulate_saved_enabled(False)
+        self._toolbar.set_selection_actions_enabled(False)
         self._set_status(f"Mundo eliminado: {resolved.name}. Se creó un mundo nuevo.")
 
     @staticmethod
@@ -309,6 +312,7 @@ class WorldEditorWindow(tk.Toplevel):
         if self._service.remove_asset_current(self._selected_id):
             self._selected_id = None
             self._props.set_object(None)
+            self._toolbar.set_selection_actions_enabled(False)
             self._refresh_canvas()
 
     def _cmd_duplicate_selected(self) -> None:
@@ -402,12 +406,14 @@ class WorldEditorWindow(tk.Toplevel):
             return
         self._selected_id = placement.id
         self._props.set_object(placement.to_dict())
+        self._toolbar.set_selection_actions_enabled(True)
         self._refresh_canvas()
 
     def _on_select(self, object_id: Optional[str]) -> None:
         self._selected_id = object_id
         placement = self._service.get_placement(object_id) if object_id else None
         self._props.set_object(placement.to_dict() if placement else None)
+        self._toolbar.set_selection_actions_enabled(placement is not None)
         self._canvas.set_selected_id(object_id)
 
     def _on_move(self, object_id: str, x_px: int, y_px: int) -> None:
@@ -422,6 +428,7 @@ class WorldEditorWindow(tk.Toplevel):
             if self._selected_id == object_id:
                 self._selected_id = None
                 self._props.set_object(None)
+                self._toolbar.set_selection_actions_enabled(False)
             self._refresh_canvas()
 
     # ------------------------------------------------------------------

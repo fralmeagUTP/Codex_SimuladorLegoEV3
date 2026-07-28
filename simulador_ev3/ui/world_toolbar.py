@@ -30,7 +30,7 @@ _TOOL_IMAGE_OVERRIDES: dict[str, list[str]] = {
 
 
 class WorldToolbar(tk.Frame):
-    """Simple toolbar with world-editor tools."""
+    """Cabecera agrupada de acciones y elementos rápidos del editor."""
 
     def __init__(
         self,
@@ -47,71 +47,98 @@ class WorldToolbar(tk.Frame):
         on_delete_world_file: Optional[Callable[[], None]] = None,
         on_simulate_saved: Optional[Callable[[], None]] = None,
     ) -> None:
-        super().__init__(parent, bg=_BAR_BG, padx=6, pady=4)
+        super().__init__(parent, bg=_BAR_BG, padx=8, pady=6)
         self._on_tool_change = on_tool_change
         self._active_tool = "select"
         self._tool_buttons: dict[str, tk.Button] = {}
         self._tool_icons: dict[str, tk.PhotoImage] = {}
         self._image_lookup = self._build_image_lookup()
+        self._selection_buttons: list[tk.Button] = []
 
-        self._add_action_button("Nuevo", on_new)
-        self._add_action_button("Abrir", on_open)
-        self._add_action_button("Guardar", on_save)
-        self._add_action_button("Guardar como", on_save_as)
+        action_row = tk.Frame(self, bg=_BAR_BG)
+        action_row.pack(fill=tk.X, anchor=tk.W)
+        file_group = self._add_group(action_row, "Archivo")
+        edit_group = self._add_group(action_row, "Edición")
+        simulation_group = self._add_group(action_row, "Simulación")
+
+        self._add_action_button("Nuevo", on_new, parent=file_group)
+        self._add_action_button("Abrir", on_open, parent=file_group)
+        self._add_action_button("Guardar", on_save, parent=file_group, primary=True)
+        self._add_action_button("Guardar como", on_save_as, parent=file_group)
         self._delete_world_file_button = self._add_action_button(
             "Eliminar archivo",
             on_delete_world_file or (lambda: None),
+            parent=file_group,
             state=tk.DISABLED,
+            danger=True,
         )
+
         self._simulate_saved_button = self._add_action_button(
-            "Simular mundo guardado",
+            "Probar mundo guardado",
             on_simulate_saved or (lambda: None),
+            parent=simulation_group,
             state=tk.DISABLED,
+            primary=True,
         )
-        self._add_separator()
 
-        self._add_tool_button("select", "Select")
-        self._add_tool_button("delete", "Delete")
-        self._add_separator()
+        self._add_tool_button("select", "Seleccionar", parent=edit_group)
+        self._selection_buttons.extend(
+            [
+                self._add_action_button("Eliminar", on_delete, parent=edit_group, state=tk.DISABLED, danger=True),
+                self._add_action_button("Duplicar", on_duplicate, parent=edit_group, state=tk.DISABLED),
+                self._add_action_button("Rotar 90°", on_rotate, parent=edit_group, state=tk.DISABLED),
+                self._add_action_button("Aplicar propiedades", on_apply_props, parent=edit_group, state=tk.DISABLED),
+            ]
+        )
 
-        self._add_tool_button("robot_ev3_32x32", "Robot")
-        self._add_tool_button("wall_64x64_a", "Wall A")
-        self._add_tool_button("wall_64x64_b", "Wall B")
-        self._add_tool_button("wall_64x64_c", "Wall C")
-        self._add_tool_button("floor_tile_256_a", "Fondo A")
-        self._add_tool_button("floor_tile_256_b", "Fondo B")
-        self._add_tool_button("floor_tile_256_c", "Fondo C")
-        self._add_tool_button("zone_white_128", "Zone White")
-        self._add_tool_button("zone_red_128", "Zone Red")
-        self._add_tool_button("zone_green_128", "Zone Green")
-        self._add_tool_button("line_64_64_hor", "Line Hor")
-        self._add_tool_button("line_64_64_ver", "Line Ver")
-        self._add_tool_button("line_64x64_cruz", "Line Cross")
-        self._add_tool_button("line_64_64_infder", "Curve InfDer")
-        self._add_tool_button("line_64_64_infizq", "Curve InfIzq")
-        self._add_tool_button("line_64_64_supder", "Curve SupDer")
-        self._add_tool_button("line_64_64_supizq", "Curve SupIzq")
-        self._add_separator()
-
-        self._add_action_button("Eliminar", on_delete)
-        self._add_action_button("Duplicate", on_duplicate)
-        self._add_action_button("Rotar 90", on_rotate)
-        self._add_action_button("Aplicar propiedades", on_apply_props)
+        asset_group = self._add_group(self, "Elementos rápidos", fill=tk.X)
+        for tool_id, label in (
+            ("robot_ev3_32x32", "Robot EV3"),
+            ("wall_64x64_a", "Muro A"),
+            ("wall_64x64_b", "Muro B"),
+            ("wall_64x64_c", "Muro C"),
+            ("floor_tile_256_a", "Suelo A"),
+            ("floor_tile_256_b", "Suelo B"),
+            ("floor_tile_256_c", "Suelo C"),
+            ("zone_white_128", "Zona blanca"),
+            ("zone_red_128", "Zona roja"),
+            ("zone_green_128", "Zona verde"),
+            ("line_64_64_hor", "Línea horizontal"),
+            ("line_64_64_ver", "Línea vertical"),
+            ("line_64x64_cruz", "Cruce"),
+            ("line_64_64_infder", "Curva inferior derecha"),
+            ("line_64_64_infizq", "Curva inferior izquierda"),
+            ("line_64_64_supder", "Curva superior derecha"),
+            ("line_64_64_supizq", "Curva superior izquierda"),
+        ):
+            self._add_tool_button(tool_id, label, parent=asset_group)
 
         self._refresh_tool_styles()
+
+    @staticmethod
+    def _add_group(parent: tk.Widget, title: str, *, fill: str | None = None) -> tk.LabelFrame:
+        group = tk.LabelFrame(parent, text=title, bg=_BAR_BG, padx=4, pady=3, font=("Segoe UI", 8, "bold"))
+        group.pack(side=tk.LEFT, padx=(0, 8), fill=fill or tk.NONE, anchor=tk.W)
+        return group
 
     def _add_action_button(
         self,
         label: str,
         command: Callable[[], None],
         *,
+        parent: tk.Widget,
         state: Literal["normal", "active", "disabled"] = "normal",
+        primary: bool = False,
+        danger: bool = False,
     ) -> tk.Button:
+        bg = "#1565C0" if primary else "#C62828" if danger else _BTN_BG
+        fg = "white" if primary or danger else "#102027"
         btn = tk.Button(
-            self,
+            parent,
             text=label,
             command=command,
-            bg=_BTN_BG,
+            bg=bg,
+            fg=fg,
             activebackground=_BTN_ACTIVE,
             relief=tk.RAISED,
             bd=1,
@@ -132,7 +159,14 @@ class WorldToolbar(tk.Frame):
 
         self._delete_world_file_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
 
-    def _add_tool_button(self, tool_id: str, label: str) -> None:
+    def set_selection_actions_enabled(self, enabled: bool) -> None:
+        """Sin selección no se ofrecen acciones que no podrían completarse."""
+
+        state = tk.NORMAL if enabled else tk.DISABLED
+        for button in self._selection_buttons:
+            button.configure(state=state)
+
+    def _add_tool_button(self, tool_id: str, label: str, *, parent: tk.Widget) -> None:
         icon = self._get_tool_icon(tool_id)
         kwargs: dict[str, Any] = {
             "command": lambda t=tool_id: self._set_tool(t),
@@ -157,7 +191,7 @@ class WorldToolbar(tk.Frame):
         else:
             kwargs["text"] = label
         btn = tk.Button(
-            self,
+            parent,
             **kwargs,
         )
         btn.pack(side=tk.LEFT, padx=2)

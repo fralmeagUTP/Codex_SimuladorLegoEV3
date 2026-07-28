@@ -2,7 +2,7 @@
 
 - [x] 1. Inventariar acciones y assets actuales; definir nombres en español,
   tooltips, categorías y equivalencias de unidades compartidas.
-- [ ] 2. Reorganizar la cabecera en grupos Archivo, Edición y Simulación, con
+- [x] 2. Reorganizar la cabecera en grupos Archivo, Edición y Simulación, con
   estados habilitados coherentes y una única acción contextual de eliminar.
 - [ ] 3. Implementar biblioteca lateral con búsqueda, categorías, tarjetas de
   asset, selección visible y accesibilidad.
