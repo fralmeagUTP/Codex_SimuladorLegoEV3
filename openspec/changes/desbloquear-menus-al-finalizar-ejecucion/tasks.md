@@ -21,5 +21,5 @@
 
 - [x] 4.1 Ejecutar pruebas unitarias e integración de las transiciones de estado en ambas interfaces.
 - [x] 4.2 Ejecutar una prueba Web en navegador: bloquear durante ejecución, habilitar al terminar naturalmente y habilitar tras detener y reiniciar.
-- [ ] 4.3 Ejecutar una verificación manual Tkinter para los mismos tres flujos.
+- [x] 4.3 Ejecutar una verificación manual Tkinter para los mismos tres flujos.
 - [x] 4.4 Ejecutar análisis estático y registrar los resultados en la evidencia del cambio.

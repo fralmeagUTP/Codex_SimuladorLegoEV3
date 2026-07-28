@@ -27,3 +27,13 @@ Se añadió `test_desktop_menus_unlock_after_execution_finishes_or_resets`, que 
 - Calidad local: Ruff y Mypy aprobados; `openspec validate desbloquear-menus-al-finalizar-ejecucion --strict` aprobado.
 - CI de la rama `codex/desbloquear-menus-al-finalizar-ejecucion`: los cuatro flujos ejecutados para el commit `00f97c1` finalizaron correctamente, incluida la matriz Windows Python 3.11/3.12, Linux, E2E web y evidencia visual.
 - Reintento explícito de la verificación nativa: `$env:EV3_RUN_DESKTOP_E2E='1'; .\.venv\Scripts\python.exe -m pytest tests/e2e/test_desktop_pywinauto.py::test_desktop_menus_unlock_after_execution_finishes_or_resets -q -rs` fue omitido porque el host no expone un escritorio Windows visible. MENU-004 a MENU-006 siguen pendientes únicamente de esa observación visual manual.
+
+## Verificación manual Tkinter (2026-07-28)
+
+Con la ventana real `Simulador EV3 Pybricks` visible en un escritorio Windows se ejecutó el ejemplo finito de LED cargado en el editor. La automatización interactuó con los botones y con el menú Archivo de esa misma instancia, sin crear una segunda aplicación:
+
+- `MENU-004`: aprobado. Tras pulsar Ejecutar, Archivo no se desplegó, lo que confirma su bloqueo durante la ejecución.
+- `MENU-006`: aprobado. Tras pulsar Detener y reiniciar, Archivo volvió a desplegarse.
+- `MENU-005`: aprobado. Tras una finalización natural del ejemplo, Archivo volvió a desplegarse.
+
+La tarea 4.3 queda completada. El intento de Pywinauto que crea una segunda instancia continúa condicionado por el entorno, pero no invalida esta verificación real sobre la aplicación visible.
