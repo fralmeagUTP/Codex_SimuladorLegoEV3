@@ -170,7 +170,7 @@ class WorldEditorWindow(tk.Toplevel):
         try:
             loaded_path, note = self._service.load_json(path)
             self._current_path = loaded_path
-            self._toolbar.set_delete_world_file_enabled(not self._is_builtin_world_path(loaded_path))
+            self._toolbar.set_delete_world_file_enabled(self._is_deletable_world_path(loaded_path))
             self._toolbar.set_simulate_saved_enabled(True)
             self._selected_id = None
             self._props.set_object(None)
@@ -211,7 +211,7 @@ class WorldEditorWindow(tk.Toplevel):
             self._current_path = saved
             self._set_status(f"Mundo guardado: {saved.name}")
             self._toolbar.set_simulate_saved_enabled(True)
-            self._toolbar.set_delete_world_file_enabled(not self._is_builtin_world_path(saved))
+            self._toolbar.set_delete_world_file_enabled(self._is_deletable_world_path(saved))
             # Compatibilidad con integraciones anteriores que reaccionaban al
             # guardado; la ventana principal usa la acción explícita de simular.
             if self._on_world_saved is not None:
@@ -225,8 +225,11 @@ class WorldEditorWindow(tk.Toplevel):
         if path is None:
             self._set_status("Abre o guarda un mundo editable antes de eliminarlo")
             return
-        if self._is_builtin_world_path(path):
-            messagebox.showwarning("Editor de mundos", "Los mundos preestablecidos no se pueden eliminar.")
+        if not self._is_deletable_world_path(path):
+            messagebox.showwarning(
+                "Editor de mundos",
+                "Solo se pueden eliminar mundos personalizados guardados en el directorio de mundos.",
+            )
             return
         try:
             resolved = path.resolve(strict=True)
@@ -265,6 +268,19 @@ class WorldEditorWindow(tk.Toplevel):
         """Identifica solo los mundos distribuidos por el proyecto."""
         try:
             return path.resolve().parent == _WORLDS_DIR.resolve() and path.name in _BUILTIN_WORLD_FILENAMES
+        except OSError:
+            return False
+
+    @classmethod
+    def _is_deletable_world_path(cls, path: Path) -> bool:
+        """Autoriza únicamente JSON personalizados del directorio configurado."""
+        try:
+            resolved = path.resolve()
+            return (
+                resolved.parent == _WORLDS_DIR.resolve()
+                and resolved.suffix.lower() == ".json"
+                and not cls._is_builtin_world_path(resolved)
+            )
         except OSError:
             return False
 

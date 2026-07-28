@@ -48,7 +48,9 @@ def test_delete_current_custom_world_resets_editor_after_confirmation(tmp_path: 
     world_path.write_text("{}", encoding="utf-8")
     editor = _editor_for_navigation(world_path)
 
-    with patch("simulador_ev3.ui.world_editor_window.messagebox.askyesno", return_value=True):
+    with patch("simulador_ev3.ui.world_editor_window._WORLDS_DIR", tmp_path), patch(
+        "simulador_ev3.ui.world_editor_window.messagebox.askyesno", return_value=True
+    ):
         editor._cmd_delete_world_file()
 
     assert not world_path.exists()
@@ -68,5 +70,22 @@ def test_builtin_world_cannot_be_deleted(tmp_path: Path) -> None:
     ) as show_warning:
         editor._cmd_delete_world_file()
 
+    show_warning.assert_called_once()
+    editor._service.reset_formal_world.assert_not_called()
+
+
+def test_world_outside_configured_directory_cannot_be_deleted(tmp_path: Path) -> None:
+    external = tmp_path / "externo"
+    external.mkdir()
+    path = external / "practica.json"
+    path.write_text("{}", encoding="utf-8")
+    editor = _editor_for_navigation(path)
+
+    with patch("simulador_ev3.ui.world_editor_window._WORLDS_DIR", tmp_path), patch(
+        "simulador_ev3.ui.world_editor_window.messagebox.showwarning"
+    ) as show_warning:
+        editor._cmd_delete_world_file()
+
+    assert path.exists()
     show_warning.assert_called_once()
     editor._service.reset_formal_world.assert_not_called()
