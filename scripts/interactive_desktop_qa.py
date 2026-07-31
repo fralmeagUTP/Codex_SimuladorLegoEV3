@@ -270,6 +270,28 @@ def run_pause_resume_reset_smoke(output: Path) -> None:
     pyautogui.screenshot().save(output)
 
 
+def run_keyboard_navigation_smoke(output: Path) -> None:
+    """Recorre menú y controles con F10, Tab, Shift+Tab, Enter y Escape."""
+
+    close_transient_dialogs()
+    _focus_window("Simulador EV3 Pybricks")
+    pyautogui.PAUSE = 0.2
+    # F10 desplaza el foco a la barra de menús clásica de Tk. La primera
+    # opción es un nuevo documento en la instancia aislada de QA, por lo que
+    # Enter permite comprobar la activación sin modificar datos de usuario.
+    pyautogui.press("f10")
+    pyautogui.press("down")
+    pyautogui.press("enter")
+    time.sleep(0.4)
+    pyautogui.press("tab", presses=4, interval=0.1)
+    pyautogui.hotkey("shift", "tab")
+    pyautogui.press("f10")
+    pyautogui.press("escape")
+    _focus_window("Simulador EV3 Pybricks")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    pyautogui.screenshot().save(output)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -283,6 +305,7 @@ if __name__ == "__main__":
             "syntax-error",
             "screen-text",
             "pause-resume-reset",
+            "keyboard-navigation",
         ),
     )
     args = parser.parse_args()
@@ -296,6 +319,7 @@ if __name__ == "__main__":
         "syntax-error": (run_syntax_error_smoke, evidence / "error_sintaxis_real.png"),
         "screen-text": (run_screen_text_smoke, evidence / "screen_draw_text_real.png"),
         "pause-resume-reset": (run_pause_resume_reset_smoke, evidence / "reinicio_real.png"),
+        "keyboard-navigation": (run_keyboard_navigation_smoke, evidence / "teclado_foco_escape_real.png"),
     }
     action, target = cases[args.case]
     action(target)

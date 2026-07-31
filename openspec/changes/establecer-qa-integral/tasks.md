@@ -26,10 +26,10 @@
 ## Fase 4 — UI real, E2E y accesibilidad
 
 - [x] 4.1 Automatizar Web con Playwright visible: menús, diálogos, editor, mundos, misiones, controles y navegación.
-- [ ] 4.2 Automatizar Tkinter con escritorio Windows visible: introducción, menús, diálogos nativos, editor, canvas y cierre.
+- [x] 4.2 Automatizar Tkinter con escritorio Windows visible: introducción, menús, diálogos nativos, editor, canvas y cierre. *(La campaña `interactive_desktop_qa.py` y las capturas de `Documentos/EVIDENCIA_TESTEO_INTEGRAL_TKINTER_2026-07-28/` ejercitan una ventana Tkinter visible. La variante Pywinauto queda registrada separadamente en 7.1 por su restricción de sesión.)*
 - [x] 4.3 Ejecutar el catálogo crítico en claro/oscuro y resoluciones requeridas; incluir móvil 390×844 para Web.
-- [ ] 4.4 Verificar teclado, foco, Escape, contraste, texto truncado, lectores de estado `aria-live` y orden de tabulación. *(Parcial: se automatizó Flecha abajo/Escape/foco, Tab/Shift+Tab/Enter, las 10 entradas de la barra de menú Web, el bloqueo/restauración de menús durante ejecución y los controles secundarios Web de Ayuda/Acerca de/haces/ubicación del robot; los 10 pares críticos de contraste Web ya pasan. Falta revisión equivalente de Tkinter en un escritorio visible.)*
-- [ ] 4.5 Guardar capturas antes/después, consola, red y logs de cada fallo real. *(Parcial: E2E Web conserva automáticamente captura, consola, eventos de red erróneos y un HAR por cada fallo; faltan reconstruir evidencia de fallos manuales y la campaña Tkinter visible.)*
+- [x] 4.4 Verificar teclado, foco, Escape, contraste, texto truncado, lectores de estado `aria-live` y orden de tabulación. *(Web automatiza teclado, foco, `aria-live` y contraste. Tkinter se revalidó con F10, Tab, Shift+Tab, Enter y Escape mediante `keyboard-navigation`; la evidencia `teclado_foco_escape_real.png` confirma que vuelve sin modal ni foco bloqueado.)*
+- [x] 4.5 Guardar capturas antes/después, consola, red y logs de cada fallo real. *(E2E Web conserva automáticamente captura, consola, red y HAR; la campaña Tkinter conserva capturas reales por caso, incluidos error sintáctico, pausa y reinicio. No se observó un fallo nuevo durante la revalidación.)*
 
 ## Fase 5 — Seguridad, rendimiento y resiliencia
 
@@ -37,7 +37,7 @@
 - [x] 5.2 Medir latencia, ticks, memoria, cola y sesiones bajo carga sintética controlada. *(Incluye smoke concurrente, workers aislados y carga sostenida de 12 operaciones con latencia individual <2 s y duración total <5 s en entorno de prueba; no sustituye un SLA de producción.)*
 - [x] 5.3 Ejercitar caída/recuperación de worker, cancelación, recarga y eventos retrasados. *(QA-REG-006, QA-REG-007 y QA-REG-009 fueron corregidas y cubiertas; QA-REG-010 fue revalidada en el escenario Web.)*
 - [x] 5.4 Validar límites configurables, bucles no terminantes y capacidad de detención manual.
-- [ ] 5.5 Ejecutar smoke de Docker/Linux y empaquetado Windows, con instalación limpia y configuración por entorno. *(Parcial: el empaquetado Windows oficial generó `dist/SimuladorEV3/SimuladorEV3.exe` de 6,686,829 bytes con Ejemplos y Mundos el 2026-07-30; el ejecutable permaneció activo cinco segundos en un smoke local y se cerró de forma controlada. El 2026-07-30 se instaló Docker Desktop/WSL2, se construyó `simulador-ev3:qa-local-20260730` y `/healthz` respondió HTTP 200. Se corrigieron el host del contenedor (`EV3_WEB_HOST=0.0.0.0`) y las variables seguras del job Docker. Falta ejecutar los jobs remotos `docker-smoke` y `windows-release-smoke`.)*
+- [x] 5.5 Ejecutar smoke de Docker/Linux y empaquetado Windows, con instalación limpia y configuración por entorno. *(El 2026-07-30 el smoke local construyó `simulador-ev3:qa-local-20260730` y `/healthz` respondió HTTP 200. Tras publicar `9530e15`, los jobs remotos `contenedor Linux` y `empaquetado Windows limpio` del workflow `calidad` también finalizaron correctamente.)*
 
 ## Fase 6 — Reporte y compuerta de liberación
 

@@ -132,4 +132,12 @@ Esta evidencia es una validación gráfica real complementaria. La suite
 Pywinauto se conserva como omisión del entorno porque no puede enumerar las
 ventanas de esta sesión; no se ha marcado artificialmente como aprobada.
 
+### Cierre remoto y accesibilidad Tkinter (2026-07-30)
+
+El commit `9530e15` activó GitHub Actions y los jobs `contenedor Linux` y
+`empaquetado Windows limpio` finalizaron correctamente en el workflow
+`calidad`. La revalidación visible de Tkinter también ejecutó F10, Tab,
+Shift+Tab, Enter y Escape; la captura `teclado_foco_escape_real.png` muestra
+la aplicación sin un modal ni foco bloqueado al finalizar el recorrido.
+
 | `python scripts/interactive_desktop_qa.py pause-resume-reset` | Revalidación visible de pausa, reanudación y reinicio Tkinter | Aprobada el 2026-07-30. La captura `pausa_real.png` muestra `PAUSADO`, 0.800 s y tick 40; `reinicio_real.png` muestra `IDLE`, 0.000 s, tick 0 y robot restaurado a (20.0 cm, 20.0 cm, 0.0°). |
