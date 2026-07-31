@@ -248,8 +248,12 @@ class TelemetryPanel(tk.Frame):
         _table_section_header(parent, "MOTORES A-D")
         container = tk.Frame(parent, bg=_BG)
         container.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
-        for port in _MOTOR_PORTS:
-            grp = _table_motor_block(container, f"MOTOR {port}")
+        self._motors_container = container
+        for column in range(2):
+            container.grid_columnconfigure(column, weight=1, uniform="motor")
+        for index, port in enumerate(_MOTOR_PORTS):
+            grp = _table_motor_block(container, f"MOTOR {port}", pack=False)
+            grp.grid(row=index // 2, column=index % 2, sticky="nsew", padx=3, pady=3)
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
                 "speed": _table_data_row(grp, "Velocidad:", 1),
@@ -259,7 +263,10 @@ class TelemetryPanel(tk.Frame):
             }
 
     def _build_sensors_section(self, parent: tk.Widget) -> None:
-        _table_section_header(parent, "SENSORES S1–S4 (26%)")
+        # El porcentaje pertenece a la guía de diseño, no al rótulo: en el
+        # panel estrecho recortaba el inicio de "SENSORES" y no aportaba una
+        # lectura útil al docente.
+        _table_section_header(parent, "SENSORES S1–S4")
         self._sensors_container = tk.Frame(parent, bg=_BG)
         self._sensors_container.pack(fill=tk.BOTH, expand=True)
         self._sensors_empty = tk.Label(self._sensors_container, text="", bg=_BG)
@@ -289,10 +296,11 @@ class TelemetryPanel(tk.Frame):
         self._apply_density(event.width)
 
     def _apply_density(self, width: int) -> None:
-        """Refluye el tablero: tres columnas amplias o una columna legible."""
-        # Tres columnas sólo son legibles desde ~560 px; por debajo se apilan
-        # para preservar contenido en vez de recortar texto.
-        layout_mode = "single" if width < 560 else "wide"
+        """Refluye el tablero de dos columnas sin recortar información."""
+        # La telemetría actual agrupa motores y sensores en dos columnas. Por
+        # debajo de 380 px se apilan: forzar dos columnas deja las lecturas de
+        # sensores recortadas, que es peor que usar el scroll propio del panel.
+        layout_mode = "single" if width < 380 else "wide"
         if layout_mode == self._layout_mode:
             return
         self._layout_mode = layout_mode
@@ -389,8 +397,9 @@ class TelemetryPanel(tk.Frame):
 
     def _set_visible_motor_ports(self, ports: set[str]) -> None:
         del ports
-        for frame in self._motor_frames.values():
-            frame.pack(fill=tk.X, padx=4, pady=3)
+        # Las cuatro tarjetas permanecen estables en una cuadrícula 2×2.
+        # Esto evita que los puertos C/D queden debajo del primer viewport.
+        return
 
     def _update_sensors(self, sensors: list[dict]) -> None:
         for sensor_values in self._sensor_vars.values():
@@ -465,10 +474,10 @@ def _table_cell(
 ) -> tk.Label:
     if isinstance(text, tk.StringVar):
         widget = tk.Label(parent, textvariable=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=5)
+                          relief=tk.SOLID, bd=0, padx=3, pady=3)
     else:
         widget = tk.Label(parent, text=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=5)
+                          relief=tk.SOLID, bd=0, padx=3, pady=3)
     setattr(widget, "_telemetry_role", "value" if value else "label")  # noqa: B010
     widget.grid(row=row, column=column, sticky="nsew")
     return widget
@@ -486,7 +495,7 @@ def _table_data_row(parent: tk.Widget, label: str, row: int, *, suffix: str = ""
     return value
 
 
-def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
+def _table_motor_block(parent: tk.Widget, title: str, *, pack: bool = True) -> tk.Frame:
     # Altura y filas explícitas: los cambios de valor no deben hacer que Motor
     # B/D salte de posición mientras se ejecuta una misión.
     block = tk.Frame(
@@ -494,7 +503,8 @@ def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
         highlightthickness=1, highlightbackground=_BORDER,
     )
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.X, padx=8, pady=7)
+    if pack:
+        block.pack(fill=tk.X, padx=8, pady=7)
     block.grid_columnconfigure(0, weight=3)
     block.grid_columnconfigure(1, weight=2)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
@@ -504,25 +514,25 @@ def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
 
 
 def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
-    # Reservamos dos líneas para el valor. Así una lectura extensa no aumenta
-    # únicamente el bloque activo y no mueve S2, S3 y S4 durante la ejecución.
+    # Las tarjetas tienen una altura fija y compacta. El tooltip de valor
+    # preserva la lectura completa cuando no cabe en la fila visible.
     block = tk.Frame(
         parent, bg=_BG, relief=tk.FLAT, bd=0,
         highlightthickness=1, highlightbackground=_BORDER,
     )
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.X, padx=8, pady=4)
+    block.pack(fill=tk.X, padx=4, pady=1)
     block.grid_columnconfigure(0, weight=1)
     block.grid_columnconfigure(1, weight=2)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
-    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=4)
+    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=0)
     return block
 
 
 def _table_sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = False) -> tk.StringVar:
     value = tk.StringVar(value=_EMPTY)
-    _table_cell(parent, label, row, 0, value=False)
+    label_widget = _table_cell(parent, label, row, 0, value=False)
     widget = _table_cell(parent, value, row, 1, value=True)
     # ``width`` y ``height`` hacen que el tamaño solicitado sea independiente
     # del texto recibido. El tooltip conserva el texto completo si se recorta.
@@ -531,9 +541,11 @@ def _table_sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: boo
         justify=tk.LEFT,
         wraplength=130,
         width=15,
-        height=2 if emphasize else 1,
+        height=1,
         font=_BOLD if emphasize else _MONO,
     )
+    label_widget.configure(pady=0)
+    widget.configure(pady=0)
     _attach_value_tooltip(widget, value)
     return value
 

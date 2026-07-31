@@ -197,4 +197,7 @@ class DesktopSessionAdapter(SimulationSessionPort):
                 candidate = event["payload"].get("status")
                 if isinstance(candidate, str):
                     self._worker_status = candidate
+            if event.get("type") == "error" and isinstance(event.get("payload"), dict):
+                message = str(event["payload"].get("error", event["payload"].get("message", ""))).lower()
+                self._worker_status = "timed_out" if "tiempo maximo" in message else "error"
         return events

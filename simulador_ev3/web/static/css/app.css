@@ -2120,6 +2120,14 @@ html[data-theme="dark"] .telemetry-state {
   color: #4dd082;
 }
 
+html[data-theme="dark"] .telemetry-summary strong {
+  color: #e6eefb;
+}
+
+html[data-theme="dark"] .telemetry-summary .is-alert {
+  color: #ffaaa1;
+}
+
 html[data-theme="dark"] .mission-result-success {
   color: #6fe49b;
   background: #173a2a;

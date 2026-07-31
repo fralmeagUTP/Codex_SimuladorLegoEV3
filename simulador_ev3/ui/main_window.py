@@ -1007,18 +1007,20 @@ class EV3SimulatorApp(tk.Tk):
             return
 
         # Proporciones base en espejo web: simulacion izquierda + editor derecha
-        editor_w = max(420, int(width * 0.42))
+        editor_w = max(420, int(width * 0.38))
         editor_x = max(640, width - editor_w)
         # La telemetría es una tabla de cuatro columnas: necesita prioridad de
         # anchura frente al brick para no comprimir sus celdas.
         bottom_available = max(1, editor_x - 20)
         telemetry_w = min(
-            max(300, int(bottom_available * 0.60)),
+            max(300, int(bottom_available * 0.68)),
             max(300, bottom_available - 250),
         )
         # El tablero incluye cuatro sensores y cuatro motores; con menos de
         # esta altura termina desplazándose y deja de conservar la tabla.
-        bottom_height = max(300, int(height * 0.42))
+        # Reservar una mitad útil de la columna para que el tablero compacto
+        # muestre las tarjetas de motores y sensores sin depender del scroll.
+        bottom_height = max(380, int(height * 0.50))
 
         try:
             self._root_hpane.sash_place(0, editor_x, 0)
@@ -1064,6 +1066,11 @@ class EV3SimulatorApp(tk.Tk):
                     "error", normalized_error.get("message", normalized_error.get("code", "Error de worker"))
                 )
                 self._on_error(normalized_error)
+                # El worker puede terminar tras emitir solo el evento de error.
+                # La UI debe abandonar RUNNING aunque no llegue después un evento
+                # ``status`` separado; de otro modo quedan bloqueados menús y una
+                # nueva ejecución hasta que el usuario fuerce un reinicio.
+                self._on_status("error")
 
     # ------------------------------------------------------------------
     # Callbacks del SimulationService

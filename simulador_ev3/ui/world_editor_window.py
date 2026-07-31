@@ -7,6 +7,7 @@ Standalone Tk window for creating and editing simulator worlds.
 from __future__ import annotations
 
 import tkinter as tk
+from functools import partial
 from pathlib import Path
 from tkinter import filedialog, messagebox
 from typing import Any, Callable, Optional
@@ -117,7 +118,7 @@ class WorldEditorWindow(tk.Toplevel):
             tk.Button(
                 world_cfg,
                 text=label,
-                command=lambda w=width, h=height: self._set_world_size_preset(w, h),
+                command=partial(self._set_world_size_preset, width, height),
             ).pack(side=tk.LEFT, padx=2)
         tk.Frame(world_cfg, width=12, bg="#ECEFF1").pack(side=tk.LEFT)
         tk.Button(world_cfg, text="+", width=3, command=self._cmd_zoom_in).pack(side=tk.LEFT, padx=2)
@@ -206,7 +207,7 @@ class WorldEditorWindow(tk.Toplevel):
             }
         )
 
-        def visit(widget: tk.Widget) -> None:
+        def visit(widget: Any) -> None:
             changes: dict[str, str] = {}
             for option in (
                 "bg",

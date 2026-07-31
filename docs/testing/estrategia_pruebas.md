@@ -13,7 +13,7 @@
 | Paridad de interfaz | pytest + catalogo compartido | Alta | Web y Tkinter producen estados equivalentes |
 | Regresion visual | capturadores Web/Tkinter | Media | evidencia reproducible; comparacion automatica planificada |
 | Estático | Ruff, Mypy, Bandit, Pip-Audit | Alta | salida 0 |
-| Carga | pytest tests/load | Media | sesiones sin error en escenario smoke |
+| Carga | pytest tests/load + `/metrics` | Media | sesiones concurrentes sin error y métricas operativas disponibles; sin SLA hasta ejecutar carga sostenida en servidor aislado |
 
 ## Ejecucion local
 
@@ -30,3 +30,12 @@ py -3.12 -m pip_audit -r requirements-audit.txt
 Playwright exige Chromium instalado: `py -3.12 -m playwright install chromium`.
 El umbral global de cobertura configurado es 70%; core y domain tienen un gate
 dedicado de 90% en CI. La salida esperada para cada comando es codigo 0.
+
+## Límites de la carga automatizada
+
+El smoke de `tests/load` crea ocho sesiones concurrentes, carga un script por
+sesión y consulta `/metrics`; además crea dos sesiones con workers aislados y
+verifica memoria, pico, cola y ticks reales. No afirma un SLA ni sustituye una
+prueba sostenida: para cerrar ese riesgo se debe ejecutar contra el servidor
+real con una duración y umbrales acordados de latencia, memoria, cola y
+recuperación.

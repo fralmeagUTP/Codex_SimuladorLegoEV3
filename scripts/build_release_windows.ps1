@@ -3,11 +3,17 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$SpecPath = Join-Path $ProjectRoot "SimuladorEV3.spec"
+
+Set-Location $ProjectRoot
+if (-not (Test-Path $SpecPath)) {
+    throw "No se encontró la especificación de PyInstaller: $SpecPath"
+}
 
 Write-Host "[1/4] Limpiando artefactos previos..."
 if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
-if (Test-Path "SimuladorEV3.spec") { Remove-Item -Force "SimuladorEV3.spec" }
 
 Write-Host "[2/4] Verificando PyInstaller..."
 & $PythonExe -m pip show pyinstaller | Out-Null
@@ -20,10 +26,7 @@ Write-Host "[3/4] Construyendo ejecutable..."
 & $PythonExe -m PyInstaller `
     --noconfirm `
     --clean `
-    --name SimuladorEV3 `
-    --windowed `
-    --collect-submodules simulador_ev3 `
-    simulador_ev3\ui\main_window.py
+    $SpecPath
 
 function Get-FirstExistingPath {
     param([string[]]$Candidates)

@@ -63,3 +63,22 @@ def test_long_sensor_readings_do_not_reflow_telemetry_tables() -> None:
         assert _block_sizes(panel) == before
     finally:
         root.destroy()
+
+
+def test_all_motor_cards_keep_the_two_by_two_grid() -> None:
+    """A-D no deben desaparecer del primer grupo al actualizar telemetría."""
+    root = _root_or_skip()
+    try:
+        panel = TelemetryPanel(root)
+        panel.pack(fill=tk.BOTH, expand=True)
+        root.deiconify()
+        root.update()
+
+        assert panel._motor_frames["A"].grid_info()["row"] == 0  # noqa: SLF001
+        assert panel._motor_frames["B"].grid_info()["row"] == 0  # noqa: SLF001
+        assert panel._motor_frames["C"].grid_info()["row"] == 1  # noqa: SLF001
+        assert panel._motor_frames["D"].grid_info()["row"] == 1  # noqa: SLF001
+        assert panel._motor_frames["A"].grid_info()["column"] == 0  # noqa: SLF001
+        assert panel._motor_frames["B"].grid_info()["column"] == 1  # noqa: SLF001
+    finally:
+        root.destroy()

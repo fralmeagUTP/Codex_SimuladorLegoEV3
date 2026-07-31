@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from simulador_ev3.domain.editor.asset_presentation import presentation_for_asset
@@ -58,7 +59,7 @@ class LayerListPanel(tk.LabelFrame):
             tk.Button(
                 row,
                 text=presentation.name,
-                command=lambda value=object_id: self._on_select(value),
+                command=partial(self._on_select, object_id),
                 bg=self._tokens.surface_muted if object_id == selected_id else self._tokens.surface,
                 fg=self._tokens.text,
                 activebackground=self._tokens.primary_active,
@@ -69,13 +70,13 @@ class LayerListPanel(tk.LabelFrame):
             tk.Button(
                 row,
                 text="Mostrar" if object_id in hidden_ids else "Ocultar",
-                command=lambda value=object_id: self._on_toggle_visibility(value),
+                command=partial(self._on_toggle_visibility, object_id),
                 width=8,
             ).pack(side=tk.LEFT, padx=1, pady=2)
             tk.Button(
                 row,
                 text="Desbloq." if object_id in locked_ids else "Bloquear",
-                command=lambda value=object_id: self._on_toggle_lock(value),
+                command=partial(self._on_toggle_lock, object_id),
                 width=8,
             ).pack(side=tk.LEFT, padx=1, pady=2)
 

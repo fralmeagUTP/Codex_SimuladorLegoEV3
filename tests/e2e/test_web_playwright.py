@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import socket
 import threading
 from contextlib import closing
+from pathlib import Path
 
 import pytest
 from werkzeug.serving import make_server
@@ -12,10 +15,60 @@ from werkzeug.serving import make_server
 from simulador_ev3.web.app import create_app
 
 
+def _failure_evidence_dir() -> Path:
+    """Directorio reproducible de evidencia, configurable para CI."""
+
+    return Path(os.environ.get("EV3_E2E_EVIDENCE_DIR", "artifacts/e2e-web"))
+
+
+def _relative_luminance(rgb: tuple[int, int, int]) -> float:
+    channels = []
+    for component in rgb:
+        normalized = component / 255
+        channels.append(normalized / 12.92 if normalized <= 0.04045 else ((normalized + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def _contrast_ratio(foreground: str, background: str) -> float:
+    def parse(value: str) -> tuple[int, int, int]:
+        components = [int(component) for component in re.findall(r"\d+", value)[:3]]
+        assert len(components) == 3, f"Color CSS no soportado: {value}"
+        return tuple(components)  # type: ignore[return-value]
+
+    foreground_luminance = _relative_luminance(parse(foreground))
+    background_luminance = _relative_luminance(parse(background))
+    lighter, darker = max(foreground_luminance, background_luminance), min(foreground_luminance, background_luminance)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def _computed_text_and_background(locator) -> dict[str, str]:
+    return locator.evaluate(
+        """
+        node => {
+          let current = node;
+          while (current) {
+            const background = getComputedStyle(current).backgroundColor;
+            if (background && !background.endsWith(', 0)')) {
+              return { foreground: getComputedStyle(node).color, background };
+            }
+            current = current.parentElement;
+          }
+          return { foreground: getComputedStyle(node).color, background: 'rgb(255, 255, 255)' };
+        }
+        """
+    )
+
+
 def _free_port() -> int:
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+    # Chromium rechaza una lista de puertos históricos inseguros (por ejemplo
+    # 1720). Windows puede asignarlos al pedir el puerto efímero 0, por lo que
+    # se descartan los inferiores a 20000 antes de iniciar el servidor E2E.
+    while True:
+        with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = int(sock.getsockname()[1])
+        if port >= 20000:
+            return port
 
 
 @pytest.fixture()
@@ -101,12 +154,61 @@ def browser(playwright_api):
 
 
 @pytest.fixture()
-def page(browser):
-    page = browser.new_page(viewport={"width": 1366, "height": 768})
+def page(browser, request, tmp_path):
+    # El HAR se registra en el directorio temporal de cada caso y solo se
+    # conserva como evidencia cuando falla. Asi se obtiene la secuencia real
+    # de red sin acumular artefactos de cada prueba aprobada.
+    har_path = tmp_path / "network.har"
+    context = browser.new_context(
+        viewport={"width": 1366, "height": 768},
+        record_har_path=har_path,
+        record_har_content="omit",
+    )
+    page = context.new_page()
+    console: list[dict[str, str]] = []
+    network: list[dict[str, object]] = []
+
+    def capture_console(message):
+        console.append({"type": message.type, "text": message.text})
+
+    def capture_response(response):
+        if response.status >= 400:
+            network.append({"kind": "response", "status": response.status, "url": response.url})
+
+    def capture_request_failed(request_event):
+        network.append(
+            {
+                "kind": "request_failed",
+                "url": request_event.url,
+                "failure": request_event.failure or "unknown",
+            }
+        )
+
+    page.on("console", capture_console)
+    page.on("response", capture_response)
+    page.on("requestfailed", capture_request_failed)
     try:
         yield page
     finally:
+        report = getattr(request.node, "rep_call", None)
+        failed = report is not None and report.failed
+        if failed:
+            evidence_dir = _failure_evidence_dir()
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", request.node.name)
+            page.screenshot(path=evidence_dir / f"{stem}.png", full_page=True)
+            (evidence_dir / f"{stem}.console.json").write_text(
+                json.dumps(console, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            (evidence_dir / f"{stem}.network.json").write_text(
+                json.dumps(network, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
         page.close()
+        context.close()
+        if failed and har_path.exists():
+            shutil.copy2(har_path, evidence_dir / f"{stem}.har")
 
 
 @pytest.fixture()
@@ -165,6 +267,12 @@ def test_successful_execution_shows_one_accessible_toast_after_terminal_snapshot
     expect(page.locator("#telemetryStatus")).to_have_text("finished", timeout=7000)
     expect(page.locator("#executionSuccessToast")).to_be_visible(timeout=3000)
     expect(page.locator("#executionSuccessToast")).to_contain_text("El programa se ejecutó correctamente.")
+    expect(page.locator("#executionSuccessToast")).to_have_attribute("role", "status")
+    expect(page.locator("#executionSuccessToast")).to_have_attribute("aria-live", "polite")
+    expect(page.locator("#executionSuccessToast")).to_have_attribute("aria-atomic", "true")
+    expect(page.locator("#executionSuccessToastClose")).to_have_attribute(
+        "aria-label", "Cerrar notificación de ejecución finalizada"
+    )
     assert page.locator("#executionSuccessToast").count() == 1
     page.locator("#executionSuccessToastClose").click()
     expect(page.locator("#executionSuccessToast")).to_be_hidden()
@@ -183,6 +291,24 @@ def test_success_toast_is_not_emitted_for_error_or_manual_stop(page, live_web_ap
     page.locator("#stopBtn").click()
     expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
     expect(page.locator("#executionSuccessToast")).to_be_hidden()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize(
+    "selector",
+    ["#runBtn", "#sessionStatus", "#telemetryStatus", "#telemetryTick", "#telemetryCollision"],
+)
+def test_critical_web_text_keeps_wcag_aa_contrast_in_each_theme(page, live_web_app, theme, selector):
+    page.goto(f"{live_web_app}/")
+    page.locator(".menu-trigger", has_text="Tema").hover()
+    page.locator(f"[data-theme-choice='{theme}']").click()
+
+    colors = _computed_text_and_background(page.locator(selector))
+    ratio = _contrast_ratio(colors["foreground"], colors["background"])
+    assert ratio >= 4.5, (
+        f"{selector} en {theme}: contraste {ratio:.2f}:1 "
+        f"(texto {colors['foreground']}, fondo {colors['background']})"
+    )
 
 
 @pytest.mark.parametrize("theme", ["light", "dark"])
@@ -262,6 +388,7 @@ def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
     page.locator("#pauseBtn").click()
 
     expect(page.locator("#sessionStatus")).to_have_text(re.compile(r"paused"), timeout=5000)
+    expect(page.locator("#telemetryStatus")).to_have_text(re.compile(r"paused", re.IGNORECASE), timeout=5000)
     expect(page.locator("#pauseBtn")).to_be_disabled()
     expect(page.locator("#resumeBtn")).to_be_enabled()
     expect(page.locator("#debugContinueBtn")).to_be_enabled()
@@ -277,6 +404,35 @@ def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
     expect(page.locator("#resumeBtn")).to_be_disabled()
     expect(page.locator("#stopBtn")).to_be_disabled()
     expect(page.locator("#placeRobotStartBtn")).to_be_enabled()
+
+
+def test_execution_locks_mutating_menus_and_restores_them_after_reset(page, live_web_app, expect):
+    """Los menús que cambian la sesión no deben competir con una ejecución."""
+
+    page.goto(f"{live_web_app}/")
+    lockable_buttons = page.locator("[data-execution-lockable] button")
+    lockable_links = page.locator("[data-execution-lockable] a")
+    assert lockable_buttons.count() > 0
+
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwhile True:\n    wait(100)\n")
+    page.locator("#runBtn").press("Enter")
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile(r"running"), timeout=5000)
+
+    for index in range(lockable_buttons.count()):
+        expect(lockable_buttons.nth(index)).to_be_disabled()
+        expect(lockable_buttons.nth(index)).to_have_attribute("aria-disabled", "true")
+    for index in range(lockable_links.count()):
+        expect(lockable_links.nth(index)).to_have_attribute("aria-disabled", "true")
+        expect(lockable_links.nth(index)).to_have_attribute("tabindex", "-1")
+
+    page.locator("#stopBtn").press("Enter")
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
+
+    for index in range(lockable_buttons.count()):
+        expect(lockable_buttons.nth(index)).to_be_enabled()
+        assert lockable_buttons.nth(index).get_attribute("aria-disabled") is None
+    for index in range(lockable_links.count()):
+        assert lockable_links.nth(index).get_attribute("aria-disabled") is None
 
 
 def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app, expect):
@@ -302,6 +458,138 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
     page.locator(".menu-trigger", has_text="Ayuda").hover()
     page.locator("#aboutMenuBtn").click()
     expect(page.locator("#console")).to_contain_text("Simulador EV3 Web")
+
+
+def test_reset_hides_the_terminal_mission_result(page, live_web_app, expect):
+    """Una misión terminada no puede dejar resultado visible tras reiniciar."""
+
+    page.goto(f"{live_web_app}/")
+    page.locator(".menu-trigger", has_text="Misiones").hover()
+    mission = page.locator("#missionsMenu button").first
+    expect(mission).to_be_visible()
+    mission.click()
+    expect(page.locator("#console")).to_contain_text("Misión cargada")
+
+    page.locator("#runBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#missionResult")).to_be_visible(timeout=5000)
+
+    page.locator("#stopBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
+    expect(page.locator("#missionResult")).to_be_hidden()
+
+
+def test_reset_recovers_the_ultrasonic_obstacle_scenario(page, live_web_app, expect):
+    """El reinicio de un escenario normal no puede quedar bloqueado en resetting."""
+    page.goto(f"{live_web_app}/")
+    page.locator(".menu-trigger", has_text="Escenarios").hover()
+    page.locator("#scenariosMenu button[data-scenario='ultrasonic']").click()
+    expect(page.locator("#codeEditor")).to_have_value(re.compile("ultra"), timeout=5000)
+
+    page.locator("#runBtn").click()
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile(r"running|finished"), timeout=5000)
+    page.locator("#stopBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
+    expect(page.locator("#telemetryStatus")).to_have_text(re.compile(r"created", re.IGNORECASE), timeout=5000)
+    expect(page.locator("#runBtn")).to_be_enabled()
+    expect(page.locator("#stopBtn")).to_be_disabled()
+
+
+def test_menu_keyboard_opens_items_and_escape_restores_trigger_focus(page, live_web_app, expect):
+    """La barra de menús debe ser utilizable sin ratón."""
+
+    page.goto(f"{live_web_app}/")
+    file_menu = page.get_by_role("button", name="Archivo", exact=True)
+    new_script = page.locator("#newScriptMenuBtn")
+
+    file_menu.press("ArrowDown")
+    expect(file_menu).to_have_attribute("aria-expanded", "true")
+    expect(new_script).to_be_visible()
+    assert page.evaluate("document.activeElement.id") == "newScriptMenuBtn"
+
+    new_script.press("Escape")
+    expect(file_menu).to_have_attribute("aria-expanded", "false")
+    expect(new_script).to_be_hidden()
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Archivo"
+
+
+def test_primary_menu_has_a_predictable_tab_order(page, live_web_app):
+    """Los controles principales deben seguir un orden de foco utilizable."""
+    page.goto(f"{live_web_app}/")
+
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Archivo"
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Ejemplos"
+    page.keyboard.press("Shift+Tab")
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Archivo"
+    page.keyboard.press("Enter")
+    assert page.locator(".menu-trigger", has_text="Archivo").get_attribute("aria-expanded") == "true"
+
+
+def test_all_primary_menu_triggers_are_reachable_in_tab_order(page, live_web_app):
+    """La barra completa no debe dejar menús inaccesibles por teclado."""
+    page.goto(f"{live_web_app}/")
+    expected_labels = [
+        "Archivo",
+        "Ejemplos",
+        "Mundos",
+        "Escenarios",
+        "Misiones",
+        "Tema",
+        "Fidelidad",
+        "Tiempo máximo",
+        "Trazas",
+        "Ayuda",
+    ]
+
+    for label in expected_labels:
+        page.keyboard.press("Tab")
+        assert page.evaluate("document.activeElement.textContent.trim()") == label
+
+
+def test_help_menu_opens_the_user_manual(page, live_web_app, expect):
+    """Manual de uso debe abrir contenido real desde el menú Ayuda."""
+    page.goto(f"{live_web_app}/")
+    page.locator(".menu-trigger", has_text="Ayuda").hover()
+    with page.context.expect_page() as new_page_info:
+        page.locator(".menu-dropdown a", has_text="Manual de uso").click()
+    manual_page = new_page_info.value
+    manual_page.wait_for_load_state()
+    expect(manual_page).to_have_url(re.compile(r"/help"))
+    expect(manual_page.locator("body")).to_contain_text("Ayuda del Simulador EV3 Web")
+
+
+def test_secondary_web_controls_are_operable_with_keyboard(page, live_web_app, expect):
+    """Ayuda y herramientas de mapa conservan un recorrido de teclado útil."""
+
+    page.goto(f"{live_web_app}/")
+    help_menu = page.get_by_role("button", name="Ayuda", exact=True)
+    assert help_menu.count() == 1
+    help_menu.press("ArrowDown")
+
+    about_button = page.get_by_role("button", name="Acerca de", exact=True)
+    assert about_button.count() == 1
+    about_button.press("Enter")
+    dialog = page.get_by_role("dialog")
+    assert dialog.count() == 1
+    expect(dialog).to_be_visible()
+    dialog.press("Escape")
+    expect(dialog).to_be_hidden()
+
+    beams_button = page.get_by_role("button", name="Mostrar haces de sensores", exact=True)
+    assert beams_button.count() == 1
+    beams_button.press("Enter")
+    expect(beams_button).to_have_text("Haces OFF")
+    beams_button.press("Enter")
+    expect(beams_button).to_have_text("Haces ON")
+
+    robot_placement = page.get_by_role("button", name="Ubicar robot", exact=True)
+    assert robot_placement.count() == 1
+    robot_placement.press("Enter")
+    expect(page.get_by_text("Haz clic en el canvas para fijar la pose.", exact=True)).to_be_visible()
+    robot_placement.press("Enter")
 
 
 def test_simulation_gutter_breakpoints_and_robot_start(page, live_web_app, expect):
@@ -337,6 +625,24 @@ def test_debug_breakpoint_pause_enables_debug_controls(page, live_web_app, expec
 
     page.locator("#debugContinueBtn").click()
     expect(page.locator("#debugState")).to_contain_text("debug continue")
+
+
+def test_reset_recovers_a_session_paused_at_a_debug_breakpoint(page, live_web_app, expect):
+    """Detener y reiniciar debe recuperar una sesión pausada por el depurador."""
+    page.goto(f"{live_web_app}/")
+
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nx = 1\nwait(10000)\n")
+    page.locator("#breakpointsInput").fill("3")
+    page.locator("#debugRunBtn").click()
+
+    expect(page.locator("#debugState")).to_contain_text("pausado en linea 3", timeout=5000)
+    expect(page.locator("#sessionStatus")).to_have_text(re.compile(r"paused"), timeout=5000)
+    page.locator("#stopBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("created", timeout=5000)
+    expect(page.locator("#runBtn")).to_be_enabled()
+    expect(page.locator("#debugRunBtn")).to_be_enabled()
+    expect(page.locator("#telemetryStatus")).to_have_text(re.compile(r"created", re.IGNORECASE), timeout=5000)
 
 
 def test_loading_new_example_clears_stale_breakpoints(page, live_web_app, expect):
@@ -595,6 +901,22 @@ def test_world_editor_builds_valid_world_and_exposes_simulation_link(page, live_
     expect(page.locator("#console")).to_contain_text("Mundo")
     expect(page.locator("#console")).to_contain_text(".json")
     expect(page.locator("#simulateSavedWorldLink")).to_be_visible()
+
+
+def test_world_editor_blank_canvas_does_not_attempt_an_unselected_placement(page, live_web_app, expect):
+    """Crear/cargar un mundo vacío no debe generar un error al pulsar el lienzo."""
+    page.goto(f"{live_web_app}/worlds")
+    expect(page.locator("#worldCanvas")).to_be_visible()
+    expect(page.locator("#selectedAsset")).to_contain_text("Selecciona un elemento")
+    expect(page.locator("#console")).to_have_text("Mundo valido.")
+    previous_console = page.locator("#console").inner_text()
+    box = page.locator("#worldCanvas").bounding_box()
+    assert box is not None
+
+    page.mouse.click(box["x"] + 160, box["y"] + 160)
+
+    expect(page.locator("#selectedAsset")).to_contain_text("Selecciona un elemento")
+    expect(page.locator("#console")).to_have_text(previous_console)
 
 
 def test_world_editor_updates_selected_asset_properties(page, live_web_app, expect):

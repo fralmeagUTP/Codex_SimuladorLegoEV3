@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 
 from simulador_ev3.domain.editor.asset_presentation import (
@@ -46,7 +47,7 @@ class AssetLibraryPanel(tk.LabelFrame):
         self._static_labels.append(search_label)
         search = tk.Entry(self, textvariable=self._search_var)
         search.pack(fill=tk.X, pady=(2, 8))
-        search.bind("<KeyRelease>", lambda _event: self._refresh_assets())
+        search.bind("<KeyRelease>", self._on_search_changed)
 
         self._help_var = tk.StringVar(value="Selecciona un elemento para colocarlo en el lienzo.")
         help_label = tk.Label(self, textvariable=self._help_var, bg=_BG, fg="#455A64", justify=tk.LEFT, wraplength=180)
@@ -61,7 +62,7 @@ class AssetLibraryPanel(tk.LabelFrame):
             category_button = tk.Button(
                 categories,
                 text=category,
-                command=lambda value=category: self._set_category(value),
+                command=partial(self._set_category, category),
                 bg=_BG,
                 relief=tk.FLAT,
                 anchor=tk.W,
@@ -76,6 +77,18 @@ class AssetLibraryPanel(tk.LabelFrame):
     def _set_category(self, category: str) -> None:
         self._selected_category = category
         self._refresh_assets()
+
+    def _on_search_changed(self, _event: tk.Event[tk.Misc]) -> None:
+        self._refresh_assets()
+
+    def _make_tooltip_handler(self, text: str) -> Callable[[tk.Event[tk.Misc]], None]:
+        def show_tooltip(_event: tk.Event[tk.Misc]) -> None:
+            self._help_var.set(text)
+
+        return show_tooltip
+
+    def _clear_tooltip(self, _event: tk.Event[tk.Misc]) -> None:
+        self._help_var.set("Selecciona un elemento para colocarlo en el lienzo.")
 
     def _refresh_assets(self) -> None:
         if self._content is None:
@@ -110,7 +123,7 @@ class AssetLibraryPanel(tk.LabelFrame):
                 button = tk.Button(
                     self._content,
                     text=presentation.name,
-                    command=lambda asset_key=key: self._select_asset(asset_key),
+                    command=partial(self._select_asset, key),
                     bg=self._tokens.surface_muted if key == self._selected_asset else self._tokens.surface,
                     fg=self._tokens.text,
                     activebackground=self._tokens.surface_muted,
@@ -125,11 +138,8 @@ class AssetLibraryPanel(tk.LabelFrame):
                 icon = self._get_icon(key)
                 if icon is not None:
                     button.configure(image=icon, compound=tk.LEFT)
-                button.bind("<Enter>", lambda _event, text=presentation.tooltip: self._help_var.set(text))
-                button.bind(
-                    "<Leave>",
-                    lambda _event: self._help_var.set("Selecciona un elemento para colocarlo en el lienzo."),
-                )
+                button.bind("<Enter>", self._make_tooltip_handler(presentation.tooltip))
+                button.bind("<Leave>", self._clear_tooltip)
                 button.pack(fill=tk.X, pady=1)
                 self._asset_buttons[key] = button
 

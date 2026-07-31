@@ -94,9 +94,14 @@ class WorldToolbar(tk.Frame):
         self._refresh_tool_styles()
 
     @staticmethod
-    def _add_group(parent: tk.Widget, title: str, *, fill: str | None = None) -> tk.LabelFrame:
+    def _add_group(
+        parent: tk.Widget,
+        title: str,
+        *,
+        fill: Literal["none", "x", "y", "both"] | None = None,
+    ) -> tk.LabelFrame:
         group = tk.LabelFrame(parent, text=title, bg=_BAR_BG, padx=4, pady=3, font=("Segoe UI", 8, "bold"))
-        group.pack(side=tk.LEFT, padx=(0, 8), fill=fill or tk.NONE, anchor=tk.W)
+        group.pack(side=tk.LEFT, padx=(0, 8), fill=fill or "none", anchor=tk.W)
         return group
 
     def _add_action_button(
@@ -130,17 +135,17 @@ class WorldToolbar(tk.Frame):
     def set_simulate_saved_enabled(self, enabled: bool) -> None:
         """Habilita el retorno explícito a simulación tras un guardado válido."""
 
-        self._simulate_saved_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        self._simulate_saved_button.configure(state="normal" if enabled else "disabled")
 
     def set_delete_world_file_enabled(self, enabled: bool) -> None:
         """Habilita borrar solo cuando existe un archivo de mundo editable."""
 
-        self._delete_world_file_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        self._delete_world_file_button.configure(state="normal" if enabled else "disabled")
 
     def set_selection_actions_enabled(self, enabled: bool) -> None:
         """Sin selección no se ofrecen acciones que no podrían completarse."""
 
-        state = tk.NORMAL if enabled else tk.DISABLED
+        state: Literal["normal", "disabled"] = "normal" if enabled else "disabled"
         for button in self._selection_buttons:
             button.configure(state=state)
 

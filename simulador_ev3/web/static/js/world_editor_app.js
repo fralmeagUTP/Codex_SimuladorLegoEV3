@@ -193,7 +193,6 @@
     const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
     setEditorWorld(data.world);
     await hydrateRobotStartFromSnapshotIfMissing();
-    await ensureRobotVisibleOnEditor();
     showValidation(data.validation);
   }
 
@@ -530,30 +529,6 @@
     await upsertRobotPlacementFromPose(robotStart);
   }
 
-  async function ensureRobotVisibleOnEditor() {
-    if (!editorWorld || !currentWorld) return;
-    const existing = robotPlacementFromEditorWorld(editorWorld);
-    if (existing) {
-      if (!robotStart) {
-        robotStart = robotStartFromEditorWorld(editorWorld);
-        if (robotStart && robotThetaInput) {
-          robotThetaInput.value = String(Math.round(robotStart.theta_deg || 0));
-        }
-        updateRobotStartReadout();
-        drawEditor();
-      }
-      return;
-    }
-    const fallbackPose = robotStart || defaultRobotPoseForWorld(editorWorld);
-    robotStart = fallbackPose;
-    await upsertRobotPlacementFromPose(fallbackPose);
-    if (robotThetaInput) {
-      robotThetaInput.value = String(Math.round(fallbackPose.theta_deg || 0));
-    }
-    updateRobotStartReadout();
-    drawEditor();
-  }
-
   function showValidation(validation) {
     if (!validation) return;
     const errors = validation.errors || [];
@@ -700,7 +675,6 @@
       const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
       setEditorWorld(data.world);
       await hydrateRobotStartFromSnapshotIfMissing();
-      await ensureRobotVisibleOnEditor();
       setActiveWorldName("");
       setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
@@ -719,7 +693,6 @@
       );
       setEditorWorld(data.world);
       await hydrateRobotStartFromSnapshotIfMissing();
-      await ensureRobotVisibleOnEditor();
       setActiveWorldName("");
       setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
@@ -1040,7 +1013,6 @@
       const data = await api.importEditorWorld(importPayload);
       setEditorWorld(data.world);
       await hydrateRobotStartFromSnapshotIfMissing();
-      await ensureRobotVisibleOnEditor();
       // Priorizar el nombre real del archivo abierto por el usuario.
       const inferredName = stripJsonExtension(file.name || world?.name || world?.world_name);
       setActiveWorldName(inferredName);

@@ -282,14 +282,20 @@ class TestSimulationServiceScript:
 
     def test_error_callback_on_bad_script(self):
         errors = []
+        statuses = []
         svc = SimulationService()
         svc.set_error_callback(lambda e: errors.append(e))
+        svc.set_status_callback(lambda status: statuses.append(status))
         svc.load_script("raise RuntimeError('intencional')")
         svc.start()
-        time.sleep(0.5)
+        for _ in range(10):
+            if "error" in statuses:
+                break
+            time.sleep(0.1)
         svc.stop()
         assert len(errors) >= 1
         assert "intencional" in errors[0].get("error", "")
+        assert "error" in statuses
 
     def test_status_callback_started(self):
         statuses = []

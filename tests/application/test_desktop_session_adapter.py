@@ -93,3 +93,31 @@ def test_desktop_session_adapter_records_worker_snapshots_in_active_trace(monkey
         assert str(snapshot.tick) in session.export_trace("json")
     finally:
         session.close()
+
+
+def test_desktop_session_adapter_converts_terminal_worker_error_to_terminal_state(monkeypatch) -> None:
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "false")
+    session = DesktopSessionAdapter(SimEngineConfig())
+
+    class FakeWorker:
+        def drain_events(self):
+            return [{
+                "protocol_version": 1,
+                "session_id": "desktop-shadow",
+                "sequence": 1,
+                "type": "error",
+                "payload": {"error": "invalid syntax"},
+                "command_id": None,
+            }]
+
+        def close(self):
+            pass
+
+    session._worker = FakeWorker()
+    session._worker_status = "running"
+    try:
+        session.drain_worker_events()
+        assert session.is_running is False
+        assert session._worker_status == "error"
+    finally:
+        session.close()

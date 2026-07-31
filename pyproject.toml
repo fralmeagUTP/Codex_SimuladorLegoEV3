@@ -22,6 +22,14 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 markers = [
+    "unit: prueba aislada de dominio, modelo o utilidad determinista",
+    "integration: prueba de integración entre capas, persistencia o API",
+    "contract: prueba de contrato de sesión, runtime o paridad entre interfaces",
+    "ui: prueba de interfaz visible o de componentes de interfaz",
+    "e2e: recorrido completo de usuario en navegador o escritorio",
+    "security: prueba de autenticación, autorización, validación o seguridad",
+    "performance: prueba de carga, rendimiento o consumo controlado",
+    "release: prueba de empaquetado, documentación o entrega",
     "desktop_e2e: prueba Windows con escritorio interactivo y controles nativos",
 ]
 

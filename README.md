@@ -129,15 +129,19 @@ El ejemplo `23_radar_ultrasonido_5grados.py` usa esta API para dibujar el radar 
 
 ```powershell
 py -3.12 -m pytest -q
+py -3.12 -m pytest --cov=simulador_ev3 --cov-report=term --cov-report=json:build/qa-coverage.json -q
 py -3.12 -m ruff check simulador_ev3 tests
 py -3.12 -m mypy
+py -3.12 -m bandit -q -c pyproject.toml -r simulador_ev3 --severity-level medium
+py -3.12 -m pip_audit
 ```
 
-Ultima validacion actual: **689 pruebas aprobadas** y 71.50% de cobertura el
-2026-07-24, junto con Ruff, Mypy, Bandit y Pip-Audit sin fallos. Este resultado
-es evidencia fechada; volver a ejecutar los comandos anteriores para obtener el estado vigente. Para el detalle
-de pruebas, cobertura, E2E y analisis de seguridad ver `docs/testing/` y
-`Documentos/CONTROLES_CALIDAD.md`.
+Última validación integral: **777 pruebas aprobadas y 4 omitidas** el
+2026-07-29. La cobertura medida previamente fue 71.15 %. Ruff, Mypy, la
+política oficial de Bandit y Pip-Audit finalizaron correctamente. Este resultado
+es evidencia fechada; volver a ejecutar los comandos anteriores para obtener el
+estado vigente. Para detalle de pruebas, cobertura, E2E, bloqueos de ambiente y
+análisis de seguridad, consultar `docs/testing/reporte_ejecucion.md`.
 
 Cambios destacados 1.5.0:
 - Misiones evaluables locales, resultados portables y exportación JSON/CSV.

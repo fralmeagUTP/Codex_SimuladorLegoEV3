@@ -175,6 +175,10 @@ class SimulationSession(SimulationSessionPort):
             self._mirror_worker("pause")
             self._transition(SessionStatus.PAUSED)
             self._set_debug_state("paused_manual", reason="manual")
+            # El resumen de telemetría depende exclusivamente del snapshot.
+            # Publicarlo tras la transición evita que la barra diga "paused"
+            # mientras el panel conserva el estado anterior "running".
+            self._publish_current_snapshot()
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -185,6 +189,7 @@ class SimulationSession(SimulationSessionPort):
             self._mirror_worker("resume")
             self._transition(SessionStatus.RUNNING)
             self._set_debug_state("running")
+            self._publish_current_snapshot()
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -262,6 +267,8 @@ class SimulationSession(SimulationSessionPort):
         payload = self._service.complete_active_mission(outcome)
         if payload is None:
             return None
+        payload = dict(payload)
+        payload["snapshot_generation"] = self._snapshot_generation
         self._latest_mission_result = payload
         self._push_event("mission_result", payload)
         return payload
@@ -351,8 +358,12 @@ class SimulationSession(SimulationSessionPort):
             if not self._worker_executes:
                 self._service.debug_continue()
             self._mirror_worker("debug_continue")
+            changed = self._transition(SessionStatus.RUNNING)
             payload = {"type": "command", "status": self._status, "action": "continue"}
             self._set_debug_state("running", legacy=payload)
+            if changed:
+                self._publish_current_snapshot()
+                self._push_event("status", {"status": self._status, "raw_status": "debug_continue"})
             return payload
 
     def debug_step(self) -> dict[str, Any]:
@@ -360,8 +371,12 @@ class SimulationSession(SimulationSessionPort):
             if not self._worker_executes:
                 self._service.debug_step()
             self._mirror_worker("debug_step")
+            changed = self._transition(SessionStatus.RUNNING)
             payload = {"type": "command", "status": self._status, "action": "step"}
             self._set_debug_state("running", legacy=payload)
+            if changed:
+                self._publish_current_snapshot()
+                self._push_event("status", {"status": self._status, "raw_status": "debug_step"})
             return payload
 
     def set_robot_start(
@@ -1097,6 +1112,7 @@ class SimulationSession(SimulationSessionPort):
             reason = normalized.get("reason")
             if event_type == "paused":
                 debug_state = "paused_breakpoint" if reason == "breakpoint" else "paused_step"
+                changed = self._transition(SessionStatus.PAUSED)
                 self._set_debug_state(
                     debug_state,
                     line=line,
@@ -1104,6 +1120,11 @@ class SimulationSession(SimulationSessionPort):
                     reason=reason or "step",
                     legacy=normalized,
                 )
+                if changed:
+                    # Un breakpoint también pausa la sesión: editor, controles
+                    # y telemetría deben recibir el mismo estado observable.
+                    self._publish_current_snapshot()
+                    self._push_event("status", {"status": self._status, "raw_status": "debug_paused"})
                 return
             if event_type == "line":
                 self._set_debug_state(

@@ -1860,6 +1860,7 @@
   async function performStopAndReset(options = {}) {
     if (autoResetInProgress) return;
     autoResetInProgress = true;
+    clearMissionResult();
     suppressStoppedAutoReset = true;
     if (options.automatic && statusEl) {
       statusEl.textContent = "reiniciando";
@@ -2018,12 +2019,27 @@
     await loadWorldByName(mission.world_file);
     await loadExampleByName(mission.starter_script);
     await api.selectMission(mission.id);
-    if (missionResultEl) missionResultEl.hidden = true;
+    clearMissionResult();
     log(`Misión cargada: ${mission.title}`);
+  }
+
+  function clearMissionResult() {
+    if (!missionResultEl) return;
+    missionResultEl.hidden = true;
+    missionResultEl.textContent = "";
+    missionResultEl.className = "mission-result";
   }
 
   function renderMissionResult(payload) {
     if (!missionResultEl || !payload?.result) return;
+    const resultGeneration = Number(payload.snapshot_generation);
+    if (
+      autoResetInProgress ||
+      ["created", "ready", "stopped"].includes(currentStatus) ||
+      (Number.isFinite(resultGeneration) && resultGeneration < latestSnapshotGeneration)
+    ) {
+      return;
+    }
     const result = payload.result;
     const completed = payload.outcome === "finished" && result.passed;
     const label = completed ? "Misión completada" : payload.outcome === "cancelled" ? "Misión cancelada" : "Misión no superada";

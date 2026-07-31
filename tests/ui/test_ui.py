@@ -1343,6 +1343,28 @@ class TestMainWindow:
         assert "Linea 7" in shown_msg
         app._on_close()
 
+    def test_worker_error_event_transitions_ui_to_terminal_error_state(self):
+        """Un error IPC no puede dejar los controles en estado ejecutando."""
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        event = {"type": "error", "payload": {"message": "invalid syntax"}}
+
+        with (
+            mock.patch.object(app, "_schedule_tick"),
+            mock.patch.object(app._service, "drain_worker_events", return_value=[event]),
+            mock.patch.object(app, "_on_error") as on_error,
+            mock.patch.object(app, "_on_status") as on_status,
+        ):
+            app._tick()
+
+        on_error.assert_called_once_with({"message": "invalid syntax", "error": "invalid syntax"})
+        on_status.assert_called_once_with("error")
+        app._on_close()
+
     def test_cmd_debug_calls_service_start_with_debug_true(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory
