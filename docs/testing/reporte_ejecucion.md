@@ -140,4 +140,15 @@ El commit `9530e15` activó GitHub Actions y los jobs `contenedor Linux` y
 Shift+Tab, Enter y Escape; la captura `teclado_foco_escape_real.png` muestra
 la aplicación sin un modal ni foco bloqueado al finalizar el recorrido.
 
+### E2E nativo Pywinauto (2026-07-30)
+
+| Comando | Objetivo | Resultado |
+|---|---|---|
+| `$env:EV3_RUN_DESKTOP_E2E='1'; .\.venv\Scripts\python.exe -m pytest tests\e2e\test_desktop_pywinauto.py -q -rs` | Introducción, menús, editor, controles, pausa/reinicio y desbloqueo terminal de Tkinter | **4 aprobadas** en 17.60 s. |
+
+La corrección identifica la ventana Tkinter real aunque el lanzador Python la
+cree en un proceso hijo. Los menús owner-drawn se ejercitan por coordenadas y
+teclado, y la prueba terminal confirma el cuadro `Ejecución finalizada` antes
+de comprobar que el menú vuelve a abrirse.
+
 | `python scripts/interactive_desktop_qa.py pause-resume-reset` | Revalidación visible de pausa, reanudación y reinicio Tkinter | Aprobada el 2026-07-30. La captura `pausa_real.png` muestra `PAUSADO`, 0.800 s y tick 40; `reinicio_real.png` muestra `IDLE`, 0.000 s, tick 0 y robot restaurado a (20.0 cm, 20.0 cm, 0.0°). |
