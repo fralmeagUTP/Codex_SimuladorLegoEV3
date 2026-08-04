@@ -11,9 +11,16 @@ La Web es la fuente de verdad. Esta matriz define el inventario de Fase 1.
 | Telemetría | Robot, motores, sensores | Telemetría | Misma jerarquía de información |
 | Brick | LED, LCD, altavoz | EV3 Brick | Misma paleta y encabezados |
 | Menús | Tema, Fidelidad, Trazas, Ayuda | Barra de menú | Mismos nombres y orden |
+| Centro de ayuda | Búsqueda, categorías, guías por tarea y recuperación | Ventana nativa del Centro de ayuda | Mismo catálogo, destinos y semántica; adaptado a controles nativos |
 
 Las áreas de verificación comunes son: simulación, mundo, editor,
 depuración, telemetría, brick, tema, fidelidad, trazas y ayuda.
+
+El Centro de ayuda usa el catálogo compartido
+`simulador_ev3.shared.help_tutorials`. La Web ofrece filtro instantáneo y
+selector de tema; Tkinter ofrece los mismos destinos, búsqueda y categorías
+en una ventana nativa. La diferencia de estilo de botones, foco y barra de
+desplazamiento es propia del toolkit y no modifica el contenido ni las rutas.
 
 ## Evidencia reproducible
 

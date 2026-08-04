@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import simulador_ev3.web.app as web_app_module
 from simulador_ev3 import __version__
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.web.app import create_app
@@ -68,6 +69,30 @@ def test_index_page_references_existing_static_assets(tmp_path):
 def test_wsgi_entrypoint_exposes_flask_app():
     assert wsgi_app.name == "simulador_ev3.web.app"
     assert "session_manager" in wsgi_app.extensions
+
+
+def test_official_development_server_keeps_sse_and_commands_concurrent(monkeypatch):
+    """El entrypoint oficial no puede bloquear POST mientras SSE sigue abierto."""
+
+    captured: dict[str, object] = {}
+
+    class FakeApp:
+        def run(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(web_app_module, "create_app", lambda: FakeApp())
+    monkeypatch.setenv("EV3_WEB_HOST", "127.0.0.1")
+    monkeypatch.setenv("EV3_WEB_PORT", "5054")
+
+    web_app_module.main()
+
+    assert captured == {
+        "host": "127.0.0.1",
+        "port": 5054,
+        "debug": False,
+        "use_reloader": False,
+        "threaded": True,
+    }
 
 
 def test_testing_app_does_not_start_cleanup_thread(tmp_path):
@@ -166,6 +191,7 @@ def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     monkeypatch.setenv("EV3_WEB_EXAMPLES_DIR", str(examples_dir))
     monkeypatch.setenv("EV3_WEB_MAX_ACTIVE_SESSIONS", "7")
     monkeypatch.setenv("EV3_WEB_SCRIPT_MAX_RUNTIME_S", "4.5")
+    monkeypatch.setenv("EV3_WEB_WEB_SNAPSHOT_MAX_HZ", "30")
     monkeypatch.setenv("EV3_WEB_SESSION_CLEANUP_INTERVAL_S", "12.5")
     monkeypatch.setenv("EV3_WEB_ENABLE_SESSION_CLEANUP_THREAD", "false")
     monkeypatch.setenv("EV3_WEB_ENABLE_SECURITY_HEADERS", "false")
@@ -186,6 +212,7 @@ def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     assert app.config["EXAMPLES_DIR"] == examples_dir
     assert app.config["MAX_ACTIVE_SESSIONS"] == 7
     assert app.config["SCRIPT_MAX_RUNTIME_S"] == 4.5
+    assert app.config["WEB_SNAPSHOT_MAX_HZ"] == 30.0
     assert app.config["SESSION_CLEANUP_INTERVAL_S"] == 12.5
     assert app.config["ENABLE_SESSION_CLEANUP_THREAD"] is False
     assert app.config["ENABLE_SECURITY_HEADERS"] is False
@@ -425,6 +452,7 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
 
     js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
     speaker_audio = client.get("/static/js/speaker_audio.js").get_data(as_text=True)
+    interpolation = client.get("/static/js/render_interpolation_controller.js")
 
     for expected in (
         "11_siguelineas_basico.py",
@@ -496,6 +524,9 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "if (guardMenuAction()) return;",
     ):
         assert expected in js
+    assert interpolation.status_code == 200
+    assert "EV3RenderInterpolationController" in interpolation.get_data(as_text=True)
+    assert "render_interpolation_controller.js?v=" in client.get("/").get_data(as_text=True)
     file_input_js = client.get("/static/js/file_input_controller.js").get_data(as_text=True)
     assert "EV3FileInputController.bind" in js
     assert 'input?.addEventListener("change"' in file_input_js
@@ -570,6 +601,7 @@ def test_simulation_canvas_preserves_physical_world_scale(tmp_path):
     assert "const MAX_ZOOM = 3.0" in js
     assert "staticLayerCache" in js
     assert "staticWorldLayer" in js
+    assert "if (!snapshot?.visual_interpolated)" in js
     assert "resetTrail" in js
     assert "trail.length = 0" in js
     assert "TRAIL_TELEPORT_THRESHOLD_MM" in js
@@ -932,19 +964,35 @@ def test_help_page_documents_web_workflows(tmp_path):
 
     assert res.status_code == 200
     for expected in (
-        "nyquist.app/simuladorlego",
-        "Simulacion del robot",
-        "Creacion de mundos",
-        "Escenarios",
-        "sin escribir nombres ni rutas",
-        "no necesitas ejecutar scripts locales",
-        "Ctrl+Space",
-        "Ubicar robot",
-        "altavoz EV3",
-        "panel de propiedades",
-        "Cargar mundo desde tu equipo",
+        "CENTRO DE APRENDIZAJE",
+        "Simulador EV3 Pybricks",
+        "Buscar una guía, control o error",
+        "Mi primera simulación",
+        "Crear un mundo con obstáculos",
+        "Usar motores y sensores",
+        "Depurar un programa paso a paso",
+        "Resolver un error de programa",
+        "data-help-guide",
+        "help_center.js",
     ):
         assert expected in html
+    assert "nyquist.app/simuladorlego" not in html
+
+
+def test_critical_web_controls_link_to_contextual_help(tmp_path):
+    client = make_client(tmp_path)
+
+    simulation = client.get("/").get_data(as_text=True)
+    worlds = client.get("/worlds").get_data(as_text=True)
+
+    for fragment in (
+        "#guide-run-simulation",
+        "#guide-first-simulation",
+        "#guide-use-sensors",
+        "#guide-recover-script-error",
+    ):
+        assert fragment in simulation
+    assert "#guide-create-world" in worlds
 
 
 def test_create_session_returns_id_and_token(tmp_path):
@@ -1282,6 +1330,48 @@ def test_reset_snapshot_is_a_complete_created_state(tmp_path):
     assert payload["snapshot"]["status"] == "created"
     assert payload["snapshot"]["tick"] <= 1
     assert payload["snapshot"]["sim_time_s"] <= 0.02
+
+
+def test_tick_step_uses_authoritative_worker_snapshot_when_isolation_is_enabled(tmp_path, monkeypatch):
+    """Evita que Trazas anuncie éxito mientras la UI conserva el tick viejo."""
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sid = session["session_id"]
+
+    loaded = client.post(
+        f"/api/sessions/{sid}/script",
+        json={"source": "from pybricks.tools import wait\nwait(1)\n"},
+        headers=headers,
+    )
+    before = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()["snapshot"]
+    started = client.post(f"/api/sessions/{sid}/trace/start", headers=headers)
+    advanced = client.post(f"/api/sessions/{sid}/tick-step", headers=headers)
+    after = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()["snapshot"]
+
+    assert loaded.status_code == 200
+    assert started.status_code == 200
+    assert advanced.status_code == 200
+    assert advanced.get_json()["tick"] > before["tick"], (before, advanced.get_json(), after)
+    assert after["tick"] == advanced.get_json()["tick"]
+    assert after["tick"] > before["tick"]
+
+
+def test_trace_tick_advances_a_new_isolated_session_before_running_a_script(tmp_path, monkeypatch):
+    """El control de trazas debe funcionar desde la pantalla recién abierta."""
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sid = session["session_id"]
+
+    before = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()["snapshot"]
+    assert client.post(f"/api/sessions/{sid}/trace/start", headers=headers).status_code == 200
+    advanced = client.post(f"/api/sessions/{sid}/tick-step", headers=headers)
+
+    assert advanced.status_code == 200
+    assert advanced.get_json()["tick"] > before["tick"], (before, advanced.get_json())
 
 
 def test_pause_does_not_consume_runtime_timeout_budget(tmp_path):

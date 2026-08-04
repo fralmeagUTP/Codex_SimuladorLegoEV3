@@ -322,7 +322,13 @@ def stream(session_id: str):
         while True:
             now = time.monotonic()
             heartbeat_remaining = max(0.0, heartbeat_s - (now - last_heartbeat))
-            wait_timeout = min(heartbeat_remaining, 1.0) if heartbeat_remaining > 0 else 0.0
+            # Los eventos del worker llegan por una cola multiproceso y no
+            # pueden despertar directamente esta condición. Una espera de un
+            # segundo retrasaba en la UI el estado terminal y hacía que el
+            # reloj de pared pareciera más lento que la simulación. Limitar el
+            # sondeo del stream a 50 ms mantiene la entrega fluida sin busy
+            # waiting: la condición sigue bloqueada entre comprobaciones.
+            wait_timeout = min(heartbeat_remaining, 0.05) if heartbeat_remaining > 0 else 0.0
             events = session.wait_for_events_since(last_sequence, timeout_s=wait_timeout)
             if events:
                 for event in events:

@@ -33,3 +33,15 @@ def test_simulation_page_loads_extracted_control_modules() -> None:
     assert "EV3PageLifecycleController.bind" in app
     assert "EV3FileInputController.bind" in app
     assert "EV3LiveUpdateController.create" in app
+
+
+def test_trace_tick_confirmation_requires_an_observable_increment() -> None:
+    root = Path(__file__).parents[2]
+    trace_controls = (root / "simulador_ev3" / "web" / "static" / "js" / "trace_controls.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "const before" in trace_controls
+    assert "const after" in trace_controls
+    assert "after > before" in trace_controls
+    assert "No se avanzo el tick de simulacion." in trace_controls

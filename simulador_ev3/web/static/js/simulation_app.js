@@ -10,6 +10,9 @@
   const consoleEl = document.getElementById("console");
   const statusWorld = document.getElementById("statusWorld");
   let statusProgram = document.getElementById("statusProgram");
+  // Debe existir antes de construir el controlador de vista, que lo inicializa
+  // más abajo; declararlo después provocaba una zona temporal muerta (TDZ).
+  let interpolationController = null;
   const statusSavePath = document.getElementById("statusSavePath");
   const examplesMenu = document.getElementById("examplesMenu");
   const missionsMenu = document.getElementById("missionsMenu");
@@ -42,7 +45,8 @@
   const aboutMenuBtn = document.getElementById("aboutMenuBtn");
   const APP_VERSION = document?.documentElement?.dataset?.ev3AppVersion || "desconocida";
   const ABOUT_MESSAGE =
-    "Simulador LEGO Mindstorms EV3 basado en la libreria Pybricks\n"
+    "BotLab Studio\n"
+    + "Programacion y simulacion robotica con LEGO Mindstorms EV3 y Pybricks\n"
     + `Version ${APP_VERSION}\n\n`
     + "Desarrollado por:\n"
     + "\t\tFrancisco Alejandro Medina Aguirre\n"
@@ -97,7 +101,11 @@
       updateExecutionIndicator();
       updateTelemetry(snapshot);
       updateBrick(snapshot);
-      redrawCanvas();
+      if (interpolationController) interpolationController.apply(snapshot);
+      else {
+        visualSnapshot = snapshot;
+        redrawCanvas();
+      }
     },
   });
   const telemetryController = window.EV3TelemetryController.create({
@@ -109,12 +117,20 @@
   const worldViewController = window.EV3WorldViewController.create({
     canvas,
     getViewState: () => ({
-      snapshot: latestSnapshot,
+      snapshot: visualSnapshot || latestSnapshot,
       world: currentWorld,
       robotStart: robotStartMode ? robotStartPreview : (showRobotStartMarker ? robotStart : null),
       showSensorBeams,
     }),
   });
+  interpolationController = window.EV3RenderInterpolationController.create({
+    onRender: (snapshot) => {
+      visualSnapshot = snapshot;
+      redrawCanvas();
+    },
+  });
+  // Diagnóstico opcional para soporte y QA; no se representa en la interfaz.
+  window.EV3RenderDiagnostics = () => interpolationController?.diagnostics() || null;
 
   if (!statusProgram) {
     const editorShell = document.querySelector(".code-editor-shell");
@@ -208,6 +224,7 @@
   let robotStartPreview = null;
   let showRobotStartMarker = false;
   let latestSnapshot = null;
+  let visualSnapshot = null;
   let latestSnapshotGeneration = -1;
   let latestSnapshotTick = -1;
   let timer = null;
@@ -276,8 +293,23 @@
   }
 
   function setStatus(status) {
-    currentStatus = status || currentStatus;
+    const nextStatus = status || currentStatus;
+    // El evento inicial del SSE puede llegar después de que el usuario pulse
+    // Ejecutar. No debe reabrir los menús con un `ready`/`created` atrasado
+    // mientras la generación actual ya está corriendo o pausada.
+    if (
+      executionMenuLocked
+      && !autoResetInProgress
+      && ["created", "ready"].includes(nextStatus)
+    ) {
+      return;
+    }
+    currentStatus = nextStatus;
     statusEl.textContent = status;
+    if (["paused", "stopped", "finished", "timed_out", "error", "created"].includes(currentStatus)) {
+      interpolationController?.reset();
+      visualSnapshot = latestSnapshot;
+    }
     const resetDebugVisuals = ["created", "ready", "stopped", "finished", "timed_out", "error"].includes(currentStatus);
     executionMenuLocked = isExecutionActive(currentStatus);
     if (resetDebugVisuals) {

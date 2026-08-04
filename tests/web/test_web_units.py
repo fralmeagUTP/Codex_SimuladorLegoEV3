@@ -86,7 +86,7 @@ def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path)
             "WORLDS_DIR": tmp_path / "worlds",
             "EXAMPLES_DIR": tmp_path / "examples",
             "SCRIPT_MAX_RUNTIME_S": 1.0,
-            "WEB_SNAPSHOT_MAX_HZ": 5.0,
+            "WEB_SNAPSHOT_MAX_HZ": 10.0,
         },
         max_runtime_s=1.0,
     )
@@ -101,10 +101,25 @@ def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path)
     finally:
         session.stop()
 
-    assert 1 <= len(snapshot_events) <= 4
-    assert latest["tick"] > snapshot_events[-1]["payload"]["tick"]
+    # A 10 Hz, 450 ms de ejecución producen hasta cinco eventos, incluido el
+    # inicial; la simulación interna sigue avanzando a 50 Hz.
+    assert 2 <= len(snapshot_events) <= 6
+    assert latest["tick"] >= snapshot_events[-1]["payload"]["tick"]
     assert latest["snapshot_version"] == 1
     assert latest["snapshot_generation"] == 0
+
+
+@pytest.mark.parametrize("snapshot_hz", [0, 9, 61, "not-a-number"])
+def test_web_rejects_unsafe_snapshot_rate(tmp_path, snapshot_hz):
+    with pytest.raises(RuntimeError, match="WEB_SNAPSHOT_MAX_HZ"):
+        create_app(
+            {
+                "TESTING": True,
+                "WORLDS_DIR": tmp_path / "worlds",
+                "EXAMPLES_DIR": tmp_path / "examples",
+                "WEB_SNAPSHOT_MAX_HZ": snapshot_hz,
+            }
+        )
 
 
 def test_web_session_discards_late_transition_after_finished(tmp_path):
@@ -119,6 +134,39 @@ def test_web_session_discards_late_transition_after_finished(tmp_path):
     assert session._transition(SessionStatus.FINISHED)
     assert not session._transition(SessionStatus.PAUSED)
     assert session.status == "finished"
+
+
+def test_terminal_status_is_preceded_by_a_snapshot_with_the_same_status(tmp_path):
+    """El consumidor SSE nunca debe recibir ``finished`` antes de su DTO final."""
+
+    session = SimulationSession(
+        session_id="terminal-snapshot-order",
+        config={"WORLDS_DIR": tmp_path / "worlds", "EXAMPLES_DIR": tmp_path / "examples"},
+        max_runtime_s=1.0,
+    )
+    try:
+        assert session._transition(SessionStatus.READY)
+        assert session._transition(SessionStatus.RUNNING)
+        session._latest_snapshot = {
+            "tick": 42,
+            "sim_time_s": 0.84,
+            "robot": {"x_mm": 120.0, "y_mm": 80.0, "theta_deg": 90.0},
+        }
+
+        session._on_status("finished")
+        events = session.events_since(0)
+        terminal_status_index = next(
+            index
+            for index, event in enumerate(events)
+            if event["type"] == "status" and event["payload"]["status"] == "finished"
+        )
+        final_snapshot = events[terminal_status_index - 1]
+
+        assert final_snapshot["type"] == "snapshot"
+        assert final_snapshot["payload"]["status"] == "finished"
+        assert final_snapshot["payload"]["tick"] == 42
+    finally:
+        session.close()
 
 
 def test_error_response_for_non_object_json_payload(tmp_path):

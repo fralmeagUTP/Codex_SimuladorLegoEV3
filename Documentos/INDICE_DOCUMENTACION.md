@@ -30,6 +30,8 @@
 |---|---|---|---|
 | `Documentos/ARQUITECTURA_C4.md` | En revision | Desarrollo | Completar contratos, worker y recuperacion. |
 | `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md` | Actual | Docente y estudiante | Revisar al ampliar API Pybricks. |
+| `Documentos/MANUAL_TECNICO_ESCRITORIO.html` | Actual | Soporte de aula, desarrollo y evaluador técnico | Manual HTML imprimible de Tkinter; completar versión liberada y hash antes de una entrega formal. |
+| `Documentos/MANUAL_TECNICO_WEB.html` | Actual | Administración, desarrollo y evaluador técnico | Manual HTML imprimible de Flask; completar versión liberada y hash antes de una entrega formal. |
 | `Documentos/SEGURIDAD_Y_USO_EN_AULA.md` | Actual | Docente y operacion | Mantener con sandbox y politica de secretos. |
 | `Documentos/REFERENCIA_CONFIGURACION.md` | Actual | Operacion y desarrollo | Mantener con `web/config.py`. |
 | `Documentos/MATRIZ_PARIDAD_VISUAL_WEB_TKINTER.md` | Actual | Desarrollo y QA | Mantener con evidencia visual. |

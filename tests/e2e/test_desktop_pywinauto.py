@@ -53,13 +53,19 @@ def _wait_for_new_window(title: str, previous_handles: set[int], timeout: float 
     desktop = Desktop(backend="win32")
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        windows = [
-            window
-            for window in desktop.windows()
-            if window.handle not in previous_handles
-            and window.is_visible()
-            and window.window_text() == title
-        ]
+        try:
+            windows = [
+                window
+                for window in desktop.windows()
+                if window.handle not in previous_handles
+                and window.is_visible()
+                and window.window_text() == title
+            ]
+        except Exception:  # noqa: BLE001
+            # Una ventana ajena puede cerrarse entre la enumeración de Win32 y
+            # la creación del wrapper de Pywinauto. Es un evento transitorio.
+            time.sleep(0.1)
+            continue
         if windows:
             return windows[-1]
         time.sleep(0.2)
@@ -80,7 +86,7 @@ def _wait_for_intro(previous_handles: set[int], timeout: float = 2.0):
             if window.handle not in previous_handles
             and window.is_visible()
             and window.class_name() == "TkTopLevel"
-            and window.window_text() != "Simulador EV3 Pybricks"
+            and window.window_text() != "BotLab Studio"
         ]
         if intro_windows:
             return intro_windows[-1]
@@ -119,7 +125,7 @@ def test_desktop_startup_shows_intro_before_main_window() -> None:
     try:
         intro = _wait_for_intro(previous_handles)
         assert intro.is_visible()
-        main = _wait_for_new_window("Simulador EV3 Pybricks", previous_handles, timeout=8)
+        main = _wait_for_new_window("BotLab Studio", previous_handles, timeout=8)
         main.set_focus()
         assert main.is_visible()
     except TimeoutError as exc:
@@ -145,22 +151,22 @@ def test_desktop_navigation_opens_help_and_world_editor() -> None:
 
     try:
         try:
-            main = _wait_for_new_window("Simulador EV3 Pybricks", previous_handles)
+            main = _wait_for_new_window("BotLab Studio", previous_handles)
         except Exception as exc:  # noqa: BLE001
             pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
         main.set_focus()
 
         # Los popup Tk son owner-drawn y Windows no expone sus textos. Se usa
         # navegación física de teclado tras abrir cada botón de menú.
-        main.click_input(coords=(870, 53))  # Ayuda
+        main.click_input(coords=(800, 53))  # Ayuda; último menú de cabecera.
         main.type_keys("{DOWN}{ENTER}")
-        manual = desktop.window(title="Manual de uso")
+        manual = desktop.window(title="Centro de ayuda - Simulador EV3 Pybricks")
         manual.wait("visible", timeout=5)
         assert manual.is_visible()
         manual.close()
 
         main.set_focus()
-        main.click_input(coords=(400, 53))  # Mundos
+        main.click_input(coords=(340, 53))  # Mundos
         main.type_keys("{DOWN}{DOWN}{DOWN}{ENTER}")
         editor = desktop.window(title="Editor de Mundos EV3")
         editor.wait("visible", timeout=8)
@@ -183,7 +189,7 @@ def test_desktop_controls_cover_execution_debug_and_keyboard() -> None:
     application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
     try:
         try:
-            main = _wait_for_new_window("Simulador EV3 Pybricks", previous_handles)
+            main = _wait_for_new_window("BotLab Studio", previous_handles)
         except Exception as exc:  # noqa: BLE001
             pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
         main.set_focus()
@@ -196,6 +202,45 @@ def test_desktop_controls_cover_execution_debug_and_keyboard() -> None:
         main.click_input(coords=(304, 91))  # Detener y reiniciar
         main.click_input(coords=(762, 117))  # Depurar
         main.click_input(coords=(304, 91))  # Detener y reiniciar
+    finally:
+        _stop_native_application(application)
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_success_dialog_is_shown_once_after_finished() -> None:
+    """La finalización exitosa muestra un único diálogo nativo y se puede cerrar."""
+
+    pytest.importorskip("pywinauto")
+    import pyperclip
+    from pywinauto import Desktop
+
+    root = Path(__file__).resolve().parents[2]
+    source = (
+        "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); app.mainloop()"
+    )
+    application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
+    desktop = Desktop(backend="win32")
+    try:
+        try:
+            main = _wait_for_new_window("BotLab Studio", previous_handles)
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
+        main.set_focus()
+        pyperclip.copy("from pybricks.tools import wait\nwait(80)\n")
+        main.click_input(coords=(1000, 200))
+        main.type_keys("^a^v")
+        main.click_input(coords=(58, 91))
+
+        deadline = time.monotonic() + 10.0
+        finished = desktop.window(title="Ejecución finalizada")
+        while time.monotonic() < deadline and not finished.exists(timeout=0.1):
+            time.sleep(0.1)
+        assert finished.exists(timeout=0.5)
+        assert finished.is_visible()
+        finished.type_keys("{ENTER}")
+        time.sleep(0.5)
+        assert not finished.exists(timeout=0.1) or not finished.is_visible()
     finally:
         _stop_native_application(application)
 
@@ -215,14 +260,14 @@ def test_desktop_menus_unlock_after_execution_finishes_or_resets() -> None:
     application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
     try:
         try:
-            main = _wait_for_new_window("Simulador EV3 Pybricks", previous_handles)
+            main = _wait_for_new_window("BotLab Studio", previous_handles)
         except Exception as exc:  # noqa: BLE001
             pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
         main.set_focus()
 
         run = (58, 91)
         stop = (304, 91)
-        archivo = (275, 53)
+        archivo = (210, 53)
         # Se escribe un programa corto en el editor real para que la transición
         # terminal sea determinista y no dependa del ejemplo persistido.
         pyperclip.copy("from pybricks.tools import wait\nwait(1000)\n")

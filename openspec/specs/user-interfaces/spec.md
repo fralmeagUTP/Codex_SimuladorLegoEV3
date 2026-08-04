@@ -180,3 +180,278 @@ equivalentes de ejecución, depuración, perfiles, trazas, accesibilidad y tecla
 - DADO un caso de uso del catálogo compartido
 - CUANDO se ejecuta en Web y Tkinter
 - ENTONCES ambos clientes DEBERÁN producir estados y snapshots equivalentes.
+
+### Requirement: Arranque visible de escritorio
+
+La aplicación Tkinter MUST mostrar primero una pantalla de inicio centrada de 800×450 píxeles y MUST abrir después la ventana principal maximizada.
+
+#### Scenario: Inicio normal de la aplicación
+
+- **WHEN** el usuario inicia el punto de entrada de escritorio
+- **THEN** se muestra la introducción de 800×450 px
+- **AND** al cerrarse la introducción se presenta la ventana principal maximizada.
+
+### Requirement: Visualización LCD del EV3 Brick
+
+La interfaz Tkinter MUST renderizar la pantalla LCD lógica de 178×128 en un área visual nuevamente 30 % mayor, con canvas de referencia 507×169 px y sin alterar el contenido de telemetría o del Brick.
+
+#### Scenario: Panel Brick visible
+
+- **WHEN** el panel EV3 Brick se construye en la aplicación de escritorio
+- **THEN** su canvas LCD usa una referencia de 507×169 px
+- **AND** conserva la proporción de la pantalla lógica 178×128.
+
+### Requirement: Controles de mapa utilizables en móvil
+
+La interfaz Web MUST ajustar canvas y controles del mapa al ancho disponible
+del viewport, sin scroll horizontal no intencional ni controles recortados.
+
+#### Scenario: Viewport de 390×844
+
+- DADO un navegador de 390×844 píxeles
+- CUANDO se carga el simulador Web
+- ENTONCES el canvas NO DEBERÁ exceder el ancho de su contenedor
+- Y el botón de haces DEBERÁ permanecer completamente visible y operable.
+
+### Requirement: Coherencia visual de snapshot
+
+La interfaz Web MUST ignorar snapshots de generaciones antiguas y ticks fuera
+de orden dentro de la generación activa.
+
+#### Scenario: Evento tardío tras reset
+
+- DADO que el cliente ya aplicó el snapshot inicial de una nueva generación
+- CUANDO recibe un snapshot de una generación anterior
+- ENTONCES NO DEBERÁ modificar canvas, LCD, telemetría ni controles.
+
+### Requirement: Telemetría Tkinter responsive y legible
+
+La interfaz MUST mantener esta garantía de legibilidad.
+
+La interfaz Tkinter DEBERÁ mantener la telemetría legible en 1024×768,
+1280×800 y 1920×1080, en tema claro y oscuro. Ninguna etiqueta, valor,
+encabezado o estado crítico podrá quedar recortado, solapado o fuera de su
+celda visible.
+
+#### Scenario: Ancho reducido de telemetría
+
+- DADO un panel cuyo ancho no permite el diseño preferido
+- CUANDO Tkinter recalcula el layout
+- ENTONCES DEBERÁ aplicar reflujo, punto de ruptura o scroll interno accesible
+  antes de recortar texto
+- Y los valores extensos deberán conservar acceso completo mediante ajuste o
+  tooltip.
+
+### Requirement: Estado del robot accesible desde Brick
+
+El panel MUST mantener esta capacidad de acceso.
+
+El panel EV3 Brick DEBERÁ mostrar o permitir alcanzar claramente la tabla
+Robot/Estado junto con la LCD, sin deformar esta última.
+
+#### Scenario: Alto reducido de Brick
+
+- DADO que la altura disponible no permite mostrar LCD y Robot/Estado a la vez
+- CUANDO se renderiza el Brick
+- ENTONCES el panel DEBERÁ proporcionar scroll vertical independiente o una
+  composición responsive
+- Y X, Y y Theta deberán permanecer accesibles.
+
+### Requirement: Cierre Tkinter libre de callbacks pendientes
+
+La ventana MUST mantener esta garantía de cierre seguro.
+
+La ventana Tkinter DEBERÁ cancelar de forma segura callbacks de layout, resize
+e idle antes de destruir la raíz; el cierre deberá ser idempotente.
+
+#### Scenario: Cierre con layout pendiente
+
+- DADO un callback responsive programado
+- CUANDO el usuario o el capturador cierra la ventana
+- ENTONCES no DEBERÁ aparecer un error Tcl ni una invocación contra widgets
+  destruidos.
+
+### Requirement: Telemetría inicialmente escaneable en escritorio
+
+La interfaz Tkinter MUST mostrar una telemetría útil sin scroll vertical innecesario a 1280x800.
+
+#### Scenario: Inicio de simulador a 1280x800
+
+- **WHEN** el usuario abre el simulador Tkinter en 1280x800
+- **THEN** la telemetría muestra resumen, motores A-D y sensores S1-S4 sin texto superpuesto, recortado ni contraste insuficiente
+
+#### Scenario: Altura reducida
+
+- **WHEN** la altura disponible no permite mostrar todas las tarjetas
+- **THEN** el desplazamiento conserva orden, etiquetas y acceso a Robot/Estado
+
+### Requirement: bloqueo de menús durante una ejecución activa
+
+Las interfaces Web y Tkinter MUST deshabilitar de manera coherente los comandos de menú que alteran el contexto de simulación mientras el estado de sesión sea `running` o `paused`.
+
+#### Scenario: script ejecutándose
+
+- **WHEN** la persona usuaria inicia un script y la sesión pasa a `running`
+- **THEN** los comandos de menú de contexto quedan deshabilitados
+- **AND** los controles Pausar, Reanudar y Detener y reiniciar conservan el comportamiento permitido por su estado.
+
+#### Scenario: script pausado
+
+- **WHEN** una sesión pasa de `running` a `paused`
+- **THEN** los comandos de menú de contexto permanecen deshabilitados
+- **AND** no es posible cargar ni cambiar un mundo, ejemplo, escenario o misión.
+
+### Requirement: reactivación de menús al finalizar o restablecer una sesión
+
+Las interfaces Web y Tkinter MUST habilitar los comandos de menú de contexto al recibir cualquiera de los estados `created`, `ready`, `finished`, `stopped`, `timed_out`, `error` o `reset`.
+
+#### Scenario: finalización natural
+
+- **WHEN** un script termina correctamente y la sesión informa `finished`
+- **THEN** los comandos de menú vuelven a estar disponibles sin recargar la interfaz
+- **AND** la persona usuaria puede seleccionar otro ejemplo, mundo, escenario o misión.
+
+#### Scenario: detener y reiniciar
+
+- **WHEN** la persona usuaria solicita Detener y reiniciar
+- **THEN** la sesión llega a un estado preparado o restablecido
+- **AND** los comandos de menú quedan habilitados.
+
+#### Scenario: finalización excepcional
+
+- **WHEN** la sesión termina con `error` o `timed_out`
+- **THEN** los comandos de menú quedan habilitados
+- **AND** el mensaje de error o tiempo agotado permanece visible conforme al comportamiento actual.
+
+### Requirement: paridad de política entre interfaces
+
+Web y Tkinter MUST aplicar la misma matriz de disponibilidad para un mismo estado de sesión.
+
+#### Scenario: transición terminal repetida
+
+- **WHEN** una interfaz recibe de forma repetida un snapshot terminal
+- **THEN** el estado de los menús permanece habilitado
+- **AND** no se producen comandos duplicados ni errores de interfaz.
+
+### Requirement: Movimiento Web visualmente fluido
+
+El canvas Web SHALL renderizar movimiento continuo mediante interpolación entre
+snapshots compatibles y requestAnimationFrame, sin modificar los datos
+autoritativos de telemetría.
+
+#### Scenario: Giro continuo
+
+- **WHEN** el robot recibe snapshots consecutivos de un giro
+- **THEN** el robot y sus haces se dibujan con orientaciones intermedias
+- **AND** la telemetría conserva el último tick recibido sin valores inventados
+
+#### Scenario: Reinicio o cambio de mundo
+
+- **WHEN** el usuario detiene y reinicia o carga otro mundo
+- **THEN** se descarta el buffer de interpolación y la vista muestra la pose
+  inicial correspondiente sin trazas ni movimiento residual
+
+### Requirement: Confirmación de ejecución exitosa
+
+Las interfaces Web y Tkinter MUST informar `El programa se ejecutó correctamente.` exactamente una vez cuando la ejecución activa alcance el estado terminal `finished`, después de reflejar el snapshot terminal en sus vistas.
+
+#### Scenario: Script válido termina correctamente
+
+- **WHEN** un usuario ejecuta un programa Pybricks válido y este alcanza `finished`
+- **THEN** la interfaz muestra una única confirmación de ejecución correcta
+- **AND** canvas, LCD, telemetría y barra de estado ya representan el snapshot terminal.
+
+#### Scenario: Estado no exitoso
+
+- **WHEN** una ejecución alcanza `error`, `timed_out`, `stopped` o `reset`
+- **THEN** la interfaz no muestra la confirmación de ejecución correcta.
+
+### Requirement: Presentación accesible y no bloqueante en Web
+
+La interfaz Web MUST mostrar la confirmación como un toast no modal, con región `aria-live`, cierre manual, desaparición automática y contraste válido en temas claro y oscuro.
+
+#### Scenario: Cierre y viewport móvil
+
+- **WHEN** el toast de éxito está visible en un viewport móvil
+- **THEN** el usuario puede cerrarlo mediante un control accesible
+- **AND** el toast no cubre ni desborda los controles críticos.
+
+### Requirement: Centro de ayuda orientado a tareas
+
+Las interfaces Web y Tkinter MUST ofrecer un Centro de ayuda con rutas de
+aprendizaje por tarea, categorías navegables, resultados esperados y pasos de
+recuperación, usando el nombre visible `Simulador EV3 Pybricks`.
+
+#### Scenario: Usuario inicia su primera simulación
+
+- **WHEN** una persona abre el Centro de ayuda y selecciona `Mi primera simulación`
+- **THEN** la interfaz muestra prerrequisitos, pasos ordenados, resultado
+  esperado, recuperación y una acción para abrir la simulación
+- **AND** la acción no anuncia ni invoca una capacidad no disponible.
+
+#### Scenario: Paridad de guía entre interfaces
+
+- **WHEN** una guía está disponible en Web y Tkinter
+- **THEN** ambas presentan el mismo identificador, objetivo, pasos, resultado y
+  recuperación
+- **AND** solo pueden diferir los controles propios de la plataforma.
+
+### Requirement: Navegación, búsqueda y accesibilidad
+
+El Centro de ayuda MUST permitir navegar por categorías y buscar por título,
+resumen, etiquetas y pasos, con uso completo de teclado y contraste válido en
+los temas claro y oscuro.
+
+#### Scenario: Búsqueda sin resultados
+
+- **WHEN** el usuario busca un término que no coincide con ninguna guía
+- **THEN** la interfaz informa que no hay resultados y conserva un camino para
+  limpiar la búsqueda o volver a las categorías.
+
+#### Scenario: Uso en Web móvil
+
+- **WHEN** el Centro de ayuda se muestra en un viewport de 390×844
+- **THEN** el índice se puede abrir y cerrar sin provocar scroll horizontal
+- **AND** las acciones y el contenido siguen siendo utilizables mediante toque
+  y teclado.
+
+### Requirement: Ayuda contextual para operaciones críticas
+
+Las interfaces MUST ofrecer acceso a una guía contextual desde los controles y
+errores de ejecución, reinicio, límites de tiempo, ubicación, haces, trazas,
+depuración, telemetría y validación de mundos.
+
+#### Scenario: Error con recuperación disponible
+
+- **WHEN** un error de script o validación tiene una guía de recuperación
+  asociada
+- **THEN** el usuario puede abrir esa guía desde el mensaje o control contextual
+- **AND** la ayuda describe una solución verificable para el caso.
+
+### Requirement: Avance de tick verificable
+
+Cuando la interfaz Web confirme que avanzó un tick, MUST haber recibido y
+aplicado un snapshot de la generación activa con tick estrictamente mayor. Si el
+motor no puede avanzar en el estado actual, el control DEBERÁ estar deshabilitado
+o explicar que no se realizó avance.
+
+#### Scenario: Avanzar un tick con traza activa
+
+- DADA una sesión preparada para avance manual y una traza iniciada
+- CUANDO el usuario selecciona Avanzar un tick
+- ENTONCES el tick visible DEBERÁ incrementarse
+- Y la traza DEBERÁ contener la transición correspondiente.
+
+### Requirement: Ritmo observable de simulación
+
+La interfaz Web MUST mantener el progreso visible alineado con el tiempo
+simulado, sin que la interpolación altere la semántica de estados, LCD o
+telemetría.
+
+#### Scenario: Espera de un segundo
+
+- DADO un script que ejecuta `wait(1000)`
+- CUANDO se ejecuta en el entorno de referencia
+- ENTONCES la relación entre tiempo de pared y `sim_time_s` DEBERÁ cumplir el
+  presupuesto de rendimiento documentado
+- Y el canvas DEBERÁ seguir produciendo frames mientras la sesión esté activa.

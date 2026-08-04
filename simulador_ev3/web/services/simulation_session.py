@@ -61,7 +61,7 @@ class SimulationSession(SimulationSessionPort):
         self._latest_debug: dict[str, Any] | None = None
         self._latest_debug_context: dict[str, Any] | None = None
         self._last_snapshot_event_at = 0.0
-        snapshot_hz = float(self._config.get("WEB_SNAPSHOT_MAX_HZ", 12.0))
+        snapshot_hz = float(self._config.get("WEB_SNAPSHOT_MAX_HZ", 30.0))
         self._snapshot_event_interval_s = 0.0 if snapshot_hz <= 0 else 1.0 / snapshot_hz
         self._debug_breakpoints: set[int] = set()
         self._debug_watches: list[str] = []
@@ -100,9 +100,16 @@ class SimulationSession(SimulationSessionPort):
                         "max_cpu_s": max(1.0, float(max_runtime_s)),
                     },
                     "engine_config": asdict(self._service.engine_config),
+                    "snapshot_hz": snapshot_hz,
                 },
             )
         self._wire_callbacks()
+        if self._worker_shadow is not None:
+            # La primera vista de una sesión aislada también debe proceder del
+            # worker. Sin este snapshot, ``GET /snapshot`` construía un tick
+            # local y el primer paso manual devolvía el mismo tick del worker.
+            with self._lock:
+                self._mirror_worker("snapshot")
         self._latest_debug = self._build_debug_state("idle")
 
     @property
@@ -119,9 +126,13 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             self._source_code = source
             self._service.load_script(source)
-            self._mirror_worker("load_script", {"source": source})
             if self._status in {"created", "stopped", "finished", "error", "timed_out"}:
                 self._transition(SessionStatus.READY)
+            self._mirror_worker("load_script", {"source": source})
+            # Sin este snapshot inicial, el primer ``step_tick`` del worker
+            # podía coincidir con el snapshot local previo y el navegador no
+            # observaba ningún incremento de tick.
+            self._mirror_worker("snapshot")
             self._latest_error = None
             self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
@@ -139,11 +150,14 @@ class SimulationSession(SimulationSessionPort):
             if debug:
                 self._service.set_debug_breakpoints(self._debug_breakpoints)
                 self._service.set_debug_watches(self._debug_watches)
+            # El worker puede alcanzar un breakpoint inmediatamente al arrancar.
+            # La transición debe ocurrir antes de enviar el comando: de otro
+            # modo ``ready -> paused`` se descarta y la pausa queda oculta.
+            self._transition(SessionStatus.RUNNING)
+            self._set_debug_state("running")
             if not self._worker_executes:
                 self._service.start(debug=debug, step_mode=step_mode)
             self._mirror_worker("start", {"debug": debug, "step_mode": step_mode})
-            self._transition(SessionStatus.RUNNING)
-            self._set_debug_state("running")
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -200,6 +214,9 @@ class SimulationSession(SimulationSessionPort):
             if not self._worker_executes:
                 self._service.stop()
             self._mirror_worker("stop")
+            # El estado stopped no puede adelantar al último snapshot visible:
+            # canvas, telemetría y LCD deben conservar la misma pose terminal.
+            self._publish_current_snapshot()
             self._push_event("status", {"status": self._status})
             self._complete_mission("cancelled")
             return self.summary()
@@ -334,7 +351,13 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
                 raise InvalidSessionState("El paso de tick requiere una simulacion detenida.")
-            snapshot = self._decorate_snapshot(self._service.step_tick().to_dict())
+            if self._worker_executes:
+                # El worker aislado es la fuente de verdad para snapshots. El
+                # avance local dejaba visible el snapshot previo del worker.
+                self._mirror_worker("step_tick")
+                snapshot = self._worker_shadow_snapshot
+            else:
+                snapshot = self._decorate_snapshot(self._service.step_tick().to_dict())
             if snapshot is None:
                 raise RuntimeError("No fue posible generar el snapshot de la sesión.")
             self._latest_snapshot = snapshot
@@ -357,6 +380,7 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             if not self._worker_executes:
                 self._service.debug_continue()
+                self._service.resume()
             self._mirror_worker("debug_continue")
             changed = self._transition(SessionStatus.RUNNING)
             payload = {"type": "command", "status": self._status, "action": "continue"}
@@ -370,6 +394,7 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             if not self._worker_executes:
                 self._service.debug_step()
+                self._service.resume()
             self._mirror_worker("debug_step")
             changed = self._transition(SessionStatus.RUNNING)
             payload = {"type": "command", "status": self._status, "action": "step"}
@@ -951,12 +976,6 @@ class SimulationSession(SimulationSessionPort):
         if event.get("type") == "snapshot" and isinstance(event.get("payload"), dict):
             if self._reset_in_progress:
                 return
-            # En estado base no existe una ejecución activa que pueda producir
-            # snapshots útiles. Ignorar el último tick que un EngineThread
-            # cancelado pudiera dejar en el pipe evita que reemplace la pose
-            # inicial publicada por ``reset``.
-            if self._status == SessionStatus.CREATED.value and self._source_code is None:
-                return
             snapshot = self._decorate_snapshot(event["payload"])
             self._worker_shadow_snapshot = snapshot
             self._latest_snapshot = snapshot
@@ -1061,6 +1080,17 @@ class SimulationSession(SimulationSessionPort):
             "world_loaded": self._status if self._status != "created" else "ready",
         }.get(status, status)
         with self._lock:
+            # El worker confirma ``running`` después de iniciar el hilo de
+            # script. Si el breakpoint ya pausó ese hilo, esa confirmación es
+            # atrasada y no puede reanudar la sesión por sí sola. ``resumed``
+            # conserva el camino explícito de Reanudar/Continuar.
+            if (
+                status == "running"
+                and self._status == SessionStatus.PAUSED.value
+                and isinstance(self._latest_debug, dict)
+                and str(self._latest_debug.get("debug_state", "")).startswith("paused_")
+            ):
+                return
             if not self._transition(mapped):
                 return
             if status == "started":
@@ -1113,6 +1143,8 @@ class SimulationSession(SimulationSessionPort):
             if event_type == "paused":
                 debug_state = "paused_breakpoint" if reason == "breakpoint" else "paused_step"
                 changed = self._transition(SessionStatus.PAUSED)
+                if not self._worker_executes:
+                    self._service.pause()
                 self._set_debug_state(
                     debug_state,
                     line=line,

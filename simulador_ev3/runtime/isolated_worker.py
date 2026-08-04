@@ -319,7 +319,23 @@ def _worker_main(commands, events, session_id: str) -> None:
                 service = SimulationService(
                     config=engine_config, policy=ExecutionPolicy(max_runtime_s=policy.max_runtime_s)
                 )
-                service.set_snapshot_callback(lambda snapshot: emit("snapshot", snapshot.to_dict()))
+                try:
+                    snapshot_hz = float(raw.get("payload", {}).get("snapshot_hz", 30.0))
+                except (TypeError, ValueError):
+                    snapshot_hz = 30.0
+                snapshot_hz = min(60.0, max(10.0, snapshot_hz))
+                snapshot_interval_s = 1.0 / snapshot_hz
+                last_snapshot_emit_at = 0.0
+
+                def emit_service_snapshot(snapshot, interval_s: float = snapshot_interval_s) -> None:
+                    nonlocal last_snapshot_emit_at
+                    now = time.monotonic()
+                    if now - last_snapshot_emit_at < interval_s:
+                        return
+                    last_snapshot_emit_at = now
+                    emit("snapshot", snapshot.to_dict())
+
+                service.set_snapshot_callback(emit_service_snapshot)
                 service.set_error_callback(lambda error: emit("error", {"code": "SCRIPT_ERROR", **error}))
                 def emit_service_status(service_status: str, service_ref=service) -> None:
                     normalized = {"started": "running", "stopped": "stopped"}.get(service_status, service_status)
@@ -335,7 +351,16 @@ def _worker_main(commands, events, session_id: str) -> None:
                     emit("status", {"status": normalized})
 
                 service.set_status_callback(emit_service_status)
-                service.set_debug_callback(lambda debug: emit("debug", debug))
+
+                def emit_service_debug(debug: dict[str, Any], service_ref=service) -> None:
+                    emit("debug", debug)
+                    # Un breakpoint suspende el script y también la física:
+                    # de otro modo el robot sigue acumulando ticks mientras el
+                    # editor muestra una pausa de depuración.
+                    if debug.get("type") == "paused":
+                        service_ref.pause()
+
+                service.set_debug_callback(emit_service_debug)
                 # En Linux, RLIMIT_AS puede impedir que Python reserve la pila
                 # del hilo del runtime si se aplica antes de ``service.start``.
                 # El límite se instala justo después de crear dicho hilo.
@@ -364,6 +389,16 @@ def _worker_main(commands, events, session_id: str) -> None:
                     service.load_script(str(raw.get("payload", {}).get("source", "")))
                 status = "ready"
                 emit("loaded", {"status": status}, command_id)
+                continue
+            if command_type == "snapshot":
+                if service is None:
+                    emit("error", {"code": "IPC_SERVICE_UNAVAILABLE"}, command_id)
+                    continue
+                snapshot = service.current_snapshot()
+                if snapshot is not None:
+                    emit("snapshot", snapshot.to_dict(), command_id)
+                else:
+                    emit("snapshot_unavailable", {}, command_id)
                 continue
             if command_type == "set_simulation_profile":
                 payload = raw.get("payload", {})
@@ -401,6 +436,20 @@ def _worker_main(commands, events, session_id: str) -> None:
                     service.resume()
                 status = "running"
                 emit("status", {"status": status}, command_id)
+                continue
+            if command_type == "step_tick":
+                if service is None:
+                    emit("error", {"code": "IPC_SERVICE_UNAVAILABLE"}, command_id)
+                    continue
+                try:
+                    snapshot = service.step_tick()
+                except RuntimeError as exc:
+                    emit("error", {"code": "IPC_TICK_STEP_INVALID", "message": str(exc)}, command_id)
+                    continue
+                # El callback de SimulationService ya publica el snapshot. El
+                # acuse identificado permite esperar al worker autoritativo sin
+                # duplicar el snapshot en el stream de la sesión.
+                emit("tick_step", {"tick": snapshot.tick}, command_id)
                 continue
             if command_type == "stop":
                 if service is not None:
@@ -454,8 +503,8 @@ def _worker_main(commands, events, session_id: str) -> None:
                     if service is not None:
                         service.load_world_file(world_path)
                     service_snapshot = service.get_snapshot() if service is not None else None
-                    snapshot = service_snapshot.to_dict() if service_snapshot is not None else None
-                    emit("world_loaded", {"status": status, "snapshot": snapshot}, command_id)
+                    world_snapshot_payload = service_snapshot.to_dict() if service_snapshot is not None else None
+                    emit("world_loaded", {"status": status, "snapshot": world_snapshot_payload}, command_id)
                 except (OSError, ValueError, TypeError) as exc:
                     emit("error", {"code": "IPC_WORLD_INVALID", "message": str(exc)}, command_id)
                 finally:
@@ -507,11 +556,13 @@ def _worker_main(commands, events, session_id: str) -> None:
             if command_type == "debug_continue":
                 if service is not None:
                     service.debug_continue()
+                    service.resume()
                 emit("debug_command", {"status": status, "action": "continue"}, command_id)
                 continue
             if command_type == "debug_step":
                 if service is not None:
                     service.debug_step()
+                    service.resume()
                 emit("debug_command", {"status": status, "action": "step"}, command_id)
                 continue
             if command_type == "probe_network":

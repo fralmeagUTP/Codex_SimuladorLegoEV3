@@ -1,171 +1,107 @@
 {% extends "base.html" %}
-{% block title %}Ayuda - Simulador EV3 Web{% endblock %}
+{% block title %}Centro de ayuda - Simulador EV3 Pybricks{% endblock %}
 {% block body %}
-<main class="help">
-  <h1>Ayuda del Simulador EV3 Web</h1>
-  <p class="help-lead">
-    Guia practica para aprender como se usa la app: crear mundos, cargarlos en simulacion y ejecutar scripts paso a paso.
-  </p>
-
-  <section class="help-section">
-    <h2>Acceso recomendado</h2>
-    <p>
-      Esta app se ejecuta publicada en <code>http://nyquist.app/simuladorlego</code>.
-      Desde esa pantalla inicial navega siempre con el menu superior (<strong>Simulacion</strong>,
-      <strong>Mundos</strong> y <strong>Ayuda</strong>), sin escribir nombres ni rutas en el navegador.
-    </p>
-  </section>
-
-  <nav class="help-nav">
-    <a href="{{ url_for('pages.index') }}">Simulacion</a>
-    <a href="{{ url_for('pages.worlds_page') }}">Crear mundos</a>
+<main class="help-center" data-help-center>
+  <header class="help-hero">
+    <a class="help-brand" href="{{ url_for('pages.index') }}" aria-label="Volver a Simulación">EV3</a>
+    <div>
+      <p class="help-eyebrow">CENTRO DE APRENDIZAJE</p>
+      <h1>¿Qué quieres hacer hoy?</h1>
+      <p>Guías cortas para crear mundos, programar, simular y resolver problemas en el Simulador EV3 Pybricks.</p>
+    </div>
     <label class="help-theme-control" for="helpThemeSelect">Tema</label>
-    <select id="helpThemeSelect" data-theme-select>
+    <select id="helpThemeSelect" data-theme-select aria-label="Tema de la ayuda">
       <option value="light">Claro</option>
       <option value="dark">Oscuro</option>
     </select>
-  </nav>
+  </header>
 
-  <section class="help-section">
-    <h2>0. Tutorial guiado</h2>
-    <p>
-      Sigue estos mini tutoriales en orden. Cada bloque te dice que hacer, que debes ver al final y que revisar si algo falla.
-    </p>
-    <div class="help-tutorial-grid">
-      {% for tutorial in tutorials %}
-      <article class="tutorial-card">
-        <h3>{{ tutorial.title }}</h3>
-        <figure class="tutorial-figure">
-          <img src="{{ url_for('static', filename='images/help/' + tutorial.image_name, v=asset_version) }}" alt="{{ tutorial.image_alt }}" loading="lazy">
-        </figure>
-        <ol class="tutorial-steps">
-          {% for step in tutorial.steps %}
-          <li>{{ step }}</li>
-          {% endfor %}
-        </ol>
-        <p class="tutorial-result"><strong>Resultado esperado:</strong> {{ tutorial.expected_result }}</p>
-        <p class="tutorial-fallback"><strong>Si falla:</strong> {{ tutorial.recovery }}</p>
-      </article>
+  <section class="help-search-panel" aria-label="Buscar en la ayuda">
+    <label for="helpSearch">Buscar una guía, control o error</label>
+    <input id="helpSearch" type="search" placeholder="Ejemplo: sensor ultrasónico, pausar, validar mundo" autocomplete="off">
+    <p id="helpSearchStatus" class="help-search-status" role="status" aria-live="polite">{{ guides|length }} guías disponibles.</p>
+  </section>
+
+  <section class="help-quick-start" aria-labelledby="quickStartTitle">
+    <div class="help-section-heading">
+      <div>
+        <p class="help-eyebrow">EMPEZAR SIN PERDERSE</p>
+        <h2 id="quickStartTitle">Rutas recomendadas</h2>
+      </div>
+      <a href="{{ url_for('pages.index') }}">Abrir simulación <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="help-quick-grid">
+      {% for guide in guides[:4] %}
+      <a class="help-quick-card" href="#guide-{{ guide.identifier }}" data-help-quick="{{ guide.identifier }}">
+        <span class="help-quick-number">0{{ loop.index }}</span>
+        <strong>{{ guide.title }}</strong>
+        <span>{{ guide.summary }}</span>
+        <small>{{ guide.minutes }} min · {{ guide.category|capitalize }}</small>
+      </a>
       {% endfor %}
     </div>
   </section>
 
-  <section class="help-section">
-    <h2>1. Inicio rapido (5 minutos)</h2>
-    <ol>
-      <li>En <code>http://nyquist.app/simuladorlego</code>, entra a <strong>Mundos</strong> desde el menu superior.</li>
-      <li>Pulsa <strong>Validar</strong> para revisar que no existan errores.</li>
-      <li>Pulsa <strong>Guardar como</strong> y elige donde guardar el JSON.</li>
-      <li>Pulsa <strong>Simulacion</strong> en la barra superior para ir a la pantalla de ejecucion.</li>
-      <li>Abre un script de ejemplo, ejecutalo y observa sensores, motores y telemetria.</li>
-    </ol>
-    <p>
-      Si quieres aprender por escenarios completos, usa el menu <strong>Escenarios</strong> en simulacion para cargar mundo y script en una sola accion.
-    </p>
-  </section>
+  <div class="help-workspace">
+    <aside class="help-sidebar" aria-label="Categorías de ayuda">
+      <p class="help-sidebar-title">EXPLORAR POR TAREA</p>
+      <nav class="help-category-nav" aria-label="Categorías">
+        <button type="button" class="is-active" data-help-category="all" aria-pressed="true">Todas las guías <span>{{ guides|length }}</span></button>
+        {% for category, label in categories %}
+        <button type="button" data-help-category="{{ category }}" aria-pressed="false">{{ label }}</button>
+        {% endfor %}
+      </nav>
+      <div class="help-sidebar-callout">
+        <strong>¿Necesitas instalar o administrar la aplicación?</strong>
+        <p>La operación técnica está separada de estas guías de uso.</p>
+        <a href="{{ url_for('pages.operations_page') }}">Ver guía técnica</a>
+      </div>
+    </aside>
 
-  <section class="help-section">
-    <h2>2. Simulacion del robot (pantalla principal)</h2>
-    <p>Acceso: desde el menu <strong>Simulacion</strong> dentro de la app.</p>
-    <p><strong>Unidades:</strong> las distancias visibles en telemetria y readouts (X, Y y sensores de distancia) se muestran en <strong>centimetros (cm)</strong>.</p>
-    <h3>Que puedes hacer aqui</h3>
-    <ul>
-      <li>Crear, abrir y guardar scripts desde el menu <strong>Archivo</strong>.</li>
-      <li>Elegir ejemplos listos desde <strong>Ejemplos</strong>.</li>
-      <li>Cargar mundos desde el menu <strong>Mundos</strong>.</li>
-      <li>Ejecutar con controles: ejecutar, pausar, reanudar, detener y reiniciar.</li>
-      <li>Depurar con breakpoints haciendo clic en el margen del editor.</li>
-    </ul>
-    <h3>Apoyos didacticos del editor</h3>
-    <ul>
-      <li>Autocompletado Pybricks con <code>Ctrl+Space</code>.</li>
-      <li>Autoindentacion y cierre automatico de pares <code>()</code>, <code>[]</code> y llaves.</li>
-      <li>Vista de estado del programa y del mundo cargado.</li>
-      <li>Panel visual del robot: LED, pantalla, altavoz EV3 y telemetria de motores/sensores.</li>
-      <li>La pantalla EV3 soporta texto y dibujo monocromo 178x128 con <code>draw_pixel</code>, <code>draw_line</code>, <code>draw_circle</code> y <code>draw_box</code>.</li>
-    </ul>
-    <p>
-      Para ubicar el robot antes de ejecutar, usa <strong>Ubicar robot</strong> y haz clic en el canvas para fijar posicion y angulo inicial.
-    </p>
-  </section>
+    <section class="help-guide-list" aria-label="Guías disponibles">
+      <div class="help-list-heading">
+        <div>
+          <p class="help-eyebrow">APRENDE HACIENDO</p>
+          <h2>Guías paso a paso</h2>
+        </div>
+        <p>Cada guía explica qué hacer, qué debes ver y cómo recuperarte.</p>
+      </div>
 
-  <section class="help-section">
-    <h2>3. Creacion de mundos (editor)</h2>
-    <p>Acceso: desde el menu <strong>Mundos</strong> dentro de la app.</p>
-    <p><strong>Unidades:</strong> el readout de cursor y la pose inicial del robot se muestran en <strong>cm</strong> para mantener consistencia con la simulacion.</p>
-    <h3>Paso a paso para construir un mundo</h3>
-    <ol>
-      <li>Define el tamano en celdas y pulsa <strong>Aplicar tamano</strong>.</li>
-      <li>Selecciona el tipo de asset (robot, muros, lineas, zonas o pisos).</li>
-      <li>Haz clic en el canvas para colocar elementos.</li>
-      <li>Selecciona elementos ya colocados para mover, rotar, duplicar o eliminar.</li>
-      <li>Ajusta propiedades en el panel de propiedades (asset, posicion y rotacion).</li>
-      <li>Si lo necesitas, define la pose inicial con <strong>Colocar robot</strong>.</li>
-      <li>Pulsa <strong>Validar</strong> y revisa errores/advertencias en consola.</li>
-      <li>Pulsa <strong>Guardar como</strong> para exportar el JSON del mundo.</li>
-    </ol>
-    <p>
-      El panel de propiedades te ayuda a editar con precision cuando necesitas coordenadas exactas.
-    </p>
-  </section>
-
-  <section class="help-section">
-    <h2>4. Flujo recomendado: de mundo a simulacion</h2>
-    <ol>
-      <li>Abre la seccion <strong>Mundos</strong> desde el menu superior.</li>
-      <li>Crea el mundo y valida que no tenga errores.</li>
-      <li>Guarda el mundo como JSON (por ejemplo <code>prueba_lineas.json</code>).</li>
-      <li>Abre la seccion <strong>Simulacion</strong> desde el menu superior.</li>
-      <li>Carga el mundo desde el menu de <strong>Mundos</strong> o con la opcion <strong>Cargar mundo desde tu equipo</strong>.</li>
-      <li>Ejecuta el script Pybricks desde la pagina de simulacion.</li>
-    </ol>
-  </section>
-
-  <section class="help-section">
-    <h2>5. Sesiones</h2>
-    <p>
-      Cada pestana crea una sesion independiente. El codigo, mundo cargado, estado de simulacion y eventos SSE
-      no se comparten entre sesiones.
-    </p>
-    <p>Si el servidor se reinicia, recarga la pestana para crear una sesion nueva.</p>
-  </section>
-
-  <section class="help-section">
-    <h2>6. Alcance para usuario final</h2>
-    <p>
-      Esta aplicacion ya esta desplegada por el equipo tecnico en <code>http://nyquist.app/simuladorlego</code>.
-      Como usuario final no necesitas ejecutar scripts locales, abrir terminal ni configurar el servidor.
-    </p>
-    <p>
-      Tu flujo recomendado es: entrar a la URL publicada, navegar por <strong>Mundos</strong> y
-      <strong>Simulacion</strong>, y trabajar todo desde la interfaz web.
-    </p>
-  </section>
-
-  <section class="help-section">
-    <h2>7. Problemas comunes</h2>
-    <dl class="help-dl">
-      <dt>No aparece el mundo guardado</dt>
-      <dd>Regresa a <strong>Simulacion</strong> desde el menu y vuelve a cargarlo desde <strong>Mundos</strong>.</dd>
-      <dt>La sesion expiro o desaparecio</dt>
-      <dd>Recarga la pestana. Las sesiones son temporales y viven en memoria.</dd>
-      <dt>El script no ejecuta</dt>
-      <dd>Revisa la consola de la pagina de simulacion; los errores del script no detienen otras sesiones.</dd>
-      <dt>No abre la aplicacion</dt>
-      <dd>Verifica conexion a internet y que la URL sea <code>http://nyquist.app/simuladorlego</code>.</dd>
-    </dl>
-  </section>
-
-  <section class="help-section">
-    <h2>8. Checklist de uso diario</h2>
-    <ul>
-      <li>Confirmar que el servidor esta activo.</li>
-      <li>Validar el mundo antes de simular.</li>
-      <li>Comprobar pose inicial del robot.</li>
-      <li>Ejecutar script y revisar telemetria.</li>
-      <li>Si algo falla: revisar consola y volver a cargar la sesion.</li>
-    </ul>
-  </section>
+      {% for guide in guides %}
+      <article id="guide-{{ guide.identifier }}" class="help-guide-card" data-help-guide data-category="{{ guide.category }}" data-search="{{ guide.title }} {{ guide.summary }} {{ guide.keywords|join(' ') }} {{ guide.steps|join(' ') }}">
+        <div class="help-guide-intro">
+          <div class="help-guide-meta"><span>{{ guide.category|capitalize }}</span><span>{{ guide.minutes }} min</span></div>
+          <h3>{{ guide.title }}</h3>
+          <p>{{ guide.summary }}</p>
+          <p class="help-audience">Para: {{ guide.audience|join(', ') }}</p>
+        </div>
+        <figure class="help-guide-figure">
+          <img src="{{ url_for('static', filename='images/help/' + guide.image_name, v=asset_version) }}" alt="{{ guide.image_alt }}" loading="lazy">
+        </figure>
+        <div class="help-guide-content">
+          <section>
+            <h4>Antes de empezar</h4>
+            <ul>{% for item in guide.prerequisites %}<li>{{ item }}</li>{% endfor %}</ul>
+          </section>
+          <section>
+            <h4>Pasos</h4>
+            <ol>{% for step in guide.steps %}<li>{{ step }}</li>{% endfor %}</ol>
+          </section>
+        </div>
+        <div class="help-guide-outcomes">
+          <p class="help-result"><strong>Debes ver:</strong> {{ guide.expected_result }}</p>
+          <p class="help-recovery"><strong>Si algo falla:</strong> {{ guide.recovery }}</p>
+        </div>
+        <footer class="help-guide-footer">
+          <a class="help-primary-action" href="{{ destinations[guide.destination] }}">Abrir {{ "Editor de mundos" if guide.destination == "worlds" else "Simulación" }} <span aria-hidden="true">→</span></a>
+          {% if guide.related %}<span>También: {% for related in guide.related %}<a href="#guide-{{ related }}">{{ guides_by_id[related].title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+        </footer>
+      </article>
+      {% endfor %}
+      <p id="helpEmptyState" class="help-empty" hidden>No encontramos una guía con esos términos. Prueba con “mundo”, “sensor”, “error” o limpia la búsqueda.</p>
+    </section>
+  </div>
 </main>
 <script src="{{ url_for('static', filename='js/theme_manager.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/help_center.js', v=asset_version) }}"></script>
 {% endblock %}

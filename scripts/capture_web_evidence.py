@@ -99,15 +99,16 @@ def assert_box_in_viewport(page, selector: str) -> None:
     viewport = page.viewport_size
     if box is None or viewport is None:
         raise AssertionError(f"{selector} no tiene bounding box visible")
-    if box["x"] < 0 or box["y"] < 0:
-        raise AssertionError(f"{selector} queda fuera del viewport: {box}")
+    if box["x"] < 0:
+        raise AssertionError(f"{selector} queda fuera del viewport horizontal: {box}")
     if box["x"] + box["width"] > viewport["width"] + 1:
         raise AssertionError(f"{selector} excede ancho viewport: {box} vs {viewport}")
-    if box["y"] + box["height"] > viewport["height"] + 1:
-        raise AssertionError(f"{selector} excede alto viewport: {box} vs {viewport}")
+    # Las capturas se generan con full_page=True y la aplicación permite
+    # desplazamiento vertical. Estar debajo del pliegue no es un recorte ni un
+    # defecto responsivo; exigirlo volvía frágil la evidencia a 800 px de alto.
 
 
-def assert_world_canvas_matches_tkinter_size(page) -> None:
+def assert_world_canvas_respects_container(page) -> None:
     metrics = page.locator("#worldCanvas").evaluate(
         """(canvas) => {
             const pane = canvas.parentElement;
@@ -123,12 +124,20 @@ def assert_world_canvas_matches_tkinter_size(page) -> None:
             };
         }"""
     )
-    # Tkinter usa 32 px por cada 100 mm. El mundo base de 4000x4000 mm debe medir 1280x1280 px.
-    expected_px = 1280
-    if metrics["canvasWidth"] != expected_px or metrics["canvasHeight"] != expected_px:
-        raise AssertionError(f"worldCanvas no coincide con tamano Tkinter: {metrics}")
-    if metrics["attrWidth"] != expected_px or metrics["attrHeight"] != expected_px:
-        raise AssertionError(f"buffer del canvas no coincide con tamano Tkinter: {metrics}")
+    # La Web adapta el ancho del canvas al panel disponible. A diferencia de
+    # Tkinter, no debe exigirse un ancho CSS fijo de 1280 px: eso rompería los
+    # viewports responsivos. Sí debe conservar un buffer no vacío y coherente
+    # con las dimensiones dibujadas.
+    if metrics["canvasWidth"] <= 0 or metrics["canvasHeight"] <= 0:
+        raise AssertionError(f"worldCanvas no tiene dimensiones visibles: {metrics}")
+    if metrics["attrWidth"] <= 0 or metrics["attrHeight"] <= 0:
+        raise AssertionError(f"worldCanvas no tiene buffer: {metrics}")
+    if abs(metrics["attrWidth"] - metrics["canvasWidth"]) > 1:
+        raise AssertionError(f"buffer horizontal no coincide con canvas: {metrics}")
+    if abs(metrics["attrHeight"] - metrics["canvasHeight"]) > 1:
+        raise AssertionError(f"buffer vertical no coincide con canvas: {metrics}")
+    if metrics["canvasWidth"] > metrics["paneClientWidth"] + 1:
+        raise AssertionError(f"canvas excede el ancho de su panel: {metrics}")
     if metrics["paneScrollWidth"] < metrics["canvasWidth"] or metrics["paneScrollHeight"] < metrics["canvasHeight"]:
         raise AssertionError(f"el panel no expone scroll del mapa completo: {metrics}")
 
@@ -174,7 +183,7 @@ def capture_layouts(browser, base_url: str, output_dir: Path) -> list[str]:
                 for selector in selectors:
                     expect(page.locator(selector)).to_be_visible()
                     if selector == "#worldCanvas":
-                        assert_world_canvas_matches_tkinter_size(page)
+                        assert_world_canvas_respects_container(page)
                     else:
                         assert_box_in_viewport(page, selector)
                 target = output_dir / f"{name}_{width}x{height}.png"
@@ -246,11 +255,13 @@ def capture_feature_flows(browser, base_url: str, output_dir: Path) -> list[str]
         page.mouse.click(box["x"] + 120, box["y"] + 120)
         expect(page.locator("#assetPropertiesForm")).to_be_visible()
         page.locator("#assetKeyInput").select_option("line_64_64_hor")
-        page.locator("#assetXInput").fill("64")
-        page.locator("#assetYInput").fill("96")
+        # El editor actual recibe coordenadas de celda, no píxeles. Mantener
+        # estos valores alineados con el flujo E2E de edición de propiedades.
+        page.locator("#assetXInput").fill("2")
+        page.locator("#assetYInput").fill("3")
         page.locator("#assetRotationInput").fill("180")
         page.locator("#applyAssetPropertiesBtn").click()
-        expect(page.locator("#selectedAsset")).to_contain_text("line_64_64_hor")
+        expect(page.locator("#selectedAsset")).to_contain_text("Línea horizontal")
         target = output_dir / "mundos_propiedades_1366x768.png"
         page.screenshot(path=str(target), full_page=True)
         files.append(str(target.relative_to(ROOT)))

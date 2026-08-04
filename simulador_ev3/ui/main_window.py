@@ -30,7 +30,7 @@ import sys
 import tkinter as tk
 from functools import partial
 from pathlib import Path
-from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import filedialog, messagebox
 from typing import Any, Callable, Optional
 
 from PIL import Image, ImageTk
@@ -41,12 +41,16 @@ from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.domain.editor.world_editor_model import DEFAULT_WORLD_MM
 from simulador_ev3.examples.example_catalog import ExampleCatalog
-from simulador_ev3.shared.help_tutorials import HELP_TUTORIALS
+from simulador_ev3.shared.help_tutorials import (
+    HELP_CATEGORIES,
+    HELP_GUIDES,
+    HelpGuide,
+    guide_by_id,
+)
 from simulador_ev3.shared.mission_catalog import MissionCatalog
 from simulador_ev3.shared.paths import (
     resolve_examples_dir,
     resolve_image_assets_dir,
-    resolve_manual_path,
     resolve_worlds_dir,
 )
 from simulador_ev3.shared.ui_design_tokens import (
@@ -73,7 +77,6 @@ from simulador_ev3.ui.world_canvas import WorldCanvas
 # Rutas canónicas compartidas (con fallback legacy).
 _EXAMPLES_DIR = resolve_examples_dir()
 _WORLDS_DIR = resolve_worlds_dir()
-_MANUAL_PATH = resolve_manual_path()
 
 _SCENARIOS: list[tuple[str, str, str]] = [
     ("Seguidor de línea", "01_linea_negra_basica.json", "11_siguelineas_basico.py"),
@@ -109,7 +112,7 @@ class EV3SimulatorApp(tk.Tk):
         super().__init__()
         if start_hidden:
             self.withdraw()
-        self.title("Simulador EV3 Pybricks")
+        self.title("BotLab Studio")
         self.geometry(f"{WEB_REFERENCE_WIDTH_PX}x{WEB_REFERENCE_HEIGHT_PX}")
         self.minsize(WEB_MIN_WIDTH_PX, WEB_MIN_HEIGHT_PX)
         self._theme_name = load_ui_theme()
@@ -203,7 +206,7 @@ class EV3SimulatorApp(tk.Tk):
         ).pack(side=tk.LEFT, padx=(0, 8))
         tk.Label(
             header,
-            text="Simulador EV3 Pybricks",
+            text="BotLab Studio",
             bg=tokens.toolbar,
             fg=tokens.toolbar_text,
             font=("Segoe UI", 12, "bold"),
@@ -327,7 +330,7 @@ class EV3SimulatorApp(tk.Tk):
 
         # MenÃº Ayuda
         help_menu = tk.Menu(header, tearoff=0, **menu_style)
-        help_menu.add_command(label="Manual de uso...", command=self._cmd_user_manual)
+        help_menu.add_command(label="Centro de ayuda...", command=self._cmd_user_manual)
         help_menu.add_separator()
         help_menu.add_command(label="Acerca de...", command=self._cmd_about)
         add_menu_button("Ayuda", help_menu)
@@ -712,6 +715,12 @@ class EV3SimulatorApp(tk.Tk):
         self._sensor_beams_button.pack(side=tk.LEFT, padx=(0, 6))
         tk.Button(
             map_tools,
+            text="?",
+            width=3,
+            command=lambda: self._open_contextual_help("use-sensors"),
+        ).pack(side=tk.LEFT, padx=2)
+        tk.Button(
+            map_tools,
             text="+",
             width=3,
             command=self._cmd_map_zoom_in,
@@ -847,6 +856,16 @@ class EV3SimulatorApp(tk.Tk):
             button = tk.Button(run_group, text=label, command=command, bg=color, fg=foreground, **button_base)
             button.pack(side=tk.LEFT, padx=2)
             self._sim_control_buttons[key] = button
+        tk.Button(
+            run_group,
+            text="? Ejecución",
+            command=lambda: self._open_contextual_help("run-simulation"),
+        ).pack(side=tk.LEFT, padx=(8, 2))
+        tk.Button(
+            run_group,
+            text="? Errores",
+            command=lambda: self._open_contextual_help("recover-script-error"),
+        ).pack(side=tk.LEFT, padx=2)
         self._sync_sim_control_states("ready")
 
         pose_group = tk.Frame(bar, bg=tokens.background)
@@ -1659,14 +1678,18 @@ class EV3SimulatorApp(tk.Tk):
         body.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
 
         intro = (
-            "Simulador LEGO Mindstorms EV3 basado en la libreria Pybricks\n"
+            "BotLab Studio\n"
+            "Programacion y simulacion robotica con LEGO Mindstorms EV3 y Pybricks\n"
             f"Version {__version__}\n\n"
             "Desarrollado por:\n"
             "  - Francisco Alejandro Medina Aguirre\n"
-            "  - Jimy Alexander Cortés Osorio\n\n"
+            "  - Jimy Alexander Cortés Osorio\n"
+            "  - Jose Andrés Chaves Osorio\n\n"
             "Aliados academicos:\n"
             "  - Grupo Nyquist\n"
             "  - Robotica Aplicada\n"
+            "  - Programa de ingenieria de sistemas y computación\n"
+            "  - Programa de ingenieria mecatrónica\n"
             "  - Universidad Tecnologica de Pereira (UTP)\n"
         )
         tk.Label(
@@ -1803,50 +1826,312 @@ class EV3SimulatorApp(tk.Tk):
         win.minsize(700, 500)
         tokens = tokens_for_theme(self._theme_name)
         win.configure(bg=tokens.background)
+        self._build_help_center(win)
+        return
 
-        header = tk.Label(
-            win,
-            text="Ayuda y manual de uso - Simulador EV3 Pybricks",
-            bg=tokens.background,
+    def _open_contextual_help(self, guide_id: str) -> None:
+        """Abre la guía asociada a un control crítico de la simulación."""
+
+        self._close_manual_window()
+        self._help_initial_query = guide_by_id(guide_id).title
+        self._cmd_user_manual()
+
+    def _build_help_center(self, win: tk.Toplevel) -> None:
+        """Construye una ayuda navegable a partir del catálogo compartido."""
+
+        tokens = tokens_for_theme(self._theme_name)
+        win.title("Centro de ayuda - Simulador EV3 Pybricks")
+        win.geometry("1040x720")
+        win.minsize(760, 540)
+        win.protocol("WM_DELETE_WINDOW", self._close_manual_window)
+        win.bind("<Escape>", lambda _event: self._close_manual_window())
+
+        header = tk.Frame(win, bg=tokens.surface_muted, bd=1, relief=tk.SOLID)
+        header.pack(fill=tk.X, padx=12, pady=(12, 0))
+        tk.Label(
+            header,
+            text="CENTRO DE APRENDIZAJE",
+            bg=tokens.surface_muted,
             fg=tokens.focus,
+            font=("Segoe UI", 9, "bold"),
             anchor="w",
-            font=("Segoe UI", 11, "bold"),
-            padx=10,
-            pady=8,
-        )
-        header.pack(side=tk.TOP, fill=tk.X)
-
-        navigation = tk.Frame(win, bg=tokens.background, padx=10, pady=8)
-        navigation.pack(side=tk.TOP, fill=tk.X)
-        tk.Button(navigation, text="Crear mundos", command=self._manual_open_worlds).pack(side=tk.LEFT, padx=(0, 6))
-        tk.Button(navigation, text="Ir a simulación", command=self._manual_open_simulation).pack(side=tk.LEFT, padx=6)
-        tk.Button(navigation, text="Preparar depuración", command=self._manual_open_debug).pack(side=tk.LEFT, padx=6)
-
-        txt = scrolledtext.ScrolledText(
-            win,
-            wrap=tk.WORD,
-            font=("Consolas", 10),
-            bg=tokens.surface,
+            padx=14,
+            pady=5,
+        ).pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="¿Qué quieres hacer hoy?",
+            bg=tokens.surface_muted,
             fg=tokens.text,
-            padx=10,
-            pady=8,
-        )
-        txt.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
-        txt.insert("1.0", self._tutorials_as_text() + "\n\n" + self._read_manual_text())
-        txt.configure(state=tk.DISABLED)
+            font=("Segoe UI", 17, "bold"),
+            anchor="w",
+            padx=14,
+        ).pack(fill=tk.X)
+        tk.Label(
+            header,
+            text="Guías cortas para crear mundos, programar, simular y resolver problemas.",
+            bg=tokens.surface_muted,
+            fg=tokens.text_muted,
+            font=("Segoe UI", 10),
+            anchor="w",
+            padx=14,
+            pady=2,
+        ).pack(fill=tk.X, pady=(0, 10))
 
-    def _tutorials_as_text(self) -> str:
-        """Presentación textual de los tutoriales compartidos para Tkinter."""
+        search_bar = tk.Frame(win, bg=tokens.background)
+        search_bar.pack(fill=tk.X, padx=12, pady=10)
+        tk.Label(
+            search_bar,
+            text="Buscar una guía, control o error:",
+            bg=tokens.background,
+            fg=tokens.text,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(side=tk.LEFT)
+        search_var = tk.StringVar(value=getattr(self, "_help_initial_query", ""))
+        self._help_initial_query = ""
+        search = tk.Entry(search_bar, textvariable=search_var, width=48)
+        search.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(10, 8))
+        status = tk.Label(search_bar, bg=tokens.background, fg=tokens.text_muted, font=("Segoe UI", 9))
+        status.pack(side=tk.RIGHT)
 
-        sections = ["TUTORIALES GUIADOS"]
-        for tutorial in HELP_TUTORIALS:
-            steps = "\n".join(f"  {index}. {step}" for index, step in enumerate(tutorial.steps, start=1))
-            sections.append(
-                f"{tutorial.title}\n{steps}\n"
-                f"Resultado esperado: {tutorial.expected_result}\n"
-                f"Si falla: {tutorial.recovery}"
+        workspace = tk.PanedWindow(win, orient=tk.HORIZONTAL, sashwidth=5, bg=tokens.background, bd=0, relief=tk.FLAT)
+        workspace.pack(fill=tk.BOTH, expand=True, padx=12, pady=(0, 12))
+        sidebar = tk.Frame(workspace, bg=tokens.surface, bd=1, relief=tk.SOLID)
+        content_shell = tk.Frame(workspace, bg=tokens.background)
+        workspace.add(sidebar, minsize=185, width=220)
+        workspace.add(content_shell, minsize=500)
+
+        tk.Label(
+            sidebar,
+            text="EXPLORAR POR TAREA",
+            bg=tokens.surface,
+            fg=tokens.text_muted,
+            font=("Segoe UI", 9, "bold"),
+            anchor="w",
+            padx=12,
+            pady=12,
+        ).pack(fill=tk.X)
+        category_var = tk.StringVar(value="all")
+        category_box = tk.Frame(sidebar, bg=tokens.surface)
+        category_box.pack(fill=tk.X, padx=8)
+        category_labels = (("all", "Todas las guías"), *HELP_CATEGORIES)
+        category_buttons: list[tuple[str, tk.Button]] = []
+
+        canvas = tk.Canvas(content_shell, bg=tokens.background, highlightthickness=0)
+        scrollbar = tk.Scrollbar(content_shell, orient=tk.VERTICAL, command=canvas.yview)
+        cards = tk.Frame(canvas, bg=tokens.background)
+        cards_window = canvas.create_window((0, 0), window=cards, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        cards.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(cards_window, width=event.width))
+
+        def refresh_guides(*_args: object) -> None:
+            query = " ".join(search_var.get().casefold().split())
+            selected_category = category_var.get()
+            visible = [
+                guide
+                for guide in HELP_GUIDES
+                if (selected_category == "all" or guide.category == selected_category)
+                and (
+                    not query
+                    or query in " ".join((guide.title, guide.summary, *guide.keywords, *guide.steps)).casefold()
+                )
+            ]
+            for child in cards.winfo_children():
+                child.destroy()
+            if visible:
+                for guide in visible:
+                    self._add_help_guide_card(cards, guide)
+            else:
+                tk.Label(
+                    cards,
+                    text="No encontramos una guía con esos términos. Prueba con mundo, sensor o error.",
+                    bg=tokens.background,
+                    fg=tokens.text_muted,
+                    font=("Segoe UI", 10),
+                    justify=tk.LEFT,
+                    padx=18,
+                    pady=28,
+                ).pack(fill=tk.X)
+            plural = "guías disponibles" if len(visible) != 1 else "guía disponible"
+            status.configure(text=f"{len(visible)} {plural}")
+            for identifier, button in category_buttons:
+                active = identifier == selected_category
+                button.configure(
+                    bg=tokens.surface_muted if active else tokens.surface,
+                    fg=tokens.focus if active else tokens.text,
+                )
+            canvas.yview_moveto(0)
+
+        for identifier, label in category_labels:
+            button = tk.Button(
+                category_box,
+                text=label,
+                anchor="w",
+                relief=tk.FLAT,
+                bd=0,
+                padx=8,
+                pady=8,
+                command=partial(category_var.set, identifier),
             )
-        return "\n\n".join(sections)
+            button.pack(fill=tk.X, pady=1)
+            category_buttons.append((identifier, button))
+
+        callout = tk.Frame(sidebar, bg=tokens.surface_muted, bd=1, relief=tk.SOLID)
+        callout.pack(fill=tk.X, padx=10, pady=(16, 10))
+        tk.Label(
+            callout,
+            text="¿Necesitas instalar o administrar la aplicación?",
+            bg=tokens.surface_muted,
+            fg=tokens.text,
+            font=("Segoe UI", 9, "bold"),
+            wraplength=175,
+            justify=tk.LEFT,
+            padx=8,
+            pady=5,
+        ).pack(fill=tk.X, pady=(3, 0))
+        tk.Label(
+            callout,
+            text="Consulta el manual técnico desde el repositorio.",
+            bg=tokens.surface_muted,
+            fg=tokens.text_muted,
+            font=("Segoe UI", 9),
+            wraplength=175,
+            justify=tk.LEFT,
+            padx=8,
+            pady=4,
+        ).pack(fill=tk.X, pady=(0, 4))
+
+        search_var.trace_add("write", refresh_guides)
+        category_var.trace_add("write", refresh_guides)
+        refresh_guides()
+        win.after_idle(search.focus_set)
+
+    def _add_help_guide_card(self, parent: tk.Widget, guide: HelpGuide) -> None:
+        """Renderiza una guía con widgets nativos, no como Markdown plano."""
+
+        tokens = tokens_for_theme(self._theme_name)
+        card = tk.Frame(parent, bg=tokens.surface, bd=1, relief=tk.SOLID)
+        card.pack(fill=tk.X, padx=2, pady=(0, 12))
+        tk.Label(
+            card,
+            text=f"{guide.category.upper()}  ·  {guide.minutes} MIN",
+            bg=tokens.surface_muted,
+            fg=tokens.focus,
+            font=("Segoe UI", 9, "bold"),
+            anchor="w",
+            padx=12,
+            pady=6,
+        ).pack(fill=tk.X)
+        tk.Label(
+            card, text=guide.title, bg=tokens.surface, fg=tokens.text,
+            font=("Segoe UI", 13, "bold"), anchor="w", padx=12, pady=4,
+        ).pack(fill=tk.X, pady=(6, 0))
+        tk.Label(
+            card, text=guide.summary, bg=tokens.surface, fg=tokens.text_muted,
+            font=("Segoe UI", 10), anchor="w", justify=tk.LEFT, wraplength=700,
+            padx=12, pady=4,
+        ).pack(fill=tk.X, pady=(0, 4))
+        self._add_help_visual(card, guide, tokens)
+        body = tk.Frame(card, bg=tokens.surface)
+        body.pack(fill=tk.X, padx=12, pady=(0, 10))
+        self._add_help_card_column(
+            body, "ANTES DE EMPEZAR", (f"• {item}" for item in guide.prerequisites), tokens, muted=True,
+        )
+        self._add_help_card_column(
+            body, "PASOS", (f"{index}. {step}" for index, step in enumerate(guide.steps, start=1)), tokens,
+        )
+        tk.Label(
+            card, text=f"DEBES VER: {guide.expected_result}", bg=tokens.surface_muted,
+            fg=tokens.success, font=("Segoe UI", 9, "bold"), anchor="w", justify=tk.LEFT,
+            wraplength=700, padx=12, pady=7,
+        ).pack(fill=tk.X, padx=12, pady=(0, 5))
+        tk.Label(
+            card, text=f"SI ALGO FALLA: {guide.recovery}", bg=tokens.surface_muted,
+            fg=tokens.text, font=("Segoe UI", 9), anchor="w", justify=tk.LEFT,
+            wraplength=700, padx=12, pady=7,
+        ).pack(fill=tk.X, padx=12)
+        footer = tk.Frame(card, bg=tokens.surface)
+        footer.pack(fill=tk.X, padx=12, pady=10)
+        destination = "Editor de mundos" if guide.destination == "worlds" else "Simulación"
+        tk.Button(
+            footer,
+            text=f"Abrir {destination}",
+            command=partial(self._manual_open_destination, guide.destination),
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            footer,
+            text=f"Para: {', '.join(guide.audience)}",
+            bg=tokens.surface,
+            fg=tokens.text_muted,
+            font=("Segoe UI", 9),
+        ).pack(side=tk.RIGHT)
+
+    @staticmethod
+    def _add_help_visual(parent: tk.Widget, guide: HelpGuide, tokens: ThemeTokens) -> None:
+        """Añade un esquema visual compacto que acompaña el objetivo de la guía."""
+
+        visual = tk.Frame(parent, bg=tokens.surface_muted)
+        visual.pack(fill=tk.X, padx=12, pady=(0, 10))
+        canvas = tk.Canvas(
+            visual, width=108, height=44, bg=tokens.surface_muted,
+            highlightthickness=0, takefocus=False,
+        )
+        canvas.pack(side=tk.LEFT, padx=8, pady=6)
+        if guide.category == "mundos":
+            for x in range(8, 100, 18):
+                canvas.create_line(x, 4, x, 40, fill=tokens.border)
+            for y in range(4, 42, 18):
+                canvas.create_line(8, y, 98, y, fill=tokens.border)
+            canvas.create_rectangle(45, 13, 63, 31, fill=tokens.primary, outline=tokens.primary_active)
+        elif guide.category in {"programar", "depurar", "resolver"}:
+            canvas.create_text(14, 22, text="<", fill=tokens.focus, font=("Consolas", 20, "bold"))
+            canvas.create_line(32, 22, 74, 22, fill=tokens.primary, width=3)
+            canvas.create_oval(78, 12, 98, 32, fill=tokens.success, outline=tokens.success)
+        else:
+            canvas.create_oval(10, 13, 30, 33, fill=tokens.surface, outline=tokens.primary, width=2)
+            canvas.create_line(30, 23, 92, 23, fill=tokens.primary, width=3, arrow=tk.LAST)
+            canvas.create_arc(46, 5, 84, 41, start=25, extent=280, outline=tokens.focus, width=2)
+        tk.Label(
+            visual,
+            text=guide.image_alt,
+            bg=tokens.surface_muted,
+            fg=tokens.text_muted,
+            font=("Segoe UI", 9, "italic"),
+            anchor="w",
+            justify=tk.LEFT,
+            wraplength=560,
+        ).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+
+    @staticmethod
+    def _add_help_card_column(
+        parent: tk.Widget, title: str, lines: Any, tokens: ThemeTokens, *, muted: bool = False,
+    ) -> None:
+        column = tk.Frame(
+            parent, bg=tokens.surface_muted if muted else tokens.surface, bd=1, relief=tk.SOLID,
+        )
+        column.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5) if muted else (5, 0))
+        background = tokens.surface_muted if muted else tokens.surface
+        tk.Label(
+            column, text=title, bg=background, fg=tokens.focus,
+            font=("Segoe UI", 9, "bold"), anchor="w", padx=8, pady=5,
+        ).pack(fill=tk.X)
+        for line in lines:
+            tk.Label(
+                column, text=line, bg=background, fg=tokens.text, font=("Segoe UI", 9),
+                anchor="w", justify=tk.LEFT, wraplength=350, padx=8, pady=2,
+            ).pack(fill=tk.X)
+
+    def _manual_open_destination(self, destination: str) -> None:
+        self._close_manual_window()
+        if destination == "worlds":
+            self._cmd_open_world_editor()
+        elif destination == "debug":
+            self._manual_open_debug()
+        else:
+            self._manual_open_simulation()
 
     def _close_manual_window(self) -> None:
         if self._manual_window is not None:
@@ -1869,16 +2154,6 @@ class EV3SimulatorApp(tk.Tk):
     def _manual_open_debug(self) -> None:
         self._manual_open_simulation()
         self._editor.focus_editor()
-
-    def _read_manual_text(self) -> str:
-        """Lee el manual desde la ruta compartida de documentacion."""
-        path = Path(_MANUAL_PATH)
-        if not path.exists():
-            return f"No se encontro el manual de uso.\n\nRuta esperada:\n{path}"
-        try:
-            return path.read_text(encoding="utf-8")
-        except Exception as exc:  # noqa: BLE001
-            return f"No fue posible leer el manual de uso.\n\nArchivo: {path}\nDetalle: {exc}"
 
     def _on_close(self) -> None:
         """Cierra la aplicaciÃ³n de forma limpia."""

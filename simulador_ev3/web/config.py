@@ -33,7 +33,10 @@ class DefaultWebConfig:
     MAX_SCRIPT_SIZE_BYTES = 128 * 1024
     MAX_WORLD_JSON_SIZE_BYTES = 2 * 1024 * 1024
     SSE_HEARTBEAT_S = 15
-    WEB_SNAPSHOT_MAX_HZ = 12.0
+    # El motor conserva sus 50 Hz autoritativos. La Web recibe 30 Hz y
+    # renderiza los fotogramas intermedios con requestAnimationFrame: así se
+    # evita saturar el IPC del worker sin que el movimiento se perciba a saltos.
+    WEB_SNAPSHOT_MAX_HZ = 30.0
     START_IDEMPOTENCY_TTL_S = 20.0
     STATIC_ASSET_VERSION = WEB_ASSET_VERSION
     SESSION_CLEANUP_INTERVAL_S = 60
@@ -127,12 +130,20 @@ def is_production(config: dict[str, Any]) -> bool:
 
 
 def validate_runtime_config(config: dict[str, Any]) -> None:
-    """Reject insecure settings when the web app is explicitly deployed to production."""
+    """Valida límites seguros de transporte y, en producción, de seguridad."""
+    problems: list[str] = []
+    try:
+        snapshot_hz = float(config.get("WEB_SNAPSHOT_MAX_HZ", 0.0))
+    except (TypeError, ValueError):
+        snapshot_hz = 0.0
+    if not 10.0 <= snapshot_hz <= 60.0:
+        problems.append("EV3_WEB_WEB_SNAPSHOT_MAX_HZ debe estar entre 10 y 60")
 
     if not is_production(config):
+        if problems:
+            raise RuntimeError("Configuracion Web invalida: " + "; ".join(problems))
         return
 
-    problems: list[str] = []
     secret_key = str(config.get("SECRET_KEY", ""))
     if secret_key == DEVELOPMENT_SECRET_KEY or len(secret_key) < 32:
         problems.append("EV3_WEB_SECRET_KEY debe ser distinta de la clave de desarrollo y tener al menos 32 caracteres")

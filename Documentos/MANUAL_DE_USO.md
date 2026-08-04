@@ -1,4 +1,4 @@
-# Manual de Uso - Simulador EV3 Pybricks
+# Manual de Usuario - Simulador EV3 Pybricks
 
 Version documentada: 1.5.0
 Fecha de actualizacion: 2026-07-24
@@ -219,13 +219,17 @@ Carga scripts de ejemplo desde `examples/`.
 
 Carga combinaciones predefinidas de mundo + script.
 
-### 4.5 Ayuda contextual
+### 4.5 Centro de ayuda contextual
 
-El menú `Ayuda > Manual de uso...` abre los mismos tres tutoriales guiados de
-la Web: crear un mundo, ejecutar una simulación y depurar por pasos. Cada
-tutorial incluye pasos, resultado esperado y recuperación ante fallos. Usa los
-botones `Crear mundos`, `Ir a simulación` y `Preparar depuración` para abrir el
-flujo correspondiente sin tener que buscarlo de nuevo en los menús.
+El menú `Ayuda > Centro de ayuda...` abre el mismo catálogo de guías de la
+Web. Puedes buscar por una tarea o error, filtrar por categoría y abrir el
+flujo correspondiente sin tener que recorrer de nuevo los menús. Cada guía
+indica requisitos, pasos, resultado esperado y una forma de recuperación.
+
+Las instrucciones de instalación, despliegue y operación técnica permanecen
+separadas en `GUIA_WEB_FLASK_WINDOWS.md`, `GUIA_DESPLIEGUE_LINUX.md` y
+`CONTROLES_CALIDAD.md` para no mezclar el aprendizaje del simulador con tareas
+de administración.
 
 Para verificar la navegación nativa con ratón en un equipo Windows con sesión
 gráfica, instala `.[desktop-e2e]` y ejecuta:

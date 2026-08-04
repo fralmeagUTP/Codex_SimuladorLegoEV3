@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "kind": "request_failed",
+    "url": "http://127.0.0.1:49689/api/sessions/8fcbeb6f-1046-4343-b725-bb753be95395/stream",
+    "failure": "net::ERR_ABORTED"
+  },
+  {
+    "kind": "request_failed",
+    "url": "http://127.0.0.1:49689/api/sessions/8fcbeb6f-1046-4343-b725-bb753be95395/stream",
+    "failure": "net::ERR_ABORTED"
+  }
+]

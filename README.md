@@ -80,10 +80,20 @@ El modo local conserva sus valores educativos por defecto. Para desplegar la web
 $env:EV3_WEB_APP_ENV = "production"
 $env:EV3_WEB_SECRET_KEY = "reemplaza-por-un-secreto-unico-de-al-menos-32-caracteres"
 $env:EV3_WEB_SCRIPT_MAX_RUNTIME_S = "30"
+$env:EV3_WEB_WEB_SNAPSHOT_MAX_HZ = "50"
 $env:EV3_WEB_SESSION_COOKIE_SECURE = "true"
 ```
 
-El servidor rechaza el arranque si falta una clave segura, si el tiempo maximo por script no es positivo o si las cookies no estan marcadas para HTTPS. No publiques la clave en el repositorio.
+El servidor rechaza el arranque si falta una clave segura, si el tiempo maximo por script no es positivo, si la tasa Web de snapshots no está entre 10 y 60 Hz o si las cookies no estan marcadas para HTTPS. No publiques la clave en el repositorio.
+
+La física del motor opera a 50 Hz. La Web entrega snapshots a 50 Hz por defecto
+y usa interpolación visual en el canvas; cambiar esta variable no acelera los
+motores ni altera la telemetría autoritativa.
+
+Para diagnosticar una sesiÃ³n Web durante desarrollo, la consola del navegador
+expone `EV3RenderDiagnostics()`. Informa el nÃºmero de snapshots recibidos y de
+frames renderizados/interpolados, sin recoger cÃ³digo del estudiante ni datos
+personales. No se muestra en la interfaz educativa.
 
 ## Uso rapido escritorio
 
@@ -114,6 +124,13 @@ El ejemplo `23_radar_ultrasonido_5grados.py` usa esta API para dibujar el radar 
 
 - Indice y estado documental: `Documentos/INDICE_DOCUMENTACION.md`
 - Manual de uso: `Documentos/MANUAL_DE_USO.md`
+- Manual técnico de escritorio: `Documentos/MANUAL_TECNICO_ESCRITORIO.html`
+  (Tkinter, instalación local Windows, arquitectura cliente y operación).
+- Manual técnico web: `Documentos/MANUAL_TECNICO_WEB.html`
+  (Flask, sesiones, configuración segura, despliegue y operación).
+- Centro de ayuda: desde `Ayuda > Centro de ayuda...` en Web y Tkinter; reúne
+  las mismas guías por tarea, búsqueda, recuperación de errores y accesos a
+  Simulación o Editor de mundos.
 - Guia web Windows: `Documentos/GUIA_WEB_FLASK_WINDOWS.md`
 - Guia despliegue Linux: `Documentos/GUIA_DESPLIEGUE_LINUX.md`
 - Arquitectura C4: `Documentos/ARQUITECTURA_C4.md`

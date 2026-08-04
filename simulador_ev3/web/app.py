@@ -167,7 +167,10 @@ def main() -> None:
     app = create_app()
     host = os.environ.get("EV3_WEB_HOST", "127.0.0.1")
     port = int(os.environ.get("EV3_WEB_PORT", "5050"))
-    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=False)
+    # La página abre un stream SSE al iniciar. El servidor de desarrollo debe
+    # atenderlo en paralelo a los comandos HTTP (ejecutar, depurar y reiniciar);
+    # un único hilo dejaba la UI en ``ready`` con los menús bloqueados.
+    app.run(host=host, port=port, debug=False, use_reloader=False, threaded=True)
 
 
 if __name__ == "__main__":

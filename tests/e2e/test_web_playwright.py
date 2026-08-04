@@ -6,6 +6,7 @@ import re
 import shutil
 import socket
 import threading
+import time
 from contextlib import closing
 from pathlib import Path
 
@@ -250,6 +251,91 @@ def test_terminal_snapshot_synchronizes_status_telemetry_and_lcd(page, live_web_
         "canvas => canvas.getContext('2d').getImageData(0, 0, 178, 128).data.some(x => x !== 0)"
     )
     assert has_lcd_pixels
+
+
+def test_ultrasonic_radar_sweep_keeps_canvas_rendering_between_snapshots(page, live_web_app, expect):
+    """Un barrido breve ejercita motor, sensor, LCD y el renderizador visual real."""
+
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill(
+        "from pybricks.hubs import EV3Brick\n"
+        "from pybricks.ev3devices import Motor, UltrasonicSensor\n"
+        "from pybricks.parameters import Port\n"
+        "from pybricks.robotics import DriveBase\n"
+        "from pybricks.tools import wait\n"
+        "ev3 = EV3Brick()\n"
+        "left = Motor(Port.B)\n"
+        "right = Motor(Port.C)\n"
+        "radar = UltrasonicSensor(Port.S4)\n"
+        "robot = DriveBase(left, right, 55.5, 104)\n"
+        "robot.settings(turn_rate=180)\n"
+        "for step in range(2):\n"
+        "    ev3.screen.print('radar', radar.distance())\n"
+        "    robot.turn(30)\n"
+        "    wait(50)\n"
+    )
+    page.locator("#runBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
+    expect(page.locator("#telemetryStatus")).to_have_text("finished")
+    expect(page.locator("#telemetry dd").nth(2)).not_to_have_text("--")
+    expect(page.locator("#sensors article").nth(3)).to_contain_text("UltrasonicSensorModel")
+    diagnostics = page.evaluate("window.EV3RenderDiagnostics()")
+    assert diagnostics["receivedSnapshots"] >= 2
+    assert diagnostics["renderedFrames"] >= 1
+
+
+@pytest.mark.performance
+def test_browser_keeps_animation_frames_while_a_simulation_is_running(page, live_web_app, expect):
+    """Mide fotogramas reales del navegador durante una simulación corta.
+
+    No define un SLA de producción: detecta que un bloqueo del hilo de UI deje
+    el navegador sin animación durante el intervalo de muestreo.
+    """
+
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill(
+        "from pybricks.tools import wait\n"
+        "wait(900)\n"
+    )
+    page.locator("#runBtn").click()
+    frame_sample = page.evaluate(
+        """
+        () => new Promise((resolve) => {
+          let frames = 0;
+          const startedAt = performance.now();
+          const count = () => {
+            frames += 1;
+            requestAnimationFrame(count);
+          };
+          requestAnimationFrame(count);
+          setTimeout(() => resolve({ frames, elapsedMs: performance.now() - startedAt }), 500);
+        })
+        """
+    )
+
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
+    diagnostics = page.evaluate("window.EV3RenderDiagnostics()")
+    assert frame_sample["elapsedMs"] >= 450
+    assert frame_sample["frames"] >= 10
+    assert diagnostics["renderedFrames"] >= 1
+
+
+@pytest.mark.performance
+def test_wait_duration_remains_close_to_simulated_time_in_the_browser(page, live_web_app, expect):
+    """Detecta una degradación que haga que la animación quede muy atrás del runtime."""
+
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwait(900)\n")
+    started_at = time.monotonic()
+    page.locator("#runBtn").click()
+
+    expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
+    elapsed_s = time.monotonic() - started_at
+    simulated_s = float(page.locator("#telemetryTime").inner_text().removesuffix("s"))
+
+    assert simulated_s >= 0.9
+    assert elapsed_s <= max(1.5, simulated_s * 1.25), (elapsed_s, simulated_s)
 
 
 def test_successful_execution_shows_one_accessible_toast_after_terminal_snapshot(page, live_web_app, expect):
@@ -549,16 +635,16 @@ def test_all_primary_menu_triggers_are_reachable_in_tab_order(page, live_web_app
         assert page.evaluate("document.activeElement.textContent.trim()") == label
 
 
-def test_help_menu_opens_the_user_manual(page, live_web_app, expect):
-    """Manual de uso debe abrir contenido real desde el menú Ayuda."""
+def test_help_menu_opens_the_help_center(page, live_web_app, expect):
+    """El Centro de ayuda debe abrir contenido real desde el menú Ayuda."""
     page.goto(f"{live_web_app}/")
     page.locator(".menu-trigger", has_text="Ayuda").hover()
     with page.context.expect_page() as new_page_info:
-        page.locator(".menu-dropdown a", has_text="Manual de uso").click()
+        page.locator(".menu-dropdown a", has_text="Centro de ayuda").click()
     manual_page = new_page_info.value
     manual_page.wait_for_load_state()
     expect(manual_page).to_have_url(re.compile(r"/help"))
-    expect(manual_page.locator("body")).to_contain_text("Ayuda del Simulador EV3 Web")
+    expect(manual_page.locator("body")).to_contain_text("¿Qué quieres hacer hoy?")
 
 
 def test_secondary_web_controls_are_operable_with_keyboard(page, live_web_app, expect):
@@ -590,6 +676,27 @@ def test_secondary_web_controls_are_operable_with_keyboard(page, live_web_app, e
     robot_placement.press("Enter")
     expect(page.get_by_text("Haz clic en el canvas para fijar la pose.", exact=True)).to_be_visible()
     robot_placement.press("Enter")
+
+
+def test_trace_tick_advances_the_visible_authoritative_snapshot(page, live_web_app, expect):
+    """Trazas no puede confirmar un tick que el panel aún no haya recibido."""
+
+    page.goto(f"{live_web_app}/")
+    page.locator("#codeEditor").fill("from pybricks.tools import wait\nwait(1)\n")
+
+    traces_menu = page.get_by_role("button", name="Trazas", exact=True)
+    traces_menu.hover()
+    page.get_by_role("button", name="Iniciar registro", exact=True).click()
+    expect(page.locator("#console")).to_contain_text("Registro de traza iniciado.")
+
+    before = int(page.locator("#telemetryTick").inner_text())
+    traces_menu.hover()
+    page.get_by_role("button", name="Avanzar un tick", exact=True).click()
+    expect(page.locator("#telemetryTick")).not_to_have_text(str(before), timeout=5000)
+    after = int(page.locator("#telemetryTick").inner_text())
+
+    assert after > before
+    expect(page.locator("#console")).to_contain_text("Se avanzo un tick de simulacion.")
 
 
 def test_simulation_gutter_breakpoints_and_robot_start(page, live_web_app, expect):
@@ -967,18 +1074,28 @@ def test_world_editor_drags_selected_asset(page, live_web_app, expect):
 def test_help_page_is_available_from_browser(page, live_web_app, expect):
     page.goto(f"{live_web_app}/help")
 
-    expect(page.locator("body")).to_contain_text("Simulacion del robot")
-    expect(page.locator("body")).to_contain_text("Creacion de mundos")
-    expect(page.locator(".tutorial-card")).to_have_count(3)
-    expect(page.locator(".tutorial-card").nth(0)).to_contain_text("Crear tu primer mundo")
-    expect(page.locator(".tutorial-card").nth(1)).to_contain_text("Ejecutar un script")
-    expect(page.locator(".tutorial-card").nth(2)).to_contain_text("Depurar por pasos")
+    expect(page.get_by_role("heading", name="¿Qué quieres hacer hoy?")).to_be_visible()
+    search = page.get_by_role("searchbox", name="Buscar una guía, control o error")
+    expect(search).to_be_visible()
+    expect(page.locator("[data-help-guide]")).to_have_count(7)
 
-    page.locator(".help-nav a", has_text="Crear mundos").click()
-    expect(page.locator("#assetPalette")).to_be_visible()
+    search.fill("ultrasónico")
+    expect(page.locator("#helpSearchStatus")).to_have_text("1 guía disponible.")
+    expect(page.locator("[data-help-guide]:not([hidden])")).to_have_count(1)
+    expect(page.locator("#guide-use-sensors")).to_be_visible()
 
-    page.locator("nav a", has_text="Simulacion").click()
-    expect(page.locator("#runBtn")).to_be_visible()
+    search.fill("")
+    page.get_by_role("button", name="Resolver problemas").click()
+    expect(page.locator("[data-help-guide]:not([hidden])")).to_have_count(2)
+    expect(page.locator("#guide-recover-script-error")).to_be_visible()
+
+    page.locator("#helpThemeSelect").select_option("light")
+    expect(page.locator("html")).to_have_attribute("data-theme", "light")
+    page.locator("#helpThemeSelect").select_option("dark")
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
 
 def test_two_browser_contexts_keep_sessions_independent(browser, live_web_app, expect):

@@ -17,7 +17,7 @@ from flask import (
 )
 
 from simulador_ev3 import __version__
-from simulador_ev3.shared.help_tutorials import HELP_TUTORIALS
+from simulador_ev3.shared.help_tutorials import HELP_CATEGORIES, HELP_GUIDES
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 from simulador_ev3.web.errors import InvalidPayload
 from simulador_ev3.web.redis_support import redis_runtime_state
@@ -37,7 +37,17 @@ def worlds_page():
 
 @bp.get("/help")
 def help_page():
-    return render_template("help.html", tutorials=HELP_TUTORIALS)
+    return render_template(
+        "help.html",
+        categories=HELP_CATEGORIES,
+        guides=HELP_GUIDES,
+        guides_by_id={guide.identifier: guide for guide in HELP_GUIDES},
+        destinations={
+            "simulation": url_for("pages.index"),
+            "worlds": url_for("pages.worlds_page"),
+            "debug": url_for("pages.index", help="debug"),
+        },
+    )
 
 
 @bp.get("/operations")

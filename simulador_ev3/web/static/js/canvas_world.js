@@ -231,7 +231,12 @@ window.EV3Canvas = (() => {
     }
 
     const followPose = snapshot?.robot || (editorState.followRobotStart ? editorState.robotStart : null);
-    centerPaneOnPose(canvas, world, followPose);
+    // La pose interpolada se pinta hasta la frecuencia del monitor. Recentrar
+    // el contenedor con scroll en cada uno de esos frames fuerza layout y
+    // degrada la animación; la cámara sigue únicamente snapshots reales.
+    if (!snapshot?.visual_interpolated) {
+      centerPaneOnPose(canvas, world, followPose);
+    }
   }
 
   function drawSensorBeams(ctx, snapshot, view) {
