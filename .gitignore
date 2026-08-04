@@ -10,3 +10,7 @@ build/
 .vscode/
 backups/
 temp_world.json
+
+# Resultados efímeros de calidad y empaquetado local.
+mutants/
+artifacts/qa-wheel/
