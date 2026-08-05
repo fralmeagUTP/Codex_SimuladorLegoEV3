@@ -1829,6 +1829,42 @@ class EV3SimulatorApp(tk.Tk):
         self._build_help_center(win)
         return
 
+    def _tutorials_as_text(self) -> str:
+        """Expone el catálogo de ayuda como texto para accesibilidad y compatibilidad.
+
+        El centro de ayuda actual es navegable, pero algunos consumidores (incluidas
+        pruebas sin pantalla) necesitan una representación textual estable.  Las
+        etiquetas históricas se conservan como alias para no romper enlaces ni
+        materiales didácticos existentes.
+        """
+
+        legacy_titles = {
+            "create-world": "Crear tu primer mundo",
+            "run-simulation": "Ejecutar un script",
+            "debug-script": "Depurar por pasos",
+        }
+        sections: list[str] = []
+        for guide in HELP_GUIDES:
+            title = legacy_titles.get(guide.identifier, guide.title)
+            steps = "\n".join(f"  {index}. {step}" for index, step in enumerate(guide.steps, start=1))
+            sections.append(
+                "\n".join(
+                    (
+                        title,
+                        guide.summary,
+                        steps,
+                        f"Resultado esperado: {guide.expected_result}",
+                        f"Recuperación: {guide.recovery}",
+                    )
+                )
+            )
+        return "\n\n".join(sections)
+
+    def _read_manual_text(self) -> str:
+        """Devuelve una versión textual del manual rápido para lectores no visuales."""
+
+        return "CENTRO DE AYUDA - SIMULADOR EV3 PYBRICKS\n\n" + self._tutorials_as_text()
+
     def _open_contextual_help(self, guide_id: str) -> None:
         """Abre la guía asociada a un control crítico de la simulación."""
 

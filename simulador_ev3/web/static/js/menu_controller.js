@@ -54,6 +54,9 @@
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       if (!target.closest(".menu-dropdown button, .menu-dropdown a")) return;
+      // Un submenú cambia su propio estado; no es todavía una acción terminal.
+      // Cerrar aquí impedía abrir los mundos preestablecidos con clic o teclado.
+      if (target.closest(".menu-subtoggle")) return;
       closeAll(groups);
     });
 

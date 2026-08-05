@@ -169,6 +169,34 @@ def test_terminal_status_is_preceded_by_a_snapshot_with_the_same_status(tmp_path
         session.close()
 
 
+def test_snapshot_response_redecorates_stale_worker_snapshot_with_terminal_status(tmp_path):
+    """El sondeo no puede reintroducir ``running`` tras una finalización."""
+
+    session = SimulationSession(
+        session_id="terminal-worker-snapshot",
+        config={"WORLDS_DIR": tmp_path / "worlds", "EXAMPLES_DIR": tmp_path / "examples"},
+        max_runtime_s=1.0,
+    )
+    try:
+        assert session._transition(SessionStatus.READY)
+        assert session._transition(SessionStatus.RUNNING)
+        session._worker_shadow_snapshot = {
+            "tick": 19,
+            "sim_time_s": 0.38,
+            "status": "running",
+            "robot": {"x_mm": 40.0, "y_mm": 50.0, "theta_deg": 0.0},
+        }
+
+        session._on_status("finished")
+        response = session.snapshot_response()
+
+        assert response["status"] == "finished"
+        assert response["snapshot"]["status"] == "finished"
+        assert response["snapshot"]["tick"] == 19
+    finally:
+        session.close()
+
+
 def test_error_response_for_non_object_json_payload(tmp_path):
     client = make_client(tmp_path)
     session = client.post("/api/sessions").get_json()

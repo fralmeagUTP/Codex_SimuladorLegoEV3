@@ -536,8 +536,15 @@ class SimulationSession(SimulationSessionPort):
             if snapshot is None:
                 dto = self._service.get_snapshot()
                 snapshot = dto.to_dict() if dto else None
-                self._latest_snapshot = self._decorate_snapshot(snapshot)
-                snapshot = self._latest_snapshot
+            # La copia del worker puede haberse producido en el último tick de
+            # ejecución, antes del evento terminal. Nunca debe devolver
+            # ``running`` cuando el estado autoritativo de sesión ya es
+            # ``finished``/``error``/etc.; telemetría, LCD y canvas consumen
+            # este mismo DTO.
+            snapshot = self._decorate_snapshot(snapshot)
+            self._latest_snapshot = snapshot
+            if self._worker_shadow_snapshot is not None:
+                self._worker_shadow_snapshot = snapshot
             return {
                 "session_id": self.session_id,
                 "status": self._status,

@@ -1,10 +1,14 @@
 param(
-    [string]$PythonExe = "python"
+    [string]$PythonExe = "python",
+    [string]$BuildRoot = "build",
+    [string]$DistRoot = "dist"
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $SpecPath = Join-Path $ProjectRoot "SimuladorEV3.spec"
+$BuildPath = if ([System.IO.Path]::IsPathRooted($BuildRoot)) { $BuildRoot } else { Join-Path $ProjectRoot $BuildRoot }
+$DistPath = if ([System.IO.Path]::IsPathRooted($DistRoot)) { $DistRoot } else { Join-Path $ProjectRoot $DistRoot }
 
 Set-Location $ProjectRoot
 if (-not (Test-Path $SpecPath)) {
@@ -12,8 +16,8 @@ if (-not (Test-Path $SpecPath)) {
 }
 
 Write-Host "[1/4] Limpiando artefactos previos..."
-if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
-if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
+if (Test-Path -LiteralPath $BuildPath) { Remove-Item -Recurse -Force -LiteralPath $BuildPath }
+if (Test-Path -LiteralPath $DistPath) { Remove-Item -Recurse -Force -LiteralPath $DistPath }
 
 Write-Host "[2/4] Verificando PyInstaller..."
 & $PythonExe -m pip show pyinstaller | Out-Null
@@ -26,6 +30,8 @@ Write-Host "[3/4] Construyendo ejecutable..."
 & $PythonExe -m PyInstaller `
     --noconfirm `
     --clean `
+    --workpath $BuildPath `
+    --distpath $DistPath `
     $SpecPath
 
 function Get-FirstExistingPath {
@@ -39,7 +45,7 @@ function Get-FirstExistingPath {
 }
 
 Write-Host "[4/4] Copiando recursos estandarizados..."
-$targetDocs = Join-Path "dist\SimuladorEV3" "Documentos"
+$targetDocs = Join-Path (Join-Path $DistPath "SimuladorEV3") "Documentos"
 New-Item -ItemType Directory -Path $targetDocs -Force | Out-Null
 
 $examplesSource = Get-FirstExistingPath @("examples", "Documentos\Ejemplos")
@@ -55,4 +61,4 @@ if ($null -eq $worldsSource) {
 Copy-Item -Recurse -Force $examplesSource (Join-Path $targetDocs "Ejemplos")
 Copy-Item -Recurse -Force $worldsSource (Join-Path $targetDocs "Mundos")
 
-Write-Host "Release lista en dist\SimuladorEV3\SimuladorEV3.exe"
+Write-Host "Release lista en $(Join-Path $DistPath 'SimuladorEV3\SimuladorEV3.exe')"

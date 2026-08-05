@@ -334,7 +334,12 @@ def test_wait_duration_remains_close_to_simulated_time_in_the_browser(page, live
     elapsed_s = time.monotonic() - started_at
     simulated_s = float(page.locator("#telemetryTime").inner_text().removesuffix("s"))
 
-    assert simulated_s >= 0.9
+    # El motor usa ticks discretos de 20 ms y el hilo del script puede arrancar
+    # entre dos ticks. Por ello el snapshot terminal puede quedar hasta dos
+    # ticks por detrás de la espera solicitada, sin que el renderizado vaya
+    # retrasado respecto del tiempo de pared. El límite evita aceptar una
+    # pérdida superior a esa cuantización documentada.
+    assert simulated_s >= 0.86
     assert elapsed_s <= max(1.5, simulated_s * 1.25), (elapsed_s, simulated_s)
 
 
@@ -544,6 +549,23 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
     page.locator(".menu-trigger", has_text="Ayuda").hover()
     page.locator("#aboutMenuBtn").click()
     expect(page.locator("#console")).to_contain_text("Simulador EV3 Web")
+
+
+def test_world_presets_remain_open_when_activated_by_click(page, live_web_app, expect):
+    """El submenú debe funcionar sin depender del hover del puntero."""
+
+    page.goto(f"{live_web_app}/")
+    worlds_trigger = page.get_by_role("button", name="Mundos", exact=True)
+    worlds_trigger.click()
+    presets = page.locator("#worldsMenu .menu-subtoggle", has_text="Mundos preestablecidos")
+    presets.click()
+
+    expect(page.locator("#worldsMenu")).to_be_visible()
+    expect(page.locator("#worldsMenu .menu-sublist")).to_be_visible()
+    first_world = page.locator("#worldsMenu .menu-sublist button").first
+    expect(first_world).to_be_visible()
+    first_world.click()
+    expect(page.locator("#statusWorld")).to_have_text(first_world.inner_text())
 
 
 def test_reset_hides_the_terminal_mission_result(page, live_web_app, expect):
