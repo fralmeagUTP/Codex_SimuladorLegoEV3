@@ -24,6 +24,7 @@ la revisión manual final de ambas interfaces sigue pendiente.
 | Navegador Web real automatizado | `pytest tests/e2e/test_web_playwright.py -q` | PASS: 55/55 en 70,84 s |
 | Escritorio gráfico real | `EV3_RUN_DESKTOP_E2E=1 pytest tests/e2e/test_desktop_pywinauto.py -q -rs` | PASS: 5/5 en 25,46 s |
 | Calidad estática | Ruff, Mypy y Bandit medio/alto | PASS |
+| CI remoto | GitHub Actions: flujos `calidad` y `tests` | PASS |
 | Contenedor Linux | Build y smoke `/healthz` con variables efímeras de producción | PASS: imagen construida y HTTP 200 |
 | Empaquetado Windows | Salida aislada `C:\tmp\ev3_release_qa`, recursos y arranque | PASS: EXE generado (6,7 MB), Ejemplos/Mundos incluidos e inició correctamente |
 | OpenSpec | `openspec validate cerrar-paridad-y-liberacion-ambas-apps --strict` | PASS |

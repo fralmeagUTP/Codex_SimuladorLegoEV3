@@ -23,7 +23,7 @@
 - [x] 4.1 Implementar pruebas de contrato de paridad para estados iniciar, pausar, reanudar, terminal y reiniciar. *(17/17 contratos de sesión y adaptador de escritorio aprobados.)*
 - [x] 4.2 Ampliar Playwright para catálogo Web, resoluciones, tema, depuración, mundos y sesiones aisladas.
 - [x] 4.3 Ampliar pywinauto para menú, ejecución, reinicio, tema, mundo y telemetría Tkinter. *(5/5 E2E nativas PASS en 31,50 s.)*
-- [ ] 4.4 Configurar compuerta CI de lint, tipos, seguridad, cobertura, contratos y E2E por plataforma. *(La configuración existe y la línea base local aprobó; falta revisión de ejecución remota por plataforma.)*
+- [x] 4.4 Configurar compuerta CI de lint, tipos, seguridad, cobertura, contratos y E2E por plataforma. *(GitHub Actions aprobó los flujos `calidad` y `tests` del commit actual.)*
 
 ## 5. Validación de liberación
 
