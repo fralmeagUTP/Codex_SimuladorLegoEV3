@@ -1231,6 +1231,11 @@ class EV3SimulatorApp(tk.Tk):
             or execution_id == self._notified_execution_notification_id
         ):
             return
+        # El diálogo modal siguiente entra en su propio bucle de eventos.  La
+        # transición terminal ya es definitiva, por lo que la cabecera debe
+        # quedar habilitada antes de abrirlo y no depender de otro callback
+        # ``after_idle`` pendiente.
+        self._set_execution_menu_locked(False)
         self._notified_execution_notification_id = execution_id
         self._active_execution_notification_id = None
         messagebox.showinfo(

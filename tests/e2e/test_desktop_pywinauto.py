@@ -298,6 +298,10 @@ def test_desktop_menus_unlock_after_execution_finishes_or_resets() -> None:
             if finished.exists(timeout=0.1) and finished.is_visible():
                 finished.type_keys("{ENTER}")
                 time.sleep(0.25)
+            # El diálogo modal puede dejar el foco en el escritorio durante un
+            # instante. Restituirlo garantiza que el clic siguiente se aplica
+            # al Menubutton Archivo de la ventana que se está verificando.
+            main.set_focus()
             main.click_input(coords=archivo)
             if _menu_popup_is_visible():
                 break

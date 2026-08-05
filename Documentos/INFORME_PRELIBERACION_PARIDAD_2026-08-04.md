@@ -1,9 +1,10 @@
 # Informe de preliberación: paridad Web y Tkinter
 
 **Cambio:** `cerrar-paridad-y-liberacion-ambas-apps`  
-**Fecha:** 2026-08-04  
+**Fecha de actualización:** 2026-08-05
 **Entorno:** Windows, Python 3.12.5, Chrome 150.0.7871.188 y Edge 151.0.4129.59.  
-**Commit base:** `ebeb4fb` más cambios locales todavía no confirmados.
+**Commit base:** `63962e7` (`docs: registrar aprobacion de CI remoto`), más
+la evidencia local de esta campaña.
 
 ## Decisión
 
@@ -22,11 +23,11 @@ la revisión manual final de ambas interfaces sigue pendiente.
 | Núcleo y dominio | `pytest tests/core tests/domain -q` | PASS: 243/243 en 0,84 s |
 | Web backend y frontend | `pytest tests/web -q` | PASS: 137/137 en 14,22 s |
 | Navegador Web real automatizado | `pytest tests/e2e/test_web_playwright.py -q` | PASS: 55/55 en 70,84 s |
-| Escritorio gráfico real | `EV3_RUN_DESKTOP_E2E=1 pytest tests/e2e/test_desktop_pywinauto.py -q -rs` | PASS: 5/5 en 25,46 s |
+| Escritorio gráfico real | `EV3_RUN_DESKTOP_E2E=1 pytest tests/e2e/test_desktop_pywinauto.py -q -rs` | PASS: 5/5 en 31,50 s |
 | Calidad estática | Ruff, Mypy y Bandit medio/alto | PASS |
 | CI remoto | GitHub Actions: flujos `calidad` y `tests` | PASS |
 | Contenedor Linux | Build y smoke `/healthz` con variables efímeras de producción | PASS: imagen construida y HTTP 200 |
-| Empaquetado Windows | Salida aislada `C:\tmp\ev3_release_qa`, recursos y arranque | PASS: EXE generado (6,7 MB), Ejemplos/Mundos incluidos e inició correctamente |
+| Empaquetado Windows | Salida aislada `artifacts\qa-wheel\release-build`, recursos y arranque | PASS: EXE generado, Ejemplos/Mundos incluidos e inició correctamente |
 | OpenSpec | `openspec validate cerrar-paridad-y-liberacion-ambas-apps --strict` | PASS |
 
 ## Correcciones verificadas en esta campaña
@@ -46,12 +47,11 @@ la revisión manual final de ambas interfaces sigue pendiente.
 
 | ID | Bloqueo | Riesgo | Acción necesaria |
 |---|---|---|---|
-| BLK-001 | El navegador integrado no alcanza `127.0.0.1:5053` aunque el servidor escucha en el host. | No permite completar inspección manual Web visible. | Repetir la matriz manual desde Chrome/Edge del host con acceso al servidor local. |
-| BLK-004 | Catálogos completos y apariencia final no se recorrieron manualmente en ambas UI y temas. | La automatización no sustituye la experiencia de usuario. | Ejecutar y evidenciar el recorrido definido en `MATRIZ_PARIDAD_CIERRE_WEB_TKINTER.md`. |
+| BLK-004 | Falta el recorrido manual exhaustivo de Tkinter en ambos temas y tamaños; el catálogo Web ya fue recorrido en navegador real. | La automatización no sustituye la experiencia de usuario. | Ejecutar y evidenciar el recorrido definido en `MATRIZ_PARIDAD_CIERRE_WEB_TKINTER.md` para escritorio. |
 
 ## Próxima decisión
 
-Cuando se cierren BLK-001 y BLK-004, se actualizará esta decisión a `apta` o
+Cuando se cierre BLK-004, se actualizará esta decisión a `apta` o
 `apta con observaciones` según las incidencias restantes. La matriz detallada y
 la evidencia técnica se conservan en `MATRIZ_PARIDAD_CIERRE_WEB_TKINTER.md` y
 `LINEA_BASE_PARIDAD_2026-08-04.md`.

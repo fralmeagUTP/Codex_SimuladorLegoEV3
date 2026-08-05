@@ -268,8 +268,31 @@ Se corrigieron también dos regresiones confirmadas durante el cierre:
 
 La comprobación restante para una liberación sin observaciones es operativa,
 no una falla conocida de estas suites: repetir la matriz manual completa cuando
-se restablezca una sesión de navegador gráfico y validar Docker/paquete Windows
-en un entorno donde no sea necesario sobrescribir artefactos existentes.
+se restablezca una sesión de navegador gráfico y validar el paquete Windows en
+un entorno donde no sea necesario sobrescribir artefactos existentes.
+
+El smoke de contenedor se repitió el 2026-08-05: la imagen se construyó en
+45,7 s y un contenedor temporal con `EV3_WEB_SESSION_COOKIE_SECURE=true`
+respondió `200` en `/healthz` ejecutándose como el usuario no privilegiado
+`ev3`.
+
+## Empaquetado Windows aislado
+
+El 2026-08-05 se ejecutó el empaquetador oficial con rutas de QA separadas,
+sin modificar los artefactos existentes `build/` ni `dist/`:
+
+```powershell
+.\scripts\build_release_windows.ps1 -PythonExe .\.venv\Scripts\python.exe `
+  -BuildRoot artifacts\qa-wheel\release-build\build `
+  -DistRoot artifacts\qa-wheel\release-build\dist
+```
+
+Resultado: **PASS**. PyInstaller 6.20.0 construyó `SimuladorEV3.exe` en
+33,9 s; los directorios `Documentos\Ejemplos` y `Documentos\Mundos` quedaron
+incluidos. El ejecutable se inició durante seis segundos sin finalizar
+prematuramente y se detuvo de forma controlada al cerrar la comprobación. La
+advertencia de PyInstaller sobre el entorno Conda no afectó la creación ni el
+arranque del paquete.
 
 ### Bloqueo de revisión manual posterior
 
@@ -281,3 +304,67 @@ el host y las campañas Playwright locales aprobaban. Los casos de inspección
 manual que no quedaron realizados antes de perder la conexión permanecen
 **BLOCKED por infraestructura de navegador**, y deberán repetirse desde Chrome
 o Edge en el host antes de emitir una liberación sin observaciones.
+
+## Reanudación de revisión manual Web — 2026-08-05
+
+La conexión de navegador se restableció y se ejercitaron nuevamente los
+siguientes casos en una instancia real de `http://127.0.0.1:5053/`:
+
+| ID | Acción manual | Resultado observado | Estado |
+|---|---|---|---|
+| MAN-WEB-001 | Ejecutar el script con LCD, LED, Motor A y `wait(500)` | Editor, estado global, telemetría, Brick y pose terminaron en `finished`; se mostró una sola notificación de éxito. | PASS |
+| MAN-WEB-002 | Ejecutar `wait(5000)`, intentar abrir Ejemplos y reiniciar | El menú quedó deshabilitado durante `running`; tras reiniciar, telemetría quedó en `created`, tick 1 y 0,02 s, sin submenú residual. | PASS |
+| MAN-WEB-003 | Abrir Mundos, desplegar preestablecidos y cargar `05_obstaculos_baliza_ir.json` | El submenú permaneció accesible y el mundo activo, pose y telemetría cambiaron a valores coherentes; consola sin errores. | PASS |
+| MAN-WEB-004 | Alternar Claro → Oscuro | `data-theme` cambió de `light` a `dark`; controles y contenido permanecieron visibles. | PASS |
+| MAN-WEB-005 | Recargar a 390×844 y comprobar herramientas del mapa | `scrollWidth` coincidió con el ancho del viewport; Haces ON quedó dentro del área visible y no hubo errores de consola. | PASS |
+
+Esto cierra el bloqueo técnico **BLK-001**. Permanece abierto **BLK-004**:
+el recorrido manual exhaustivo de todos los catálogos y de ambas interfaces,
+que no puede sustituirse por las pruebas automatizadas ya aprobadas.
+
+### Catálogos Web completados en navegador real
+
+| Catálogo | Cobertura | Resultado |
+|---|---:|---|
+| Ejemplos Pybricks | 23/23 cargados mediante el menú Ejemplos | PASS; cada selección actualizó `Programa actual` y no produjo errores de consola. |
+| Mundos preestablecidos | 12/12 cargados mediante Mundos → Mundos preestablecidos | PASS; el mundo activo y el estado `ready` coincidieron en cada carga. |
+| Escenarios | 4/4 | PASS; cada escenario asoció el mundo y el programa esperados. |
+| Misiones | 3/3 | PASS; cada misión cargó mundo, programa y telemetría inicial coherentes. |
+
+El catálogo manual Web queda completado para carga, navegación y los flujos
+críticos documentados. La parte aún pendiente de **BLK-004** es el recorrido
+manual equivalente y exhaustivo de Tkinter en sus temas y tamaños definidos.
+
+## Revalidación gráfica Tkinter — 2026-08-05
+
+El recorrido nativo `EV3_RUN_DESKTOP_E2E=1 .venv\Scripts\pytest.exe
+tests\e2e\test_desktop_pywinauto.py -q -rs` aprobó **5/5** en 84,30 s.
+Ejercita ventana de inicio, ayuda, editor de mundos, ejecución, pausa,
+depuración, teclado, diálogo único de éxito y bloqueo/desbloqueo de menús.
+
+Una primera pasada presentó un único fallo transitorio en la comprobación de
+apertura del menú tras el diálogo terminal; la repetición aislada y la segunda
+pasada completa aprobaron. Se registra como inestabilidad de la automatización
+gráfica a vigilar, no como defecto confirmado: el flujo real se ejercitó y el
+menú volvió a abrirse tras finalizar.
+
+La tercera pasada completa posterior también aprobó **5/5** en 84,28 s. Por
+tanto, existen dos campañas gráficas consecutivas aprobadas después del evento
+transitorio.
+
+### Catálogo de ejemplos Tkinter
+
+El 2026-08-05 se seleccionaron físicamente los **23/23** ejemplos desde el
+menú nativo Tkinter. Después de cada selección se copió el contenido del editor
+real y se comparó con el archivo correspondiente, normalizando únicamente
+saltos de línea finales. Resultado: **PASS 23/23**, sin diferencias de código.
+
+### Evidencia visual de diseño y temas
+
+El capturador nativo generó evidencia en claro y oscuro para 1920×1080,
+1280×800 y 1024×768, además del editor de mundos en su tamaño mínimo
+1320×860. Todas las validaciones de geometría aprobaron. La revisión visual de
+`simulacion_dark_1024x768.png` confirmó contraste legible, controles visibles,
+paneles sin solapamiento y LCD operativa. Las capturas están en
+`artifacts/qa-wheel/tk-layout-2026-08-05/` y
+`artifacts/qa-wheel/tk-world-editor-2026-08-05/`.
