@@ -60,7 +60,13 @@ def _sanitize_worker_environment() -> tuple[str, ...]:
     """
 
     removed: list[str] = []
-    sensitive_fragments = ("TOKEN", "SECRET", "PASSWORD", "API_KEY", "ACCESS_KEY", "PRIVATE_KEY")
+    sensitive_fragments = (
+        "TOKEN", "SECRET", "PASSWORD", "API_KEY", "ACCESS_KEY", "PRIVATE_KEY",
+        # pytest-cov instrumenta procesos hijos mediante estas variables. El
+        # worker aislado no debe heredar esa instrumentación: consume recursos
+        # ajenos al script y altera la medición de sus límites.
+        "COV_CORE", "COVERAGE_",
+    )
     protected_names = {"SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "PATH", "PYTHONHOME", "PYTHONPATH"}
     for name in tuple(os.environ):
         normalized = name.upper()
