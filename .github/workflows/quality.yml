@@ -19,6 +19,9 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
+      - name: Instalar runtime nativo del worker aislado (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgcc-s1
       - run: python -m pytest --cov=simulador_ev3 --cov-report=term-missing --cov-report=xml:artifacts/coverage/coverage.xml
       - name: Conservar cobertura
         if: always()
@@ -177,6 +180,8 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
+      - name: Instalar runtime nativo del worker aislado
+        run: sudo apt-get update && sudo apt-get install -y libgcc-s1
       - run: python -m pytest tests/runtime/test_isolated_worker.py tests/load -q
 
   coverage-core:
