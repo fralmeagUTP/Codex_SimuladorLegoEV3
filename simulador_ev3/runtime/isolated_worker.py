@@ -660,6 +660,15 @@ class IsolatedRuntimeWorker:
             except (RuntimeError, TimeoutError):
                 self._process.terminate()
             self._process.join(timeout=1.0)
+        if self._process and self._process.is_alive():
+            self._process.terminate()
+            self._process.join(timeout=1.0)
+        self._process = None
+        # Cada cliente crea sus propias colas. Cerrarlas evita que los
+        # semáforos sobrevivan entre pruebas o sesiones consecutivas.
+        for channel in (self._commands, self._events):
+            channel.close()
+            channel.join_thread()
 
     def restart(self) -> None:
         """Recrea el proceso aislado después de una caída o cancelación forzada."""
