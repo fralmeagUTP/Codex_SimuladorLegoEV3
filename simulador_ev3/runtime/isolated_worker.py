@@ -145,10 +145,9 @@ def _apply_os_resource_limits(policy: WorkerResourcePolicy, *, apply_memory: boo
 
         resource.setrlimit(resource.RLIMIT_CPU, (max(1, int(policy.max_cpu_s)), max(1, int(policy.max_cpu_s))))
         capabilities["cpu"] = True
-        if apply_memory:
-            memory_bytes = policy.max_memory_mb * 1024 * 1024
-            resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))
-            capabilities["memory"] = True
+        # RLIMIT_AS interfiere con pthread/libgcc en procesos Python aislados
+        # de Linux; el worker puede abortar al cerrar un hilo aun con libgcc
+        # instalado. Se declara memoria no disponible hasta usar cgroups.
     except (ImportError, OSError, ValueError):
         pass
     return capabilities
