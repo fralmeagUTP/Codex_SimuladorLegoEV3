@@ -238,7 +238,10 @@ def test_isolated_worker_pauses_on_configured_debug_breakpoint() -> None:
     worker.start()
     try:
         worker.receive()
-        worker.send("initialize", {"execution_policy": {"max_runtime_s": 5, "max_memory_mb": 128, "max_cpu_s": 5}})
+        # Esta prueba mide el ritmo de `wait`, no el límite de memoria. En los
+        # runners Linux, 128 MB puede terminar el proceso durante la carga de
+        # módulos antes de que el script alcance el reloj de referencia.
+        worker.send("initialize", {"execution_policy": {"max_runtime_s": 5, "max_memory_mb": 256, "max_cpu_s": 5}})
         worker.receive()
         worker.send("load_script", {"source": "from pybricks.tools import wait\nx = 1\nwait(1000)\n"})
         worker.receive()
