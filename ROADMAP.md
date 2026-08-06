@@ -1,123 +1,69 @@
-# ROADMAP - Simulador EV3 Pybricks
+# Roadmap — Simulador EV3 Pybricks
 
-Estado actualizado: 2026-07-23
-Version publicada: 1.4.0
+Estado actualizado: 2026-08-05
+Versión actual: 1.5.0
 Repositorio: `fralmeagUTP/Codex_SimuladorLegoEV3`
 
-## Estado General
+## Producto consolidado en 1.5.0
 
-El proyecto cuenta con dos interfaces activas:
+- Dominio EV3, motor 2D determinista y hardware virtual.
+- API Pybricks educativa, `DriveBase`, motores, sensores y EV3 Brick.
+- Ejecución aislada, depuración, cancelación, timeout y recuperación.
+- Web Flask multi-sesión y escritorio Tkinter con contrato compartido.
+- Editor de mundos Web/Tkinter, escenarios, ejemplos y misiones.
+- Telemetría, LCD, trazas, perfiles y resultados de misión.
+- Temas, navegación por teclado, diseño adaptable y ayuda contextual.
+- Observabilidad, contenedor Linux, paquete Windows y CI multiplataforma.
+- Paridad funcional cerrada y liberación 1.5.0 apta con observaciones.
 
-- **Escritorio Tkinter**: aplicacion original para simulacion, editor de codigo, telemetria y editor de mundos.
-- **Web Flask**: aplicacion multi-sesion con simulacion en `/`, editor de mundos en `/worlds` y ayuda en `/help`.
+## Principios para próximas iteraciones
 
-La version `1.3.0` esta publicada en GitHub mediante el tag `1.3`.
+1. Mantener Web y Tkinter equivalentes para toda capacidad común.
+2. Implementar cambios mediante OpenSpec y pruebas proporcionales al riesgo.
+3. No ampliar la superficie Pybricks sin documentar conformidad y diferencias
+   frente al hardware real.
+4. Conservar el worker aislado como ruta normal y el runtime local solo como
+   compatibilidad controlada.
+5. Tratar rendimiento, accesibilidad, seguridad y observabilidad como criterios
+   de aceptación, no como trabajo posterior.
 
-## Fases Completadas
+## Próximas líneas de trabajo
 
-- **Fase 1 - Domain: robot base**
-  - Modelos principales del robot y base de movimiento.
+### Prioridad alta
 
-- **Fase 2 - Domain: sensores y mundo**
-  - Sensores de dominio, mundo 2D, colisiones base y superficies.
+- Completar una política de autenticación y autorización antes de exponer el
+  servicio fuera de un aula o red controlada.
+- Definir SLO operativos de latencia, capacidad y recuperación con campañas de
+  carga sostenida sobre infraestructura objetivo.
+- Ampliar pruebas de mutación a escenarios críticos del motor y API Pybricks.
+- Automatizar una liberación versionada que genere paquete Windows, imagen Linux,
+  hashes, SBOM y notas desde el mismo commit.
 
-- **Fase 3 - Core: simulacion**
-  - `CommandQueue`, `EventBus`, `SimulationEngine`.
-  - Snapshots de estado para UI, web y telemetria.
+### Prioridad media
 
-- **Fase 4 - Runtime**
-  - `ExecutionPolicy`, `RuntimeSandbox`, `RuntimeController`.
-  - Watchdog de ejecucion y soporte de debug.
+- Ampliar conformidad Pybricks en funciones avanzadas únicamente con pruebas y
+  documentación de diferencias físicas.
+- Mejorar herramientas docentes: conjuntos de misiones, rúbricas, importación y
+  exportación de actividades.
+- Incorporar más métricas pedagógicas sin recopilar código o datos personales de
+  estudiantes.
+- Evaluar persistencia Redis en despliegues multiinstancia; no es necesaria para
+  uso local.
 
-- **Fase 5 - API Pybricks virtual**
-  - `pybricks.hubs`, `ev3devices`, `robotics`, `tools`, `parameters`.
-  - `PybricksFactory` y `PybricksContext` aislado por contexto.
+### Investigación
 
-- **Fase 6 - Application Layer**
-  - `SimulationService` como fachada de alto nivel.
-  - `SnapshotDTO` para serializacion.
-  - Propagacion correcta de estado `stopped` cuando un script termina naturalmente.
+- Compatibilidad con nuevos kits o perfiles robóticos sin acoplar el dominio a
+  una interfaz.
+- Reproducción determinista y comparación de trazas entre simulador y robot.
+- Distribución firmada e instalador simplificado para aulas Windows.
 
-- **Fase 7 - UI Tkinter**
-  - Ventana principal, canvas de mundo, editor, panel brick y telemetria.
-  - Editor visual de mundos.
+## Fuera de alcance confirmado
 
-- **Fase 8 - Infraestructura**
-  - Persistencia JSON de mundos.
-  - Catalogo de ejemplos y mundos preset.
+- Equivalencia física exacta con un robot EV3 real.
+- Ejecución pública de código arbitrario sin aislamiento adicional y control de
+  identidad.
+- Compatibilidad total con todas las versiones de Pybricks.
 
-- **Fase 9 - Pulido y release escritorio**
-  - Menus de ejemplos, mundos y escenarios.
-  - Empaquetado Windows opcional.
-  - Smoke tests de release.
-
-- **Fase 10 - Web Flask y calidad continua**
-  - Backend Flask con sesiones independientes.
-  - Frontend web de simulacion y editor de mundos.
-  - SSE con fallback por polling.
-  - Debug web con breakpoints, step y continue.
-  - CI en GitHub Actions.
-  - Pruebas web, E2E Playwright, release y evidencia visual.
-
-## Version Web 1.3.0
-
-Implementado:
-
-- Pagina `/` para simulacion del robot.
-- Pagina `/worlds` para creacion y edicion de mundos.
-- Pagina `/help` para ayuda operativa.
-- Menus web `Archivo`, `Ejemplos`, `Mundos`, `Escenarios` y `Ayuda`.
-- Editor web con numeros de linea, breakpoints clicables, resaltado de sintaxis, auto-indentacion, pares automaticos y autocompletado Pybricks contextual.
-- Ubicacion inicial del robot desde canvas con `theta_deg`.
-- Panel EV3 Brick con LED, LCD y altavoz.
-- Editor de mundos con propiedades editables, rotacion, duplicado, eliminacion y arrastre directo.
-- Guardado de mundos y enlace directo `/?world=<archivo>.json`.
-- Sesiones independientes por pestana/navegador.
-- Cleanup de sesiones expiradas.
-
-## Paridad Visual Tkinter/Web
-
-La web mantiene el tamano del mapa igual al de Tkinter:
-
-- Escala de editor: `32 px = 100 mm`.
-- Mundo base: `2000 x 2000 mm`.
-- Tamano de canvas base: `640 x 640 px`.
-- Si el panel visible es menor que el mapa, el contenedor web usa scroll.
-
-Tambien se alineo la colocacion de assets:
-
-- Assets multicelda se centran sobre la celda seleccionada, como en Tkinter.
-- El arrastre conserva el offset desde el punto donde se tomo el objeto.
-- El robot web usa dimensiones derivadas del sprite Tkinter.
-
-## Estado de Pruebas
-
-Ultima validacion relevante:
-
-- `.\.venv\Scripts\python.exe -m pytest tests\web tests\e2e tests\application`
-- Resultado: `117 passed`
-
-Tambien se validaron previamente bloques de runtime, Pybricks API, UI, core, domain, persistence y release. La lista operativa completa esta en:
-
-- `Documentos/CHECKLIST_QA_RELEASE.md`
-- `Documentos/EVIDENCIA_QA_RELEASE_2026-05-20.md`
-
-## Documentacion Disponible
-
-- `README.md`: entrada principal del repositorio.
-- `Documentos/MANUAL_DE_USO.md`: uso web y escritorio.
-- `Documentos/GUIA_WEB_FLASK_WINDOWS.md`: operacion web en Windows.
-- `Documentos/GUIA_RELEASE_WINDOWS.md`: build opcional de escritorio.
-- `Documentos/SDD_MIGRACION_WEB_FLASK.md`: especificacion tecnica web.
-- `Documentos/CHECKLIST_QA_RELEASE.md`: checklist de publicacion.
-- `Documentos/EVIDENCIA_QA_RELEASE_2026-05-20.md`: evidencia de pruebas.
-- `CHANGELOG.md`: historial de versiones.
-
-## Siguientes Iteraciones Sugeridas
-
-- Preview mas detallado al arrastrar assets del editor de mundos.
-- Panel visual persistente de errores y advertencias de validacion.
-- Exportacion de trazas de simulacion a CSV/JSON.
-- Mejoras de cobertura Pybricks avanzada: `run_target`, `run_until_stalled`, `curve`, `hsv`, `detectable_colors`.
-- Empaquetado web opcional para despliegue local con instalador.
-- Autenticacion real si se expone fuera de entorno local/aula.
+El estado verificable vigente se mantiene en
+`Documentos/ESTADO_ACTUAL_PROYECTO.md`; los resultados anteriores permanecen en
+informes fechados.

@@ -3,7 +3,7 @@
 Usar esta lista antes de publicar un build o entregar una version web/escritorio.
 
 Version aplicable: leer `simulador_ev3/_version.py` (actual: 1.5.0)
-Fecha de actualizacion: 2026-07-24
+Fecha de actualización: 2026-08-05
 
 ## 1. Preparacion
 
@@ -13,7 +13,7 @@ Fecha de actualizacion: 2026-07-24
 - Confirmar que `README.md` resume la version publicada y rutas principales.
 - Confirmar evidencia QA en `Documentos\EVIDENCIA_QA_RELEASE_YYYY-MM-DD.md`.
 - Crear entorno limpio con Python 3.11 o superior.
-- Instalar dependencias con `.\.venv\Scripts\python.exe -m pip install -e .[dev]`.
+- Instalar dependencias con `.\.venv\Scripts\python.exe -m pip install -e ".[dev,desktop-e2e,web-prod]"`.
 
 ## 2. Pruebas automatizadas
 
@@ -23,6 +23,9 @@ Fecha de actualizacion: 2026-07-24
 - Ejecutar `py -3.12 -m ruff check simulador_ev3 tests` y `py -3.12 -m mypy`.
 - Ejecutar Bandit y Pip-Audit como se indica en `docs/testing/estrategia_pruebas.md`.
 - Revisar los jobs Windows/Linux, E2E, carga, resiliencia y cobertura en GitHub Actions.
+- Ejecutar `openspec validate --all --strict` y las pruebas documentales.
+- Ejecutar los E2E Tkinter con sesión Windows visible y
+  `EV3_RUN_DESKTOP_E2E=1`; no convertir omisiones en aprobaciones.
 
 ## 3. Smoke web
 

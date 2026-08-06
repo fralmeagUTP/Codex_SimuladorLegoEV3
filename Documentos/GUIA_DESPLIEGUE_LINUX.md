@@ -1,6 +1,6 @@
 # Despliegue Linux para aula o servidor
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Audiencia:
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Audiencia:
 > operacion. Fuente ejecutable: `Dockerfile` y `simulador_ev3/web/config.py`.
 
 ## Requisitos
@@ -52,3 +52,10 @@ documentados; revisar `/healthz`, logs y la notificacion de la interfaz.
 - Definir limites de sesiones y simulaciones segun memoria disponible.
 - Conservar `EV3_WEB_ENABLE_SECURITY_HEADERS=true` salvo excepcion justificada.
 - Consultar `SEGURIDAD_Y_USO_EN_AULA.md` y `REFERENCIA_CONFIGURACION.md`.
+
+## Compuerta de liberación
+
+Antes de publicar una imagen, ejecutar la construcción, `/healthz`, métricas y
+una simulación corta; registrar tag, digest y commit. La campaña del 2026-08-05
+aprobó construcción y smoke HTTP 200 como usuario no privilegiado. Ese resultado
+es evidencia histórica del commit evaluado y debe repetirse para una imagen nueva.

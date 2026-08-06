@@ -1,6 +1,6 @@
 # Seguridad y uso en aula
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Audiencia:
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Audiencia:
 > docentes, operacion y desarrollo.
 
 ## Modelo de seguridad

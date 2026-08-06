@@ -1,5 +1,22 @@
 # Reporte de ejecución
 
+## Línea base vigente de liberación — 2026-08-05
+
+| Comando / campaña | Resultado |
+|---|---|
+| `.\.venv\Scripts\python.exe -m pytest -q` | **829 aprobadas, 6 omitidas** en 111,87 s; omisiones condicionadas a escritorio gráfico. |
+| `$env:EV3_RUN_DESKTOP_E2E='1'; .\.venv\Scripts\python.exe -m pytest tests/e2e/test_desktop_pywinauto.py -q -rs` | **6/6 aprobadas** en 34,84 s. |
+| `.\.venv\Scripts\python.exe -m pytest tests/e2e/test_web_playwright.py -q` | **55/55 aprobadas**. |
+| `.\.venv\Scripts\python.exe -m ruff check simulador_ev3 tests` | PASS. |
+| `.\.venv\Scripts\python.exe -m mypy` | PASS: 109 archivos fuente. |
+| `openspec validate --all --strict` | PASS: 15 especificaciones. |
+| GitHub Actions del commit `c8e8c3c` | PASS en matrices Windows/Linux, E2E Web, visual Tkinter, contenedor, paquete, cobertura, carga y resiliencia. |
+
+Dictamen: **apta con observaciones**, sin defectos críticos o altos abiertos.
+Consultar `Documentos/ESTADO_ACTUAL_PROYECTO.md` y el informe final de paridad.
+Las secciones siguientes son evidencia histórica acumulada y conservan sus
+fechas originales.
+
 ## Actualización QA integral — 2026-07-28
 
 | Comando | Objetivo | Resultado |

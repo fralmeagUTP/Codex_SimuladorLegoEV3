@@ -1,7 +1,7 @@
 # Manual de Usuario - Simulador EV3 Pybricks
 
 Version documentada: 1.5.0
-Fecha de actualizacion: 2026-07-24
+Fecha de actualización: 2026-08-05
 
 ## 1. Objetivo
 
@@ -33,8 +33,8 @@ Esta separacion evita ejecutar codigo mientras se esta construyendo un mundo y p
 Desde PowerShell:
 
 ```powershell
-cd C:\Users\fralm\Desktop\Codex_SimuladorLegoEV3
-.\scripts\start_web.ps1
+cd <ruta-del-repositorio>
+.\scripts\start_web.cmd
 ```
 
 Si Windows bloquea la ejecucion de `.ps1`, usar:
@@ -246,7 +246,8 @@ $env:EV3_RUN_DESKTOP_E2E = "1"
 3. Coloca el robot en el mapa (clic y orientacion).
 4. Pulsa `Ejecutar`.
 5. Observa telemetria, trayectoria y pantalla LCD.
-6. Pulsa `Detener` para finalizar.
+6. Usa `Detener y reiniciar` para cancelar y restaurar el estado inicial, o
+   permite que el programa termine y conserva su snapshot final.
 
 ## 6. Colocacion del Robot
 
@@ -321,4 +322,5 @@ Los mundos se guardan en JSON y pueden incluir:
 
 ## 12. Version
 
-Manual actualizado para la version `1.5.0`.
+Manual actualizado para la versión `1.5.0` el 2026-08-05. Consulta
+`Documentos/ESTADO_ACTUAL_PROYECTO.md` para la evidencia de liberación vigente.

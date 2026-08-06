@@ -1,7 +1,7 @@
 # Guia de Release Windows - Escritorio Tkinter
 
 Version documentada: 1.5.0
-Fecha de actualizacion: 2026-07-24
+Fecha de actualización: 2026-08-05
 
 Esta guia genera un `.exe` del simulador de escritorio usando `PyInstaller`.
 
@@ -15,7 +15,7 @@ En PowerShell, desde la raiz del proyecto:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e .[dev]
+python -m pip install -e ".[dev,desktop-e2e]"
 python -m pip install pyinstaller
 ```
 
