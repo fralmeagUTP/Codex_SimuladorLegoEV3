@@ -1,57 +1,59 @@
-# Informe de preliberación: paridad Web y Tkinter
+# Informe final de liberación: paridad Web y Tkinter
 
 **Cambio:** `cerrar-paridad-y-liberacion-ambas-apps`  
 **Fecha de actualización:** 2026-08-05
 **Entorno:** Windows, Python 3.12.5, Chrome 150.0.7871.188 y Edge 151.0.4129.59.  
-**Commit base:** `63962e7` (`docs: registrar aprobacion de CI remoto`), más
-la evidencia local de esta campaña.
+**Rama:** `codex/desbloquear-menus-al-finalizar-ejecucion`
 
 ## Decisión
 
-**NO APTA PARA LIBERAR TODAVÍA.**
+**APTA CON OBSERVACIONES.**
 
-No existe un defecto crítico o alto confirmado en las campañas automatizadas
-actuales. Sin embargo, no es posible declarar una liberación apta mientras haya
-flujos críticos bloqueados: falta recorrido manual final de ambas interfaces y
-la revisión manual final de ambas interfaces sigue pendiente.
+No quedan defectos críticos o altos ni bloqueos abiertos en el alcance del
+cambio. Las campañas automatizadas, los recorridos gráficos reales de Web y
+Tkinter, el contenedor Linux y el paquete Windows aprobaron. La observación
+residual es una limitación de automatización: los menús owner-drawn de Tkinter
+no exponen de manera estable su ventana emergente a Win32. La regresión verifica
+por ello el estado aplicado y ejecuta físicamente un comando real del menú; no
+es un defecto confirmado del producto.
 
 ## Evidencia aprobada
 
 | Área | Evidencia | Resultado |
 |---|---|---|
-| Aplicación, UI, runtime, carga y contrato | `pytest tests/application tests/persistence tests/pybricks_api tests/shared tests/ui tests/release tests/runtime tests/load -q` | PASS: 392/392 en 37,96 s |
-| Núcleo y dominio | `pytest tests/core tests/domain -q` | PASS: 243/243 en 0,84 s |
-| Web backend y frontend | `pytest tests/web -q` | PASS: 137/137 en 14,22 s |
-| Navegador Web real automatizado | `pytest tests/e2e/test_web_playwright.py -q` | PASS: 55/55 en 70,84 s |
-| Escritorio gráfico real | `EV3_RUN_DESKTOP_E2E=1 pytest tests/e2e/test_desktop_pywinauto.py -q -rs` | PASS: 5/5 en 31,50 s |
-| Calidad estática | Ruff, Mypy y Bandit medio/alto | PASS |
-| CI remoto | GitHub Actions: flujos `calidad` y `tests` | PASS |
-| Contenedor Linux | Build y smoke `/healthz` con variables efímeras de producción | PASS: imagen construida y HTTP 200 |
-| Empaquetado Windows | Salida aislada `artifacts\qa-wheel\release-build`, recursos y arranque | PASS: EXE generado, Ejemplos/Mundos incluidos e inició correctamente |
-| OpenSpec | `openspec validate cerrar-paridad-y-liberacion-ambas-apps --strict` | PASS |
+| Suite global | `pytest -q` | PASS: 829, 6 omitidas por compuerta gráfica, 111,87 s |
+| Escritorio gráfico real | `EV3_RUN_DESKTOP_E2E=1 pytest tests/e2e/test_desktop_pywinauto.py -q -rs` | PASS: 6/6 en 34,84 s |
+| Navegador Web real automatizado | `pytest tests/e2e/test_web_playwright.py -q` | PASS: 55/55 |
+| Catálogo Web manual | 23 ejemplos, 12 mundos, 4 escenarios y 3 misiones | PASS: 42/42 recursos |
+| Catálogo Tkinter real | 23 ejemplos y 12 mundos preestablecidos | PASS: 35/35 recursos |
+| Navegación Tkinter | Ejecución, pausa, reinicio, depuración, ayuda, editor de mundos y menús | PASS |
+| Diseño Tkinter | Claro/oscuro; 1920×1080, 1280×800, 1024×768; editor 1320×860 | PASS |
+| Calidad estática | Ruff y Mypy global (109 archivos fuente) | PASS |
+| CI remoto anterior | GitHub Actions: `calidad` y `tests` | PASS |
+| Contenedor Linux | Build y smoke `/healthz` como usuario `ev3` | PASS: HTTP 200 |
+| Empaquetado Windows | PyInstaller aislado, recursos y arranque | PASS |
+| OpenSpec | Validación estricta del cambio | PASS |
 
-## Correcciones verificadas en esta campaña
+## Correcciones y riesgos revalidados
 
-- **WEB-PAR-001:** el submenú de mundos ya permanece abierto al activarlo por
-  clic, sin depender de hover; cubierto por regresión Playwright.
-- **WEB-PAR-002:** el snapshot terminal ya actualiza de forma coherente el
-  estado de sesión y la telemetría cuando el worker finaliza.
-- **Cadencia de tiempo:** la prueba de espera admite exclusivamente hasta dos
-  ticks de 20 ms de cuantización en el snapshot final, y mantiene el límite de
-  duración de pared para detectar retrasos de renderizado.
-- **Sandbox:** las excepciones Bandit para `exec` y `eval` son puntuales,
-  justificadas y cubiertas por pruebas del runtime; no hay exclusión global de
-  reglas de seguridad.
+- El snapshot terminal mantiene coherentes editor, canvas, LCD, telemetría y
+  estado de sesión.
+- `Detener y reiniciar` restaura la sesión y vuelve a habilitar los menús.
+- Los menús permanecen bloqueados durante la ejecución y recuperan sus comandos
+  tanto después del reinicio como de una finalización natural.
+- El catálogo de mundos Tkinter se recorrió mediante interacción física, 12/12.
+- La Web mantiene navegación, tema oscuro, diseño móvil 390×844 y notificación
+  única de finalización sin errores de consola.
+- La cadencia temporal conserva la tolerancia máxima documentada de dos ticks
+  de 20 ms y el control de duración de pared.
 
-## Casos bloqueados y condición de cierre
+## Bloqueos
 
-| ID | Bloqueo | Riesgo | Acción necesaria |
-|---|---|---|---|
-| BLK-004 | Falta el recorrido manual exhaustivo de Tkinter en ambos temas y tamaños; el catálogo Web ya fue recorrido en navegador real. | La automatización no sustituye la experiencia de usuario. | Ejecutar y evidenciar el recorrido definido en `MATRIZ_PARIDAD_CIERRE_WEB_TKINTER.md` para escritorio. |
+**Ninguno.** `BLK-004` queda cerrado con la campaña Tkinter real, la evidencia
+visual multirresolución y la regresión estable de bloqueo/desbloqueo de menús.
 
-## Próxima decisión
+## Recomendación de publicación
 
-Cuando se cierre BLK-004, se actualizará esta decisión a `apta` o
-`apta con observaciones` según las incidencias restantes. La matriz detallada y
-la evidencia técnica se conservan en `MATRIZ_PARIDAD_CIERRE_WEB_TKINTER.md` y
-`LINEA_BASE_PARIDAD_2026-08-04.md`.
+El cambio puede integrarse y liberarse. Como mejora no bloqueante, conviene
+mantener el E2E nativo en un runner Windows con escritorio interactivo y vigilar
+las carreras de enumeración de ventanas ajenas al proceso probado.

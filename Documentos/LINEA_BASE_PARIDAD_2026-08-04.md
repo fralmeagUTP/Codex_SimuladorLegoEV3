@@ -100,7 +100,8 @@ Resultado: **4 PASS** en 9,43 s. Cubre un aviso único y accesible tras el
 snapshot terminal, ausencia del aviso ante error y detención manual, reinicio
 sin actualizaciones tardías, y duración de una espera simulada de 900 ms dentro
 del margen de tiempo real definido por la suite. El límite de tiempo configurable
-continúa pendiente de ejecución específica antes de declarar completo PAR-015.
+quedó posteriormente cubierto por las pruebas específicas de límite,
+cancelación y estados terminales; PAR-015 se declara completo en el cierre.
 
 ### PAR-010 — Precondición de “Avanzar un tick” verificada
 
@@ -203,8 +204,8 @@ apertura de menú por teclado, Escape y orden de tabulación aprobaron una
 ejecución anterior de 15/15 en 16,18 s. La ampliación actual aprobó 20/20 en
 26,23 s e incorporó la verificación de canvas y herramientas en 1920×1080,
 1280×800, 1024×768 y 390×844. Esta evidencia es automatizada en navegador;
-la inspección manual final de móvil permanece pendiente hasta recuperar la
-sesión de navegador.
+la inspección manual final de móvil se completó después de recuperar la sesión
+de navegador y confirmó la ausencia de recortes y desbordamiento horizontal.
 
 ## Regresión Web completa posterior a correcciones
 
@@ -318,9 +319,8 @@ siguientes casos en una instancia real de `http://127.0.0.1:5053/`:
 | MAN-WEB-004 | Alternar Claro → Oscuro | `data-theme` cambió de `light` a `dark`; controles y contenido permanecieron visibles. | PASS |
 | MAN-WEB-005 | Recargar a 390×844 y comprobar herramientas del mapa | `scrollWidth` coincidió con el ancho del viewport; Haces ON quedó dentro del área visible y no hubo errores de consola. | PASS |
 
-Esto cierra el bloqueo técnico **BLK-001**. Permanece abierto **BLK-004**:
-el recorrido manual exhaustivo de todos los catálogos y de ambas interfaces,
-que no puede sustituirse por las pruebas automatizadas ya aprobadas.
+Esto cierra el bloqueo técnico **BLK-001**. El posterior recorrido nativo de
+Tkinter y sus catálogos cerró también **BLK-004**.
 
 ### Catálogos Web completados en navegador real
 
@@ -332,8 +332,8 @@ que no puede sustituirse por las pruebas automatizadas ya aprobadas.
 | Misiones | 3/3 | PASS; cada misión cargó mundo, programa y telemetría inicial coherentes. |
 
 El catálogo manual Web queda completado para carga, navegación y los flujos
-críticos documentados. La parte aún pendiente de **BLK-004** es el recorrido
-manual equivalente y exhaustivo de Tkinter en sus temas y tamaños definidos.
+críticos documentados. La campaña posterior de Tkinter completó el recorrido
+equivalente, incluidos temas, tamaños, ejemplos y mundos preestablecidos.
 
 ## Revalidación gráfica Tkinter — 2026-08-05
 
@@ -368,3 +368,29 @@ El capturador nativo generó evidencia en claro y oscuro para 1920×1080,
 paneles sin solapamiento y LCD operativa. Las capturas están en
 `artifacts/qa-wheel/tk-layout-2026-08-05/` y
 `artifacts/qa-wheel/tk-world-editor-2026-08-05/`.
+
+## Cierre final de paridad — 2026-08-05
+
+La regresión de menús Tkinter se estabilizó sin depender de la enumeración
+Win32 de ventanas emergentes owner-drawn. La prueba observa el estado aplicado
+por la aplicación y ejecuta físicamente `Archivo → Nuevo` durante la ejecución,
+después de reiniciar y después de una terminación natural. Tres repeticiones
+aisladas consecutivas aprobaron.
+
+Se añadió además un recorrido físico de los **12/12 mundos preestablecidos** en
+Tkinter. Cada selección confirmó el archivo cargado por el proceso real de la
+aplicación. La campaña nativa final aprobó **6/6 en 34,84 s**.
+
+La compuerta técnica final produjo:
+
+| Verificación | Resultado |
+|---|---|
+| Ruff | PASS |
+| Mypy global | PASS: 109 archivos fuente |
+| Pytest global | PASS: 829 aprobadas, 6 omitidas por compuerta gráfica, 111,87 s |
+| Pytest Tkinter con escritorio real | PASS: 6/6; cubre explícitamente las 6 omisiones |
+
+No quedan bloqueos críticos o altos. **BLK-004 queda cerrado** y el dictamen
+final es **APTA CON OBSERVACIONES**. La única observación es la limitación del
+driver Win32 para enumerar menús owner-drawn, mitigada mediante un oráculo
+funcional que verifica estado y comando real.

@@ -36,7 +36,17 @@ def _start_native_application(command_line: str, root: Path):
     from pywinauto.application import Application
 
     desktop = Desktop(backend="win32")
-    previous_handles = {window.handle for window in desktop.windows()}
+    deadline = time.monotonic() + 2.0
+    while True:
+        try:
+            previous_handles = {window.handle for window in desktop.windows()}
+            break
+        except Exception:  # noqa: BLE001
+            # Una ventana de cualquier proceso puede desaparecer entre la
+            # enumeración Win32 y la construcción de su wrapper.
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.05)
     application = Application(backend="win32").start(
         cmd_line=command_line,
         work_dir=str(root),
@@ -80,14 +90,18 @@ def _wait_for_intro(previous_handles: set[int], timeout: float = 2.0):
     desktop = Desktop(backend="win32")
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        intro_windows = [
-            window
-            for window in desktop.windows()
-            if window.handle not in previous_handles
-            and window.is_visible()
-            and window.class_name() == "TkTopLevel"
-            and window.window_text() != "BotLab Studio"
-        ]
+        try:
+            intro_windows = [
+                window
+                for window in desktop.windows()
+                if window.handle not in previous_handles
+                and window.is_visible()
+                and window.class_name() == "TkTopLevel"
+                and window.window_text() != "BotLab Studio"
+            ]
+        except Exception:  # noqa: BLE001
+            time.sleep(0.05)
+            continue
         if intro_windows:
             return intro_windows[-1]
         time.sleep(0.1)
@@ -105,12 +119,24 @@ def _stop_native_application(application) -> None:
     )
 
 
-def _menu_popup_is_visible() -> bool:
-    """Indica si Tk abrió el popup nativo de menú en el escritorio."""
+def _wait_for_state_file(path: Path, expected: str, timeout: float = 5.0) -> bool:
+    """Espera una señal emitida por la instancia Tk real de la prueba.
 
-    from pywinauto import Desktop
+    Los menús de Tk son owner-drawn: Windows puede destruir su popup antes de
+    que pywinauto lo enumere. La señal registra el mismo estado aplicado a los
+    ``Menubutton`` y permite distinguir ese detalle del sistema operativo de
+    un menú que realmente quedó bloqueado.
+    """
 
-    return any(window.is_visible() for window in Desktop(backend="win32").windows(class_name="#32768"))
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if path.read_text(encoding="utf-8") == expected:
+                return True
+        except FileNotFoundError:
+            pass
+        time.sleep(0.05)
+    return False
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
@@ -174,6 +200,50 @@ def test_desktop_navigation_opens_help_and_world_editor() -> None:
         editor.close()
     finally:
         _stop_native_application(application)
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_preset_world_catalog_loads_every_world() -> None:
+    """Recorre físicamente el submenú y verifica los doce mundos cargados."""
+
+    pytest.importorskip("pywinauto")
+    root = Path(__file__).resolve().parents[2]
+    worlds = sorted((root / "worlds").glob("*.json"))
+    assert len(worlds) == 12
+    state_path = root / "artifacts" / "e2e-desktop" / "world-loaded.txt"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.unlink(missing_ok=True)
+    state_path_literal = repr(str(state_path))
+    source = (
+        "from pathlib import Path; "
+        "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); "
+        f"state_path = Path({state_path_literal}); "
+        "original_load_world = app._load_world; "
+        "app._load_world = lambda path: ("
+        "original_load_world(path), state_path.write_text(Path(path).name, encoding='utf-8')"
+        ")[0]; "
+        "app.mainloop()"
+    )
+    application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
+    try:
+        try:
+            main = _wait_for_new_window("BotLab Studio", previous_handles)
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
+
+        for index, world_path in enumerate(worlds):
+            main.set_focus()
+            main.click_input(coords=(340, 53))
+            # Tres comandos y luego la cascada Mundos preestablecidos.
+            main.type_keys("{DOWN}{DOWN}{DOWN}{DOWN}{RIGHT}")
+            if index:
+                main.type_keys("{DOWN}" * index)
+            main.type_keys("{ENTER}")
+            assert _wait_for_state_file(state_path, world_path.name)
+    finally:
+        _stop_native_application(application)
+        state_path.unlink(missing_ok=True)
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
@@ -253,9 +323,21 @@ def test_desktop_menus_unlock_after_execution_finishes_or_resets() -> None:
     import pyperclip
     from pywinauto import Desktop
     root = Path(__file__).resolve().parents[2]
+    state_path = root / "artifacts" / "e2e-desktop" / "menu-state.txt"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.unlink(missing_ok=True)
+    state_path_literal = repr(str(state_path))
     source = (
+        "from pathlib import Path; "
         "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
-        "app = EV3SimulatorApp(restore_session=False, persist_session=False); app.mainloop()"
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); "
+        f"state_path = Path({state_path_literal}); "
+        "original_set_menu_locked = app._set_execution_menu_locked; "
+        "app._set_execution_menu_locked = lambda locked: ("
+        "original_set_menu_locked(locked), "
+        "state_path.write_text('locked' if locked else 'unlocked', encoding='utf-8')"
+        ")[0]; "
+        "app.mainloop()"
     )
     application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
     try:
@@ -268,44 +350,61 @@ def test_desktop_menus_unlock_after_execution_finishes_or_resets() -> None:
         run = (58, 91)
         stop = (304, 91)
         archivo = (210, 53)
+        editor = (1000, 200)
+        running_source = "from pybricks.tools import wait\nwait(5000)\n"
+        terminal_source = "from pybricks.tools import wait\nwait(1000)\n"
+
+        def paste_script(source_code: str) -> None:
+            pyperclip.copy(source_code)
+            main.click_input(coords=editor)
+            main.type_keys("^a^v")
+            time.sleep(0.15)
+
+        def read_editor() -> str:
+            main.click_input(coords=editor)
+            main.type_keys("^a^c")
+            time.sleep(0.05)
+            return str(pyperclip.paste()).replace("\r\n", "\n")
+
+        def invoke_new_from_file_menu() -> None:
+            main.set_focus()
+            main.click_input(coords=archivo)
+            main.type_keys("{DOWN}{ENTER}")
+            time.sleep(0.15)
+
         # Se escribe un programa corto en el editor real para que la transición
         # terminal sea determinista y no dependa del ejemplo persistido.
-        pyperclip.copy("from pybricks.tools import wait\nwait(1000)\n")
-        main.click_input(coords=(1000, 200))
-        main.type_keys("^a^v")
-        time.sleep(0.2)
+        paste_script(running_source)
         main.click_input(coords=run)
-        time.sleep(0.4)
-        main.click_input(coords=archivo)
-        assert not _menu_popup_is_visible()
+        assert _wait_for_state_file(state_path, "locked")
+        invoke_new_from_file_menu()
+        assert read_editor().strip() == running_source.strip()
 
         main.click_input(coords=stop)
-        time.sleep(0.4)
-        main.click_input(coords=archivo)
-        assert _menu_popup_is_visible()
-        main.type_keys("{ESC}")
+        assert _wait_for_state_file(state_path, "unlocked")
+        invoke_new_from_file_menu()
+        assert read_editor().strip() == "# Nuevo script"
 
+        paste_script(terminal_source)
         main.click_input(coords=run)
-        time.sleep(0.4)
-        main.click_input(coords=archivo)
-        assert not _menu_popup_is_visible()
+        assert _wait_for_state_file(state_path, "locked")
         # El script inicial es finito; cuando termina de forma natural, la
         # navegación debe reactivarse sin requerir un nuevo reinicio manual.
         desktop = Desktop(backend="win32")
         deadline = time.monotonic() + 15.0
+        dialog_closed = False
         while time.monotonic() < deadline:
             finished = desktop.window(title="Ejecución finalizada")
             if finished.exists(timeout=0.1) and finished.is_visible():
                 finished.type_keys("{ENTER}")
                 time.sleep(0.25)
-            # El diálogo modal puede dejar el foco en el escritorio durante un
-            # instante. Restituirlo garantiza que el clic siguiente se aplica
-            # al Menubutton Archivo de la ventana que se está verificando.
-            main.set_focus()
-            main.click_input(coords=archivo)
-            if _menu_popup_is_visible():
+                dialog_closed = True
                 break
-            time.sleep(0.25)
-        assert _menu_popup_is_visible()
+            time.sleep(0.1)
+        assert dialog_closed
+        assert _wait_for_state_file(state_path, "unlocked")
+        invoke_new_from_file_menu()
+        assert read_editor().strip() == "# Nuevo script"
     finally:
         _stop_native_application(application)
+        state_path.unlink(missing_ok=True)
