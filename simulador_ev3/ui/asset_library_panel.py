@@ -5,23 +5,18 @@ from __future__ import annotations
 import tkinter as tk
 from collections.abc import Callable
 from functools import partial
-from pathlib import Path
 
 from simulador_ev3.domain.editor.asset_presentation import (
     ASSET_PRESENTATIONS,
     CATEGORY_ORDER,
     presentation_for_asset,
 )
-from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.asset_catalog import asset_path
 from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, tokens_for_theme
 
 _BG = "#ECEFF1"
 _CARD_BG = "#FFFFFF"
 _ACTIVE_BG = "#DCEBFA"
-_IMAGE_OVERRIDES = {
-    "line_64x64_cruz": ["line_64X64_Cruz.png"],
-    "floor_tile_256_c": ["floor_tile_256_c.jpg", "floor_tile_256_b.png"],
-}
 
 
 class AssetLibraryPanel(tk.LabelFrame):
@@ -175,20 +170,13 @@ class AssetLibraryPanel(tk.LabelFrame):
         cached = self._asset_icons.get(asset_key)
         if cached is not None:
             return cached
-        assets_dir = Path(resolve_image_assets_dir())
-        candidates = [*_IMAGE_OVERRIDES.get(asset_key, []), f"{asset_key}.png", f"{asset_key}.jpg"]
-        for candidate in candidates:
-            path = assets_dir / candidate
-            if not path.exists():
-                continue
-            try:
-                source = tk.PhotoImage(file=str(path))
-                icon = self._resize_icon(source)
-            except Exception:  # noqa: BLE001 - un asset inválido no bloquea la biblioteca.
-                continue
-            self._asset_icons[asset_key] = icon
-            return icon
-        return None
+        try:
+            source = tk.PhotoImage(file=str(asset_path(asset_key)))
+            icon = self._resize_icon(source)
+        except (KeyError, tk.TclError):
+            return None
+        self._asset_icons[asset_key] = icon
+        return icon
 
     @staticmethod
     def _resize_icon(source: tk.PhotoImage) -> tk.PhotoImage:

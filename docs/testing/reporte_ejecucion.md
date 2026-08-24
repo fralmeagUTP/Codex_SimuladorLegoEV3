@@ -169,3 +169,24 @@ teclado, y la prueba terminal confirma el cuadro `Ejecución finalizada` antes
 de comprobar que el menú vuelve a abrirse.
 
 | `python scripts/interactive_desktop_qa.py pause-resume-reset` | Revalidación visible de pausa, reanudación y reinicio Tkinter | Aprobada el 2026-07-30. La captura `pausa_real.png` muestra `PAUSADO`, 0.800 s y tick 40; `reinicio_real.png` muestra `IDLE`, 0.000 s, tick 0 y robot restaurado a (20.0 cm, 20.0 cm, 0.0°). |
+
+## Campaña MMI local — 2026-08-23
+
+| Comando | Objetivo | Resultado |
+|---|---|---|
+| `.venv\\Scripts\\python.exe -m pytest tests\\e2e\\test_web_playwright.py -q` | E2E Web Chromium | **56 PASS** en 66.30 s. |
+| `.venv\\Scripts\\python.exe -m pytest tests\\e2e\\test_web_playwright.py -k "real_catalog_loads_every" -q` | Carga visible de catálogo real Web | **1 PASS** en 9.52 s: 23 ejemplos, 12 mundos, 4 escenarios y misiones publicadas. |
+| `EV3_RUN_DESKTOP_E2E=1 ... pytest tests\\e2e\\test_desktop_pywinauto.py -q -rs` | E2E nativo Tkinter | **7 PASS** en 112.25 s. |
+| `EV3_RUN_DESKTOP_E2E=1 ... pytest tests\\e2e\\test_desktop_pywinauto.py -k "real_catalog_loads_examples" -q -rs` | Carga nativa del catálogo Tkinter | **1 PASS** en 31.74 s: ejemplos, escenarios y misiones distribuidos. |
+| `pytest tests\\ui\\test_world_editor_navigation.py tests\\shared\\test_world_editor_projection.py tests\\application\\test_world_editor_service.py tests\\web\\test_qa_world_crud.py -q` | Operaciones de editor de mundos | **14 PASS** en 0.66 s. |
+| `pytest tests\\shared\\test_interface_execution_parity.py tests\\application\\test_desktop_session_adapter.py -q` | Ciclo de vida cruzado y error terminal | **22 PASS** en 2.90 s. |
+| Pruebas de tema/Escape Tkinter y E2E Web de contraste/teclado | Accesibilidad automatizable | **5 PASS** Tkinter y **14 PASS** Web; la escucha Narrador/NVDA sigue como protocolo manual. |
+| `EV3_RUN_DESKTOP_E2E=1 ... pytest tests\e2e\test_desktop_pywinauto.py -k "controls_cover_execution_debug_and_keyboard or success_dialog_is_shown_once_after_finished" -q` | Teclado, cierre del diálogo nativo y controles Tkinter | **2 PASS** en **21.25 s**. La validación audible del lector de pantalla sigue pendiente de confirmación humana. |
+| `EV3_RUN_DESKTOP_E2E=1 ... pytest tests\e2e\test_desktop_pywinauto.py -k desktop_tab_moves_between_header_menus -q` | Regresión: recorrido Tab entre menús de cabecera Tkinter | **1 PASS** en **1.89 s**. Tab mueve el foco de Archivo a Ejemplos; los menús ahora fuerzan `takefocus` y anillo de foco temático. |
+| `pytest tests/core tests/domain --cov=simulador_ev3.core --cov=simulador_ev3.domain --cov-fail-under=90 -q` | Núcleo y dominio | **243 PASS**, cobertura real **92.61 %**. |
+| `pytest tests/load tests/runtime/test_isolated_worker.py -q` | Carga y worker aislado | **36 PASS** en 14.15 s. |
+| `pytest tests/release -q` | Artefactos de liberación | **12 PASS** en 11.81 s. |
+
+Ruff, Mypy (115 archivos), Bandit y Pip-Audit finalizaron con salida 0. Los
+logs E2E están en `artifacts/mmi-e2e-2026-08-23/` y el dictamen, límites y
+tareas aún abiertas están en `Documentos/INFORME_MMI_2026-08-23.md`.

@@ -103,6 +103,24 @@ def session_info(session_id: str):
     return jsonify(session.summary())
 
 
+@bp.get("/sessions/<session_id>/presentation")
+def presentation_state(session_id: str):
+    """Contrato de presentación compartido con el adaptador Tkinter."""
+    return jsonify(require_session(session_id).presentation_state().to_dict())
+
+
+@bp.get("/sessions/<session_id>/learning")
+def learning_state(session_id: str):
+    """Contrato de aprendizaje, independiente de widgets o transporte."""
+    return jsonify(require_session(session_id).learning_state().to_dict())
+
+
+@bp.get("/sessions/<session_id>/observability")
+def observability_state(session_id: str):
+    """Diagnóstico correlacionable sin exponer el runtime privado."""
+    return jsonify(require_session(session_id).observability_snapshot().to_dict())
+
+
 @bp.post("/sessions/<session_id>/mission")
 def select_mission(session_id: str):
     identifier = str(json_body().get("id", "")).strip()
@@ -185,10 +203,16 @@ def start(session_id: str):
         cached = session.get_start_idempotency(request_id)
         if cached is not None:
             return jsonify(cached)
-    result = session.start(
-        debug=bool(data.get("debug", False)),
-        step_mode=bool(data.get("step_mode", False)),
-    )
+    source = data.get("source")
+    if source is not None and not isinstance(source, str):
+        raise InvalidPayload("El campo source debe ser texto.")
+    start_options = {
+        "debug": bool(data.get("debug", False)),
+        "step_mode": bool(data.get("step_mode", False)),
+    }
+    if source is not None:
+        start_options["source"] = source
+    result = session.start(**start_options)
     if request_id:
         session.remember_start_idempotency(request_id, result)
     manager.sync_session_metadata(session_id)
@@ -326,8 +350,10 @@ def stream(session_id: str):
             # pueden despertar directamente esta condición. Una espera de un
             # segundo retrasaba en la UI el estado terminal y hacía que el
             # reloj de pared pareciera más lento que la simulación. Limitar el
-            # sondeo del stream a 50 ms mantiene la entrega fluida sin busy
-            # waiting: la condición sigue bloqueada entre comprobaciones.
+            # El worker aislado comunica por cola multiproceso y no puede
+            # despertar directamente esta condición. El sondeo a 50 ms
+            # mantiene la entrega fluida sin convertir el stream en busy
+            # waiting; la condición sigue bloqueada entre comprobaciones.
             wait_timeout = min(heartbeat_remaining, 0.05) if heartbeat_remaining > 0 else 0.0
             events = session.wait_for_events_since(last_sequence, timeout_s=wait_timeout)
             if events:

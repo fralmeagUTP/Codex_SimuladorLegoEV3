@@ -91,7 +91,7 @@ def create_app(config: dict | None = None) -> Flask:
             "fit_padding_ratio": app.config.get("UI_FIT_PADDING_RATIO", 0.05),
             "sensor_beams_enabled": app.config.get("SENSOR_BEAMS_ENABLED", True),
             "sse_enabled": app.config.get("WEB_SSE_ENABLED", True),
-            "polling_interval_ms": int(app.config.get("WEB_POLLING_INTERVAL_MS", 900)),
+            "polling_interval_ms": int(app.config.get("WEB_POLLING_INTERVAL_MS", 250)),
             "session_create_wait_ms": int(app.config.get("WEB_SESSION_CREATE_WAIT_MS", 0)),
         }
 

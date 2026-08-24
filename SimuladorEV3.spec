@@ -35,7 +35,7 @@ a = Analysis(
     ['simulador_ev3\\ui\\main_window.py'],
     pathex=[],
     binaries=runtime_binaries,
-    datas=[('simulador_ev3\\assets\\Intro.png', 'simulador_ev3\\assets')],
+    datas=[('simulador_ev3\\assets', 'simulador_ev3\\assets')],
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

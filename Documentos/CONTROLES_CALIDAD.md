@@ -16,3 +16,23 @@ se realizan dentro de `RuntimeSandbox` y, en modo aislado, dentro del worker con
 de tiempo, memoria, red y sistema de archivos. Tambien se omiten `B110` y `B112` para
 callbacks opcionales de interfaz: esos callbacks no pueden interrumpir la simulacion.
 No se omiten reglas de severidad alta ni se ignoran hallazgos de credenciales.
+
+## Mínimos obligatorios por capa
+
+| Capa | Evidencia mínima para liberar | Compuerta |
+|---|---|---|
+| Dominio y motor | Unidad, validaciones y escenarios críticos | pytest; cobertura de `core` y `domain` ≥ 90 %. |
+| Aplicación y contratos | Integración, DTOs y recuperación | pytest de `tests/application` y `tests/runtime`. |
+| Web | API, sesión, accesibilidad y E2E | pytest Web y Playwright con Chromium. |
+| Tkinter | Componentes, teclado, tema y E2E visible | pytest UI; Pywinauto marcado PASS o BLOCKED con causa de entorno. |
+| Seguridad y dependencias | Código estático y dependencias declaradas | Ruff, Mypy, Bandit y Pip-Audit, salida 0. |
+| Rendimiento y resiliencia | Carga concurrente, cancelación y worker | `tests/load`, workers aislados y métricas verificables. |
+| Empaquetado y despliegue | Arranque local y artefacto verificable | smoke Windows, contenedor Linux y `healthz`. |
+
+Una compuerta bloqueada por falta de escritorio gráfico o infraestructura debe
+figurar como **BLOCKED** con evidencia. Nunca se convierte en PASS por omitirla.
+
+La campaña de mutación usa Mutmut sobre `web/services/simulation_session.py` y
+se ejecuta en Linux/WSL: Mutmut no soporta ejecución nativa en Windows. En un
+equipo Windows la comprobación queda BLOCKED localmente, pero no se elimina de
+la compuerta de CI Linux.

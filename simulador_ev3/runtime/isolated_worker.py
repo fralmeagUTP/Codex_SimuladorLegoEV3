@@ -420,15 +420,24 @@ def _worker_main(commands, events, session_id: str) -> None:
                     emit("error", {"code": "IPC_PROFILE_INVALID", "message": str(exc)}, command_id)
                 continue
             if command_type == "start":
+                # Publicar la transición antes de arrancar el hilo del script.
+                # Un programa que falla de inmediato emite ``error`` desde el
+                # callback del servicio; publicar ``running`` después de
+                # ``service.start`` sobrescribía ese terminal en las UI.
                 if service is not None:
                     payload = raw.get("payload", {})
+                    source = payload.get("source")
+                    if source is not None:
+                        service.load_script(str(source))
+                    status = "running"
+                    emit("status", {"status": status}, command_id)
                     service.start(
                         debug=bool(payload.get("debug", False)), step_mode=bool(payload.get("step_mode", False))
                     )
                     if policy is not None and not sys.platform.startswith("win"):
                         _apply_os_resource_limits(policy)
-                status = "running"
-                emit("status", {"status": status}, command_id)
+                else:
+                    emit("status", {"status": "running"}, command_id)
                 continue
             if command_type == "pause":
                 if service is not None:
@@ -648,12 +657,18 @@ class IsolatedRuntimeWorker:
             raise TimeoutError("Worker no emitió evento dentro del tiempo esperado") from exc
 
     def drain_events(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Obtiene eventos disponibles sin bloquear, preservando su orden IPC."""
+        """Obtiene eventos disponibles sin bloquear, preservando su orden IPC.
+
+        Una petición SSE puede terminar mientras el administrador cierra una
+        sesión. En ese orden válido, ``multiprocessing.Queue`` ya está cerrada
+        y ``get_nowait`` lanza ``ValueError``; no es un error de ejecución ni
+        debe convertir el cierre normal en un 500 del servidor.
+        """
         drained: list[dict[str, Any]] = []
         for _ in range(max(0, int(limit))):
             try:
                 drained.append(self._events.get_nowait())
-            except queue.Empty:
+            except (queue.Empty, OSError, ValueError):
                 break
         return drained
 

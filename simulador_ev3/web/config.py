@@ -58,7 +58,10 @@ class DefaultWebConfig:
     WEB_DEBUGSTATE_V2 = True
     TK_DEBUGSTATE_V2 = True
     WEB_SSE_ENABLED = True
-    WEB_POLLING_INTERVAL_MS = 900
+    # Mantiene el estado terminal, telemetría y canvas cerca del tiempo real
+    # cuando el stream SSE no está disponible. 900 ms hacía perceptible el
+    # retraso de una misión corta en el navegador.
+    WEB_POLLING_INTERVAL_MS = 250
     WEB_SESSION_CREATE_WAIT_MS = 0
 
 

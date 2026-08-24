@@ -8,6 +8,8 @@ def test_simulation_page_loads_extracted_control_modules() -> None:
 
     for module in ("api.js", "theme_manager.js", "menu_controller.js", "canvas_world.js"):
         assert module in template
+    assert "window.EV3_ASSET_MANIFEST" in template
+    assert "window.EV3_STATUS_LABELS" in template
     assert "trace_controls.js" in template
     assert "profile_controls.js" in template
     assert "session_controller.js" in template
@@ -45,3 +47,47 @@ def test_trace_tick_confirmation_requires_an_observable_increment() -> None:
     assert "const after" in trace_controls
     assert "after > before" in trace_controls
     assert "No se avanzo el tick de simulacion." in trace_controls
+
+
+def test_simulation_page_uses_an_optional_learning_guide_instead_of_a_fixed_panel() -> None:
+    root = Path(__file__).parents[2]
+    template = (root / "simulador_ev3" / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+    app = (root / "simulador_ev3" / "web" / "static" / "js" / "simulation_app.js").read_text(encoding="utf-8")
+
+    assert 'id="learningPanel"' not in template
+    assert 'id="activityGuideLink"' in template
+    assert '#guide-first-simulation' in template
+    assert "function renderLearningState" not in app
+    assert "api.learningState()" not in app
+
+
+def test_world_transition_clears_web_trail_before_loading_a_new_world() -> None:
+    root = Path(__file__).parents[2]
+    app = (root / "simulador_ev3" / "web" / "static" / "js" / "simulation_app.js").read_text(encoding="utf-8")
+
+    assert app.count("window.EV3Canvas.resetTrail();") >= 3
+
+
+def test_simulation_composition_keeps_brick_state_below_lcd() -> None:
+    root = Path(__file__).parents[2]
+    template = (root / "simulador_ev3" / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'class="sim-main-area"' in template
+    assert 'class="sim-bottom-panels"' in template
+    assert template.index('class="brick-screen"') < template.index('class="brick-robot-state"')
+    assert template.index('class="sim-left-column"') < template.index('sim-panel sim-code-pane')
+
+
+def test_web_canvas_repaints_after_loading_canonical_assets() -> None:
+    root = Path(__file__).parents[2]
+    canvas = (root / "simulador_ev3" / "web" / "static" / "js" / "canvas_world.js").read_text(
+        encoding="utf-8"
+    )
+    app = (root / "simulador_ev3" / "web" / "static" / "js" / "simulation_app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'new CustomEvent("ev3-assets-loaded")' in canvas
+    assert 'addEventListener("ev3-assets-loaded", redrawCanvas)' in app
+    assert "hydrateAssetCatalogFromApi" in canvas
+    assert '"/api/editor/assets"' in canvas

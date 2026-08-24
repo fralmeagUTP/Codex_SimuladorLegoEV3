@@ -56,6 +56,11 @@
         <p>La operación técnica está separada de estas guías de uso.</p>
         <a href="{{ url_for('pages.operations_page') }}">Ver guía técnica</a>
       </div>
+      <div class="help-sidebar-callout">
+        <strong>Referencias y compatibilidad</strong>
+        <p>Consulta el manual, los límites educativos y el glosario Pybricks compartido.</p>
+        <a href="#helpReferences">Ver referencias</a>
+      </div>
     </aside>
 
     <section class="help-guide-list" aria-label="Guías disponibles">
@@ -99,6 +104,31 @@
       </article>
       {% endfor %}
       <p id="helpEmptyState" class="help-empty" hidden>No encontramos una guía con esos términos. Prueba con “mundo”, “sensor”, “error” o limpia la búsqueda.</p>
+
+      <section id="helpReferences" class="help-references" aria-labelledby="helpReferencesTitle">
+        <div class="help-list-heading">
+          <div>
+            <p class="help-eyebrow">REFERENCIAS COMPARTIDAS</p>
+            <h2 id="helpReferencesTitle">Manual, límites y glosario</h2>
+          </div>
+          <p>La simulación es educativa: valida también en un robot físico antes de una demostración real.</p>
+        </div>
+        <div class="help-reference-grid">
+          {% for reference in references %}
+          <a class="help-reference-card" href="{{ url_for('pages.documentation_resource', reference_id=reference.identifier) }}" target="_blank">
+            <strong>{{ reference.title }}</strong>
+            <span>{{ reference.summary }}</span>
+            <small>Para: {{ reference.audience|join(', ') }}</small>
+          </a>
+          {% endfor %}
+        </div>
+        <h3 class="help-glossary-title">GLOSARIO PYBRICKS</h3>
+        <dl class="help-glossary">
+          {% for item in glossary %}
+          <div><dt>{{ item.term }}</dt><dd>{{ item.definition }}</dd></div>
+          {% endfor %}
+        </dl>
+      </section>
     </section>
   </div>
 </main>

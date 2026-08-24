@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from simulador_ev3.application.mission_evaluator import MissionEvaluator
+from simulador_ev3.application.mission_feedback import formative_mission_feedback
 from simulador_ev3.application.simulation_trace import SimulationTrace
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.application.world_editor_service import WorldEditorService
@@ -230,6 +231,7 @@ class SimulationService:
                 "version": self._active_mission.version,
             },
             "result": result,
+            "feedback": formative_mission_feedback(outcome=outcome, result=result),
         }
         return dict(self._mission_result)
 
@@ -538,8 +540,12 @@ class SimulationService:
         self._controller.set_debug_step_mode(step_mode if debug else False)
         self._controller.set_debug_breakpoints(self._debug_breakpoints if debug else set())
         self._controller.set_debug_watches(self._debug_watches if debug else [])
-        self._controller.start()
+        # Notificar antes de crear el hilo de runtime. Un script que falla en
+        # su primera instrucción puede publicar ``error`` antes de que
+        # ``RuntimeController.start`` retorne; emitir ``started`` después
+        # sobrescribía erróneamente ese estado terminal en ambos clientes.
         self._notify_status("started")
+        self._controller.start()
 
     def pause(self) -> None:
         """Pausa el engine (el script queda bloqueado en wait())."""

@@ -43,6 +43,7 @@
   const mapZoomResetBtn = document.getElementById("mapZoomResetBtn");
   const toggleSensorBeamsBtn = document.getElementById("toggleSensorBeamsBtn");
   const aboutMenuBtn = document.getElementById("aboutMenuBtn");
+  const diagnosticsMenuBtn = document.getElementById("diagnosticsMenuBtn");
   const APP_VERSION = document?.documentElement?.dataset?.ev3AppVersion || "desconocida";
   const ABOUT_MESSAGE =
     "BotLab Studio\n"
@@ -50,7 +51,8 @@
     + `Version ${APP_VERSION}\n\n`
     + "Desarrollado por:\n"
     + "\t\tFrancisco Alejandro Medina Aguirre\n"
-    + "\t\tJimy Alexander Cortés Osorio\n\n"
+    + "\t\tJimy Alexander Cortés Osorio\n"
+    + "\t\tJose Andrés Chaves Osorio\n\n"
     + "Aliados academicos:\n"
     + "\t- Grupo Nyquist\n"
     + "\t- Robotica Aplicada\n"
@@ -59,6 +61,7 @@
   const sessionController = window.EV3SessionController.create({
     api,
     onStatus: setStatus,
+    onPresentation: applyPresentationState,
     onError: (err) => log(err.message),
     beforeStart: () => {
       beginExecutionNotificationCycle();
@@ -66,6 +69,10 @@
       hideRobotStartMarker();
       executionMenuLocked = true;
       updateMenuLockState();
+    },
+    beforeRuntimeStart: () => {
+      executionTiming.startedAtMs = performance.now();
+      executionTiming.transitions = [];
     },
     afterStart: forceStateRefreshAfterStart,
     onDebug: handleDebug,
@@ -130,7 +137,13 @@
     },
   });
   // Diagnóstico opcional para soporte y QA; no se representa en la interfaz.
-  window.EV3RenderDiagnostics = () => interpolationController?.diagnostics() || null;
+  window.EV3RenderDiagnostics = () => ({
+    ...(interpolationController?.diagnostics() || {}),
+    executionTiming: {
+      startedAtMs: executionTiming.startedAtMs,
+      transitions: executionTiming.transitions.slice(),
+    },
+  });
 
   if (!statusProgram) {
     const editorShell = document.querySelector(".code-editor-shell");
@@ -249,17 +262,20 @@
   let activeExecutionNotificationId = null;
   let notifiedExecutionNotificationId = null;
   let executionSuccessToastTimer = null;
+  // Diagnóstico de rendimiento de una generación de ejecución. Es información
+  // local de soporte: no contiene código del usuario ni datos persistentes.
+  const executionTiming = { startedAtMs: null, transitions: [] };
   const initialSensorBeamsFlag =
     String(document?.documentElement?.dataset?.ev3SensorBeamsEnabled || "true").toLowerCase() !== "false";
   let showSensorBeams = initialSensorBeamsFlag;
   const STREAM_BOOTSTRAP_TIMEOUT_MS = 2500;
   const configuredPollingIntervalMs = Number.parseInt(
-    document?.documentElement?.dataset?.ev3PollingIntervalMs || "900",
+    document?.documentElement?.dataset?.ev3PollingIntervalMs || "250",
     10,
   );
   const POLLING_INTERVAL_MS = Number.isFinite(configuredPollingIntervalMs)
     ? Math.max(250, configuredPollingIntervalMs)
-    : 900;
+    : 250;
   const STREAM_RETRY_DELAY_MS = 5000;
   const SNAPSHOT_STALE_MS = 3000;
   const SNAPSHOT_CONTRACT_VERSION = 1;
@@ -305,7 +321,16 @@
       return;
     }
     currentStatus = nextStatus;
-    statusEl.textContent = status;
+    if (executionTiming.startedAtMs !== null) {
+      executionTiming.transitions.push({ status: nextStatus, atMs: performance.now() });
+      if (executionTiming.transitions.length > 32) executionTiming.transitions.shift();
+    }
+    if (statusEl) {
+      statusEl.textContent = nextStatus;
+      statusEl.dataset.status = nextStatus;
+      statusEl.dataset.label = window.EV3_STATUS_LABELS?.[nextStatus] || nextStatus;
+      statusEl.setAttribute("aria-label", statusEl.dataset.label);
+    }
     if (["paused", "stopped", "finished", "timed_out", "error", "created"].includes(currentStatus)) {
       interpolationController?.reset();
       visualSnapshot = latestSnapshot;
@@ -329,6 +354,20 @@
       invalidateExecutionNotificationCycle();
     }
     updateControlStates();
+  }
+
+  function applyPresentationState(presentation) {
+    if (!presentation || Number(presentation.version) !== 1) return;
+    setStatus(presentation.status);
+    const controls = presentation.controls || {};
+    // Los controles básicos proceden del mismo puerto que Tkinter. Los de
+    // depuración conservan su lógica específica encima de este contrato.
+    if (!autoResetInProgress) {
+      if (typeof controls.run === "boolean") runBtn.disabled = !controls.run;
+      if (typeof controls.pause === "boolean") pauseBtn.disabled = !controls.pause;
+      if (typeof controls.resume === "boolean") resumeBtn.disabled = !controls.resume;
+      if (typeof controls.stop_reset === "boolean") stopBtn.disabled = !controls.stop_reset;
+    }
   }
 
   function beginExecutionNotificationCycle() {
@@ -1948,6 +1987,9 @@
   async function loadWorldByName(name) {
     if (guardMenuAction()) return;
     try {
+      // Nunca transportar rastro, haces ni tick visuales del mundo anterior.
+      // El primer snapshot del nuevo mundo volverá a sembrar la pose inicial.
+      window.EV3Canvas.resetTrail();
       const data = await api.loadWorld(name);
       selectedWorldName = name;
       selectedBlankWorld = false;
@@ -1968,6 +2010,7 @@
   async function loadBlankWorld() {
     if (guardMenuAction()) return;
     try {
+      window.EV3Canvas.resetTrail();
       const data = await api.loadBlankWorld({ width_cells: 40, height_cells: 40 });
       selectedWorldName = null;
       selectedBlankWorld = true;
@@ -2076,7 +2119,11 @@
     const completed = payload.outcome === "finished" && result.passed;
     const label = completed ? "Misión completada" : payload.outcome === "cancelled" ? "Misión cancelada" : "Misión no superada";
     const criteria = (result.criteria || []).map((item) => `${item.passed ? "✓" : "✗"} ${item.id}`).join(" · ");
-    missionResultEl.textContent = `${label}: ${result.score || 0} puntos. ${criteria}`;
+    const feedback = payload.feedback || {};
+    const summary = feedback.summary || "Revisa los criterios y la telemetría para continuar.";
+    const nextStep = feedback.next_step || "Valida el resultado también en un robot EV3 físico.";
+    const physicalNotice = feedback.physical_validation_notice || "";
+    missionResultEl.textContent = `${label}: ${result.score || 0} puntos. ${criteria} ${summary} Siguiente paso: ${nextStep} ${physicalNotice}`;
     missionResultEl.className = `mission-result ${completed ? "mission-result-success" : "mission-result-failure"}`;
     missionResultEl.hidden = false;
   }
@@ -2147,6 +2194,30 @@
 
   function handleGlobalShortcuts(event) {
     if (event.defaultPrevented || event.isComposing) return;
+    const functionKey = String(event.key || "");
+    if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (functionKey === "F1") {
+        event.preventDefault();
+        window.open(api.resolvePath("/help"), "_blank", "noopener");
+        return;
+      }
+      if (functionKey === "F5" && event.shiftKey) {
+        event.preventDefault();
+        void performStopAndReset({ automatic: false });
+        return;
+      }
+      if (functionKey === "F5" && !runBtn.disabled) {
+        event.preventDefault();
+        runBtn.click();
+        return;
+      }
+      if (functionKey === "F6") {
+        event.preventDefault();
+        if (!pauseBtn.disabled) pauseBtn.click();
+        else if (!resumeBtn.disabled) resumeBtn.click();
+        return;
+      }
+    }
     const isCmdOrCtrl = event.ctrlKey || event.metaKey;
     if (!isCmdOrCtrl || event.altKey) return;
 
@@ -2211,6 +2282,17 @@
   aboutMenuBtn?.addEventListener("click", () => {
     aboutDialogController.open();
     log("Simulador EV3 Web - migracion Flask del simulador Tkinter.");
+  });
+
+  diagnosticsMenuBtn?.addEventListener("click", async () => {
+    try {
+      const session = await api.observabilityState();
+      const render = window.EV3RenderDiagnostics();
+      aboutDialogController.open(`DIAGNÓSTICO DE SESIÓN\n\n${JSON.stringify({ session, render }, null, 2)}`);
+      log("Diagnóstico de sesión actualizado. No contiene código ni credenciales.");
+    } catch (err) {
+      log(`No fue posible obtener el diagnóstico: ${err.message}`);
+    }
   });
 
 

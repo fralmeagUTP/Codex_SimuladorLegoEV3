@@ -2,6 +2,63 @@
   box-sizing: border-box;
 }
 
+/* Referencias comunes de ayuda: manuales y glosario Pybricks. */
+.help-references { margin-top:28px; padding-top:22px; border-top:1px solid var(--help-border); }
+.help-reference-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.help-reference-card { display:grid; gap:7px; min-height:112px; padding:14px; border:1px solid var(--help-border); border-radius:10px; background:var(--help-panel); color:var(--help-ink); text-decoration:none; }
+.help-reference-card:hover { border-color:var(--help-accent); box-shadow:0 5px 14px #143a681f; }
+.help-reference-card span,.help-reference-card small { color:var(--help-muted); }
+.help-reference-card small { font-size:12px; }
+.help-glossary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin:16px 0 0; }
+.help-glossary>div { padding:11px 13px; border-left:3px solid var(--help-accent); background:var(--help-panel); }
+.help-glossary dt { font-weight:800; }
+.help-glossary dd { margin:5px 0 0; color:var(--help-muted); font-size:14px; }
+@media (max-width:620px) { .help-reference-grid,.help-glossary { grid-template-columns:1fr; } }
+
+:root {
+  --ev3-background: #f4f6f8;
+  --ev3-surface: #ffffff;
+  --ev3-surface-muted: #f8fafc;
+  --ev3-text: #18212f;
+  --ev3-text-muted: #314861;
+  --ev3-primary: #294c7c;
+  --ev3-primary-active: #213858;
+  --ev3-success: #2e7d32;
+  --ev3-warning: #f57f17;
+  --ev3-danger: #b71c1c;
+  --ev3-focus: #0d47a1;
+  --ev3-border: #c5d2e2;
+  --ev3-toolbar: #f8fafc;
+  --ev3-toolbar-text: #0f172a;
+  --ev3-space-page: 12px;
+  --ev3-space-compact: 6px;
+  --ev3-space-panel: 10px;
+  --ev3-panel-radius: 4px;
+  --ev3-canvas-min-height: 300px;
+  --ev3-telemetry-min-width: 300px;
+  --ev3-brick-min-width: 340px;
+  --ev3-editor-min-width: 430px;
+  --ev3-simulation-min-width: 700px;
+  --ev3-status-strip-height: 30px;
+}
+
+html[data-theme="dark"] {
+  --ev3-background: #0f1724;
+  --ev3-surface: #152238;
+  --ev3-surface-muted: #17253a;
+  --ev3-text: #dbe5f5;
+  --ev3-text-muted: #b8c8da;
+  --ev3-primary: #2e5ea3;
+  --ev3-primary-active: #3b67a5;
+  --ev3-success: #81c784;
+  --ev3-warning: #ffcc80;
+  --ev3-danger: #ef9a9a;
+  --ev3-focus: #90caf9;
+  --ev3-border: #2b4a66;
+  --ev3-toolbar: #111c2d;
+  --ev3-toolbar-text: #e2e8f0;
+}
+
 /* Centro de ayuda orientado a tareas. */
 .help-center { --help-ink:#102f5b; --help-muted:#4d6481; --help-border:#c5d6eb; --help-panel:#fff; --help-accent:#1459a8; --help-success:#16763f; --help-warning:#a94f09; max-width:1240px; margin:0 auto; padding:clamp(16px,3vw,36px); color:var(--help-ink); }
 .contextual-help-link { display:inline-flex; align-items:center; min-height:28px; padding:4px 8px; border:1px solid #8fb3dc; border-radius:5px; color:#124f98; background:#f7fbff; font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; }.contextual-help-link:hover { background:#e4f0ff; }.contextual-help-link:focus-visible { outline:3px solid #e89620; outline-offset:2px; }html[data-theme="dark"] .contextual-help-link { border-color:#4c719b; background:#193653; color:#b9d8ff; }
@@ -20,13 +77,13 @@ html[data-theme="dark"] .help-center { --help-ink:#e6eef9; --help-muted:#b5c8e2;
 body {
   margin: 0;
   font-family: Segoe UI, Arial, sans-serif;
-  background: #f4f6f8;
-  color: #18212f;
+  background: var(--ev3-background);
+  color: var(--ev3-text);
 }
 
 html[data-theme="dark"] body {
-  background: #0f1724;
-  color: #dbe5f5;
+  background: var(--ev3-background);
+  color: var(--ev3-text);
 }
 
 body:has(.app-shell) {
@@ -472,9 +529,9 @@ dd {
   align-items: center;
   gap: 22px;
   padding: 5px 8px;
-  border-bottom: 1px solid #b7c3d0;
-  background: #f8fafc;
-  color: #0f172a;
+  border-bottom: 1px solid var(--ev3-border);
+  background: var(--ev3-toolbar);
+  color: var(--ev3-toolbar-text);
   font-size: 13px;
 }
 
@@ -503,7 +560,7 @@ dd {
   width: 100%;
   border: 0;
   background: transparent;
-  color: #111827;
+  color: var(--ev3-toolbar-text);
   font: inherit;
   text-align: left;
   text-decoration: none;
@@ -517,7 +574,7 @@ dd {
 .menu-trigger:hover,
 .menu-group:hover .menu-trigger,
 .menu-group.is-open .menu-trigger {
-  background: #dbeafe;
+  background: color-mix(in srgb, var(--ev3-primary) 14%, var(--ev3-toolbar));
 }
 
 .menu-dropdown {
@@ -528,8 +585,8 @@ dd {
   min-width: 190px;
   display: none;
   padding: 4px;
-  border: 1px solid #93a4b7;
-  background: #f8fafc;
+  border: 1px solid var(--ev3-border);
+  background: var(--ev3-toolbar);
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
 }
 
@@ -547,12 +604,12 @@ dd {
 
 .menu-dropdown button:hover,
 .menu-dropdown a:hover {
-  background: #e0edf9;
+  background: color-mix(in srgb, var(--ev3-primary) 10%, var(--ev3-toolbar));
 }
 
 .menu-dropdown button.is-active {
-  background: #dbeafe;
-  color: #0f2f5d;
+  background: color-mix(in srgb, var(--ev3-primary) 14%, var(--ev3-toolbar));
+  color: var(--ev3-primary-active);
   font-weight: 600;
 }
 
@@ -611,8 +668,8 @@ dd {
   height: 100%;
   display: grid;
   grid-template-rows: minmax(0, 1fr) 36px;
-  gap: 6px;
-  padding: 4px 12px 0;
+  gap: var(--ev3-space-compact);
+  padding: 4px var(--ev3-space-page) 0;
   background: #f5f7fb;
   overflow: hidden;
 }
@@ -643,8 +700,8 @@ dd {
 .sim-main-area {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(620px, 1.18fr) minmax(430px, 0.82fr);
-  gap: 10px;
+  grid-template-columns: minmax(620px, 1.18fr) minmax(var(--ev3-editor-min-width), 0.82fr);
+  gap: var(--ev3-space-panel);
   overflow: hidden;
 }
 
@@ -653,7 +710,7 @@ dd {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(300px, 1fr) minmax(230px, 0.62fr);
-  gap: 10px;
+  gap: var(--ev3-space-panel);
   overflow: hidden;
 }
 
@@ -661,8 +718,8 @@ dd {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(430px, 1.18fr) minmax(300px, 0.82fr);
-  gap: 10px;
+  grid-template-columns: minmax(430px, 1.18fr) minmax(var(--ev3-brick-min-width), 0.82fr);
+  gap: var(--ev3-space-panel);
   overflow: hidden;
 }
 
@@ -670,7 +727,7 @@ dd {
   min-width: 0;
   min-height: 0;
   border: 1px solid #d4dde8;
-  border-radius: 4px;
+  border-radius: var(--ev3-panel-radius);
   background: #fff;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
@@ -820,6 +877,39 @@ dd {
   color: #123a69;
   font-size: 12px;
 }
+
+/* El texto técnico queda disponible para pruebas, copiado y diagnóstico;
+   la etiqueta visible procede del catálogo compartido Web–Tkinter. */
+#sessionStatus[data-label],
+#telemetryStatus[data-label] {
+  color: transparent;
+  font-size: 0;
+}
+
+#sessionStatus[data-label]::after,
+#telemetryStatus[data-label]::after {
+  color: var(--ev3-primary);
+  content: attr(data-label);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#sessionStatus[data-status="running"]::after,
+#sessionStatus[data-status="started"]::after,
+#sessionStatus[data-status="resumed"]::after,
+#sessionStatus[data-status="finished"]::after,
+#telemetryStatus[data-status="running"]::after,
+#telemetryStatus[data-status="started"]::after,
+#telemetryStatus[data-status="resumed"]::after,
+#telemetryStatus[data-status="finished"]::after { color: var(--ev3-success); }
+
+#sessionStatus[data-status="paused"]::after,
+#sessionStatus[data-status="timed_out"]::after,
+#telemetryStatus[data-status="paused"]::after,
+#telemetryStatus[data-status="timed_out"]::after { color: var(--ev3-warning); }
+
+#sessionStatus[data-status="error"]::after,
+#telemetryStatus[data-status="error"]::after { color: var(--ev3-danger); }
 
 .telemetry-summary strong:last-child { border-right: 0; }
 .telemetry-summary .is-alert { color: #b42318; }
@@ -2332,7 +2422,10 @@ html[data-theme="dark"] .tutorial-figure img {
   background: #1a2c45;
 }
 
-@media (max-width: 1000px) {
+/* La composición de dos columnas requiere 620 + 430 px, más espacios y
+   bordes. A 1024 px el editor se salía del viewport antes de que el diseño
+   responsivo entrara en acción. */
+@media (max-width: 1120px) {
   body:has(.app-shell) {
     overflow-x: hidden;
     overflow-y: auto;

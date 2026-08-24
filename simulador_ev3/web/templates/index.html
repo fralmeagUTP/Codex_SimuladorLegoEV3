@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}BotLab Studio{% endblock %}
+{% block head_data %}
+<script>window.EV3_ASSET_FILES = {{ asset_files|tojson }};</script>
+<script>window.EV3_ASSET_MANIFEST = {{ asset_manifest|tojson }};</script>
+<script>window.EV3_STATUS_LABELS = {{ status_labels|tojson }};</script>
+{% endblock %}
 {% block body %}
 <main class="app-shell">
   <div id="executionSuccessToast" class="execution-success-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
@@ -86,6 +91,8 @@
         <button type="button" class="menu-trigger" aria-haspopup="true">Ayuda</button>
         <div class="menu-dropdown">
           <a href="{{ url_for('pages.help_page') }}" target="_blank">Centro de ayuda</a>
+          <a id="activityGuideLink" href="{{ url_for('pages.help_page') }}#guide-first-simulation" target="_blank">Guía de actividad</a>
+          <button type="button" id="diagnosticsMenuBtn">Diagnóstico de sesión</button>
           <button type="button" id="aboutMenuBtn">Acerca de</button>
         </div>
       </div>
@@ -113,7 +120,6 @@
             <a class="contextual-help-link" href="{{ url_for('pages.help_page') }}#guide-first-simulation" target="_blank">? Ubicar</a>
           </div>
         </div>
-
         <section class="sim-panel sim-map-panel">
           <div class="sim-panel-header">
             <div class="panel-title-row">
@@ -262,21 +268,21 @@ motor.stop()
   <pre id="aboutDialogText" class="about-dialog-text"></pre>
   <section class="about-groups" aria-label="Grupos de investigacion">
     <article class="about-group-card">
-      <img src="{{ url_for('pages.image_asset', name='Logo_Nyquist.jpg') }}" alt="Logo Nyquist" loading="lazy" />
+      <img src="{{ url_for('pages.image_asset', name=brand_assets.nyquist) }}" alt="Logo Nyquist" loading="lazy" />
       <div>
         <h4>Grupo Nyquist</h4>
         <p>Lineas UTP: analisis y procesamiento de senales 1D/2D, comunicaciones inalambricas, procesamiento digital de senales, protocolos y redes de comunicacion, seguridad TIC y educacion.</p>
       </div>
     </article>
     <article class="about-group-card">
-      <img src="{{ url_for('pages.image_asset', name='Logo_Robotica_Aplicada.jpg') }}" alt="Logo Robotica Aplicada" loading="lazy" />
+      <img src="{{ url_for('pages.image_asset', name=brand_assets.robotica_aplicada) }}" alt="Logo Robotica Aplicada" loading="lazy" />
       <div>
         <h4>Robotica Aplicada</h4>
         <p>Lineas UTP: instrumentacion electronica y transmision de datos, instrumentacion fisica y simulacion de procesos industriales, reconocimiento de voz, tratamiento de senales y vision artificial.</p>
       </div>
     </article>
     <article class="about-group-card">
-      <img src="{{ url_for('pages.image_asset', name='utp_logo.png') }}" alt="Logo UTP" loading="lazy" />
+      <img src="{{ url_for('pages.image_asset', name=brand_assets.utp) }}" alt="Logo UTP" loading="lazy" />
       <div>
         <h4>Universidad Tecnologica de Pereira</h4>
         <p>Institucion academica que respalda el proyecto en contexto formativo y de investigacion.</p>

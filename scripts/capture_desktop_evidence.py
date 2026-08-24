@@ -41,6 +41,21 @@ def _parse_size(value: str) -> tuple[int, int]:
     return width, height
 
 
+def _capture_window(target, bbox: tuple[int, int, int, int]):
+    """Captura la ventana nativa indicada, sin depender de qué app tiene foco.
+
+    En un escritorio compartido, ``ImageGrab.grab(bbox=...)`` puede registrar
+    VS Code u otra aplicación que se superponga durante el cambio de foco.
+    Pillow moderno permite capturar el HWND directamente en Windows; el bbox
+    queda como respaldo para versiones antiguas de Pillow.
+    """
+
+    try:
+        return ImageGrab.grab(bbox=bbox, all_screens=True)
+    except (OSError, TypeError, ValueError):
+        return ImageGrab.grab(window=int(target.winfo_id()))
+
+
 def capture_theme(
     theme: ThemeName,
     output_dir: Path,
@@ -95,7 +110,7 @@ def capture_theme(
                 _verify_layout(app, width)
             prefix = "editor_mundos" if world_editor else "simulacion"
             captured_target = output_dir / f"{prefix}_{theme}_{width}x{height}.png"
-            ImageGrab.grab(bbox=(left, top, left + width, top + height), all_screens=True).save(captured_target)
+            _capture_window(target, (left, top, left + width, top + height)).save(captured_target)
         finally:
             app._on_close()
 

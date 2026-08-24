@@ -1,5 +1,14 @@
 # Changelog
 
+## Pendiente de la próxima versión
+
+- El resaltado del editor Tkinter ahora usa el tokenizador estándar de Python:
+  comentarios, comentarios en línea y docstrings multilínea reciben color en
+  todas sus líneas y conservan contraste en los temas claro y oscuro.
+- El empaquetado Windows incluye todos los assets de escritorio, crea un ZIP
+  portable verificable y puede generar un instalador Inno Setup para la misma
+  distribución.
+
 ## v1.5.0 - 2026-08-05
 
 - Cerrada la paridad funcional Web/Tkinter para ejecución, menús, catálogos,

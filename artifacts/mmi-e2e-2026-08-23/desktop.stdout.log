@@ -1,0 +1,19 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\MisProyectos\Codex_SimuladorLegoEV3
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 7 items
+
+tests\e2e\test_desktop_pywinauto.py .F.....                              [100%]
+
+================================== FAILURES ===================================
+_____________ test_desktop_navigation_opens_help_and_world_editor _____________
+tests\e2e\test_desktop_pywinauto.py:205: in test_desktop_navigation_opens_help_and_world_editor
+    manual.wait("visible", timeout=5)
+.venv\Lib\site-packages\pywinauto\application.py:529: in wait
+    wait_until(timeout, retry_interval,
+.venv\Lib\site-packages\pywinauto\timings.py:375: in wait_until
+    raise err
+E   pywinauto.timings.TimeoutError: timed out
+=================== 1 failed, 6 passed in 85.86s (0:01:25) ====================

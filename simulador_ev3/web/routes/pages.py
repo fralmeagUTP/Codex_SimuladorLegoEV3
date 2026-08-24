@@ -17,8 +17,15 @@ from flask import (
 )
 
 from simulador_ev3 import __version__
-from simulador_ev3.shared.help_tutorials import HELP_CATEGORIES, HELP_GUIDES
-from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.asset_catalog import asset_filename, editor_asset_manifest
+from simulador_ev3.shared.interface_catalog import SESSION_STATUS_LABELS
+from simulador_ev3.shared.help_tutorials import (
+    HELP_CATEGORIES,
+    HELP_GUIDES,
+    HELP_REFERENCES,
+    PYBRICKS_GLOSSARY,
+)
+from simulador_ev3.shared.paths import resolve_documentation_path, resolve_image_assets_dir
 from simulador_ev3.web.errors import InvalidPayload
 from simulador_ev3.web.redis_support import redis_runtime_state
 
@@ -27,7 +34,18 @@ bp = Blueprint("pages", __name__)
 
 @bp.get("/")
 def index():
-    return render_template("index.html")
+    asset_manifest = editor_asset_manifest()
+    return render_template(
+        "index.html",
+        asset_files={str(item["asset_id"]): str(item["filename"]) for item in asset_manifest},
+        asset_manifest=asset_manifest,
+        status_labels=SESSION_STATUS_LABELS,
+        brand_assets={
+            "nyquist": asset_filename("logo-nyquist"),
+            "robotica_aplicada": asset_filename("logo-robotica-aplicada"),
+            "utp": asset_filename("logo-utp"),
+        },
+    )
 
 
 @bp.get("/worlds")
@@ -42,12 +60,26 @@ def help_page():
         categories=HELP_CATEGORIES,
         guides=HELP_GUIDES,
         guides_by_id={guide.identifier: guide for guide in HELP_GUIDES},
+        references=HELP_REFERENCES,
+        glossary=PYBRICKS_GLOSSARY,
         destinations={
             "simulation": url_for("pages.index"),
             "worlds": url_for("pages.worlds_page"),
             "debug": url_for("pages.index", help="debug"),
         },
     )
+
+
+@bp.get("/documentation/<reference_id>")
+def documentation_resource(reference_id: str):
+    """Entrega únicamente documentos canónicos anunciados por la ayuda compartida."""
+
+    filenames = {reference.identifier: reference.filename for reference in HELP_REFERENCES}
+    filename = filenames.get(reference_id)
+    if filename is None:
+        raise InvalidPayload("Referencia de documentación desconocida.")
+    path = resolve_documentation_path(filename)
+    return send_from_directory(path.parent, path.name, as_attachment=False)
 
 
 @bp.get("/operations")

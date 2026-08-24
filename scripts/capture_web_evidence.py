@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import re
 import socket
 import tempfile
@@ -16,6 +17,20 @@ from simulador_ev3.web.app import create_app
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = ROOT / "Documentos" / "EVIDENCIA_WEB_2026-05-20"
+DEFAULT_LAYOUT_VIEWPORTS = [(1280, 800), (1366, 768), (1570, 900)]
+
+
+def parse_size(value: str) -> tuple[int, int]:
+    """Convierte una resolución ``ANCHOxALTO`` para evidencia reproducible."""
+
+    try:
+        width_text, height_text = value.lower().split("x", maxsplit=1)
+        width, height = int(width_text), int(height_text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Use ANCHOxALTO, por ejemplo 1280x800.") from exc
+    if width < 390 or height < 480:
+        raise argparse.ArgumentTypeError("La evidencia requiere al menos 390x480 px.")
+    return width, height
 
 
 def prepare_evidence_data(base_dir: Path) -> tuple[Path, Path]:
@@ -165,32 +180,53 @@ def assert_canvas_has_blue_preview(page) -> None:
         raise AssertionError(f"no se detecto previsualizacion azul: {metrics}")
 
 
-def capture_layouts(browser, base_url: str, output_dir: Path) -> list[str]:
+def capture_layouts(
+    browser,
+    base_url: str,
+    output_dir: Path,
+    *,
+    viewports: list[tuple[int, int]] | None = None,
+    themes: tuple[str, ...] = ("light",),
+) -> list[str]:
     files: list[str] = []
-    viewports = [(1280, 800), (1366, 768), (1570, 900)]
+    viewports = viewports or DEFAULT_LAYOUT_VIEWPORTS
     pages = [
         ("/", "simulacion", ["#worldCanvas", "#codeEditor", "#telemetry", "#screen"]),
         ("/worlds", "mundos", ["#worldCanvas", "#assetPalette", "#selectedAsset", "#validationStatus"]),
     ]
 
     for width, height in viewports:
-        context = browser.new_context(viewport={"width": width, "height": height})
-        page = context.new_page()
-        try:
-            for path, name, selectors in pages:
-                page.goto(f"{base_url}{path}")
-                expect(page.locator("#sessionStatus")).to_have_text(re.compile("created|ready"))
-                for selector in selectors:
-                    expect(page.locator(selector)).to_be_visible()
-                    if selector == "#worldCanvas":
-                        assert_world_canvas_respects_container(page)
-                    else:
-                        assert_box_in_viewport(page, selector)
-                target = output_dir / f"{name}_{width}x{height}.png"
-                page.screenshot(path=str(target), full_page=True)
-                files.append(str(target.relative_to(ROOT)))
-        finally:
-            context.close()
+        for theme in themes:
+            context = browser.new_context(viewport={"width": width, "height": height})
+            page = context.new_page()
+            try:
+                for path, name, selectors in pages:
+                    page.goto(f"{base_url}{path}")
+                    expect(page.locator("#sessionStatus")).to_have_text(re.compile("created|ready"))
+                    if theme != "light":
+                        page.locator(".menu-trigger", has_text="Tema").hover()
+                        page.locator(f"[data-theme-choice='{theme}']").click()
+                        expect(page.locator("html")).to_have_attribute("data-theme", theme)
+                    for selector in selectors:
+                        expect(page.locator(selector)).to_be_visible()
+                        if selector == "#worldCanvas":
+                            assert_world_canvas_respects_container(page)
+                        else:
+                            assert_box_in_viewport(page, selector)
+                    # Los sprites canónicos se cargan de forma asíncrona; el
+                    # módulo de canvas redibuja al recibir `ev3-assets-loaded`.
+                    # Esperar una vuelta corta del navegador evita registrar
+                    # el fallback transitorio como si fuese la escena final.
+                    page.wait_for_timeout(180)
+                    # Se preservan los nombres históricos para el tema claro
+                    # predeterminado; cualquier captura explícita de oscuro
+                    # queda identificada y no pisa la evidencia clara.
+                    suffix = "" if themes == ("light",) else f"_{theme}"
+                    target = output_dir / f"{name}{suffix}_{width}x{height}.png"
+                    page.screenshot(path=str(target), full_page=True)
+                    files.append(str(target.relative_to(ROOT)))
+            finally:
+                context.close()
     return files
 
 
@@ -299,10 +335,10 @@ def capture_two_profiles(browser, base_url: str, output_dir: Path) -> list[str]:
         page_a.locator("#runBtn").click()
         page_b.locator("#runBtn").click()
 
-        expect(page_a.locator("#speaker")).to_contain_text("440")
-        expect(page_b.locator("#speaker")).to_contain_text("880")
-        expect(page_a.locator("#speaker")).not_to_contain_text("880")
-        expect(page_b.locator("#speaker")).not_to_contain_text("440")
+        # La duración es el tiempo restante y puede contener 440/880; la
+        # frecuencia al inicio del texto identifica inequívocamente la sesión.
+        expect(page_a.locator("#speaker")).to_have_text(re.compile(r"^440 Hz"))
+        expect(page_b.locator("#speaker")).to_have_text(re.compile(r"^880 Hz"))
 
         for page, name in ((page_a, "perfil_a"), (page_b, "perfil_b")):
             target = output_dir / f"{name}_sesion_independiente.png"
@@ -322,13 +358,30 @@ def main() -> None:
         default=DEFAULT_OUTPUT_DIR,
         help="Directorio donde se guardan las capturas.",
     )
-    output_dir = parser.parse_args().output_dir.resolve()
+    parser.add_argument(
+        "--size", type=parse_size, action="append", default=[],
+        help="Resolución a capturar; se puede repetir.",
+    )
+    parser.add_argument(
+        "--theme", choices=("light", "dark", "all"), default="light",
+        help="Tema para las capturas de composición (predeterminado: light).",
+    )
+    args = parser.parse_args()
+    output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    themes = ("light", "dark") if args.theme == "all" else (args.theme,)
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
     with LiveServer() as server:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             try:
-                files = capture_layouts(browser, server.url, output_dir)
+                files = capture_layouts(
+                    browser,
+                    server.url,
+                    output_dir,
+                    viewports=args.size or None,
+                    themes=themes,
+                )
                 files.extend(capture_feature_flows(browser, server.url, output_dir))
                 files.extend(capture_two_profiles(browser, server.url, output_dir))
             finally:

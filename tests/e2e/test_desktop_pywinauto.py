@@ -9,6 +9,7 @@ interactivo. Para ejecutarlos localmente:
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -139,6 +140,21 @@ def _wait_for_state_file(path: Path, expected: str, timeout: float = 5.0) -> boo
     return False
 
 
+def _wait_for_nonempty_state_file(path: Path, timeout: float = 5.0) -> str | None:
+    """Devuelve el primer contenido no vacío emitido por la instancia Tk."""
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            content = path.read_text(encoding="utf-8")
+            if content:
+                return content
+        except FileNotFoundError:
+            pass
+        time.sleep(0.05)
+    return None
+
+
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
 def test_desktop_startup_shows_intro_before_main_window() -> None:
     """Comprueba que la intro ocupa el arranque y que no deja ventanas residuales."""
@@ -184,8 +200,9 @@ def test_desktop_navigation_opens_help_and_world_editor() -> None:
 
         # Los popup Tk son owner-drawn y Windows no expone sus textos. Se usa
         # navegación física de teclado tras abrir cada botón de menú.
-        main.click_input(coords=(800, 53))  # Ayuda; último menú de cabecera.
-        main.type_keys("{DOWN}{ENTER}")
+        # F1 es el atajo oficial; evita una coordenada frágil cuando cambia
+        # el ancho de los menús por accesibilidad o nuevas opciones.
+        main.type_keys("{F1}")
         manual = desktop.window(title="Centro de ayuda - Simulador EV3 Pybricks")
         manual.wait("visible", timeout=5)
         assert manual.is_visible()
@@ -200,6 +217,41 @@ def test_desktop_navigation_opens_help_and_world_editor() -> None:
         editor.close()
     finally:
         _stop_native_application(application)
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_learning_status_displays_initial_activity() -> None:
+    """La ventana Tk real debe presentar la actividad pedagógica compartida."""
+
+    pytest.importorskip("pywinauto")
+    root = Path(__file__).resolve().parents[2]
+    state_path = root / "artifacts" / "e2e-desktop" / "learning-status.txt"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.unlink(missing_ok=True)
+    state_path_literal = repr(str(state_path))
+    source = (
+        "from pathlib import Path; "
+        "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); "
+        f"state_path = Path({state_path_literal}); "
+        "app.after(250, lambda: state_path.write_text(app._learning_text_var.get(), encoding='utf-8')); "
+        "app.mainloop()"
+    )
+    application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
+    try:
+        try:
+            main = _wait_for_new_window("BotLab Studio", previous_handles)
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
+        assert main.is_visible()
+        text = _wait_for_nonempty_state_file(state_path)
+        assert text is not None
+        assert "Actividad: first-simulation" in text
+        assert "Progreso: 0/1" in text
+        assert "Resultado: pendiente" in text
+    finally:
+        _stop_native_application(application)
+        state_path.unlink(missing_ok=True)
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
@@ -247,6 +299,91 @@ def test_desktop_preset_world_catalog_loads_every_world() -> None:
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_real_catalog_loads_examples_scenarios_and_missions() -> None:
+    """Recorre físicamente los recursos distribuidos desde los menús Tkinter."""
+
+    pytest.importorskip("pywinauto")
+    root = Path(__file__).resolve().parents[2]
+    examples = sorted((root / "examples").glob("*.py"))
+    assert len(examples) >= 20
+    state_path = root / "artifacts" / "e2e-desktop" / "catalog-loaded.txt"
+    layout_path = root / "artifacts" / "e2e-desktop" / "catalog-menu-layout.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.unlink(missing_ok=True)
+    layout_path.unlink(missing_ok=True)
+    state_path_literal = repr(str(state_path))
+    layout_path_literal = repr(str(layout_path))
+    source = (
+        "import json; "
+        "from pathlib import Path; "
+        "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); "
+        f"state_path = Path({state_path_literal}); "
+        f"layout_path = Path({layout_path_literal}); "
+        "load_example = app._load_example; "
+        "app._load_example = lambda path: (load_example(path), state_path.write_text("
+        "'example:' + Path(path).name, encoding='utf-8'))[0]; "
+        "apply_scenario = app._apply_scenario; "
+        "app._apply_scenario = lambda world, example: (apply_scenario(world, example), state_path.write_text("
+        "'scenario:' + world + ':' + example, encoding='utf-8'))[0]; "
+        "load_mission = app._load_mission; "
+        "app._load_mission = lambda identifier: (load_mission(identifier), state_path.write_text("
+        "'mission:' + identifier, encoding='utf-8'))[0]; "
+        "app.after(750, lambda: layout_path.write_text(json.dumps({button.cget('text'): ["
+        "button.winfo_rootx() + button.winfo_width() // 2, "
+        "button.winfo_rooty() + button.winfo_height() // 2] "
+        "for button in app._header_menu_buttons}), encoding='utf-8')); "
+        "app.mainloop()"
+    )
+    application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
+    try:
+        try:
+            main = _wait_for_new_window("BotLab Studio", previous_handles)
+        except Exception as exc:  # noqa: BLE001
+            pytest.skip(f"el entorno no expone un escritorio Windows visible: {exc}")
+
+        layout_text = _wait_for_nonempty_state_file(layout_path)
+        assert layout_text is not None
+        absolute_menu_positions = json.loads(layout_text)
+        main_rect = main.rectangle()
+        menu_positions = {
+            label: (position[0] - main_rect.left, position[1] - main_rect.top)
+            for label, position in absolute_menu_positions.items()
+        }
+
+        # Las coordenadas relativas provienen de los botones reales de esta
+        # ventana Tkinter. Cada selección usa el menú nativo y Enter; la
+        # instrumentación solo captura su geometría para evitar clicks frágiles.
+        for index, example in enumerate(examples):
+            main.set_focus()
+            main.click_input(coords=menu_positions["Ejemplos"])
+            main.type_keys("{DOWN}" * (index + 1) + "{ENTER}")
+            assert _wait_for_state_file(state_path, f"example:{example.name}")
+
+        scenarios = (
+            ("01_linea_negra_basica.json", "11_siguelineas_basico.py"),
+            ("05_obstaculos_baliza_ir.json", "15_esquiva_obstaculos.py"),
+            ("05_obstaculos_baliza_ir.json", "02_intro_pantalla_altavoz.py"),
+            ("12_radar_ultrasonido_360.json", "23_radar_ultrasonido_5grados.py"),
+        )
+        for index, (world, example) in enumerate(scenarios):
+            main.set_focus()
+            main.click_input(coords=menu_positions["Escenarios"])
+            main.type_keys("{DOWN}" * (index + 1) + "{ENTER}")
+            assert _wait_for_state_file(state_path, f"scenario:{world}:{example}")
+
+        for index, identifier in enumerate(("sigue-linea-basico", "evita-obstaculos", "radar-ultrasonido")):
+            main.set_focus()
+            main.click_input(coords=menu_positions["Misiones"])
+            main.type_keys("{DOWN}" * (index + 1) + "{ENTER}")
+            assert _wait_for_state_file(state_path, f"mission:{identifier}")
+    finally:
+        _stop_native_application(application)
+        state_path.unlink(missing_ok=True)
+        layout_path.unlink(missing_ok=True)
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
 def test_desktop_controls_cover_execution_debug_and_keyboard() -> None:
     """Recorrido de botones nativos para ejecución, pausa, depuración y Ctrl+N."""
 
@@ -274,6 +411,48 @@ def test_desktop_controls_cover_execution_debug_and_keyboard() -> None:
         main.click_input(coords=(304, 91))  # Detener y reiniciar
     finally:
         _stop_native_application(application)
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_tab_reaches_header_menus_from_native_window() -> None:
+    """El Tab físico alcanza los menús desde la ventana nativa de Tkinter."""
+
+    pytest.importorskip("pywinauto")
+    root = Path(__file__).resolve().parents[2]
+    state_path = root / "artifacts" / "e2e-desktop" / "header-tab-focus.txt"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.unlink(missing_ok=True)
+    source = (
+        "from pathlib import Path; "
+        "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); "
+        "target = Path(r'" + str(state_path) + "'); "
+        "original_post = app._post_header_menu; "
+        "app._post_header_menu = lambda item, popup: ("
+        "target.write_text('open:' + item.cget('text'), encoding='utf-8'), "
+        "original_post(item, popup))[1]; "
+        "[item.bind('<FocusIn>', lambda _event, item=item: "
+        "target.write_text(item.cget('text') + '|' + item.cget('bg'), encoding='utf-8'), add='+') "
+        "for item in app._header_menu_buttons]; "
+        "app.mainloop()"
+    )
+    application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
+    try:
+        main = _wait_for_new_window("BotLab Studio", previous_handles)
+        main.set_focus()
+        main.type_keys("{TAB}")
+        focused_menu = _wait_for_nonempty_state_file(state_path)
+        assert focused_menu == "Archivo|#0D47A1", (
+            "El primer Tab físico debe enfocar y resaltar Archivo; se recibió "
+            f"{focused_menu!r}"
+        )
+        main.type_keys("{ENTER}")
+        assert _wait_for_state_file(state_path, "open:Archivo"), (
+            "Enter debe abrir el menú de cabecera que obtuvo foco mediante Tab"
+        )
+    finally:
+        _stop_native_application(application)
+        state_path.unlink(missing_ok=True)
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")

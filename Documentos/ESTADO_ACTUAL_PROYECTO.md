@@ -10,6 +10,17 @@ alcance evaluado. Web y Tkinter alcanzaron la paridad funcional definida por
 OpenSpec. El PR #4 contiene el cierre publicado y sus comprobaciones remotas
 aprobaron.
 
+### Actualización MMI — 2026-08-23
+
+La campaña MMI sobre el commit `cbfd977` volvió a aprobar E2E Web (**56**), E2E
+Tkinter (**7**), contratos (**134**), núcleo/dominio (**243**, cobertura
+**92.61 %**), carga/runtime (**36**) y liberación (**12**). Ruff, Mypy, Bandit
+y Pip-Audit también aprobaron. La decisión vigente para ese commit es **apta
+con observaciones**: siguen abiertas la verificación manual de lector de
+pantalla (3.3), la compuerta de mutación local en Windows y la CI remota; no
+se han sustituido dichas verificaciones. Consultar
+`Documentos/INFORME_MMI_2026-08-23.md`.
+
 ## Línea base técnica
 
 | Área | Estado vigente |

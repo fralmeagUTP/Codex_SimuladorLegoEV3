@@ -1,0 +1,67 @@
+BOTLAB STUDIO / SIMULADOR EV3 PYBRICKS
+Guía rápida para iniciar y detener las aplicaciones locales
+============================================================
+
+REQUISITO PREVIO
+---------------
+Abra PowerShell o Símbolo del sistema (cmd) dentro de la carpeta del proyecto:
+
+  D:\MisProyectos\Codex_SimuladorLegoEV3
+
+La primera vez, instale las dependencias del proyecto según README.md.
+
+
+1. MONTAR EL SERVIDOR LOCAL DE LA APLICACIÓN WEB (PUERTO 5051)
+----------------------------------------------------------------
+
+Ejecute el lanzador oficial, desde PowerShell o cmd:
+
+  .\scripts\start_web.cmd -Port 5051
+
+Cuando el servidor esté iniciado, abra en el navegador:
+
+  http://127.0.0.1:5051
+
+IMPORTANTE: use siempre el puerto 5051 para esta aplicación. No use el 5050,
+porque puede estar ocupado por otra aplicación local.
+
+2. DESMONTAR O DETENER EL SERVIDOR WEB
+--------------------------------------
+
+Ejecute el lanzador oficial:
+
+  .\scripts\stop_web.cmd -Port 5051
+
+El script identifica y detiene solamente el proceso que escucha en el puerto
+5051. No detiene procesos de otros puertos.
+
+Para desmontar y montar nuevamente el servidor en un solo paso, ejecute:
+
+  .\scripts\restart_web.cmd -Port 5051
+
+
+3. EJECUTAR LA APLICACIÓN DE ESCRITORIO (TKINTER)
+-------------------------------------------------
+
+En PowerShell o cmd, desde la carpeta del proyecto, ejecute:
+
+  .\.venv\Scripts\python.exe -m simulador_ev3.ui.main_window
+
+La pantalla de inicio aparece primero; después se abrirá BotLab Studio.
+
+Para cerrar la aplicación de escritorio, use Archivo > Salir o el botón X de
+la ventana. Si está ejecutando una simulación, deténgala y reiníciela antes de
+salir para conservar un estado coherente.
+
+
+4. COMPROBACIÓN RÁPIDA
+---------------------
+
+Web:
+  - Visite http://127.0.0.1:5051.
+  - Debe mostrarse BotLab Studio en el navegador.
+
+Escritorio:
+  - Debe aparecer la ventana BotLab Studio.
+  - Use Tab desde la barra superior para navegar por Archivo, Ejemplos,
+    Mundos y los demás menús; Enter abre el menú enfocado.

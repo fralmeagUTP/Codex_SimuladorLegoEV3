@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 from werkzeug.serving import make_server
 
+from simulador_ev3.shared.paths import resolve_examples_dir, resolve_worlds_dir
 from simulador_ev3.web.app import create_app
 
 
@@ -118,6 +119,37 @@ def live_web_app(tmp_path):
             "TESTING": True,
             "WORLDS_DIR": worlds_dir,
             "EXAMPLES_DIR": examples_dir,
+            "MAX_ACTIVE_SESSIONS": 5,
+            "MAX_RUNNING_SIMULATIONS": 3,
+            "SCRIPT_MAX_RUNTIME_S": 2.0,
+            "SSE_HEARTBEAT_S": 0.1,
+            "ENABLE_SESSION_CLEANUP_THREAD": False,
+        }
+    )
+    port = _free_port()
+    server = make_server("127.0.0.1", port, app, threaded=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.shutdown()
+        thread.join(timeout=2)
+
+
+@pytest.fixture()
+def full_catalog_web_app():
+    """Servidor E2E aislado que publica el catálogo real distribuido.
+
+    No reemplaza el fixture mínimo: permite recorrer desde el navegador cada
+    recurso que un estudiante verá en los menús de la aplicación instalada.
+    """
+
+    app = create_app(
+        {
+            "TESTING": True,
+            "WORLDS_DIR": resolve_worlds_dir(),
+            "EXAMPLES_DIR": resolve_examples_dir(),
             "MAX_ACTIVE_SESSIONS": 5,
             "MAX_RUNNING_SIMULATIONS": 3,
             "SCRIPT_MAX_RUNTIME_S": 2.0,
@@ -327,20 +359,28 @@ def test_wait_duration_remains_close_to_simulated_time_in_the_browser(page, live
 
     page.goto(f"{live_web_app}/")
     page.locator("#codeEditor").fill("from pybricks.tools import wait\nwait(900)\n")
-    started_at = time.monotonic()
     page.locator("#runBtn").click()
 
     expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
-    elapsed_s = time.monotonic() - started_at
     simulated_s = float(page.locator("#telemetryTime").inner_text().removesuffix("s"))
+    render_diagnostics = page.evaluate("window.EV3RenderDiagnostics()")
+    timing = render_diagnostics["executionTiming"]
+    transitions = timing["transitions"]
+    running_at_ms = next(item["atMs"] for item in transitions if item["status"] == "running")
+    finished_at_ms = next(item["atMs"] for item in reversed(transitions) if item["status"] == "finished")
+    started_at_ms = timing["startedAtMs"]
+    assert started_at_ms is not None
+    startup_s = (running_at_ms - started_at_ms) / 1000
+    runtime_s = (finished_at_ms - running_at_ms) / 1000
 
-    # El motor usa ticks discretos de 20 ms y el hilo del script puede arrancar
-    # entre dos ticks. Por ello el snapshot terminal puede quedar hasta dos
-    # ticks por detrás de la espera solicitada, sin que el renderizado vaya
-    # retrasado respecto del tiempo de pared. El límite evita aceptar una
-    # pérdida superior a esa cuantización documentada.
+    # Separar preparación IPC de ejecución: el usuario debe recibir estado
+    # running con rapidez y, desde ese momento, la simulación debe acompasar
+    # su reloj y renderizado con el reloj de pared. Un límite único desde el
+    # clic mezclaba ambos contratos y diagnosticaba erróneamente un problema
+    # de renderizado cuando el runtime ya iba a tiempo real.
     assert simulated_s >= 0.86
-    assert elapsed_s <= max(1.5, simulated_s * 1.25), (elapsed_s, simulated_s)
+    assert startup_s <= 0.75, (startup_s, render_diagnostics)
+    assert runtime_s <= max(1.2, simulated_s * 1.25), (runtime_s, simulated_s, render_diagnostics)
 
 
 def test_successful_execution_shows_one_accessible_toast_after_terminal_snapshot(page, live_web_app, expect):
@@ -454,6 +494,49 @@ def test_map_canvas_and_tools_stay_inside_viewport(page, live_web_app, viewport)
     assert beam_box["x"] + beam_box["width"] <= viewport[0]
 
 
+@pytest.mark.parametrize("viewport", [(1920, 1080), (1280, 800), (1024, 768), (390, 844)])
+def test_critical_simulation_panels_stay_inside_viewport(page, live_web_app, viewport):
+    """El punto de ruptura debe contener editor, telemetría y Brick."""
+
+    page.set_viewport_size({"width": viewport[0], "height": viewport[1]})
+    page.goto(f"{live_web_app}/")
+    layout = page.evaluate(
+        """() => ({
+            mediaMatches: window.matchMedia('(max-width: 1120px)').matches,
+            viewport: window.innerWidth,
+            documentWidth: document.documentElement.scrollWidth,
+            mainColumns: getComputedStyle(document.querySelector('.sim-main-area')).gridTemplateColumns,
+        })"""
+    )
+
+    for selector in (".sim-map-pane", "#codeEditor", "#telemetry", "#screen"):
+        box = page.locator(selector).bounding_box()
+        assert box is not None, f"{selector} no es visible en {viewport}"
+        assert box["x"] >= 0, f"{selector} inicia fuera del viewport: {box}"
+        assert box["x"] + box["width"] <= viewport[0] + 1, (
+            f"{selector} excede el viewport {viewport}: {box}; layout={layout}"
+        )
+
+    if viewport[0] <= 1120:
+        canvas_box = page.locator("#worldCanvas").bounding_box()
+        pane_box = page.locator(".sim-map-pane").bounding_box()
+        assert canvas_box is not None and pane_box is not None
+        # El panel conserva 12 px de padding horizontal; el canvas no debe
+        # añadir el margen de seguimiento de escritorio sobre ese espacio.
+        assert canvas_box["x"] <= pane_box["x"] + 16, (
+            f"el canvas inicia desplazado en la composición compacta: "
+            f"canvas={canvas_box}, panel={pane_box}"
+        )
+
+
+def test_web_exposes_and_loads_the_canonical_robot_asset(page, live_web_app):
+    """El primer render no debe quedar permanentemente en el fallback verde."""
+
+    page.goto(f"{live_web_app}/")
+    page.wait_for_function("() => Boolean(window.EV3Canvas?.isAssetReady('robot_ev3_32x32'))")
+    assert page.evaluate("window.EV3Canvas.isAssetReady('robot_ev3_32x32')")
+
+
 def test_simulation_controls_follow_execution_state(page, live_web_app, expect):
     page.goto(f"{live_web_app}/")
 
@@ -551,6 +634,79 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
     expect(page.locator("#console")).to_contain_text("Simulador EV3 Web")
 
 
+def test_real_catalog_loads_every_example_world_scenario_and_mission(
+    page, full_catalog_web_app, expect
+):
+    """Recorre con Chromium todos los recursos realmente distribuidos.
+
+    El oráculo es la actualización visible del editor, mundo o consola. Así se
+    detectan recursos rotos que una comprobación de lectura de archivos no
+    descubriría en los menús de la interfaz real.
+    """
+
+    page.goto(f"{full_catalog_web_app}/")
+
+    examples = page.locator("#examplesMenu button")
+    expected_example_count = len(list(resolve_examples_dir().glob("*.py")))
+    expect(examples).to_have_count(expected_example_count, timeout=5000)
+    example_names = examples.all_inner_texts()
+    assert len(example_names) >= 20
+    for name in example_names:
+        page.locator(".menu-trigger", has_text="Ejemplos").hover()
+        page.locator("#examplesMenu").get_by_role("button", name=name, exact=True).click()
+        expected_source = (resolve_examples_dir() / name).read_text(encoding="utf-8")
+        expect(page.locator("#codeEditor")).to_have_value(expected_source, timeout=3000)
+
+    worlds_menu = page.locator(".menu-trigger", has_text="Mundos")
+    presets_menu = page.locator("#worldsMenu .menu-subtoggle", has_text="Mundos preestablecidos")
+    worlds = page.locator("#worldsMenu .menu-sublist button")
+    expect(worlds).to_have_count(len(list(resolve_worlds_dir().glob("*.json"))), timeout=5000)
+    world_names = worlds.all_inner_texts()
+    assert len(world_names) >= 10
+    for name in world_names:
+        worlds_menu.click()
+        if presets_menu.get_attribute("aria-expanded") != "true":
+            presets_menu.click()
+        expect(page.locator("#worldsMenu .menu-sublist")).to_be_visible()
+        page.locator("#worldsMenu .menu-sublist").get_by_role("button", name=name, exact=True).click()
+        expect(page.locator("#statusWorld")).to_have_text(name)
+
+    for scenario in ("line", "ultrasonic", "brick", "radar"):
+        page.locator(".menu-trigger", has_text="Escenarios").hover()
+        page.locator(f"#scenariosMenu button[data-scenario='{scenario}']").click()
+        expect(page.locator("#console")).to_contain_text("Escenario cargado:")
+
+    page.locator(".menu-trigger", has_text="Misiones").hover()
+    mission_names = page.locator("#missionsMenu button").all_inner_texts()
+    assert mission_names
+    for name in mission_names:
+        page.locator(".menu-trigger", has_text="Misiones").hover()
+        page.locator("#missionsMenu").get_by_role("button", name=name, exact=True).click()
+        expect(page.locator("#console")).to_contain_text("Misión cargada:")
+
+
+def test_legacy_obstacle_world_renders_the_canonical_wall_texture(
+    page, full_catalog_web_app, expect
+):
+    """Las cajas de un mundo histórico se pintan con el PNG, no como rectángulos grises."""
+
+    page.goto(f"{full_catalog_web_app}/")
+    page.locator(".menu-trigger", has_text="Mundos").click()
+    presets = page.locator("#worldsMenu .menu-subtoggle", has_text="Mundos preestablecidos")
+    presets.click()
+    page.locator("#worldsMenu .menu-sublist").get_by_role(
+        "button", name="12_radar_ultrasonido_360.json", exact=True
+    ).click()
+    expect(page.locator("#statusWorld")).to_have_text("12_radar_ultrasonido_360.json")
+
+    # El asset se solicita y queda disponible desde el navegador real sólo si
+    # ``drawObstacles`` resolvió el nombre histórico al asset canónico.
+    page.wait_for_function(
+        "() => window.EV3Canvas.isAssetReady('wall_64x64_b')",
+        timeout=5000,
+    )
+
+
 def test_world_presets_remain_open_when_activated_by_click(page, live_web_app, expect):
     """El submenú debe funcionar sin depender del hover del puntero."""
 
@@ -620,6 +776,16 @@ def test_menu_keyboard_opens_items_and_escape_restores_trigger_focus(page, live_
     expect(file_menu).to_have_attribute("aria-expanded", "false")
     expect(new_script).to_be_hidden()
     assert page.evaluate("document.activeElement.textContent.trim()") == "Archivo"
+
+
+def test_activity_guide_replaces_the_fixed_learning_panel(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+
+    expect(page.locator("#learningPanel")).to_have_count(0)
+    page.get_by_role("button", name="Ayuda", exact=True).click()
+    guide = page.locator("#activityGuideLink")
+    expect(guide).to_be_visible()
+    expect(guide).to_have_attribute("href", re.compile(r"#guide-first-simulation$"))
 
 
 def test_primary_menu_has_a_predictable_tab_order(page, live_web_app):

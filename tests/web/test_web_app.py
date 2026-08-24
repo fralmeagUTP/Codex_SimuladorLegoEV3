@@ -66,6 +66,36 @@ def test_index_page_references_existing_static_assets(tmp_path):
         assert asset.status_code == 200, path
 
 
+def test_session_exposes_versioned_presentation_learning_and_observability_contracts(tmp_path):
+    client = make_client(tmp_path)
+    created = client.post("/api/sessions", json={}).get_json()
+    headers = auth_headers(created)
+    session_id = created["session_id"]
+
+    presentation = client.get(f"/api/sessions/{session_id}/presentation", headers=headers)
+    learning = client.get(f"/api/sessions/{session_id}/learning", headers=headers)
+    observability = client.get(f"/api/sessions/{session_id}/observability", headers=headers)
+
+    assert presentation.status_code == learning.status_code == observability.status_code == 200
+    assert presentation.get_json()["version"] == 1
+    assert presentation.get_json()["controls"]["run"] is True
+    assert learning.get_json()["version"] == 1
+    assert observability.get_json()["session_id"] == session_id
+
+
+def test_observability_endpoint_never_exposes_session_token_or_source_code(tmp_path):
+    client = make_client(tmp_path)
+    created = client.post("/api/sessions", json={}).get_json()
+    headers = auth_headers(created)
+
+    response = client.get(f"/api/sessions/{created['session_id']}/observability", headers=headers)
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert created["owner_token"] not in body
+    assert "source_code" not in body
+
+
 def test_wsgi_entrypoint_exposes_flask_app():
     assert wsgi_app.name == "simulador_ev3.web.app"
     assert "session_manager" in wsgi_app.extensions
@@ -995,6 +1025,37 @@ def test_critical_web_controls_link_to_contextual_help(tmp_path):
     assert "#guide-create-world" in worlds
 
 
+def test_help_page_exposes_shared_references_and_glossary(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/help").get_data(as_text=True)
+    manual = client.get("/documentation/user-manual")
+    limits = client.get("/documentation/pybricks-limits")
+
+    assert "Manual de uso" in html
+    assert "GLOSARIO PYBRICKS" in html
+    assert "DriveBase" in html
+    assert manual.status_code == 200
+    assert limits.status_code == 200
+    assert "Simulador" in manual.get_data(as_text=True)
+
+
+def test_help_page_renders_every_shared_guide_reference_and_glossary_term(tmp_path):
+    from simulador_ev3.shared.help_tutorials import HELP_GUIDES, HELP_REFERENCES, PYBRICKS_GLOSSARY
+
+    html = make_client(tmp_path).get("/help").get_data(as_text=True)
+
+    for guide in HELP_GUIDES:
+        assert guide.identifier in html
+        assert guide.title in html
+        assert guide.expected_result in html
+    for reference in HELP_REFERENCES:
+        assert reference.title in html
+        assert f"/documentation/{reference.identifier}" in html
+    for term in PYBRICKS_GLOSSARY:
+        assert term.term in html
+
+
 def test_create_session_returns_id_and_token(tmp_path):
     client = make_client(tmp_path)
 
@@ -1298,6 +1359,25 @@ def test_snapshot_endpoint_accepts_post_for_proxy_compatibility(tmp_path):
     assert "no-store" in snap_response.headers.get("Cache-Control", "")
     snap = snap_response.get_json()
     assert snap["session_id"] == session["session_id"]
+
+
+def test_start_endpoint_accepts_source_in_the_same_request(tmp_path):
+    """La Web evita una ida y vuelta separada para cargar y arrancar código."""
+
+    client = make_client(tmp_path)
+    session_data = client.post("/api/sessions").get_json()
+    headers = auth_headers(session_data)
+    sid = session_data["session_id"]
+
+    response = client.post(
+        f"/api/sessions/{sid}/start",
+        json={"source": "from pybricks.tools import wait\nwait(20)\n"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "running"
+    client.post(f"/api/sessions/{sid}/stop", headers=headers)
 
 
 def test_snapshot_contract_has_sequence_and_new_generation_after_reset(tmp_path):

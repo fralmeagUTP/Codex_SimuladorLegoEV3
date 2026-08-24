@@ -31,6 +31,26 @@ class HelpGuide:
     related: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class HelpReference:
+    """Documento o referencia que las dos interfaces presentan con el mismo nombre."""
+
+    identifier: str
+    title: str
+    summary: str
+    filename: str
+    audience: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class GlossaryTerm:
+    """Término breve que evita que Web y escritorio expliquen Pybricks distinto."""
+
+    identifier: str
+    term: str
+    definition: str
+
+
 # Conserva el nombre público utilizado por integraciones y pruebas previas.
 HelpTutorial = HelpGuide
 
@@ -42,6 +62,68 @@ HELP_CATEGORIES: tuple[tuple[str, str], ...] = (
     ("programar", "Programar"),
     ("depurar", "Depurar"),
     ("resolver", "Resolver problemas"),
+)
+
+
+HELP_REFERENCES: tuple[HelpReference, ...] = (
+    HelpReference(
+        identifier="user-manual",
+        title="Manual de uso",
+        summary="Flujos completos de uso en Web y escritorio, incluidos mundos, ejecución y recuperación.",
+        filename="MANUAL_DE_USO.md",
+        audience=("estudiante", "docente"),
+    ),
+    HelpReference(
+        identifier="learning-guide",
+        title="Guía de aprendizaje por ejemplos",
+        summary="Ruta didáctica para avanzar desde la primera simulación hasta sensores y depuración.",
+        filename="GUIA_APRENDIZAJE_EJEMPLOS.md",
+        audience=("estudiante", "docente"),
+    ),
+    HelpReference(
+        identifier="pybricks-limits",
+        title="Diferencias simulador–robot físico",
+        summary="Compatibilidad educativa declarada y aspectos que deben comprobarse también en un EV3 real.",
+        filename="DIFERENCIAS_SIMULADOR_ROBOT.md",
+        audience=("estudiante", "docente", "desarrollador"),
+    ),
+    HelpReference(
+        identifier="technical-manual-web",
+        title="Manual técnico Web",
+        summary="Arquitectura, sesiones y operación de la aplicación Web.",
+        filename="MANUAL_TECNICO_WEB.html",
+        audience=("docente", "desarrollador", "soporte"),
+    ),
+    HelpReference(
+        identifier="technical-manual-desktop",
+        title="Manual técnico de escritorio",
+        summary="Arquitectura, operación y empaquetado de la aplicación Tkinter.",
+        filename="MANUAL_TECNICO_ESCRITORIO.html",
+        audience=("docente", "desarrollador", "soporte"),
+    ),
+)
+
+
+PYBRICKS_GLOSSARY: tuple[GlossaryTerm, ...] = (
+    GlossaryTerm("ev3brick", "EV3Brick", "Objeto virtual que da acceso a LCD, LED, altavoz y botones del EV3."),
+    GlossaryTerm("port", "Port", "Identificador de un puerto físico o virtual, por ejemplo Port.A o Port.S1."),
+    GlossaryTerm(
+        "motor", "Motor", "Dispositivo que informa velocidad y ángulo y ejecuta movimientos en un puerto configurado."
+    ),
+    GlossaryTerm(
+        "drivebase", "DriveBase", "Control de dos motores para avanzar, girar y consultar la pose del robot."
+    ),
+    GlossaryTerm(
+        "wait", "wait", "Pausa cooperativa del programa; permite actualizar la simulación y atender una cancelación."
+    ),
+    GlossaryTerm(
+        "snapshot", "Snapshot", "Estado coherente de robot, motores, sensores, Brick, LCD y ejecución en un instante."
+    ),
+    GlossaryTerm(
+        "timeout",
+        "Tiempo máximo",
+        "Límite configurable que protege frente a programas que no terminan; no sustituye Detener y reiniciar.",
+    ),
 )
 
 

@@ -104,9 +104,13 @@ Fecha de actualización: 2026-08-05
 
 Ejecutar solo si se va a distribuir un ejecutable:
 
-- Ejecutar `.\scripts\build_release_windows.ps1`.
+- Ejecutar `.\scripts\build_release_windows.ps1 -PythonExe .\.venv\Scripts\python.exe`.
 - Confirmar que el ejecutable inicia.
 - Confirmar que ejemplos y mundos se incluyen.
+- Confirmar que el ZIP contiene `SimuladorEV3.exe`, `_internal` y
+  `Documentos` mediante `tar -tf dist\SimuladorEV3-1.5.0-Windows-x64.zip`.
+- Si Inno Setup 6 está instalado, confirmar que se generó el instalador en
+  `dist\installer`. Si no lo está, documentar el uso de `-SkipInstaller`.
 - Revisar logs si falla audio o carga de assets.
 
 ## 10. Publicacion GitHub

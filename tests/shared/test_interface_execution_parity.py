@@ -3,11 +3,43 @@ from __future__ import annotations
 import json
 import time
 
+import pytest
+
 from simulador_ev3.application.desktop_session_adapter import DesktopSessionAdapter
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.domain.editor.world_editor_model import Placement
+from simulador_ev3.shared.paths import resolve_worlds_dir
+from simulador_ev3.shared.world_editor_projection import editor_placements, placement_geometry
+from simulador_ev3.web.errors import InvalidPayload
 from simulador_ev3.web.services.simulation_session import SimulationSession
+
+
+@pytest.mark.parametrize("limit", [0.0, 30.0, 60.0, 120.0, 300.0])
+def test_web_and_desktop_share_the_visible_runtime_limit_options(limit: float) -> None:
+    web = SimulationSession(session_id=f"runtime-limit-{limit}", config={}, max_runtime_s=30.0)
+    desktop = DesktopSessionAdapter(SimEngineConfig())
+    try:
+        web_result = web.set_max_runtime_s(limit)
+        desktop.set_max_runtime_s(limit)
+
+        assert web_result["max_runtime_s"] == desktop.max_runtime_s == limit
+    finally:
+        web.close()
+        desktop.close()
+
+
+def test_web_and_desktop_reject_runtime_limits_outside_the_visible_menu() -> None:
+    web = SimulationSession(session_id="runtime-limit-invalid", config={}, max_runtime_s=30.0)
+    desktop = DesktopSessionAdapter(SimEngineConfig())
+    try:
+        with pytest.raises(InvalidPayload, match="tiempo maximo"):
+            web.set_max_runtime_s(45.0)
+        with pytest.raises(ValueError, match="tiempo maximo"):
+            desktop.set_max_runtime_s(45.0)
+    finally:
+        web.close()
+        desktop.close()
 
 
 def test_web_and_desktop_finish_same_program_with_equivalent_snapshot() -> None:
@@ -38,6 +70,45 @@ def test_web_and_desktop_finish_same_program_with_equivalent_snapshot() -> None:
         assert web_snapshot["brick"]["speaker"]["freq"] == desktop_snapshot["brick"]["speaker"]["freq"] == 440
     finally:
         web.close()
+
+
+def test_terminal_snapshot_keeps_robot_telemetry_and_lcd_equivalent_in_both_interfaces() -> None:
+    """Canvas, telemetría y Brick deben derivar del mismo snapshot terminal."""
+
+    source = (
+        "from pybricks.hubs import EV3Brick\n"
+        "from pybricks.parameters import Color\n"
+        "from pybricks.tools import wait\n"
+        "ev3 = EV3Brick()\n"
+        "ev3.light.on(Color.GREEN)\n"
+        "ev3.screen.print('snapshot terminal')\n"
+        "wait(20)\n"
+    )
+    web = SimulationSession(session_id="terminal-snapshot-parity", config={}, max_runtime_s=2.0)
+    desktop = DesktopSessionAdapter(SimEngineConfig())
+    try:
+        web.load_script(source)
+        desktop.load_script(source)
+        web.start()
+        desktop.start()
+
+        for _ in range(30):
+            if web.status == "finished" and desktop.presentation_state().status == "finished":
+                break
+            time.sleep(0.05)
+
+        web_snapshot = web.snapshot_response()["snapshot"]
+        desktop_snapshot = desktop.current_snapshot().to_dict()
+        assert web.status == desktop.presentation_state().status == "finished"
+        assert web_snapshot["robot"] == desktop_snapshot["robot"]
+        assert web_snapshot["colliding"] == desktop_snapshot["colliding"]
+        assert web_snapshot["motors"] == desktop_snapshot["motors"]
+        assert web_snapshot["sensors"] == desktop_snapshot["sensors"]
+        assert web_snapshot["brick"] == desktop_snapshot["brick"]
+        assert web_snapshot["brick"]["screen"]["lines"] == ["snapshot terminal"]
+    finally:
+        web.close()
+        desktop.close()
 
 
 def test_web_and_desktop_apply_the_same_simulation_profile() -> None:
@@ -126,6 +197,55 @@ def test_web_and_desktop_pause_resume_before_finishing() -> None:
         desktop.stop()
 
 
+def test_web_and_desktop_cancel_expose_the_same_terminal_presentation_state() -> None:
+    source = "from pybricks.tools import wait\nwhile True:\n    wait(10)\n"
+    web = SimulationSession(session_id="cancel-parity", config={}, max_runtime_s=2.0)
+    desktop = DesktopSessionAdapter(SimEngineConfig())
+    try:
+        web.load_script(source)
+        desktop.load_script(source)
+        web.start()
+        desktop.start()
+        time.sleep(0.03)
+
+        web.stop()
+        desktop.stop()
+
+        assert web.presentation_state().status == desktop.presentation_state().status == "stopped"
+        assert web.presentation_state().controls == desktop.presentation_state().controls
+    finally:
+        web.close()
+        desktop.close()
+
+
+def test_web_and_desktop_runtime_errors_expose_the_same_terminal_presentation_state() -> None:
+    """Un error de programa no puede dejar una interfaz en estado ejecutando."""
+
+    source = "raise RuntimeError('fallo cruzado de QA')\n"
+    web = SimulationSession(session_id="error-parity", config={}, max_runtime_s=2.0)
+    desktop = DesktopSessionAdapter(SimEngineConfig())
+    try:
+        web.load_script(source)
+        desktop.load_script(source)
+        web.start()
+        desktop.start()
+
+        for _ in range(100):
+            # Tkinter procesa esta cola desde su ciclo ``after``; reproducir
+            # esa ruta pública evita comparar contra un worker sin eventos
+            # consumidos, estado que la UI real nunca presenta al usuario.
+            desktop.drain_worker_events()
+            if web.status == "error" and desktop.presentation_state().status == "error":
+                break
+            time.sleep(0.05)
+
+        assert web.presentation_state().status == desktop.presentation_state().status == "error"
+        assert web.presentation_state().controls == desktop.presentation_state().controls
+    finally:
+        web.close()
+        desktop.close()
+
+
 def test_web_and_desktop_world_editors_place_equivalent_asset() -> None:
     web = SimulationSession(session_id="world-parity", config={}, max_runtime_s=2.0)
     desktop_editor = WorldEditorService()
@@ -147,3 +267,59 @@ def test_web_and_desktop_world_editors_place_equivalent_asset() -> None:
         )
     finally:
         web.close()
+
+
+def test_web_and_desktop_reset_restore_the_configured_robot_start_snapshot() -> None:
+    """Reiniciar conserva un Ãºnico punto de inicio coherente en ambas UI."""
+
+    web = SimulationSession(session_id="reset-parity", config={}, max_runtime_s=2.0)
+    desktop = DesktopSessionAdapter(SimEngineConfig())
+    try:
+        web.load_blank_world(10, 10)
+        desktop.load_blank_world(320, 320)
+        web.set_robot_start(96, 128, 90)
+        desktop.set_robot_start(96, 128, 90)
+
+        web.reset()
+        desktop.reset()
+        web_snapshot = web.snapshot_response()["snapshot"]
+        desktop_snapshot = desktop.current_snapshot().to_dict()
+
+        assert web.status == desktop.presentation_state().status == "created"
+        assert web_snapshot["robot"] == desktop_snapshot["robot"] == {
+            "x_mm": 96.0,
+            "y_mm": 128.0,
+            "theta_deg": 90.0,
+        }
+        assert web_snapshot["tick"] == desktop_snapshot["tick"] == 0
+        assert web_snapshot["sim_time_s"] == desktop_snapshot["sim_time_s"] == 0.0
+        assert web_snapshot["brick"]["screen"]["lines"] == desktop_snapshot["brick"]["screen"]["lines"] == []
+    finally:
+        web.close()
+        desktop.close()
+
+
+def test_line_world_uses_identical_start_pose_and_asset_geometry_in_both_clients() -> None:
+    """El mundo de línea no puede cambiar de escala, capa o pose por la UI."""
+
+    world_name = "01_linea_negra_basica.json"
+    world_path = resolve_worlds_dir() / world_name
+    web = SimulationSession(
+        session_id="line-world-parity",
+        config={"WORLDS_DIR": str(resolve_worlds_dir())},
+        max_runtime_s=2.0,
+    )
+    desktop = DesktopSessionAdapter(SimEngineConfig())
+    try:
+        web_world = web.load_world_name(world_name)["world"]
+        desktop.load_world_file(world_path)
+
+        assert web.snapshot_response()["snapshot"]["robot"] == desktop.current_snapshot().to_dict()["robot"]
+        web_placements = editor_placements(web_world.get("editor_spec"))
+        source_placements = editor_placements(json.loads(world_path.read_text(encoding="utf-8")).get("editor_spec"))
+        assert [item["asset_key"] for item in web_placements] == [item["asset_key"] for item in source_placements]
+        assert [placement_geometry(item) for item in web_placements] == [placement_geometry(item) for item in source_placements]
+        assert all(item and item["layer"] in {"floor", "zone", "line", "wall", "robot"} for item in map(placement_geometry, web_placements))
+    finally:
+        web.close()
+        desktop.close()

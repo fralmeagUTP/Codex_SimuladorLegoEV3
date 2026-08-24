@@ -94,6 +94,15 @@ def test_isolated_worker_drains_events_without_blocking() -> None:
         worker.close()
 
 
+def test_isolated_worker_ignores_a_queue_closed_during_session_shutdown() -> None:
+    """Un stream SSE tardÃ­o no debe convertir un cierre normal en error 500."""
+
+    worker = IsolatedRuntimeWorker("closed-drain-worker")
+    worker.close()
+
+    assert worker.drain_events() == []
+
+
 def test_isolated_worker_emits_lifecycle_states() -> None:
     worker = IsolatedRuntimeWorker("lifecycle-worker")
     worker.start()
@@ -405,6 +414,29 @@ def test_web_session_recovers_worker_and_replays_loaded_script(monkeypatch) -> N
         assert summary["status"] == "ready"
         assert session._worker_shadow._process.pid != previous_pid
         assert session._source_code == "x = 1"
+    finally:
+        session.close()
+
+
+def test_web_session_recovery_preserves_its_configured_runtime_limit(monkeypatch) -> None:
+    """Una recuperacion no puede degradar el limite elegido por el usuario."""
+
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    session = SimulationSession(
+        session_id="web-recovery-runtime-limit",
+        config={"SCRIPT_MAX_RUNTIME_S": 30.0},
+        max_runtime_s=30.0,
+    )
+    try:
+        session.set_max_runtime_s(300.0)
+        session.recover_worker()
+
+        assert session._max_runtime_s == 300.0
+        assert session._worker_shadow is not None
+        # El worker confirma su politica por el evento de configuracion; no
+        # basta con conservar el valor solamente en la sesion local.
+        assert session._service.max_runtime_s == 300.0
+        assert session.worker_diagnostics()["max_runtime_s"] == 300.0
     finally:
         session.close()
 

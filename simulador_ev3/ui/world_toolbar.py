@@ -10,6 +10,7 @@ import os
 import tkinter as tk
 from typing import Any, Callable, Literal, Optional
 
+from simulador_ev3.shared.asset_catalog import asset_candidate_paths
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 
 _BAR_BG = "#ECEFF1"
@@ -17,16 +18,6 @@ _BTN_BG = "#CFD8DC"
 _BTN_ACTIVE = "#90A4AE"
 _ICON_SIZE_PX = 32
 _IMAGES_DIR = os.path.normpath(str(resolve_image_assets_dir()))
-_TOOL_IMAGE_OVERRIDES: dict[str, list[str]] = {
-    "line_64x64_cruz": ["line_64X64_Cruz.png"],
-    "line_64_64_hor": ["line_64_64_Hor.png"],
-    "line_64_64_ver": ["line_64_64_Ver.png"],
-    "line_64_64_infder": ["line_64_64_InfDer.png"],
-    "line_64_64_infizq": ["line_64_64_InfIzq.png"],
-    "line_64_64_supder": ["line_64_64_SupDer.png"],
-    "line_64_64_supizq": ["line_64_64_SupIzq.png"],
-    "floor_tile_256_c": ["floor_tile_256_c.jpg", "floor_tile_256_b.png"],
-}
 
 
 class WorldToolbar(tk.Frame):
@@ -212,14 +203,20 @@ class WorldToolbar(tk.Frame):
         return lookup
 
     def _resolve_tool_image_paths(self, tool_id: str) -> list[str]:
-        candidates = list(_TOOL_IMAGE_OVERRIDES.get(tool_id, []))
+        try:
+            candidates = [str(path) for path in asset_candidate_paths(tool_id)]
+        except KeyError:
+            candidates = []
         candidates.extend([f"{tool_id}.png", f"{tool_id}.jpg", f"{tool_id}.jpeg"])
         resolved: list[str] = []
         for candidate in candidates:
+            if os.path.isabs(candidate) and os.path.isfile(candidate):
+                resolved.append(candidate)
+                continue
             hit = self._image_lookup.get(candidate.lower())
             if hit:
                 resolved.append(hit)
-        return resolved
+        return list(dict.fromkeys(resolved))
 
     def _get_tool_icon(self, tool_id: str) -> tk.PhotoImage | None:
         cached = self._tool_icons.get(tool_id)

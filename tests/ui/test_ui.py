@@ -759,6 +759,15 @@ class TestBrickPanel:
         assert brick_panel._LCD_CANVAS_W == 507
         assert brick_panel._LCD_CANVAS_H == 169
 
+    def test_lcd_canvas_does_not_force_the_brick_panel_to_overflow(self):
+        """La LCD se escala dentro del ancho disponible del panel."""
+        import inspect
+
+        from simulador_ev3.ui import brick_panel
+
+        source = inspect.getsource(brick_panel.BrickPanel._build_screen)
+        assert "width=1" in source
+
     def test_update_from_dto_no_crash(self):
         bp = self.BrickPanel(mock.MagicMock())
         bp.update_from_dto(_snap())
@@ -787,6 +796,16 @@ class TestBrickPanel:
         bp.update_from_dto(dto)
         assert bp._robot_vars["x"].get() == f"{dto.robot['x_mm'] / 10.0:.1f}"
         assert bp._robot_vars["theta"].get() == f"{dto.robot['theta_deg']:.1f}"
+
+    def test_narrow_brick_panel_stacks_status_cells_without_truncating_them(self):
+        bp = self.BrickPanel(mock.MagicMock())
+        bp._led_cell = mock.Mock()
+        bp._speaker_cell = mock.Mock()
+        bp._on_status_resize(mock.Mock(width=250))
+
+        assert bp._status_compact is True
+        bp._led_cell.grid.assert_called_once_with(row=0, column=0, columnspan=2, sticky="ew")
+        bp._speaker_cell.grid.assert_called_once_with(row=1, column=0, columnspan=2, sticky="ew")
 
 
 # ===========================================================================

@@ -86,6 +86,27 @@ Tkinter utiliza el worker aislado por defecto. El modo local mediante
 `EV3_LOCAL_RUNTIME_ENABLED=true` existe solo para compatibilidad controlada de
 desarrollo y pruebas.
 
+## Distribución Windows
+
+La distribución de escritorio se genera con PyInstaller. El proceso oficial
+incluye recursos visuales, ejemplos y mundos, y produce:
+
+- `dist\SimuladorEV3\SimuladorEV3.exe`: aplicación dentro de su carpeta de
+  distribución. No se debe copiar el `.exe` por separado.
+- `dist\SimuladorEV3-<versión>-Windows-x64.zip`: paquete portable para
+  descomprimir y ejecutar.
+- `dist\installer\Setup-SimuladorEV3-<versión>-Windows-x64.exe`: instalador
+  para Windows, cuando Inno Setup 6 está disponible.
+
+Para construir solo el ejecutable y el ZIP portable:
+
+```powershell
+.\scripts\build_release_windows.ps1 -PythonExe .\.venv\Scripts\python.exe -SkipInstaller
+```
+
+Consulta la [guía de release Windows](Documentos/GUIA_RELEASE_WINDOWS.md) para
+los requisitos, verificaciones y distribución.
+
 ## Pruebas y calidad
 
 ```powershell

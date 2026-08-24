@@ -40,28 +40,44 @@ window.EV3Canvas = (() => {
   const FOLLOW_CENTER_Y = 0.5;
   const zoomByCanvas = new WeakMap();
 
-  const assetFiles = {
-    robot_ev3_32x32: "robot_ev3_32x32.png",
-    wall_64x64_a: "wall_64x64_a.png",
-    wall_64x64_b: "wall_64x64_b.png",
-    wall_64x64_c: "wall_64x64_c.png",
-    zone_green_128: "zone_green_128.png",
-    zone_red_128: "zone_red_128.png",
-    zone_white_128: "zone_white_128.png",
-    line_64_64_hor: "line_64_64_Hor.png",
-    line_64_64_ver: "line_64_64_Ver.png",
-    line_64x64_cruz: "line_64X64_Cruz.png",
-    line_64_64_infder: "line_64_64_InfDer.png",
-    line_64_64_infizq: "line_64_64_InfIzq.png",
-    line_64_64_supder: "line_64_64_SupDer.png",
-    line_64_64_supizq: "line_64_64_SupIzq.png",
-    floor_tile_256_a: "floor_tile_256_a.png",
-    floor_tile_256_b: "floor_tile_256_b.png",
-    floor_tile_256_c: "floor_tile_256_c.jpg",
-  };
-  const assetFileFallbacks = {
-    robot_ev3_32x32: ["robot_ev3_32x32.png", "robot_ev3_32x32_.png"],
-  };
+  // Inyectado por la plantilla desde AssetCatalog: no mantener una segunda
+  // tabla de nombres en JavaScript, pues Tkinter usa el mismo asset_id.
+  let assetFiles = window.EV3_ASSET_FILES || {};
+  let assetManifest = Array.isArray(window.EV3_ASSET_MANIFEST) ? window.EV3_ASSET_MANIFEST : [];
+  let assetMetadata = new Map(assetManifest.map((item) => [String(item.asset_id || ""), item]));
+  const assetLayerOrder = { floor: 0, zone: 1, line: 2, wall: 3, robot: 4 };
+
+  function dispatchAssetsLoaded() {
+    window.dispatchEvent(new CustomEvent("ev3-assets-loaded"));
+  }
+
+  function hydrateAssetCatalogFromApi() {
+    if (Object.keys(assetFiles).length || !window.fetch) return;
+    const endpoint = window.EV3Api?.resolvePath
+      ? window.EV3Api.resolvePath("/api/editor/assets")
+      : "/api/editor/assets";
+    window.fetch(endpoint)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+        if (!assets.length) return;
+        assetManifest = assets.map((item) => ({ ...item, asset_id: item.key || item.asset_id }));
+        assetFiles = Object.fromEntries(
+          assetManifest
+            .filter((item) => item.asset_id && item.image)
+            .map((item) => [String(item.asset_id), String(item.image)]),
+        );
+        assetMetadata = new Map(assetManifest.map((item) => [String(item.asset_id || ""), item]));
+        invalidateStaticLayer();
+        dispatchAssetsLoaded();
+      })
+      .catch(() => {
+        // El fallback visual sigue disponible si la red no permite recuperar
+        // el catálogo; no se interrumpe la simulación ni la edición.
+      });
+  }
+
+  hydrateAssetCatalogFromApi();
 
   function resize(canvas) {
     const rect = canvas.getBoundingClientRect();
@@ -80,7 +96,13 @@ window.EV3Canvas = (() => {
     if (canvas.style.height !== cssHeight) canvas.style.height = cssHeight;
     const pane = canvas.parentElement;
     if (pane) {
-      const compactViewport = pane.clientWidth <= 420 || pane.clientHeight <= 360;
+      // En la composición apilada (<=1120 px) el mapa debe iniciar en el
+      // borde visible del panel. Mantener el margen de seguimiento de
+      // escritorio desplaza el canvas cientos de píxeles hacia la derecha y
+      // parece que conserva un ancho/posición de escritorio.
+      const compactViewport = pane.clientWidth <= 420
+        || pane.clientHeight <= 360
+        || window.matchMedia("(max-width: 1120px)").matches;
       const followMarginX = widthPx > pane.clientWidth
         ? (compactViewport ? 0 : Math.round(pane.clientWidth * FOLLOW_EDGE_MARGIN_RATIO))
         : 0;
@@ -429,6 +451,11 @@ window.EV3Canvas = (() => {
   }
 
   function drawSurface(ctx, world, view) {
+    // Los mundos de seguidor de línea conservan una superficie física negra
+    // para los sensores y placements ``line_*`` para su apariencia. Mostrar
+    // ambos duplicaba la pista en Web; Tkinter ya usa los placements como la
+    // capa visual autoritativa.
+    if (world?.editor_spec?.placements?.length) return;
     if (!world?.surface?.cells) return;
     const cs = world.surface.cell_size_mm || 50;
     for (const cell of world.surface.cells) {
@@ -451,6 +478,11 @@ window.EV3Canvas = (() => {
       if (String(key).includes("robot")) robotPlacements.push(placement);
       else normalPlacements.push(placement);
     }
+    normalPlacements.sort((left, right) => {
+      const leftLayer = assetLayerOrder[assetMetadata.get(String(left.asset_key || ""))?.layer] ?? 4;
+      const rightLayer = assetLayerOrder[assetMetadata.get(String(right.asset_key || ""))?.layer] ?? 4;
+      return leftLayer - rightLayer || Number(left.y || left.y_px || 0) - Number(right.y || right.y_px || 0);
+    });
     const orderedPlacements = [...normalPlacements, ...robotPlacements];
 
     for (const placement of orderedPlacements) {
@@ -466,7 +498,7 @@ window.EV3Canvas = (() => {
       const isSelected = Boolean(selectedId) && placement.id === selectedId;
 
       ctx.save();
-      drawAsset(ctx, key, pos.x, pos.y, canvasSize.w, canvasSize.h);
+      drawAsset(ctx, key, pos.x, pos.y, canvasSize.w, canvasSize.h, placement.rotation || 0);
       if (isSelected) {
         ctx.strokeStyle = "#f08c00";
         ctx.lineWidth = 4;
@@ -496,11 +528,24 @@ window.EV3Canvas = (() => {
 
   function drawObstacles(ctx, world, view) {
     if (!world?.obstacles) return;
-    ctx.fillStyle = "#39485c";
-    ctx.strokeStyle = "#162233";
     for (const obstacle of world.obstacles) {
       const vertices = obstacle.vertices || [];
       if (!vertices.length) continue;
+
+      // Los mundos históricos describen las cajas únicamente en la geometría
+      // física del obstáculo. Su nombre conserva el asset original, por
+      // ejemplo ``wall:wall_64x64_b:wall_0002``. Tkinter ya usa ese dato para
+      // pintar la textura; si la Web lo ignoraba, mostraba un rectángulo gris.
+      const textured = obstacleAssetRectangle(obstacle, vertices);
+      if (textured) {
+        const start = toCanvas(view, textured.xMm, textured.yMm);
+        const size = sizeToCanvas(view, textured.widthMm, textured.heightMm);
+        drawAsset(ctx, textured.assetKey, start.x, start.y, size.w, size.h);
+        continue;
+      }
+
+      ctx.fillStyle = "#39485c";
+      ctx.strokeStyle = "#162233";
       ctx.beginPath();
       const first = toCanvas(view, vertices[0][0], vertices[0][1]);
       ctx.moveTo(first.x, first.y);
@@ -512,6 +557,26 @@ window.EV3Canvas = (() => {
       ctx.fill();
       ctx.stroke();
     }
+  }
+
+  function obstacleAssetRectangle(obstacle, vertices) {
+    const match = String(obstacle?.name || "").match(/^[^:]+:([^:]+):/);
+    const assetKey = match?.[1] || "";
+    // Solo se transforma una caja rectangular explícitamente identificada.
+    // Obstáculos arbitrarios conservan el polígono físico como fallback.
+    if (!assetFiles[assetKey] || !Array.isArray(vertices) || vertices.length !== 4) return null;
+    const xValues = vertices.map((vertex) => Number(vertex?.[0]));
+    const yValues = vertices.map((vertex) => Number(vertex?.[1]));
+    if (![...xValues, ...yValues].every(Number.isFinite)) return null;
+    const uniqueX = [...new Set(xValues)];
+    const uniqueY = [...new Set(yValues)];
+    if (uniqueX.length !== 2 || uniqueY.length !== 2) return null;
+    const xMm = Math.min(...uniqueX);
+    const yMm = Math.min(...uniqueY);
+    const widthMm = Math.max(...uniqueX) - xMm;
+    const heightMm = Math.max(...uniqueY) - yMm;
+    if (widthMm <= 0 || heightMm <= 0) return null;
+    return { assetKey, xMm, yMm, widthMm, heightMm };
   }
 
   function drawTrail(ctx, points, view) {
@@ -605,8 +670,21 @@ window.EV3Canvas = (() => {
     }[name] || "#e9ecef";
   }
 
-  function drawAsset(ctx, key, x, y, w, h) {
+  function drawAsset(ctx, key, x, y, w, h, rotation = 0) {
     const img = getAssetImage(key);
+    const angle = ((Number(rotation) || 0) % 360 + 360) % 360;
+    if (angle) {
+      ctx.save();
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate(angle * Math.PI / 180);
+      if (img?.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      } else {
+        drawFallbackAsset(ctx, key, -w / 2, -h / 2, w, h);
+      }
+      ctx.restore();
+      return;
+    }
     if (img?.complete && img.naturalWidth > 0) {
       ctx.drawImage(img, x, y, w, h);
       return;
@@ -615,32 +693,26 @@ window.EV3Canvas = (() => {
   }
 
   function getAssetImage(key) {
-    const preferred = assetFileFallbacks[key];
-    const file = preferred?.[0] || assetFiles[key];
+    const file = assetFiles[key];
     if (!file) return null;
     if (imageCache.has(file)) return imageCache.get(file);
     const img = new Image();
-    let fallbackIndex = 0;
-    const files = preferred || [file];
-    const loadCurrent = () => {
-      const current = files[fallbackIndex];
-      const src = window.EV3Api?.resolvePath
-        ? window.EV3Api.resolvePath(`/assets/${encodeURIComponent(current)}`)
-        : `/assets/${encodeURIComponent(current)}`;
-      img.src = src;
-    };
+    const src = window.EV3Api?.resolvePath
+      ? window.EV3Api.resolvePath(`/assets/${encodeURIComponent(file)}`)
+      : `/assets/${encodeURIComponent(file)}`;
     img.onload = () => {
       invalidateStaticLayer();
-      window.dispatchEvent(new CustomEvent("ev3-assets-loaded"));
+      dispatchAssetsLoaded();
     };
-    img.onerror = () => {
-      if (fallbackIndex + 1 >= files.length) return;
-      fallbackIndex += 1;
-      loadCurrent();
-    };
-    loadCurrent();
+    img.src = src;
     imageCache.set(file, img);
     return img;
+  }
+
+  function isAssetReady(key) {
+    const file = assetFiles[key];
+    const image = file ? imageCache.get(file) : null;
+    return Boolean(image?.complete && image.naturalWidth > 0);
   }
 
   function drawFallbackAsset(ctx, key, x, y, w, h) {
@@ -672,10 +744,11 @@ window.EV3Canvas = (() => {
   }
 
   function assetSize(key, rotation = 0) {
-    let size = { w: 2, h: 2 };
-    if (key?.includes("robot")) size = { w: 1, h: 1 };
-    if (key?.includes("zone")) size = { w: 4, h: 4 };
-    if (key?.includes("floor")) size = { w: 8, h: 8 };
+    const metadata = assetMetadata.get(String(key || ""));
+    const size = {
+      w: Number(metadata?.width_cells) || 2,
+      h: Number(metadata?.height_cells) || 2,
+    };
     if (Math.abs(rotation) % 180 === 90) {
       return { w: size.h, h: size.w };
     }
@@ -784,5 +857,6 @@ window.EV3Canvas = (() => {
     findPlacementAt,
     placementOriginForAsset,
     placementMoveTarget,
+    isAssetReady,
   };
 })();

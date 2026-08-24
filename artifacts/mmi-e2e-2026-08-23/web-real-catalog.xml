@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="11.966" timestamp="2026-08-23T20:47:43.616291-05:00" hostname="Desktop-FM"><testcase classname="tests.e2e.test_web_playwright" name="test_real_catalog_loads_every_example_world_scenario_and_mission" time="11.496"><failure message="AssertionError: Locator expected to be visible&#10;Actual value: hidden &#10;Call log:&#10;  - Expect &quot;to_be_visible&quot; with timeout 5000ms&#10;  - waiting for locator(&quot;#worldsMenu .menu-sublist&quot;)&#10;    13 × locator resolved to &lt;div class=&quot;menu-sublist hidden&quot;&gt;…&lt;/div&gt;&#10;       - unexpected value &quot;hidden&quot;">tests\e2e\test_web_playwright.py:620: in test_real_catalog_loads_every_example_world_scenario_and_mission
+    expect(page.locator("#worldsMenu .menu-sublist")).to_be_visible()
+E   AssertionError: Locator expected to be visible
+E   Actual value: hidden 
+E   Call log:
+E     - Expect "to_be_visible" with timeout 5000ms
+E     - waiting for locator("#worldsMenu .menu-sublist")
+E       13 × locator resolved to &lt;div class="menu-sublist hidden"&gt;…&lt;/div&gt;
+E          - unexpected value "hidden"</failure></testcase></testsuite></testsuites>

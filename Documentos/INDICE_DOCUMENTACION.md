@@ -38,6 +38,7 @@
 |---|---|---|
 | `Documentos/ARQUITECTURA_C4.md` | Canónico | Contexto, contenedores, componentes y flujos. |
 | `Documentos/REFERENCIA_CONFIGURACION.md` | Canónico | Variables, seguridad y observabilidad. |
+| `Documentos/GUIA_DIAGNOSTICO_SOPORTE_MMI.md` | Canónico | Diagnóstico para docente, soporte local y servidor. |
 | `Documentos/MATRIZ_PARIDAD_CIERRE_WEB_TKINTER.md` | Canónico | Catálogo funcional cerrado Web/Tkinter. |
 | `Documentos/MATRIZ_PARIDAD_VISUAL_WEB_TKINTER.md` | Canónico | Reglas de diseño y evidencia visual. |
 | `openspec/project.md` | Normativo | Contexto y principios del producto. |
@@ -81,6 +82,9 @@ constituyen por sí mismos un registro de derechos de autor.
 | `docs/testing/casos_prueba.md` | Canónico | Casos críticos. |
 | `docs/testing/matriz_trazabilidad.md` | Canónico | Requisitos, riesgos y pruebas. |
 | `docs/testing/reporte_ejecucion.md` | Canónico + histórico fechado | Registro acumulado de ejecuciones. |
+| `Documentos/INFORME_MMI_2026-08-23.md` | Histórico trazable | Evidencia MMI local y decisión de liberación del commit `cbfd977`. |
+| `Documentos/REGISTRO_DEFECTOS_MMI_2026-08-23.md` | Histórico trazable | Diferencias MMI, severidad, correcciones y regresiones. |
+| `Documentos/PROTOCOLO_ACCESIBILIDAD_MMI.md` | Canónico | Recorrido manual con Narrador/NVDA y evidencia de accesibilidad. |
 | `Documentos/INFORME_PRELIBERACION_PARIDAD_2026-08-04.md` | Histórico final | Dictamen actualizado el 2026-08-05. |
 | `Documentos/LINEA_BASE_PARIDAD_2026-08-04.md` | Histórico final | Evidencia técnica del cierre. |
 | `Documentos/INFORME_LIBERACION_WEB_2026-08-04.md` | Histórico | Liberación Web. |
@@ -100,6 +104,8 @@ sus resultados; el estado vigente siempre se consulta en
 | Dependencias y calidad | `pyproject.toml` |
 | Inicio Web | `scripts/start_web.ps1` / `scripts/start_web.cmd` |
 | Inicio Tkinter | módulo `simulador_ev3.ui.main_window` |
+| Inicio y cierre local de aplicaciones | [INICIAR_Y_DETENER_APLICACIONES.txt](INICIAR_Y_DETENER_APLICACIONES.txt) |
+| Empaquetado Windows | `scripts/build_release_windows.ps1`, `SimuladorEV3.spec` y `scripts/installer/SimuladorEV3.iss` |
 | Despliegue Linux | `Dockerfile` |
 | CI | `.github/workflows/quality.yml` y `.github/workflows/tests.yml` |
 | Configuración Web | `simulador_ev3/web/config.py` |

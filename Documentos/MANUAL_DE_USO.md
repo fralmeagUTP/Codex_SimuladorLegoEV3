@@ -192,6 +192,18 @@ la misma semantica de color que la Web. Las diferencias limitadas a bordes,
 desplegables y barras de desplazamiento son propias de los controles nativos
 de Windows.
 
+### 4.0 Editor de codigo y colores de sintaxis
+
+El editor identifica palabras clave, nombres integrados, numeros, cadenas y
+comentarios. Los comentarios que comienzan con `#`, incluidos los que aparecen
+al final de una instruccion, usan un color propio. Los bloques documentales
+entre triples comillas (`"""..."""` o `'''...'''`) se muestran como una unica
+cadena aunque ocupen varias lineas.
+
+El resaltado se actualiza al escribir y al cambiar entre los temas Claro y
+Oscuro; los colores se ajustan para conservar contraste y legibilidad. Un
+script incompleto mientras se escribe no bloquea el editor.
+
 ### 4.1 Menu Archivo
 
 - `Nuevo script`: limpia el editor para iniciar un script nuevo.

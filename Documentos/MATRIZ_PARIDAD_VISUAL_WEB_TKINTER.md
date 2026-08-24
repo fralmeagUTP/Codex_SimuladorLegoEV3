@@ -92,3 +92,20 @@ tematizan: representan elementos fisicos de la simulacion.
 en `simulador_ev3.shared.ui_design_tokens` para los temas claro y oscuro.
 Los tokens `toolbar` y `toolbar_text` replican especificamente la barra de
 menus de la Web en ambos temas.
+
+## Actualización 2026-08-23 — composición y assets canónicos
+
+La verificación de cierre del cambio
+`unificar-renderizado-y-composicion-visual-web-tkinter` deja los assets del
+escritorio como variantes canónicas versionadas y entregadas a Web desde el
+mismo manifiesto. Como recuperación defensiva, el canvas Web consulta
+`/api/editor/assets` si la inyección inicial del manifiesto no está disponible
+y vuelve a dibujar al completar la carga.
+
+El breakpoint Web de composición apilada se activa a 1120 px: evita que el
+editor conserve una columna de escritorio a 1024 px. En Tkinter, el Brick
+tiene un mínimo compartido de 340 px y la LCD se escala dentro del ancho
+asignado. La evidencia claro/oscuro para 1024×768, 1280×800 y 1920×1080 está
+en `Documentos/EVIDENCIA_RENDERIZADO_PARIDAD_2026-08-23/`; el detalle de
+comandos y resultados se conserva en
+`Documentos/REPORTE_UNIFICACION_RENDERIZADO_WEB_TKINTER_2026-08-23.md`.

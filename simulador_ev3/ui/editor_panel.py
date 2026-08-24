@@ -2,7 +2,7 @@
 editor_panel.py — Panel editor de código Python para el simulador EV3.
 
 Proporciona:
-  • Editor de texto con resaltado de sintaxis básico (coloreado por palabras).
+  • Editor de texto con resaltado de sintaxis basado en tokens de Python.
   • Botones: Ejecutar / Detener / Cargar archivo / Guardar archivo.
   • Numeración de líneas.
   • Callback `on_run(source_code: str)` que la ventana principal conecta
@@ -11,16 +11,20 @@ Proporciona:
 
 from __future__ import annotations
 
+import io
+import keyword
 import os
 import re
 import tkinter as tk
+import token
+import tokenize
 from tkinter import filedialog, messagebox
 from typing import Any, Callable, Optional
 
 from simulador_ev3.shared.debug_configuration import normalize_watches
-from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS
+from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, tokens_for_theme
 
-# Palabras clave a resaltar (coloreado muy básico, sin librería externa)
+# Nombres integrados adicionales que se resaltan como parte de la sintaxis.
 _KEYWORDS = {
     "kw": (
         "from",
@@ -55,13 +59,55 @@ _KEYWORDS = {
     "comment": ("#",),
 }
 
-_COLORS = {
-    "kw": "#79C0FF",
-    "builtin": "#D2A8FF",
-    "comment": "#7EE787",
-    "string": "#FFA657",
-    "number": "#A5D6FF",
+_LIGHT_SYNTAX_COLORS = {
+    "kw": "#0B57D0",
+    "builtin": "#6F2DBD",
+    "comment": "#2F7D32",
+    "string": "#B54708",
+    "number": "#0F4AA1",
 }
+
+_DARK_SYNTAX_COLORS = {
+    "kw": "#7BB7FF",
+    "builtin": "#C0A2FF",
+    "comment": "#79C98A",
+    "string": "#FFB86B",
+    "number": "#8FC0FF",
+}
+
+_COLORS = _LIGHT_SYNTAX_COLORS
+
+
+def _python_syntax_spans(code: str) -> list[tuple[str, tuple[int, int], tuple[int, int]]]:
+    """Devuelve rangos de color usando el tokenizador real de Python.
+
+    El tokenizador conserva completos los comentarios, docstrings y demás
+    cadenas multilínea. Un documento incompleto no debe bloquear el editor,
+    por lo que se conservan los tokens válidos emitidos antes del error.
+    """
+
+    spans: list[tuple[str, tuple[int, int], tuple[int, int]]] = []
+    builtin_names = set(_KEYWORDS["builtin"])
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(code).readline)
+        for item in tokens:
+            tag: str | None = None
+            if item.type == token.COMMENT:
+                tag = "comment"
+            elif item.type == token.STRING:
+                tag = "string"
+            elif item.type == token.NUMBER:
+                tag = "number"
+            elif item.type == token.NAME:
+                if keyword.iskeyword(item.string):
+                    tag = "kw"
+                elif item.string in builtin_names:
+                    tag = "builtin"
+            if tag is not None:
+                spans.append((tag, item.start, item.end))
+    except (IndentationError, tokenize.TokenError):
+        pass
+    return spans
 
 _PLACEHOLDER = """\
 # Escribe tu script EV3 aquí
@@ -952,71 +998,31 @@ class EditorPanel(tk.Frame):
                 messagebox.showerror("Error al guardar", str(exc))
 
     # ------------------------------------------------------------------
-    # Resaltado de sintaxis (básico, sin librería externa)
+    # Resaltado de sintaxis con la biblioteca estándar de Python
     # ------------------------------------------------------------------
+
+    def set_theme(self, theme: str) -> None:
+        """Actualiza los colores del editor, incluidos los tags de sintaxis."""
+
+        tokens = tokens_for_theme(theme)
+        colors = _DARK_SYNTAX_COLORS if str(theme).strip().lower() == "dark" else _LIGHT_SYNTAX_COLORS
+        self._text.configure(
+            bg=tokens.surface,
+            fg=tokens.text,
+            insertbackground=tokens.focus,
+            selectbackground=tokens.surface_muted,
+        )
+        self._linenos.configure(bg=tokens.surface_muted, fg=tokens.text_muted)
+        for tag, color in colors.items():
+            self._text.tag_configure(tag, foreground=color)
+        self._highlight()
 
     def _highlight(self) -> None:
         code = self._text.get("1.0", tk.END)
-        # Limpiar tags previos
         for tag in ("kw", "builtin", "comment", "string", "number"):
             self._text.tag_remove(tag, "1.0", tk.END)
-
-        lines = code.split("\n")
-        for ln_idx, line in enumerate(lines):
-            row = ln_idx + 1
-
-            # Comentario de línea completa
-            stripped = line.lstrip()
-            if stripped.startswith("#"):
-                start = f"{row}.0"
-                end = f"{row}.{len(line)}"
-                self._text.tag_add("comment", start, end)
-                continue
-
-            # Tokenizar palabra por palabra
-            i = 0
-            while i < len(line):
-                ch = line[i]
-
-                # String entre comillas simples o dobles
-                if ch in ('"', "'"):
-                    quote = ch
-                    j = i + 1
-                    while j < len(line) and line[j] != quote:
-                        j += 1
-                    end_col = j + 1
-                    self._text.tag_add("string", f"{row}.{i}", f"{row}.{end_col}")
-                    i = end_col
-                    continue
-
-                # Comentario inline
-                if ch == "#":
-                    self._text.tag_add("comment", f"{row}.{i}", f"{row}.{len(line)}")
-                    break
-
-                # Palabra
-                if ch.isalpha() or ch == "_":
-                    j = i
-                    while j < len(line) and (line[j].isalnum() or line[j] == "_"):
-                        j += 1
-                    word = line[i:j]
-                    if word in _KEYWORDS["kw"]:
-                        self._text.tag_add("kw", f"{row}.{i}", f"{row}.{j}")
-                    elif word in _KEYWORDS["builtin"]:
-                        self._text.tag_add("builtin", f"{row}.{i}", f"{row}.{j}")
-                    i = j
-                    continue
-
-                # Números
-                if ch.isdigit():
-                    j = i
-                    while j < len(line) and (line[j].isdigit() or line[j] in "._"):
-                        j += 1
-                    self._text.tag_add("number", f"{row}.{i}", f"{row}.{j}")
-                    i = j
-                    continue
-
-                i += 1
+        for tag, start, end in _python_syntax_spans(code):
+            self._text.tag_add(tag, f"{start[0]}.{start[1]}", f"{end[0]}.{end[1]}")
 
     def _update_linenos(self) -> None:
         first = 0.0

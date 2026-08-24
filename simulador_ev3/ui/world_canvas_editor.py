@@ -13,6 +13,7 @@ from typing import Any, Callable, Optional, cast
 
 from simulador_ev3.application.world_validation_engine import rotated_connectors
 from simulador_ev3.domain.editor.world_editor_model import CELL_SIZE_MM, GRID_SIZE_PX, Direction, get_asset_spec
+from simulador_ev3.shared.asset_catalog import asset_candidate_paths
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 from simulador_ev3.shared.ui_design_tokens import tokens_for_theme
 from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
@@ -27,16 +28,6 @@ _MAX_ZOOM_FACTOR = 3.0
 _ZOOM_STEP = 0.15
 _FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
 _IMAGES_DIR = os.path.normpath(str(resolve_image_assets_dir()))
-_ASSET_IMAGE_OVERRIDES: dict[str, list[str]] = {
-    "line_64x64_cruz": ["line_64X64_Cruz.png"],
-    "line_64_64_hor": ["line_64_64_Hor.png"],
-    "line_64_64_ver": ["line_64_64_Ver.png"],
-    "line_64_64_infder": ["line_64_64_InfDer.png"],
-    "line_64_64_infizq": ["line_64_64_InfIzq.png"],
-    "line_64_64_supder": ["line_64_64_SupDer.png"],
-    "line_64_64_supizq": ["line_64_64_SupIzq.png"],
-    "floor_tile_256_c": ["floor_tile_256_c.jpg", "floor_tile_256_b.png"],
-}
 
 
 class WorldCanvasEditor(tk.Canvas):
@@ -427,14 +418,20 @@ class WorldCanvasEditor(tk.Canvas):
 
     def _resolve_asset_image_paths(self, asset_key: str) -> list[str]:
         key = str(asset_key).strip().lower()
-        candidates = list(_ASSET_IMAGE_OVERRIDES.get(key, []))
+        try:
+            candidates = [str(path) for path in asset_candidate_paths(key)]
+        except KeyError:
+            candidates = []
         candidates.extend([f"{key}.png", f"{key}.jpg", f"{key}.jpeg"])
         resolved: list[str] = []
         for candidate in candidates:
+            if os.path.isabs(candidate) and os.path.isfile(candidate):
+                resolved.append(candidate)
+                continue
             hit = self._image_lookup.get(candidate.lower())
             if hit:
                 resolved.append(hit)
-        return resolved
+        return list(dict.fromkeys(resolved))
 
     def _load_asset_base_image(self, asset_key: str) -> tk.PhotoImage | None:
         key = str(asset_key).strip().lower()

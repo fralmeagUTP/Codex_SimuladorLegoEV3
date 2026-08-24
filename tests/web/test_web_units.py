@@ -74,9 +74,31 @@ def test_asset_catalog_serializes_expected_metadata():
 
     assert catalog["grid_size_px"] == 32
     assert catalog["cell_size_mm"] == 100.0
+    assert catalog["asset_catalog_version"] == 2
     assert assets["robot_ev3_32x32"]["type"] == "robot"
+    assert assets["robot_ev3_32x32"]["image"] == "robot_ev3_32x32.png"
+    assert len(assets["robot_ev3_32x32"]["sha256"]) == 64
+    assert assets["robot_ev3_32x32"]["source_width_px"] == 32
+    assert assets["robot_ev3_32x32"]["visual_anchor"] == "center"
     assert assets["line_64_64_hor"]["connectors"] == ["E", "W"]
+    assert assets["line_64_64_hor"]["logical_width_mm"] == 200.0
     assert assets["floor_tile_256_c"]["width_cells"] == 8
+
+
+def test_learning_endpoint_publishes_the_shared_initial_activity(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+
+    response = client.get(
+        f"/api/sessions/{session['session_id']}/learning",
+        headers=auth_headers(session),
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["activity_id"] == "first-simulation"
+    assert "Ejecutar un ejemplo" in payload["objective"]
+    assert "Cargue un ejemplo" in payload["next_step"]
 
 
 def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path):
@@ -699,6 +721,62 @@ def test_loading_large_editor_world_keeps_original_dimensions(tmp_path):
     assert world["height_mm"] == 16000.0
     assert world["editor_spec"]["world_width_cells"] == 160
     assert world["editor_spec"]["world_height_cells"] == 160
+
+
+def test_loading_world_replaces_terminal_snapshot_with_configured_robot_start(tmp_path, monkeypatch):
+    """Un mundo nuevo no puede conservar la pose de una ejecucion anterior."""
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    worlds_dir = tmp_path / "worlds"
+    examples_dir = tmp_path / "examples"
+    worlds_dir.mkdir()
+    examples_dir.mkdir()
+    (worlds_dir / "robot_start.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "grid_size_px": 32,
+                "world_width_cells": 40,
+                "world_height_cells": 40,
+                "placements": [
+                    {
+                        "id": "robot_0001",
+                        "asset_key": "robot_ev3_32x32",
+                        "x": 96,
+                        "y": 512,
+                        "rotation": 90,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    session = SimulationSession(
+        session_id="world-start-replaces-stale-snapshot",
+        config={
+            "WORLDS_DIR": worlds_dir,
+            "EXAMPLES_DIR": examples_dir,
+            "SCRIPT_MAX_RUNTIME_S": 1.0,
+        },
+        max_runtime_s=1.0,
+    )
+    try:
+        # Simula el snapshot preferente que deja un worker al terminar una mision.
+        session._status = SessionStatus.FINISHED.value
+        session._worker_shadow_snapshot = {"robot": {"x_mm": 999.0, "y_mm": 999.0, "theta_deg": 180.0}}
+
+        session.load_world_name("robot_start.json")
+        response = session.snapshot_response()
+
+        assert response["status"] == SessionStatus.READY.value
+        assert response["snapshot"]["robot"] == {
+            "x_mm": 350.0,
+            "y_mm": 1650.0,
+            "theta_deg": 90.0,
+        }
+        assert response["snapshot"]["snapshot_generation"] == 1
+    finally:
+        session.close()
 
 
 def test_file_session_store_lifecycle(tmp_path):

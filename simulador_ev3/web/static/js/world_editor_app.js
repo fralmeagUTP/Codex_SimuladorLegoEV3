@@ -88,7 +88,7 @@
       button.dataset.assetKey = item.key;
       button.dataset.assetLabel = `${assetLabel(item)} ${groups[item.type] || ""}`.toLocaleLowerCase();
       const img = document.createElement("img");
-      img.src = api.resolvePath(`/assets/${encodeURIComponent(assetImageFile(item.key))}`);
+      img.src = api.resolvePath(`/assets/${encodeURIComponent(item.image || assetImageFile(item.key))}`);
       img.alt = "";
       img.onerror = () => {
         img.remove();

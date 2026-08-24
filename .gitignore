@@ -15,3 +15,5 @@ temp_world.json
 mutants/
 artifacts/qa-wheel/
 artifacts/e2e-web/
+artifacts/mmi/
+artifacts/pytest-phase12/

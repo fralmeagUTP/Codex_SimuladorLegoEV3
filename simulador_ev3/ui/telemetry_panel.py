@@ -13,6 +13,7 @@ from __future__ import annotations
 import tkinter as tk
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.shared.interface_catalog import label_for_status
 from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, ThemeTokens, tokens_for_theme
 
 _BG = LIGHT_TOKENS.surface
@@ -102,12 +103,7 @@ class TelemetryPanel(tk.Frame):
         self._update_time(dto)
 
     def set_execution_status(self, status: str) -> None:
-        labels = {
-            "started": "EJECUTANDO", "resumed": "EJECUTANDO", "paused": "PAUSADO",
-            "finished": "FINALIZADO", "timed_out": "TIEMPO AGOTADO", "error": "ERROR",
-            "stopped": "DETENIDO", "reset": "IDLE", "world_loaded": "IDLE",
-        }
-        self._summary_status.set(labels.get(status, str(status).upper()))
+        self._summary_status.set(label_for_status(status).upper())
         tokens = tokens_for_theme(self._theme)
         color = tokens.success if status in {"started", "resumed", "finished", "reset", "world_loaded"} else tokens.text
         if status in {"paused", "timed_out"}:
@@ -218,6 +214,10 @@ class TelemetryPanel(tk.Frame):
         # ancho solicitado de una columna y desplace las otras tablas.
         columns.grid_columnconfigure(0, weight=58)
         columns.grid_columnconfigure(1, weight=42)
+        # La fila de contenido debe consumir toda la altura disponible.  Sin
+        # este peso, las tarjetas de S4 se calculaban por su altura mínima y
+        # una lectura larga podía acabar debajo del borde visible del panel.
+        columns.grid_rowconfigure(0, weight=1)
         motors_column = tk.Frame(columns, bg=_BG)
         sensors_column = tk.Frame(columns, bg=_BG)
         for column, frame in enumerate((motors_column, sensors_column)):
@@ -251,6 +251,8 @@ class TelemetryPanel(tk.Frame):
         self._motors_container = container
         for column in range(2):
             container.grid_columnconfigure(column, weight=1, uniform="motor")
+        for row in range(2):
+            container.grid_rowconfigure(row, weight=1, uniform="motor-row")
         for index, port in enumerate(_MOTOR_PORTS):
             grp = _table_motor_block(container, f"MOTOR {port}", pack=False)
             grp.grid(row=index // 2, column=index % 2, sticky="nsew", padx=3, pady=3)
@@ -270,10 +272,16 @@ class TelemetryPanel(tk.Frame):
         self._sensors_container = tk.Frame(parent, bg=_BG)
         self._sensors_container.pack(fill=tk.BOTH, expand=True)
         self._sensors_empty = tk.Label(self._sensors_container, text="", bg=_BG)
-        for port in _SENSOR_PORTS:
+        # Cuatro filas permanentes: la telemetría debe conservar el mismo
+        # tablero aunque un puerto no esté conectado.  Grid permite repartir
+        # la altura sobrante y evita que S4 quede cortado al actualizarse.
+        self._sensors_container.grid_columnconfigure(0, weight=1)
+        for row, port in enumerate(_SENSOR_PORTS):
+            self._sensors_container.grid_rowconfigure(row, weight=1, uniform="sensor-row")
             grp = _table_sensor_block(self._sensors_container, f"SENSOR {port}")
             grp.grid_columnconfigure(0, weight=1)
             grp.grid_columnconfigure(1, weight=2)
+            grp.grid(row=row, column=0, sticky="nsew", padx=4, pady=2)
             self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
                 "type": _table_sensor_row(grp, "Tipo:", 1),
@@ -442,8 +450,10 @@ class TelemetryPanel(tk.Frame):
         forget_empty = getattr(self._sensors_empty, "pack_forget", None)
         if callable(forget_empty):
             forget_empty()
-        for frame in self._sensor_frames.values():
-            frame.pack(fill=tk.X, padx=4, pady=2)
+        # Las tarjetas ya están en una cuadrícula 4×1 desde su creación. No
+        # se vuelven a empaquetar aquí: mezclar ``grid`` y ``pack`` hacía que
+        # la última tarjeta creciera fuera del viewport al llegar una lectura
+        # de sensor extensa.
 
     def _update_time(self, dto: SnapshotDTO) -> None:
         self._var_tick.set(str(dto.tick))
@@ -514,14 +524,14 @@ def _table_motor_block(parent: tk.Widget, title: str, *, pack: bool = True) -> t
 
 
 def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
-    # Las tarjetas tienen una altura fija y compacta. El tooltip de valor
-    # preserva la lectura completa cuando no cabe en la fila visible.
+    # La tarjeta se coloca por ``grid`` en su contenedor. El valor dispone de
+    # dos líneas y el tooltip conserva el texto completo si aun así excede el
+    # espacio disponible.
     block = tk.Frame(
         parent, bg=_BG, relief=tk.FLAT, bd=0,
         highlightthickness=1, highlightbackground=_BORDER,
     )
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.X, padx=4, pady=1)
     block.grid_columnconfigure(0, weight=1)
     block.grid_columnconfigure(1, weight=2)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
@@ -539,9 +549,11 @@ def _table_sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: boo
     widget.configure(
         anchor=tk.W,
         justify=tk.LEFT,
-        wraplength=130,
+        wraplength=150,
         width=15,
-        height=1,
+        # El valor de ultrasonido y los diccionarios de sensores pueden ocupar
+        # más de una línea; reservarla evita ocultar S4 en el borde inferior.
+        height=2 if emphasize else 1,
         font=_BOLD if emphasize else _MONO,
     )
     label_widget.configure(pady=0)

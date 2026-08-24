@@ -1,0 +1,11 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\MisProyectos\Codex_SimuladorLegoEV3
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 56 items
+
+tests\e2e\test_web_playwright.py ....................................... [ 69%]
+.................                                                        [100%]
+
+======================== 56 passed in 66.30s (0:01:06) ========================

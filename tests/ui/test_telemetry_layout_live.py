@@ -82,3 +82,33 @@ def test_all_motor_cards_keep_the_two_by_two_grid() -> None:
         assert panel._motor_frames["B"].grid_info()["column"] == 1  # noqa: SLF001
     finally:
         root.destroy()
+
+
+def test_all_sensor_cards_fit_inside_their_column_with_long_readings() -> None:
+    """S1-S4 permanecen visibles, incluso con la lectura larga de ultrasonido."""
+    root = _root_or_skip()
+    try:
+        panel = TelemetryPanel(root)
+        panel.pack(fill=tk.BOTH, expand=True)
+        root.deiconify()
+        root.update()
+        panel._update_sensors(  # noqa: SLF001 - punto de entrada de los datos dinámicos.
+            [
+                {
+                    "port": "S4",
+                    "type": "UltrasonicSensorModel",
+                    "value": {"distance_mm": 913, "presence": False, "port": "S4"},
+                }
+            ]
+        )
+        root.update()
+
+        container_height = panel._sensors_container.winfo_height()  # noqa: SLF001
+        assert len(panel._sensor_frames) == 4  # noqa: SLF001
+        assert all(frame.winfo_height() > 0 for frame in panel._sensor_frames.values())  # noqa: SLF001
+        assert all(
+            frame.winfo_y() + frame.winfo_height() <= container_height
+            for frame in panel._sensor_frames.values()  # noqa: SLF001
+        )
+    finally:
+        root.destroy()

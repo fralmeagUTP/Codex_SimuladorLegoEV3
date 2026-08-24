@@ -28,9 +28,11 @@ from simulador_ev3.domain.editor.world_editor_model import (
     get_asset_spec,
     normalize_asset_key,
 )
+from simulador_ev3.shared.asset_catalog import asset_candidate_paths, asset_path
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 from simulador_ev3.shared.ui_design_tokens import tokens_for_theme
 from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
+from simulador_ev3.shared.world_editor_projection import placement_geometry
 
 # Colores del canvas
 _BG = "#F0F0F0"
@@ -55,23 +57,10 @@ _PX_PER_MM = GRID_SIZE_PX / CELL_SIZE_MM
 
 _IMAGE_ASSETS_DIR = resolve_image_assets_dir()
 
-_ROBOT_SPRITE_PATH = os.path.join(
-    str(_IMAGE_ASSETS_DIR),
-    "robot_ev3_32x32.png",
-)
+_ROBOT_SPRITE_PATH = str(asset_path("robot_ev3_32x32"))
 _ASSET_IMAGES_DIR = os.path.join(
     str(_IMAGE_ASSETS_DIR),
 )
-_ASSET_IMAGE_OVERRIDES: dict[str, list[str]] = {
-    "line_64x64_cruz": ["line_64X64_Cruz.png"],
-    "line_64_64_hor": ["line_64_64_Hor.png"],
-    "line_64_64_ver": ["line_64_64_Ver.png"],
-    "line_64_64_infder": ["line_64_64_InfDer.png"],
-    "line_64_64_infizq": ["line_64_64_InfIzq.png"],
-    "line_64_64_supder": ["line_64_64_SupDer.png"],
-    "line_64_64_supizq": ["line_64_64_SupIzq.png"],
-    "floor_tile_256_c": ["floor_tile_256_c.jpg", "floor_tile_256_b.png"],
-}
 _ASSET_LAYER_ORDER = {
     "floor": 0,
     "zone": 1,
@@ -1317,25 +1306,21 @@ class WorldCanvas(tk.Canvas):
             key=self._editor_asset_sort_key,
         )
         for placement in sorted_placements:
-            asset_key = normalize_asset_key(str(placement.get("asset_key", "")))
+            geometry = placement_geometry(placement)
+            if geometry is None:
+                continue
+            asset_key = str(geometry["asset_key"])
             spec = get_asset_spec(asset_key)
-            if spec is None:
+            if spec is None:  # Protección para catálogos externos malformados.
                 continue
             if spec.asset_type == "robot" and not self._show_editor_robot_asset:
                 continue
 
-            rotation = int(placement.get("rotation", 0))
-            width_cells = spec.width_cells
-            height_cells = spec.height_cells
-            if rotation % 180 == 90:
-                width_cells, height_cells = height_cells, width_cells
-
-            x_px = int(placement.get("x_px", placement.get("x", 0)))
-            y_px = int(placement.get("y_px", placement.get("y", 0)))
-            x_mm = x_px / GRID_SIZE_PX * CELL_SIZE_MM
-            y_mm = y_px / GRID_SIZE_PX * CELL_SIZE_MM
-            w_mm = width_cells * CELL_SIZE_MM
-            h_mm = height_cells * CELL_SIZE_MM
+            rotation = int(geometry["rotation"])
+            x_mm = float(geometry["x_mm"])
+            y_mm = float(geometry["y_mm"])
+            w_mm = float(geometry["width_mm"])
+            h_mm = float(geometry["height_mm"])
             px0, py0 = self._mm_to_px(x_mm, y_mm)
             px1, py1 = self._mm_to_px(x_mm + w_mm, y_mm + h_mm)
 
@@ -1383,14 +1368,20 @@ class WorldCanvas(tk.Canvas):
 
     def _resolve_asset_image_paths(self, asset_key: str) -> list[str]:
         key = normalize_asset_key(asset_key)
-        candidates = list(_ASSET_IMAGE_OVERRIDES.get(key, []))
+        try:
+            candidates = [str(path) for path in asset_candidate_paths(key)]
+        except KeyError:
+            candidates = []
         candidates.extend([f"{key}.png", f"{key}.jpg", f"{key}.jpeg"])
         resolved: list[str] = []
         for candidate in candidates:
+            if os.path.isabs(candidate) and os.path.isfile(candidate):
+                resolved.append(candidate)
+                continue
             hit = self._asset_image_lookup.get(candidate.lower())
             if hit:
                 resolved.append(hit)
-        return resolved
+        return list(dict.fromkeys(resolved))
 
     def _load_asset_base_image(self, asset_key: str) -> Optional[tk.PhotoImage]:
         key = normalize_asset_key(asset_key)
