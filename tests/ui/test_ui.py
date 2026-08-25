@@ -8,6 +8,7 @@ sólo la lógica no visual (callbacks, métodos de actualización, etc.).
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 import unittest.mock as mock
@@ -975,6 +976,40 @@ class TestMainWindow:
         assert app is not None
         app._on_close()
 
+    def test_session_diagnostics_uses_shared_schema_and_safe_native_export(self, tmp_path):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.ui import main_window as mw
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        output = tmp_path / "diagnostico.json"
+
+        with (
+            mock.patch.object(mw.messagebox, "showinfo") as showinfo,
+            mock.patch.object(mw.filedialog, "asksaveasfilename", return_value=str(output)),
+        ):
+            app._show_session_diagnostics()
+            app._export_session_diagnostics()
+
+        displayed = showinfo.call_args.args[1].split("\n\nNo contiene", maxsplit=1)[0]
+        shown_payload = json.loads(displayed)
+        exported_payload = json.loads(output.read_text(encoding="utf-8"))
+        assert shown_payload["schema_version"] == 1
+        assert exported_payload["schema_version"] == 1
+        assert {"session", "runtime", "render", "worker"} <= exported_payload.keys()
+        assert "source_code" not in output.read_text(encoding="utf-8")
+        app._on_close()
+
+    def test_external_book_reference_opens_the_default_browser(self):
+        from simulador_ev3.ui import main_window as mw
+
+        with mock.patch.object(mw.webbrowser, "open_new_tab") as open_new_tab:
+            self.EV3SimulatorApp._open_external_help_link("https://editorial.utp.edu.co/libro-ev3")
+
+        open_new_tab.assert_called_once_with("https://editorial.utp.edu.co/libro-ev3")
+
     def test_cmd_run_calls_service(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory
@@ -1081,7 +1116,9 @@ class TestMainWindow:
 
         assert app._sim_control_buttons["run"].configure.call_args.kwargs["bg"] == DARK_TOKENS.primary
         assert app._sim_control_buttons["pause"].configure.call_args.kwargs["bg"] == DARK_TOKENS.surface
-        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["bg"] == DARK_TOKENS.surface
+        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["bg"] == DARK_TOKENS.danger
+        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["fg"] == "white"
+        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["disabledforeground"] == "white"
         assert app._pose_control_button.configure.call_args.kwargs["fg"] == DARK_TOKENS.text
         assert app._theta_label.configure.call_args.kwargs["bg"] == DARK_TOKENS.surface
         app._on_close()
@@ -1673,4 +1710,32 @@ class TestMainWindow:
         app._center_dialog_over_main_window(dialog)
 
         assert dialog.geometry_value == "200x100+400+330"
+        app._on_close()
+
+    def test_help_progress_resets_only_the_selected_guide(self):
+        app = self.EV3SimulatorApp()
+        app._help_progress = {"first-simulation": {0, 1}, "create-world": {0}}
+        app._manual_window = None
+
+        app._reset_help_guide_progress("first-simulation")
+
+        assert "first-simulation" not in app._help_progress
+        assert app._help_progress["create-world"] == {0}
+        app._on_close()
+
+    def test_help_copies_only_the_shared_safe_example_and_close_releases_images(self):
+        app = self.EV3SimulatorApp()
+        app.clipboard_clear = mock.Mock()
+        app.clipboard_append = mock.Mock()
+        app._help_images = [mock.Mock()]
+        app._manual_window = None
+
+        app._copy_help_example("first-simulation")
+        app._copy_help_example("unknown-guide")
+        app._close_manual_window()
+
+        app.clipboard_clear.assert_called_once()
+        copied = app.clipboard_append.call_args.args[0]
+        assert "EV3Brick" in copied
+        assert app._help_images == []
         app._on_close()

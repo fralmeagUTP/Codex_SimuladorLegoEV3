@@ -92,3 +92,30 @@ def test_world_outside_configured_directory_cannot_be_deleted(tmp_path: Path) ->
     assert path.exists()
     show_warning.assert_called_once()
     editor._service.reset_formal_world.assert_not_called()
+
+
+def test_desktop_world_editor_declares_equivalent_shortcuts_and_empty_canvas_guide() -> None:
+    source = Path(WorldEditorWindow.__module__.replace(".", "/") + ".py")
+    # Se consulta el archivo real del módulo sin requerir una ventana gráfica.
+    editor_source = (Path(__file__).parents[2] / "simulador_ev3" / "ui" / "world_editor_window.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert source.name == "world_editor_window.py"
+    assert "def _bind_shortcuts" in editor_source
+    shortcuts = (
+        "<Control-n>",
+        "<Control-o>",
+        "<Control-s>",
+        "<Control-Shift-S>",
+        "<Control-d>",
+        "<Delete>",
+        "<Escape>",
+    )
+    for shortcut in shortcuts:
+        assert shortcut in editor_source
+    canvas_source = (Path(__file__).parents[2] / "simulador_ev3" / "ui" / "world_canvas_editor.py").read_text(
+        encoding="utf-8"
+    )
+    assert "Comienza a crear tu mundo" in canvas_source
+    assert "def _draw_empty_world_guide" in canvas_source

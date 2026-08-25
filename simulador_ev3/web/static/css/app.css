@@ -2,6 +2,87 @@
   box-sizing: border-box;
 }
 
+/* Introducción de arranque: reutiliza la imagen institucional del escritorio
+   y cubre la interfaz durante exactamente tres segundos. */
+.startup-splash {
+  align-items: center;
+  background: #05080e;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  opacity: 1;
+  padding: 16px;
+  position: fixed;
+  transition: opacity 220ms ease-out;
+  z-index: 10000;
+}
+
+.startup-splash--leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.startup-splash-art {
+  max-width: calc(100vw - 32px);
+  position: relative;
+  width: min(800px, 100%);
+}
+
+.startup-splash-image {
+  display: block;
+  height: auto;
+  max-height: calc(100vh - 32px);
+  max-width: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.startup-splash-loader {
+  bottom: 13%;
+  color: #102a43;
+  display: grid;
+  font-size: clamp(12px, 1.5vw, 15px);
+  font-weight: 700;
+  gap: 8px;
+  letter-spacing: 0.02em;
+  position: absolute;
+  text-align: center;
+  text-shadow: 0 1px 2px #ffffff;
+  width: 100%;
+}
+
+.startup-splash-loader-text {
+  display: block;
+}
+
+.startup-splash-progress {
+  background: #d9f8ff4d;
+  border: 1px solid #8cecff;
+  border-radius: 99px;
+  height: 6px;
+  justify-self: center;
+  overflow: hidden;
+  width: min(260px, 65vw);
+}
+
+.startup-splash-progress span {
+  animation: startup-splash-loading 1.2s ease-in-out infinite;
+  background: linear-gradient(90deg, #00d5f5, #b4f7ff, #00a9e8);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transform: translateX(-100%);
+  width: 65%;
+}
+
+@keyframes startup-splash-loading {
+  to { transform: translateX(155%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-splash-progress span { animation: none; transform: translateX(25%); }
+}
+
 /* Referencias comunes de ayuda: manuales y glosario Pybricks. */
 .help-references { margin-top:28px; padding-top:22px; border-top:1px solid var(--help-border); }
 .help-reference-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
@@ -234,6 +315,10 @@ html[data-theme="dark"] .execution-success-toast {
   display: grid;
   gap: 8px;
   padding: 0 12px 12px;
+}
+
+.about-groups[hidden] {
+  display: none;
 }
 
 .about-group-card {
@@ -911,6 +996,13 @@ dd {
 #sessionStatus[data-status="error"]::after,
 #telemetryStatus[data-status="error"]::after { color: var(--ev3-danger); }
 
+html[data-theme="dark"] #sessionStatus[data-status="created"]::after,
+html[data-theme="dark"] #sessionStatus[data-status="ready"]::after,
+html[data-theme="dark"] #telemetryStatus[data-status="created"]::after,
+html[data-theme="dark"] #telemetryStatus[data-status="ready"]::after {
+  color: #9ac5ff;
+}
+
 .telemetry-summary strong:last-child { border-right: 0; }
 .telemetry-summary .is-alert { color: #b42318; }
 
@@ -1145,8 +1237,24 @@ dd {
 }
 
 .sim-control-bar .stop-button {
-  background: #fff;
-  color: #213858;
+  background: var(--ev3-danger);
+  border-color: var(--ev3-danger);
+  color: #fff;
+}
+
+.sim-control-bar .stop-button:hover {
+  background: #8f1515;
+  border-color: #8f1515;
+  color: #fff;
+}
+
+.sim-control-bar .stop-button:focus-visible {
+  outline: 2px solid var(--ev3-focus);
+  outline-offset: 2px;
+}
+
+.sim-control-bar .stop-button:disabled {
+  color: #fff;
 }
 
 .sim-control-bar .debug-button {
@@ -1672,6 +1780,48 @@ dd {
   background: #edf3f7;
 }
 
+.world-editor-toolbar {
+  align-items: stretch;
+  gap: 8px;
+}
+
+.world-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  padding: 3px 5px 5px;
+  border: 1px solid #b8c5d0;
+  background: #f7fafc;
+}
+
+.world-toolbar-group legend {
+  padding: 0 4px;
+  color: #3b5875;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.world-toolbar-group-simulation {
+  margin-left: auto;
+}
+
+.world-toolbar-group .action-link,
+.world-toolbar-group .contextual-help-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  box-sizing: border-box;
+  padding: 4px 9px;
+  border: 1px solid #8a9bab;
+  background: #f8fafc;
+  color: #1b4f8a;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 .world-editor-toolbar button,
 .world-size-bar button,
 .world-size-bar input,
@@ -1796,6 +1946,13 @@ dd {
   font-weight: 600;
 }
 
+.world-dirty-indicator {
+  margin-left: 8px;
+  color: #9b5b00;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .world-editor-main {
   min-height: 0;
   display: grid;
@@ -1902,6 +2059,16 @@ dd {
   max-height: 86px;
   margin: 0;
   border-radius: 0;
+}
+
+.world-editor-toolbar button:focus-visible,
+.world-size-bar button:focus-visible,
+.asset-tool:focus-visible,
+.layer-row button:focus-visible,
+.asset-properties-form input:focus-visible,
+.asset-properties-form select:focus-visible {
+  outline: 3px solid #2d74bc;
+  outline-offset: 2px;
 }
 
 .visually-hidden {
@@ -2175,6 +2342,32 @@ html[data-theme="dark"] .world-canvas-pane #worldCanvas {
   background: #0f1724;
 }
 
+html[data-theme="dark"] .world-editor-shell,
+html[data-theme="dark"] .world-editor-toolbar,
+html[data-theme="dark"] .world-size-bar,
+html[data-theme="dark"] .world-status-bar {
+  border-color: #2a3e5a;
+  background: #111c2d;
+  color: #dbe5f5;
+}
+
+html[data-theme="dark"] .world-toolbar-group {
+  border-color: #355178;
+  background: #16263a;
+}
+
+html[data-theme="dark"] .world-toolbar-group legend,
+html[data-theme="dark"] .world-toolbar-group .action-link,
+html[data-theme="dark"] .world-toolbar-group .contextual-help-link {
+  color: #c7d8ee;
+}
+
+html[data-theme="dark"] .world-toolbar-group .action-link,
+html[data-theme="dark"] .world-toolbar-group .contextual-help-link {
+  border-color: #3d5b82;
+  background: #16263a;
+}
+
 html[data-theme="dark"] button,
 html[data-theme="dark"] select,
 html[data-theme="dark"] input,
@@ -2201,6 +2394,13 @@ html[data-theme="dark"] .map-tools button.is-active {
 html[data-theme="dark"] .sim-control-bar .run-button {
   background: #2e5ea3;
   border-color: #2e5ea3;
+}
+
+html[data-theme="dark"] .sim-control-bar .stop-button,
+html[data-theme="dark"] .sim-control-bar .stop-button:hover {
+  background: #c62828;
+  border-color: #c62828;
+  color: #fff;
 }
 
 html[data-theme="dark"] .sim-control-bar .robot-location-controls {
@@ -2522,6 +2722,10 @@ html[data-theme="dark"] .tutorial-figure img {
     grid-template-columns: 1fr;
   }
 
+  .world-toolbar-group-simulation {
+    margin-left: 0;
+  }
+
   .properties-pane {
     min-height: 180px;
   }
@@ -2612,6 +2816,16 @@ html[data-theme="dark"] .tutorial-figure img {
     max-width: 100%;
   }
 
+  .world-editor-toolbar,
+  .world-toolbar-group {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .world-toolbar-group {
+    flex-wrap: wrap;
+  }
+
   .sim-map-pane #worldCanvas {
     margin: 0 !important;
     width: 100%;
@@ -2669,5 +2883,34 @@ html[data-theme="dark"] .tutorial-figure img {
   .world-status-bar {
     flex-wrap: wrap;
     gap: 8px;
+  }
+}
+
+/* En portátiles conserva las tres zonas del editor; solo se apilan en móvil. */
+@media (min-width: 901px) and (max-width: 1120px) {
+  .world-editor-main {
+    grid-template-columns: minmax(150px, 0.26fr) minmax(420px, 1fr) minmax(220px, 0.35fr);
+  }
+
+  .asset-library-pane,
+  .properties-pane {
+    min-height: 0;
+  }
+
+  .world-editor-shell.is-library-collapsed .world-editor-main {
+    grid-template-columns: minmax(420px, 1fr) minmax(220px, 0.35fr);
+  }
+
+  .world-editor-shell.is-inspector-collapsed .world-editor-main {
+    grid-template-columns: minmax(150px, 0.26fr) minmax(420px, 1fr);
+  }
+
+  .world-editor-shell.is-library-collapsed.is-inspector-collapsed .world-editor-main {
+    grid-template-columns: minmax(420px, 1fr);
+  }
+
+  .world-editor-shell.is-library-collapsed .asset-library-pane,
+  .world-editor-shell.is-inspector-collapsed .properties-pane {
+    display: none;
   }
 }

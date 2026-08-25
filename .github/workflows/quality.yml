@@ -25,6 +25,15 @@ jobs:
       - run: python -m pytest --cov=simulador_ev3 --cov-report=term-missing --cov-report=xml:artifacts/coverage/coverage.xml
       - name: Compuerta MMI de paridad y recursos
         run: python -m pytest tests/shared/test_maturity_manifest.py tests/shared/test_asset_catalog.py -q
+      - name: Compuerta del editor de mundos compartido
+        run: >-
+          python -m pytest
+          tests/application/test_world_editor_session.py
+          tests/application/test_world_editor_service.py
+          tests/shared/test_asset_catalog.py
+          tests/shared/test_interface_execution_parity.py
+          tests/web/test_qa_world_crud.py
+          tests/ui/test_world_editor_navigation.py -q
       - name: Conservar cobertura
         if: always()
         uses: actions/upload-artifact@v4

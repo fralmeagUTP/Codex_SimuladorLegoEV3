@@ -44,6 +44,7 @@
   const toggleSensorBeamsBtn = document.getElementById("toggleSensorBeamsBtn");
   const aboutMenuBtn = document.getElementById("aboutMenuBtn");
   const diagnosticsMenuBtn = document.getElementById("diagnosticsMenuBtn");
+  const exportDiagnosticsMenuBtn = document.getElementById("exportDiagnosticsMenuBtn");
   const APP_VERSION = document?.documentElement?.dataset?.ev3AppVersion || "desconocida";
   const ABOUT_MESSAGE =
     "BotLab Studio\n"
@@ -2284,14 +2285,51 @@
     log("Simulador EV3 Web - migracion Flask del simulador Tkinter.");
   });
 
+  async function collectSessionDiagnostics() {
+    const session = await api.observabilityState();
+    const render = window.EV3RenderDiagnostics();
+    return {
+      schema_version: 1,
+      generated_at: new Date().toISOString(),
+      session,
+      runtime: { status: session.status, tick: session.tick },
+      render,
+      worker: session.worker_id ? { worker_id: session.worker_id } : {},
+    };
+  }
+
+  function downloadSessionDiagnostics(payload) {
+    const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `diagnostico-sesion-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    link.hidden = true;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   diagnosticsMenuBtn?.addEventListener("click", async () => {
     try {
-      const session = await api.observabilityState();
-      const render = window.EV3RenderDiagnostics();
-      aboutDialogController.open(`DIAGNÓSTICO DE SESIÓN\n\n${JSON.stringify({ session, render }, null, 2)}`);
+      const payload = await collectSessionDiagnostics();
+      aboutDialogController.open(JSON.stringify(payload, null, 2), {
+        title: "Diagnóstico de sesión",
+        showGroups: false,
+      });
       log("Diagnóstico de sesión actualizado. No contiene código ni credenciales.");
     } catch (err) {
       log(`No fue posible obtener el diagnóstico: ${err.message}`);
+    }
+  });
+
+  exportDiagnosticsMenuBtn?.addEventListener("click", async () => {
+    try {
+      downloadSessionDiagnostics(await collectSessionDiagnostics());
+      log("Diagnóstico de sesión exportado. No contiene código ni credenciales.");
+    } catch (err) {
+      log(`No fue posible exportar el diagnóstico: ${err.message}`);
     }
   });
 

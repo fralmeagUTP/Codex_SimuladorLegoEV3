@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
-from simulador_ev3.domain.editor.world_editor_model import CELL_SIZE_MM, ASSET_CATALOG, normalize_asset_key
+from simulador_ev3.domain.editor.asset_presentation import presentation_for_asset
+from simulador_ev3.domain.editor.world_editor_model import ASSET_CATALOG, CELL_SIZE_MM, normalize_asset_key
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 
 ASSET_CATALOG_VERSION = 2
@@ -145,6 +146,11 @@ def editor_asset_manifest() -> tuple[dict[str, object], ...]:
         {
             "asset_id": key,
             "filename": asset_filename(key),
+            # La presentación pertenece al catálogo compartido y no a cada
+            # cliente: evita que Web y Tkinter nombren distinto al mismo asset.
+            "category": presentation_for_asset(key).category,
+            "label": presentation_for_asset(key).name,
+            "tooltip": presentation_for_asset(key).tooltip,
             "asset_catalog_version": ASSET_CATALOG_VERSION,
             "sha256": asset_descriptor(key).digest(),
             "source_width_px": asset_descriptor(key).source_width_px,
@@ -171,7 +177,11 @@ def validate_asset_catalog() -> None:
         raise ValueError("Todo asset del editor debe resolver un archivo canonico.")
     if set(_SOURCE_DIMENSIONS_PX) != set(asset_ids):
         raise ValueError("Todo asset canonico debe declarar dimensiones de origen.")
-    invalid_dimensions = [item.asset_id for item in ASSET_DESCRIPTORS if item.source_width_px <= 0 or item.source_height_px <= 0]
+    invalid_dimensions = [
+        item.asset_id
+        for item in ASSET_DESCRIPTORS
+        if item.source_width_px <= 0 or item.source_height_px <= 0
+    ]
     if invalid_dimensions:
         raise ValueError(f"Assets con dimensiones invalidas: {', '.join(invalid_dimensions)}")
     missing = [str(item.path) for item in ASSET_DESCRIPTORS if not item.path.is_file()]

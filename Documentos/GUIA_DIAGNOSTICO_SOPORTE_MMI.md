@@ -11,6 +11,8 @@
 
 - Abra **Ayuda → Diagnóstico de sesión** para copiar el estado correlacionado y
   los contadores de renderizado.
+- Use **Ayuda → Exportar diagnóstico JSON** para descargar la misma evidencia
+  en formato UTF-8 versionado, sin código del editor ni credenciales.
 - Para operación del servidor use `/healthz` y `/metrics`; el segundo admite
   formato Prometheus con `?format=prometheus`.
 - Si el stream se interrumpe, espere la recuperación automática y confirme que
@@ -24,6 +26,9 @@
   local. El archivo contiene estado, tick, tiempo, error y correlación; no
   contiene el código ni credenciales.
 - Si el worker aislado falla, reinicie la simulación antes de volver a ejecutar.
+
+En ambas interfaces, **Acerca de** solo contiene versión, créditos e
+información institucional; no se usa para mostrar diagnósticos.
 
 ## Interpretación y escalamiento
 

@@ -8,7 +8,7 @@ import time
 from flask import Blueprint, Response, current_app, jsonify, make_response, request, stream_with_context
 
 from simulador_ev3.shared.mission_catalog import MissionCatalog
-from simulador_ev3.web.errors import CapacityExceeded, InvalidPayload
+from simulador_ev3.web.errors import CapacityExceeded, InvalidPayload, SessionForbidden, SessionNotFound
 from simulador_ev3.web.routes.helpers import get_manager, json_body, request_token, require_session
 
 bp = Blueprint("api_simulation", __name__, url_prefix="/api")
@@ -25,7 +25,8 @@ def create_session():
         raise InvalidPayload("wait_ms debe ser un entero >= 0.") from exc
     wait_ms = max(0, min(wait_ms, 120000))
     if data.get("reuse", False):
-        session_id = request.cookies.get("ev3_session_id")
+        cookie_prefix = str(current_app.config.get("SESSION_COOKIE_PREFIX", "ev3_"))
+        session_id = request.cookies.get(f"{cookie_prefix}session_id")
         owner_token = request_token()
         if session_id and owner_token:
             try:
@@ -36,7 +37,7 @@ def create_session():
                     status=session.status,
                 )
                 return response, 200
-            except Exception:  # noqa: BLE001
+            except (SessionForbidden, SessionNotFound):
                 pass
 
     try:
@@ -74,19 +75,22 @@ def _session_response(*, session_id: str, owner_token: str, status: str):
         )
     )
     cookie_secure = bool(current_app.config.get("SESSION_COOKIE_SECURE", False))
+    cookie_prefix = str(current_app.config.get("SESSION_COOKIE_PREFIX", "ev3_"))
     response.set_cookie(
-        "ev3_owner_token",
+        f"{cookie_prefix}owner_token",
         owner_token,
         httponly=True,
         samesite="Lax",
         secure=cookie_secure,
+        path="/",
     )
     response.set_cookie(
-        "ev3_session_id",
+        f"{cookie_prefix}session_id",
         session_id,
         httponly=True,
         samesite="Lax",
         secure=cookie_secure,
+        path="/",
     )
     return response
 

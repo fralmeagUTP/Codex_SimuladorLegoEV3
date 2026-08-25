@@ -90,6 +90,7 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
                 world_height_mm=DEFAULT_WORLD_MM,
             ),
             policy=ExecutionPolicy(max_runtime_s=max_runtime_s),
+            trace_max_snapshots=max(1, int(self._config.get("TRACE_MAX_SNAPSHOTS", 5_000))),
         )
         self._worker_shadow: IsolatedRuntimeWorker | None = None
         self._worker_shadow_last_sequence = 0
@@ -99,7 +100,9 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
         self._worker_diagnostics: dict[str, int | float | str] = {}
         self._last_command_id: str | None = None
         if worker_isolation_enabled():
-            self._worker_shadow = IsolatedRuntimeWorker(f"web-shadow-{session_id}")
+            self._worker_shadow = IsolatedRuntimeWorker(
+                f"web-shadow-{session_id}", temp_root=self._config.get("WORKER_TEMP_ROOT")
+            )
             self._worker_shadow.start()
             self._worker_shadow.receive()
             self._mirror_worker(
@@ -267,6 +270,7 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
                 self._worker_shadow_snapshot = None
                 self._worker_shadow_status = None
                 self._last_snapshot_event_at = 0.0
+                self._service.clear_trace()
                 self._service.reset()
                 self._mirror_worker("reset", discard_unrelated_events=True, wait_for_status="reset")
                 # El comando reset genera primero las notificaciones de parada del
@@ -481,23 +485,31 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
         max_size = int(self._config.get("MAX_WORLD_JSON_SIZE_BYTES", 2 * 1024 * 1024))
         if len(raw.encode("utf-8")) > max_size:
             raise InvalidPayload("El mundo excede el tamano maximo permitido.")
-        with tempfile.NamedTemporaryFile(
-            "w",
-            suffix=".json",
-            delete=False,
-            encoding="utf-8",
-            dir=Path(tempfile.gettempdir()),
-        ) as fh:
-            fh.write(raw)
-            tmp_path = Path(fh.name)
-        with self._lock:
-            self._service.load_world_file(tmp_path)
-            self._replace_visible_snapshot_for_loaded_world()
-            self._mirror_worker("load_world", {"source": raw}, discard_unrelated_events=True)
-            self._sync_editor_from_world_file(tmp_path)
-            self._loaded_world_name = None
-            self._push_event("world", self.current_world())
-            return self.summary() | {"world": self.current_world()}
+        tmp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                suffix=".json",
+                delete=False,
+                encoding="utf-8",
+                dir=Path(tempfile.gettempdir()),
+            ) as fh:
+                fh.write(raw)
+                tmp_path = Path(fh.name)
+            with self._lock:
+                self._service.load_world_file(tmp_path)
+                self._replace_visible_snapshot_for_loaded_world()
+                self._mirror_worker("load_world", {"source": raw}, discard_unrelated_events=True)
+                self._sync_editor_from_world_file(tmp_path)
+                self._loaded_world_name = None
+                self._push_event("world", self.current_world())
+                return self.summary() | {"world": self.current_world()}
+        finally:
+            if tmp_path is not None:
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def load_blank_world(
         self,
@@ -530,7 +542,7 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
         """Keep editor_spec aligned with the currently loaded simulation world file."""
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
             # Si el archivo no se puede parsear, al menos limpiar estado visual.
             self._editor.reset_formal_world(DEFAULT_WORLD_CELLS, DEFAULT_WORLD_CELLS)
             self._world_has_editor_spec = False
@@ -564,7 +576,7 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
                 self._editor.reset_formal_world(width_cells, height_cells)
                 self._world_has_editor_spec = False
                 return
-        except Exception:  # noqa: BLE001
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
             # Fallback defensivo: estado limpio por defecto.
             self._editor.reset_formal_world(DEFAULT_WORLD_CELLS, DEFAULT_WORLD_CELLS)
             self._world_has_editor_spec = False
@@ -612,14 +624,28 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
                 raise InvalidPayload("Dimensiones de mundo invalidas.") from exc
             return self.editor_response()
 
+    def resize_editor_world(self, width_cells: int, height_cells: int) -> dict[str, Any]:
+        """Redimensiona sin sustituir silenciosamente el mundo en edición."""
+
+        with self._lock:
+            try:
+                resized = self._editor.resize_formal_world(int(width_cells), int(height_cells))
+            except (TypeError, ValueError) as exc:
+                raise InvalidPayload("Dimensiones de mundo inválidas.") from exc
+            if not resized:
+                raise InvalidPayload(
+                    "No se pudo cambiar el tamaño: hay elementos fuera de límites o datos no válidos."
+                )
+            return self.editor_response()
+
     def load_editor_world(self, data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data, dict):
             raise InvalidPayload("El mundo del editor debe ser un objeto JSON.")
         with self._lock:
             try:
                 world = self._editor.load(json.dumps(data, ensure_ascii=False))
-            except Exception as exc:  # noqa: BLE001
-                raise InvalidPayload(f"Mundo del editor invalido: {exc}") from exc
+            except (OSError, TypeError, ValueError) as exc:
+                raise InvalidPayload("Mundo del editor invalido.") from exc
             self._editor._formal_world = world
             self._editor._rebuild_legacy_from_formal()
             self._push_event("editor_world", world.to_dict())
@@ -647,8 +673,8 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
             with self._lock:
                 try:
                     self._editor.from_editor_dict(legacy_payload)
-                except Exception as exc:  # noqa: BLE001
-                    raise InvalidPayload(f"Mundo del editor invalido: {exc}") from exc
+                except (OSError, TypeError, ValueError) as exc:
+                    raise InvalidPayload("Mundo del editor invalido.") from exc
                 self._world_has_editor_spec = True
                 self._push_event("editor_world", self._editor.current_formal_world().to_dict())
                 return self.editor_response()
@@ -659,8 +685,8 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
                 try:
                     world = WorldRepository.from_dict(data)
                     self._editor._from_world_model(world)
-                except Exception as exc:  # noqa: BLE001
-                    raise InvalidPayload(f"Mundo de simulacion invalido: {exc}") from exc
+                except (OSError, TypeError, ValueError) as exc:
+                    raise InvalidPayload("Mundo de simulacion invalido.") from exc
                 self._world_has_editor_spec = True
                 self._push_event("editor_world", self._editor.current_formal_world().to_dict())
                 return self.editor_response()
@@ -933,7 +959,15 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
                 try:
                     self.upload_world_json(world_wrapper)
                     restored_world = True
-                except Exception:  # noqa: BLE001
+                except (
+                    InvalidPayload,
+                    InvalidSessionState,
+                    OSError,
+                    RuntimeError,
+                    TimeoutError,
+                    TypeError,
+                    ValueError,
+                ):
                     restored_world = False
 
             if not restored_world and bool(checkpoint.get("world_has_editor_spec", False)):
@@ -943,7 +977,15 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
                         self.load_editor_world(editor_world)
                         self.apply_editor_world()
                         restored_world = True
-                    except Exception:  # noqa: BLE001
+                    except (
+                        InvalidPayload,
+                        InvalidSessionState,
+                        OSError,
+                        RuntimeError,
+                        TimeoutError,
+                        TypeError,
+                        ValueError,
+                    ):
                         restored_world = False
 
             loaded_world_name = checkpoint.get("loaded_world_name")
@@ -978,6 +1020,8 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
         with self._lock:
             if self._worker_shadow is not None:
                 self._worker_shadow.close()
+                self._worker_shadow = None
+            self._service.clear_trace()
             self._service.stop(reason="session_close")
             self._transition(SessionStatus.EXPIRED)
             self._set_debug_state("stopped")
@@ -1035,7 +1079,9 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
             if self._worker_shadow is None:
                 raise InvalidSessionState("La sesión no usa worker aislado.")
             self._worker_shadow.close()
-            self._worker_shadow = IsolatedRuntimeWorker(f"web-recovered-{self.session_id}")
+            self._worker_shadow = IsolatedRuntimeWorker(
+                f"web-recovered-{self.session_id}", temp_root=self._config.get("WORKER_TEMP_ROOT")
+            )
             # La secuencia IPC pertenece al proceso del worker, no a la
             # sesion. Un worker recuperado comienza en 1; conservar la ultima
             # secuencia del proceso anterior descartaria su inicializacion,
@@ -1204,14 +1250,27 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
         with self._lock:
             if self._status in {"stopped", "created", "expired"}:
                 return
-            self._latest_error = dict(payload)
-            error_reason = "timeout" if "tiempo m" in str(payload.get("error", "")).lower() else "error"
+            self._latest_error = self._safe_error_payload(payload)
+            error_reason = "timeout" if "tiempo m" in str(self._latest_error.get("error", "")).lower() else "error"
             target = SessionStatus.TIMED_OUT if error_reason == "timeout" else SessionStatus.ERROR
             if not self._transition(target):
                 return
             self._set_debug_state(self._status, reason=error_reason)
             self._publish_current_snapshot()
             self._push_event("error", self._latest_error)
+
+    @staticmethod
+    def _safe_error_payload(payload: dict[str, Any]) -> dict[str, str]:
+        """Mantiene el diagnóstico útil sin filtrar traceback, rutas o código."""
+
+        safe: dict[str, str] = {}
+        for key in ("code", "error", "message", "line"):
+            value = payload.get(key)
+            if value is not None:
+                safe[key] = str(value)[:500]
+        if not safe:
+            safe["error"] = "Error de ejecución no especificado."
+        return safe
 
     def _on_status(self, status: str) -> None:
         if self._reset_in_progress:
@@ -1477,6 +1536,9 @@ def asset_catalog_dict() -> dict[str, Any]:
             {
                 "key": item["asset_id"],
                 "image": item["filename"],
+                "category": item["category"],
+                "label": item["label"],
+                "tooltip": item["tooltip"],
                 "sha256": item["sha256"],
                 "source_width_px": item["source_width_px"],
                 "source_height_px": item["source_height_px"],

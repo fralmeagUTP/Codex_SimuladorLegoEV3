@@ -19,21 +19,29 @@
   </header>
 
   <section class="world-editor-shell">
-    <section class="world-editor-toolbar">
-      <button id="newWorldBtn" title="Crear un mundo nuevo">Nuevo</button>
-      <button id="openWorldBtn" title="Abrir mundo desde archivo JSON">Abrir</button>
-      <button id="saveWorldBtn" title="Guardar mundo en el servidor">Guardar</button>
-      <button id="deleteSavedWorldBtn" title="Eliminar el último mundo guardado" disabled>Eliminar archivo</button>
-      <button id="exportWorldBtn" title="Descargar mundo como archivo JSON">Guardar como</button>
-      <span class="toolbar-separator"></span>
-      <button id="moveAssetBtn" title="Seleccionar y mover asset">Seleccionar</button>
-      <button id="deleteAssetBtn" title="Eliminar asset seleccionado">Eliminar</button>
-      <button id="rotateAssetBtn" title="Rotar 90 grados el asset seleccionado">Rotar</button>
-      <button id="duplicateAssetBtn" title="Duplicar asset seleccionado">Duplicar</button>
-      <button id="validateWorldBtn" title="Validar reglas del mundo">Validar</button>
-      <button id="applyWorldBtn" title="Aplicar mundo al simulador">Aplicar</button>
-      <a class="contextual-help-link" href="{{ url_for('pages.help_page') }}#guide-create-world" target="_blank">? Crear mundo</a>
-      <span class="toolbar-separator"></span>
+    <section class="world-editor-toolbar" aria-label="Acciones del editor de mundos">
+      <fieldset class="world-toolbar-group">
+        <legend>Archivo</legend>
+        <button id="newWorldBtn" title="Crear un mundo nuevo (Ctrl+N)">Nuevo</button>
+        <button id="openWorldBtn" title="Abrir mundo desde archivo JSON (Ctrl+O)">Abrir</button>
+        <button id="saveWorldBtn" title="Guardar mundo en el servidor (Ctrl+S)">Guardar</button>
+        <button id="exportWorldBtn" title="Descargar mundo como archivo JSON (Ctrl+Mayús+S)">Guardar como</button>
+        <button id="deleteSavedWorldBtn" title="Eliminar el último mundo guardado" disabled>Eliminar archivo</button>
+      </fieldset>
+      <fieldset class="world-toolbar-group">
+        <legend>Edición</legend>
+        <button id="moveAssetBtn" title="Seleccionar y mover elemento">Seleccionar</button>
+        <button id="deleteAssetBtn" title="Eliminar elemento seleccionado (Supr)" disabled>Eliminar</button>
+        <button id="rotateAssetBtn" title="Rotar 90 grados el elemento seleccionado (R)" disabled>Rotar 90°</button>
+        <button id="duplicateAssetBtn" title="Duplicar elemento seleccionado (Ctrl+D)" disabled>Duplicar</button>
+        <button id="validateWorldBtn" title="Validar reglas del mundo">Validar</button>
+        <button id="applyWorldBtn" title="Aplicar mundo al simulador">Aplicar</button>
+      </fieldset>
+      <fieldset class="world-toolbar-group world-toolbar-group-simulation">
+        <legend>Simulación</legend>
+        <a id="simulateSavedWorldLink" class="action-link hidden" href="{{ url_for('pages.index') }}">Probar mundo guardado</a>
+        <a class="contextual-help-link" href="{{ url_for('pages.help_page') }}#guide-create-world" target="_blank">? Crear mundo</a>
+      </fieldset>
       <label for="assetSelect" class="visually-hidden">Elemento</label>
       <select id="assetSelect" class="hidden" aria-hidden="true"></select>
       <input id="importWorldInput" class="hidden" type="file" accept="application/json,.json">
@@ -58,8 +66,9 @@
       <button id="worldMapZoomInBtn" type="button" title="Acercar mapa">+</button>
       <button id="worldMapZoomOutBtn" type="button" title="Alejar mapa">-</button>
       <button id="worldMapZoomResetBtn" type="button" title="Ajustar vista">[]</button>
-      <span class="world-name-readout">Mundo: <span id="worldNameLabel">sin nombre</span></span>
-      <a id="simulateSavedWorldLink" class="action-link hidden" href="{{ url_for('pages.index') }}">Simular mundo guardado</a>
+      <button id="toggleLibraryPanelBtn" type="button" title="Mostrar u ocultar la Biblioteca" aria-pressed="false">Biblioteca</button>
+      <button id="toggleInspectorPanelBtn" type="button" title="Mostrar u ocultar el Inspector" aria-pressed="false">Inspector</button>
+      <span class="world-name-readout">Mundo: <span id="worldNameLabel">sin nombre</span><span id="worldDirtyIndicator" class="world-dirty-indicator hidden">Cambios sin guardar</span></span>
     </section>
 
     <section class="world-editor-main">

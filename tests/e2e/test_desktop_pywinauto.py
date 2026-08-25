@@ -78,7 +78,10 @@ def _wait_for_new_window(title: str, previous_handles: set[int], timeout: float 
             time.sleep(0.1)
             continue
         if windows:
-            return windows[-1]
+            # ``Desktop.windows`` puede devolver una especificación por
+            # título; al existir otra instancia abierta, se reconecta por
+            # handle para no volver a resolver un título ambiguo.
+            return desktop.window(handle=windows[-1].element_info.handle).wrapper_object()
         time.sleep(0.2)
     raise TimeoutError(f"no apareció la ventana nueva {title!r}")
 
@@ -211,12 +214,81 @@ def test_desktop_navigation_opens_help_and_world_editor() -> None:
         main.set_focus()
         main.click_input(coords=(340, 53))  # Mundos
         main.type_keys("{DOWN}{DOWN}{DOWN}{ENTER}")
-        editor = desktop.window(title="Editor de Mundos EV3")
-        editor.wait("visible", timeout=8)
+        editor = _wait_for_new_window("Editor de Mundos EV3", previous_handles, timeout=8)
         assert editor.is_visible()
         editor.close()
     finally:
         _stop_native_application(application)
+
+
+@pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
+def test_desktop_world_editor_applies_presets_and_native_shortcuts() -> None:
+    """Ejercita el editor Tk real sin depender de atributos privados de la UI."""
+
+    pytest.importorskip("pywinauto")
+    from pywinauto import Desktop
+
+    root = Path(__file__).resolve().parents[2]
+    state_path = root / "artifacts" / "e2e-desktop" / "world-editor-preset.txt"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.unlink(missing_ok=True)
+    state_path_literal = repr(str(state_path))
+    source = (
+        "from pathlib import Path; "
+        "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
+        "from simulador_ev3.ui.world_editor_window import WorldEditorWindow; "
+        "original_preset = WorldEditorWindow._set_world_size_preset; "
+        f"state_path = Path({state_path_literal}); "
+        "WorldEditorWindow._set_world_size_preset = lambda self, w, h: ("
+        "original_preset(self, w, h), state_path.write_text(f'{w}x{h}', encoding='utf-8'))[0]; "
+        "app = EV3SimulatorApp(restore_session=False, persist_session=False); app.mainloop()"
+    )
+    application, previous_handles = _start_native_application(f'"{sys.executable}" -c "{source}"', root)
+    desktop = Desktop(backend="win32")
+    try:
+        main = _wait_for_new_window("BotLab Studio", previous_handles)
+        main.set_focus()
+        main.click_input(coords=(340, 53))  # Mundos
+        main.type_keys("{DOWN}{DOWN}{DOWN}{ENTER}")
+        editor = _wait_for_new_window("Editor de Mundos EV3", previous_handles, timeout=8)
+        editor.set_focus()
+
+        # Los widgets Tk no publican todos sus textos a Win32. Se activa el
+        # botón físico por su posición estable y se verifica el comando que
+        # recibió la ventana real.
+        buttons = [item for item in editor.descendants() if item.class_name() == "Button"]
+        if len(buttons) < 21:
+            controls = [(item.window_text(), item.rectangle()) for item in buttons]
+            pytest.fail(f"No se expusieron botones Tk suficientes: {controls}")
+        # La enumeración Win32 incluye primero los assets de Biblioteca. En
+        # la cabecera, Aula ocupa el índice 20 y su rectángulo se comprueba
+        # explícitamente para detectar cambios de composición.
+        aula = buttons[20]
+        rect = aula.rectangle()
+        assert rect.width() > 30 and rect.height() > 20
+        aula.click_input()
+        assert _wait_for_state_file(state_path, "80x60")
+
+        # Escape limpia la selección y los atajos de archivo siguen abiertos
+        # para que Tk gestione sus diálogos nativos de forma accesible.
+        editor.type_keys("{ESC}")
+        editor.type_keys("^s")
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            dialogs = [
+                window
+                for window in desktop.windows()
+                if window.handle != editor.handle and window.is_visible() and "Guardar" in window.window_text()
+            ]
+            if dialogs:
+                dialogs[-1].type_keys("{ESC}")
+                break
+            time.sleep(0.05)
+        else:
+            pytest.fail("Ctrl+S no abrió el diálogo nativo de guardado del editor")
+    finally:
+        _stop_native_application(application)
+        state_path.unlink(missing_ok=True)
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")

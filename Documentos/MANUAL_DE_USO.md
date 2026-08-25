@@ -238,6 +238,25 @@ Web. Puedes buscar por una tarea o error, filtrar por categoría y abrir el
 flujo correspondiente sin tener que recorrer de nuevo los menús. Cada guía
 indica requisitos, pasos, resultado esperado y una forma de recuperación.
 
+### 4.6 Diagnóstico de sesión y soporte
+
+En ambas interfaces, el menú `Ayuda` presenta el mismo orden de comandos:
+`Centro de ayuda`, `Guía rápida: primera simulación`, `Diagnóstico de sesión`,
+`Exportar diagnóstico JSON`, `Libro: Programación en Python para robótica
+(LEGO EV3)` y `Acerca de`.
+
+El diagnóstico muestra datos técnicos seguros de la sesión actual (estado,
+tick, tiempo y worker cuando exista). En la Web añade métricas de renderizado;
+en el escritorio se muestra mediante un diálogo nativo. `Exportar diagnóstico
+JSON` crea un archivo UTF-8 versionado para soporte. El archivo no contiene el
+código del editor, tokens, contraseñas ni credenciales. `Acerca de` queda
+reservado para créditos, versión e información institucional.
+
+El enlace del libro abre en el navegador predeterminado y dirige al repositorio
+institucional de UTP para la obra escrita por los autores del proyecto:
+**Programación en Python para robótica: de la teoría a la práctica con LEGO
+EV3**.
+
 Las instrucciones de instalación, despliegue y operación técnica permanecen
 separadas en `GUIA_WEB_FLASK_WINDOWS.md`, `GUIA_DESPLIEGUE_LINUX.md` y
 `CONTROLES_CALIDAD.md` para no mezclar el aprendizaje del simulador con tareas
@@ -332,7 +351,25 @@ Los mundos se guardan en JSON y pueden incluir:
 - Si un script corto no termina: verificar que la sesion alcance `finished`; el estado final permanece visible hasta que el usuario reinicie manualmente.
 - Si el mapa parece cortado: usar scroll dentro del panel; el canvas conserva el tamano real de Tkinter.
 
-## 12. Version
+## 12. Centro de ayuda y recorridos guiados
+
+El menú **Ayuda** abre el Centro de ayuda en Web y escritorio. Cada guía ofrece
+prerrequisitos, pasos marcables, resultado esperado, recuperación y acceso al
+destino correcto. El avance se conserva de forma local: no incorpora código,
+credenciales ni identificadores de sesión.
+
+Las rutas cubren primera simulación, mundos, motores, sensores, depuración,
+misiones, trazas, tiempo máximo y diagnóstico. En Web, las capturas incluyen
+texto alternativo y transcripción; en Tkinter se muestran capturas reales de
+escritorio con una explicación textual de respaldo.
+
+Para una clase, active **Modo docente**. Propone una práctica de 25 minutos y
+la evidencia mínima: captura del mundo, código final, resultado de misión y
+explicación de una lectura de sensor. La simulación no reemplaza la validación
+en un EV3 físico: confirme puertos, batería, montaje y sensores antes de una
+demostración real.
+
+## 13. Version
 
 Manual actualizado para la versión `1.5.0` el 2026-08-05. Consulta
 `Documentos/ESTADO_ACTUAL_PROYECTO.md` para la evidencia de liberación vigente.

@@ -126,3 +126,15 @@ La version `1.5.0` tambien incluye la aplicacion web Flask. No se requiere ejecu
 ```
 
 La entrega actual puede validarse sin construir `.exe` si el objetivo es operar la version web.
+
+## 8. Permisos y verificacion de seguridad
+
+El ejecutable debe iniciar desde una cuenta Windows estandar; no requiere
+ejecucion como administrador. Antes de liberar, pruebe tanto el ZIP extraido
+como el instalador con un usuario sin privilegios elevados y confirme que:
+
+- puede abrir y guardar un script `.py` y un mundo `.json` dentro de los limites;
+- al ejecutar un script se crea un worker aislado (salvo el modo explicito de
+  compatibilidad para desarrollo);
+- no aparecen rutas locales ni trazas Python en mensajes de error;
+- no se dejan temporales `ev3-worker-*` despues de cerrar la aplicacion.

@@ -26,6 +26,7 @@ from simulador_ev3.shared.interface_catalog import (
     message_for_status,
 )
 from simulador_ev3.shared.learning_catalog import initial_learning_route
+from simulador_ev3.shared.local_file_security import MAX_WORLD_FILE_BYTES, read_text_limited
 
 
 class DesktopSessionAdapter(SimulationSessionPort, PresentationPort, LearningPort, ObservabilityPort):
@@ -179,6 +180,7 @@ class DesktopSessionAdapter(SimulationSessionPort, PresentationPort, LearningPor
         self._mirror("stop")
 
     def reset(self) -> str | None:
+        self._service.clear_trace()
         self._service.reset()
         self._worker_status = "created"
         return self._mirror("reset")
@@ -254,8 +256,8 @@ class DesktopSessionAdapter(SimulationSessionPort, PresentationPort, LearningPor
         return self._service.max_runtime_s
 
     def load_world_file(self, path: str | Path) -> None:
-        source = Path(path).read_text(encoding="utf-8")
-        self._service.load_world_file(path)
+        safe_path, source = read_text_limited(path, allowed_suffixes=(".json",), max_bytes=MAX_WORLD_FILE_BYTES)
+        self._service.load_world_file(safe_path)
         self._mirror("load_world", {"source": source})
 
     def load_blank_world(self, width_mm: float | None = None, height_mm: float | None = None) -> None:
@@ -298,6 +300,8 @@ class DesktopSessionAdapter(SimulationSessionPort, PresentationPort, LearningPor
     def close(self) -> None:
         if self._worker is not None:
             self._worker.close()
+            self._worker = None
+        self._service.clear_trace()
         self._service.stop()
 
     def drain_worker_events(self) -> list[dict]:

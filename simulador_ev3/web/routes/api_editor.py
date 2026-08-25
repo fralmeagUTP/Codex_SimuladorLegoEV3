@@ -58,6 +58,17 @@ def create_editor_world(session_id: str):
     return jsonify(result)
 
 
+@bp.post("/sessions/<session_id>/editor/world/resize")
+def resize_editor_world(session_id: str):
+    data = json_body()
+    result = require_session(session_id).resize_editor_world(
+        data.get("width_cells", DEFAULT_WORLD_CELLS),
+        data.get("height_cells", DEFAULT_WORLD_CELLS),
+    )
+    _sync_metadata(session_id)
+    return jsonify(result)
+
+
 @bp.post("/sessions/<session_id>/editor/world/place")
 def place_asset(session_id: str):
     result = require_session(session_id).place_asset(json_body())

@@ -14,6 +14,8 @@ def test_web_accepts_parallel_session_creation(tmp_path) -> None:
     app = create_app(
         {
             "TESTING": True,
+            "OPERATIONS_ACCESS_POLICY": "local",
+            "OPERATIONS_ALLOWED_CLIENTS": "127.0.0.1,::1",
             "EXAMPLES_DIR": tmp_path / "examples",
             "WORLDS_DIR": tmp_path / "worlds",
             "MAX_ACTIVE_SESSIONS": 16,
@@ -68,6 +70,8 @@ def test_web_isolated_workers_publish_operational_metrics(tmp_path, monkeypatch)
     app = create_app(
         {
             "TESTING": True,
+            "OPERATIONS_ACCESS_POLICY": "local",
+            "OPERATIONS_ALLOWED_CLIENTS": "127.0.0.1,::1",
             "EXAMPLES_DIR": tmp_path / "examples",
             "WORLDS_DIR": tmp_path / "worlds",
             "MAX_ACTIVE_SESSIONS": 2,
@@ -113,6 +117,8 @@ def test_web_sustained_parallel_load_respects_local_latency_budget(tmp_path) -> 
     app = create_app(
         {
             "TESTING": True,
+            "OPERATIONS_ACCESS_POLICY": "local",
+            "OPERATIONS_ALLOWED_CLIENTS": "127.0.0.1,::1",
             "EXAMPLES_DIR": tmp_path / "examples",
             "WORLDS_DIR": tmp_path / "worlds",
             "MAX_ACTIVE_SESSIONS": rounds * parallelism + 2,

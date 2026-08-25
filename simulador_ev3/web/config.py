@@ -32,6 +32,9 @@ class DefaultWebConfig:
     SCRIPT_MAX_RUNTIME_S = 120.0
     MAX_SCRIPT_SIZE_BYTES = 128 * 1024
     MAX_WORLD_JSON_SIZE_BYTES = 2 * 1024 * 1024
+    TRACE_MAX_SNAPSHOTS = 5_000
+    WORKER_TEMP_ROOT = Path(tempfile.gettempdir()) / "ev3-worker-runtime"
+    WORKER_TEMP_MAX_AGE_S = 3_600
     SSE_HEARTBEAT_S = 15
     # El motor conserva sus 50 Hz autoritativos. La Web recibe 30 Hz y
     # renderiza los fotogramas intermedios con requestAnimationFrame: así se
@@ -43,6 +46,17 @@ class DefaultWebConfig:
     ENABLE_SESSION_CLEANUP_THREAD = True
     ENABLE_SECURITY_HEADERS = True
     SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_PREFIX = "ev3_"
+    RATE_LIMIT_ENABLED = True
+    RATE_LIMIT_WINDOW_S = 60.0
+    RATE_LIMIT_SESSION_CREATE = 12
+    RATE_LIMIT_SESSION_COMMAND = 120
+    RATE_LIMIT_MAX_CLIENTS = 4096
+    TRUST_PROXY_HEADERS = False
+    OPERATIONS_ACCESS_POLICY = "public"
+    OPERATIONS_ALLOWED_CLIENTS = "127.0.0.1,::1"
+    OPERATIONS_TOKEN = ""
+    ENABLE_HSTS = False
     SESSION_BACKEND = "memory"
     REDIS_ENABLED = False
     REDIS_URL = ""
@@ -77,6 +91,9 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "SCRIPT_MAX_RUNTIME_S": float,
     "MAX_SCRIPT_SIZE_BYTES": int,
     "MAX_WORLD_JSON_SIZE_BYTES": int,
+    "TRACE_MAX_SNAPSHOTS": int,
+    "WORKER_TEMP_ROOT": Path,
+    "WORKER_TEMP_MAX_AGE_S": float,
     "SSE_HEARTBEAT_S": int,
     "WEB_SNAPSHOT_MAX_HZ": float,
     "START_IDEMPOTENCY_TTL_S": float,
@@ -85,6 +102,17 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "ENABLE_SESSION_CLEANUP_THREAD": lambda value: _parse_bool(value),
     "ENABLE_SECURITY_HEADERS": lambda value: _parse_bool(value),
     "SESSION_COOKIE_SECURE": lambda value: _parse_bool(value),
+    "SESSION_COOKIE_PREFIX": str,
+    "RATE_LIMIT_ENABLED": lambda value: _parse_bool(value),
+    "RATE_LIMIT_WINDOW_S": float,
+    "RATE_LIMIT_SESSION_CREATE": int,
+    "RATE_LIMIT_SESSION_COMMAND": int,
+    "RATE_LIMIT_MAX_CLIENTS": int,
+    "TRUST_PROXY_HEADERS": lambda value: _parse_bool(value),
+    "OPERATIONS_ACCESS_POLICY": str,
+    "OPERATIONS_ALLOWED_CLIENTS": str,
+    "OPERATIONS_TOKEN": str,
+    "ENABLE_HSTS": lambda value: _parse_bool(value),
     "SESSION_BACKEND": str,
     "REDIS_ENABLED": lambda value: _parse_bool(value),
     "REDIS_URL": str,
@@ -142,6 +170,17 @@ def validate_runtime_config(config: dict[str, Any]) -> None:
     if not 10.0 <= snapshot_hz <= 60.0:
         problems.append("EV3_WEB_WEB_SNAPSHOT_MAX_HZ debe estar entre 10 y 60")
 
+    try:
+        trace_max_snapshots = int(config.get("TRACE_MAX_SNAPSHOTS", 0))
+        worker_temp_max_age_s = float(config.get("WORKER_TEMP_MAX_AGE_S", 0.0))
+    except (TypeError, ValueError):
+        trace_max_snapshots = 0
+        worker_temp_max_age_s = 0.0
+    if trace_max_snapshots <= 0:
+        problems.append("EV3_WEB_TRACE_MAX_SNAPSHOTS debe ser positivo")
+    if worker_temp_max_age_s <= 0:
+        problems.append("EV3_WEB_WORKER_TEMP_MAX_AGE_S debe ser positivo")
+
     if not is_production(config):
         if problems:
             raise RuntimeError("Configuracion Web invalida: " + "; ".join(problems))
@@ -160,6 +199,23 @@ def validate_runtime_config(config: dict[str, Any]) -> None:
 
     if not bool(config.get("SESSION_COOKIE_SECURE", False)):
         problems.append("EV3_WEB_SESSION_COOKIE_SECURE debe ser true en produccion HTTPS")
+
+    if not bool(config.get("ENABLE_HSTS", False)):
+        problems.append("EV3_WEB_ENABLE_HSTS debe ser true en produccion HTTPS")
+
+    operations_policy = str(config.get("OPERATIONS_ACCESS_POLICY", "")).strip().lower()
+    if operations_policy not in {"local", "token"}:
+        problems.append("EV3_WEB_OPERATIONS_ACCESS_POLICY debe ser local o token en produccion")
+    if operations_policy == "token" and len(str(config.get("OPERATIONS_TOKEN", ""))) < 32:
+        problems.append("EV3_WEB_OPERATIONS_TOKEN debe tener al menos 32 caracteres con politica token")
+
+    try:
+        session_create_limit = int(config.get("RATE_LIMIT_SESSION_CREATE", 0))
+        session_command_limit = int(config.get("RATE_LIMIT_SESSION_COMMAND", 0))
+    except (TypeError, ValueError):
+        session_create_limit = session_command_limit = 0
+    if session_create_limit <= 0 or session_command_limit <= 0:
+        problems.append("Los limites por cliente deben ser positivos en produccion")
 
     if problems:
         raise RuntimeError("Configuracion de produccion invalida: " + "; ".join(problems))

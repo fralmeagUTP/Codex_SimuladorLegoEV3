@@ -19,6 +19,7 @@ from simulador_ev3.domain.editor.world_editor_model import (
     MAX_WORLD_CELLS,
     MAX_WORLD_PIXELS,
 )
+from simulador_ev3.shared.local_file_security import safe_desktop_error
 from simulador_ev3.shared.paths import resolve_worlds_dir
 from simulador_ev3.shared.ui_design_tokens import DARK_TOKENS, LIGHT_TOKENS, ThemeTokens, tokens_for_theme
 from simulador_ev3.ui.asset_library_panel import AssetLibraryPanel
@@ -72,6 +73,7 @@ class WorldEditorWindow(tk.Toplevel):
         self._locked_layer_ids: set[str] = set()
 
         self._build()
+        self._bind_shortcuts()
         self.apply_theme(theme)
         self._sync_world_size_inputs()
         self._refresh_canvas()
@@ -181,6 +183,22 @@ class WorldEditorWindow(tk.Toplevel):
         )
         self._validation_label.pack(side=tk.RIGHT)
 
+    def _bind_shortcuts(self) -> None:
+        """Atajos equivalentes a Web, sin reemplazar la navegación nativa."""
+
+        shortcuts: tuple[tuple[str, Callable[[], None]], ...] = (
+            ("<Control-n>", self._cmd_new),
+            ("<Control-o>", self._cmd_open),
+            ("<Control-s>", self._cmd_save),
+            ("<Control-Shift-S>", self._cmd_save_as),
+            ("<Control-d>", self._cmd_duplicate_selected),
+            ("<Delete>", self._cmd_delete_selected),
+            ("<Key-r>", self._cmd_rotate_selected),
+            ("<Escape>", lambda: self._on_select(None)),
+        )
+        for sequence, command in shortcuts:
+            self.bind(sequence, lambda _event, action=command: (action(), "break")[1])
+
     # ------------------------------------------------------------------
     # Commands
     # ------------------------------------------------------------------
@@ -241,7 +259,12 @@ class WorldEditorWindow(tk.Toplevel):
             elif isinstance(widget, tk.Button):
                 try:
                     current_fg = str(widget.cget("fg")).upper()
-                    if current_fg not in {"WHITE", "#FFFFFF"}:
+                    # Las acciones primarias y destructivas emplean fondos
+                    # oscuros o rojos. Su texto debe permanecer blanco en los
+                    # tres estados, incluso después de alternar el tema.
+                    if current_fg in {"WHITE", "#FFFFFF"}:
+                        widget.configure(activeforeground="white", disabledforeground="white")
+                    else:
                         widget.configure(fg=tokens.text, activeforeground=tokens.text)
                 except tk.TclError:
                     pass
@@ -295,8 +318,10 @@ class WorldEditorWindow(tk.Toplevel):
                 self._set_status(note)
             else:
                 self._set_status(f"Mundo cargado: {loaded_path.name}")
-        except Exception as exc:  # noqa: BLE001
-            messagebox.showerror("Editor de mundos", f"No se pudo abrir el archivo:\n{exc}")
+        except Exception:  # noqa: BLE001
+            messagebox.showerror(
+                "Editor de mundos", "No se pudo abrir el mundo seleccionado. Verifique su formato y tamano."
+            )
 
     def _cmd_save(self) -> None:
         if self._current_path is None:
@@ -331,8 +356,8 @@ class WorldEditorWindow(tk.Toplevel):
             # guardado; la ventana principal usa la acción explícita de simular.
             if self._on_world_saved is not None:
                 self._on_world_saved(str(saved))
-        except Exception as exc:  # noqa: BLE001
-            messagebox.showerror("Editor de mundos", f"No se pudo guardar el archivo:\n{exc}")
+        except Exception:  # noqa: BLE001
+            messagebox.showerror("Editor de mundos", "No se pudo guardar el mundo en el destino seleccionado.")
 
     def _cmd_delete_world_file(self) -> None:
         """Elimina exclusivamente el archivo abierto, nunca un mundo incluido."""
@@ -365,7 +390,9 @@ class WorldEditorWindow(tk.Toplevel):
         try:
             resolved.unlink()
         except OSError as exc:
-            messagebox.showerror("Editor de mundos", f"No se pudo eliminar el archivo:\n{exc}")
+            messagebox.showerror(
+                "Editor de mundos", safe_desktop_error(exc, "No se pudo eliminar el mundo seleccionado.")
+            )
             return
 
         self._service.reset_formal_world()
@@ -419,7 +446,9 @@ class WorldEditorWindow(tk.Toplevel):
             self._on_simulate_saved(str(self._current_path))
             self._set_status(f"Mundo aplicado a simulación: {self._current_path.name}")
         except Exception as exc:  # noqa: BLE001
-            messagebox.showerror("Editor de mundos", f"No se pudo aplicar el mundo a simulación:\n{exc}")
+            messagebox.showerror(
+                "Editor de mundos", safe_desktop_error(exc, "No se pudo aplicar el mundo a la simulacion.")
+            )
 
     def _cmd_delete_selected(self) -> None:
         if not self._selected_id:

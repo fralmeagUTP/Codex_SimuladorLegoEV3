@@ -34,6 +34,7 @@ from simulador_ev3.domain.world.beacon_model import BeaconModel
 from simulador_ev3.domain.world.obstacle_model import ObstacleModel
 from simulador_ev3.domain.world.surface_model import SurfaceColor, SurfaceModel
 from simulador_ev3.domain.world.world_model import WorldModel
+from simulador_ev3.shared.local_file_security import MAX_WORLD_FILE_BYTES, read_text_limited, write_text_atomically
 
 
 class WorldRepository:
@@ -43,16 +44,18 @@ class WorldRepository:
 
     @classmethod
     def save(cls, world: WorldModel, path: str | Path) -> Path:
-        path = Path(path)
         data = cls.to_dict(world)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        return path
+        return write_text_atomically(
+            path,
+            json.dumps(data, indent=2, ensure_ascii=False),
+            allowed_suffixes=(".json",),
+            max_bytes=MAX_WORLD_FILE_BYTES,
+        )
 
     @classmethod
     def load(cls, path: str | Path) -> WorldModel:
-        path = Path(path)
-        data = json.loads(path.read_text(encoding="utf-8"))
+        _, source = read_text_limited(path, allowed_suffixes=(".json",), max_bytes=MAX_WORLD_FILE_BYTES)
+        data = json.loads(source)
         return cls.from_dict(data)
 
     @classmethod

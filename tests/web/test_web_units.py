@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import timedelta
 from io import BytesIO
@@ -678,6 +679,69 @@ def test_loading_plain_world_clears_stale_editor_overlays(tmp_path):
     assert loaded["world"]["editor_spec"] is None
 
 
+def test_uploading_world_releases_its_temporary_json(monkeypatch, tmp_path):
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
+    worlds_dir = tmp_path / "worlds"
+    examples_dir = tmp_path / "examples"
+    worlds_dir.mkdir()
+    examples_dir.mkdir()
+    session = SimulationSession(
+        session_id="uploaded-world-cleanup",
+        config={"WORLDS_DIR": worlds_dir, "EXAMPLES_DIR": examples_dir, "SCRIPT_MAX_RUNTIME_S": 1.0},
+        max_runtime_s=1.0,
+    )
+    captured: dict[str, object] = {}
+    original_load = session._service.load_world_file
+
+    def observe_path(path):
+        captured["path"] = path
+        return original_load(path)
+
+    monkeypatch.setattr(session._service, "load_world_file", observe_path)
+    try:
+        session.upload_world_json(
+            {
+                "version": 1,
+                "world": {
+                    "width_mm": 1000.0,
+                    "height_mm": 1000.0,
+                    "surface": {"cell_size_mm": 50.0, "default_color": "WHITE", "cells": []},
+                    "obstacles": [],
+                    "beacons": [],
+                },
+            }
+        )
+    finally:
+        session.close()
+
+    assert captured["path"] is not None
+    assert not captured["path"].exists()
+
+
+def test_session_error_summary_does_not_expose_traceback_or_source(monkeypatch, tmp_path):
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
+    session = SimulationSession(
+        session_id="safe-error-summary",
+        config={"WORLDS_DIR": tmp_path, "EXAMPLES_DIR": tmp_path, "SCRIPT_MAX_RUNTIME_S": 1.0},
+        max_runtime_s=1.0,
+    )
+    try:
+        session._status = SessionStatus.RUNNING.value
+        session._on_error(
+            {
+                "code": "SCRIPT_ERROR",
+                "error": "falló la operación",
+                "traceback": "secret = 'no debe aparecer'",
+                "source_code": "print('no debe aparecer')",
+            }
+        )
+        error = session.summary()["error"]
+    finally:
+        session.close()
+
+    assert error == {"code": "SCRIPT_ERROR", "error": "falló la operación"}
+
+
 def test_loading_large_editor_world_keeps_original_dimensions(tmp_path):
     worlds_dir = tmp_path / "worlds"
     examples_dir = tmp_path / "examples"
@@ -814,3 +878,21 @@ def test_file_session_store_expires_records(tmp_path):
     assert store.upsert_metadata("sid-exp", {"status": "ready"}, ttl_s=1)
     time.sleep(1.1)
     assert store.fetch_metadata("sid-exp") is None
+
+
+def test_file_session_store_restricts_permissions_and_rejects_unsafe_ids(tmp_path):
+    mirror = tmp_path / "mirror"
+    store = FileSessionStore(
+        {
+            "FILE_MIRROR_ENABLED": True,
+            "FILE_MIRROR_DIR": mirror,
+            "REDIS_PREFIX": "ev3test",
+        }
+    )
+
+    assert store.upsert_metadata("sid_safe-1", {"status": "ready"}, ttl_s=30)
+    metadata_path = next(mirror.glob("*.json"))
+    if os.name != "nt":
+        assert metadata_path.stat().st_mode & 0o077 == 0
+    assert store.upsert_metadata("../../outside", {"status": "ready"}, ttl_s=30) is False
+    assert not (tmp_path / "outside").exists()

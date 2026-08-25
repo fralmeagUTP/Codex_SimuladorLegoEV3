@@ -1,3 +1,4 @@
+import os
 import time
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from simulador_ev3.runtime.isolated_worker import (
     IsolatedRuntimeWorker,
     WorkerMessage,
     WorkerResourcePolicy,
+    cleanup_worker_temp_dirs,
     worker_isolation_enabled,
 )
 from simulador_ev3.web.services.simulation_session import SimulationSession
@@ -17,6 +19,24 @@ def test_worker_message_has_versioned_serializable_envelope() -> None:
 
     assert message.to_dict()["protocol_version"] == 1
     assert message.to_dict()["command_id"] == "command-1"
+
+
+def test_cleanup_worker_temp_dirs_removes_only_expired_inactive_own_directories(tmp_path) -> None:
+    root = tmp_path / "workers"
+    stale = root / "ev3-worker-stale"
+    unrelated = root / "other-data"
+    stale.mkdir(parents=True)
+    unrelated.mkdir()
+    stale.joinpath("payload.txt").write_text("x", encoding="utf-8")
+    unrelated.joinpath("keep.txt").write_text("x", encoding="utf-8")
+    old = time.time() - 120
+    os.utime(stale, (old, old))
+
+    result = cleanup_worker_temp_dirs(root, max_age_s=60)
+
+    assert result["removed"] == 1
+    assert not stale.exists()
+    assert unrelated.exists()
 
 
 def test_isolated_worker_initializes_and_stops() -> None:
@@ -55,8 +75,11 @@ def test_worker_resource_policy_requires_positive_limits() -> None:
         WorkerResourcePolicy.from_payload({"max_runtime_s": 0, "max_memory_mb": 128, "max_cpu_s": 1})
 
 
-def test_worker_feature_flag_is_opt_in(monkeypatch) -> None:
+def test_worker_isolation_is_default_and_local_compatibility_is_explicit(monkeypatch) -> None:
     monkeypatch.delenv("EV3_WORKER_ISOLATION_ENABLED", raising=False)
+    monkeypatch.delenv("EV3_LOCAL_RUNTIME_ENABLED", raising=False)
+    assert worker_isolation_enabled() is True
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
     assert worker_isolation_enabled() is False
     monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
     assert worker_isolation_enabled() is True

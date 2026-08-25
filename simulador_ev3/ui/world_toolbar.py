@@ -114,6 +114,10 @@ class WorldToolbar(tk.Frame):
             bg=bg,
             fg=fg,
             activebackground=_BTN_ACTIVE,
+            # Los controles primario y de peligro conservan contraste también
+            # mientras se pulsan o cuando su acción todavía no está disponible.
+            activeforeground=fg,
+            disabledforeground=fg if primary or danger else "#455A64",
             relief=tk.RAISED,
             bd=1,
             padx=6,

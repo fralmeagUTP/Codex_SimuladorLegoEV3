@@ -1,12 +1,32 @@
 from simulador_ev3.shared.help_tutorials import (
     HELP_CATEGORIES,
     HELP_GUIDES,
+    HELP_MENU_ACTIONS,
     HELP_REFERENCES,
     PYBRICKS_GLOSSARY,
     guides_for_category,
+    help_menu_action,
     search_guides,
     tutorial_by_id,
 )
+
+
+def test_help_menu_actions_have_a_shared_order_and_specific_quick_guide() -> None:
+    assert [action.identifier for action in HELP_MENU_ACTIONS] == [
+        "help-center",
+        "quick-first-simulation",
+        "session-diagnostics",
+        "export-diagnostics",
+        "lego-ev3-book",
+        "about",
+    ]
+    quick_guide = help_menu_action("quick-first-simulation")
+    assert quick_guide.label == "Guía rápida: primera simulación"
+    assert quick_guide.guide_id == "first-simulation"
+    book = help_menu_action("lego-ev3-book")
+    assert book.external_url == (
+        "https://repositorio.utp.edu.co/entities/publication/2cb3c888-47b1-4653-8b05-46c27a87ae81"
+    )
 
 
 def test_help_catalog_covers_the_primary_learning_paths() -> None:
@@ -20,6 +40,10 @@ def test_help_catalog_covers_the_primary_learning_paths() -> None:
         "debug-script",
         "recover-script-error",
         "recover-world-validation",
+        "missions",
+        "traces",
+        "runtime-limit",
+        "session-diagnostics",
     ]
     for guide in HELP_GUIDES:
         assert guide.title
@@ -30,6 +54,8 @@ def test_help_catalog_covers_the_primary_learning_paths() -> None:
         assert guide.expected_result
         assert guide.recovery
         assert guide.audience
+        assert guide.image_name.startswith("web/")
+        assert guide.image_name.endswith(".png")
 
 
 def test_help_guides_have_stable_destinations_and_categories() -> None:
@@ -42,6 +68,7 @@ def test_help_guides_have_stable_destinations_and_categories() -> None:
     assert [guide.identifier for guide in guides_for_category("resolver")] == [
         "recover-script-error",
         "recover-world-validation",
+        "session-diagnostics",
     ]
     for guide in HELP_GUIDES:
         assert guide.destination in {"simulation", "worlds", "debug"}

@@ -29,6 +29,7 @@ def make_client(tmp_path):
             "MAX_ACTIVE_SESSIONS": 5,
             "MAX_RUNNING_SIMULATIONS": 5,
             "SCRIPT_MAX_RUNTIME_S": 2.0,
+            "OPERATIONS_ACCESS_POLICY": "local",
         }
     )
     return app.test_client()
@@ -42,6 +43,7 @@ def make_client_with_config(tmp_path, **config):
         "MAX_ACTIVE_SESSIONS": 5,
         "MAX_RUNNING_SIMULATIONS": 5,
         "SCRIPT_MAX_RUNTIME_S": 2.0,
+        "OPERATIONS_ACCESS_POLICY": "local",
     }
     base_config.update(config)
     return create_app(base_config).test_client()
@@ -96,6 +98,28 @@ def test_observability_endpoint_never_exposes_session_token_or_source_code(tmp_p
     assert "source_code" not in body
 
 
+def test_web_help_menu_offers_diagnostic_view_and_safe_json_export(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    app_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "static" / "js" / "simulation_app.js").read_text(
+        encoding="utf-8"
+    )
+    dialog_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "static" / "js" / "about_dialog.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'id="exportDiagnosticsMenuBtn"' in html
+    assert "Exportar diagnóstico JSON" in html
+    assert 'rel="noopener noreferrer"' in html
+    assert "2cb3c888-47b1-4653-8b05-46c27a87ae81" in html
+    assert 'title: "Diagnóstico de sesión"' in app_source
+    assert "showGroups: false" in app_source
+    assert "new Blob" in app_source
+    assert "schema_version" in app_source
+    assert "title.textContent = dialogTitle" in dialog_source
+
+
 def test_wsgi_entrypoint_exposes_flask_app():
     assert wsgi_app.name == "simulador_ev3.web.app"
     assert "session_manager" in wsgi_app.extensions
@@ -129,6 +153,16 @@ def test_testing_app_does_not_start_cleanup_thread(tmp_path):
     client = make_client(tmp_path)
 
     assert client.application.extensions["session_cleanup_worker"] is None
+
+
+def test_application_exposes_orderly_session_shutdown(tmp_path):
+    client = make_client(tmp_path)
+    client.post("/api/sessions", json={})
+
+    closed = client.application.extensions["shutdown_sessions"]()
+
+    assert closed == 1
+    assert client.application.extensions["session_manager"].stats()["active_sessions"] == 0
 
 
 def test_cleanup_worker_closes_expired_sessions(tmp_path):
@@ -196,6 +230,18 @@ def test_production_configuration_rejects_unsafe_defaults(tmp_path):
         )
 
 
+def test_configuration_rejects_invalid_resource_retention_limits(tmp_path):
+    with pytest.raises(RuntimeError, match="TRACE_MAX_SNAPSHOTS"):
+        create_app(
+            {
+                "TESTING": True,
+                "WORLDS_DIR": tmp_path,
+                "EXAMPLES_DIR": tmp_path,
+                "TRACE_MAX_SNAPSHOTS": 0,
+            }
+        )
+
+
 def test_production_configuration_accepts_required_security_values(tmp_path):
     app = create_app(
         {
@@ -204,6 +250,8 @@ def test_production_configuration_accepts_required_security_values(tmp_path):
             "SECRET_KEY": "clave-de-produccion-segura-con-32-caracteres",
             "SCRIPT_MAX_RUNTIME_S": 30.0,
             "SESSION_COOKIE_SECURE": True,
+            "ENABLE_HSTS": True,
+            "OPERATIONS_ACCESS_POLICY": "local",
             "WORLDS_DIR": tmp_path,
             "EXAMPLES_DIR": tmp_path,
         }
@@ -337,9 +385,84 @@ def test_security_headers_are_enabled_by_default(tmp_path):
     assert res.headers["X-Frame-Options"] == "DENY"
     assert res.headers["Referrer-Policy"] == "same-origin"
     assert "default-src 'self'" in res.headers["Content-Security-Policy"]
+    assert "object-src 'none'" in res.headers["Content-Security-Policy"]
+    assert "form-action 'self'" in res.headers["Content-Security-Policy"]
     assert "frame-ancestors 'none'" in res.headers["Content-Security-Policy"]
     assert res.headers["X-Worker-Id"].startswith("pid-")
     assert res.headers["X-Worker-Pid"].isdigit()
+
+
+def test_security_headers_enable_hsts_only_when_configured(tmp_path):
+    secure_client = make_client_with_config(tmp_path, ENABLE_HSTS=True)
+
+    secure = secure_client.get("/")
+    plain = make_client(tmp_path).get("/")
+
+    assert secure.headers["Strict-Transport-Security"] == "max-age=31536000; includeSubDomains"
+    assert "Strict-Transport-Security" not in plain.headers
+
+
+def test_rate_limit_rejects_second_session_creation_before_allocating_worker(tmp_path):
+    client = make_client_with_config(
+        tmp_path,
+        RATE_LIMIT_SESSION_CREATE=1,
+        RATE_LIMIT_WINDOW_S=60.0,
+    )
+
+    first = client.post("/api/sessions", json={})
+    rejected = client.post("/api/sessions", json={})
+
+    assert first.status_code == 201
+    assert rejected.status_code == 429
+    assert rejected.get_json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert int(rejected.headers["Retry-After"]) >= 1
+    assert client.application.extensions["session_manager"].stats()["active_sessions"] == 1
+
+
+def test_rate_limit_is_scoped_to_client_address(tmp_path):
+    client = make_client_with_config(tmp_path, RATE_LIMIT_SESSION_CREATE=1, RATE_LIMIT_WINDOW_S=60.0)
+
+    first = client.post("/api/sessions", json={}, environ_overrides={"REMOTE_ADDR": "198.51.100.10"})
+    second_client = client.post("/api/sessions", json={}, environ_overrides={"REMOTE_ADDR": "198.51.100.11"})
+
+    assert first.status_code == 201
+    assert second_client.status_code == 201
+
+
+def test_mutable_api_rejects_cross_origin_requests(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.post("/api/sessions", json={}, headers={"Origin": "https://evil.example"})
+
+    assert response.status_code == 403
+    assert response.get_json()["error"]["code"] == "CROSS_ORIGIN_REQUEST"
+
+
+def test_operational_endpoints_require_configured_token(tmp_path):
+    token = "t" * 32
+    client = make_client_with_config(
+        tmp_path,
+        OPERATIONS_ACCESS_POLICY="token",
+        OPERATIONS_TOKEN=token,
+    )
+
+    denied = client.get("/metrics")
+    allowed = client.get("/metrics", headers={"X-EV3-Operations-Token": token})
+
+    assert denied.status_code == 403
+    assert denied.get_json()["error"]["code"] == "OPERATIONS_ACCESS_DENIED"
+    assert allowed.status_code == 200
+
+
+def test_public_health_and_metrics_do_not_expose_internal_session_details(tmp_path):
+    client = make_client_with_config(tmp_path, OPERATIONS_ACCESS_POLICY="public")
+
+    health = client.get("/healthz").get_json()
+    metrics = client.get("/metrics").get_json()
+
+    assert health == {"status": "ok", "version": __version__}
+    assert "worker_pid" not in health
+    assert "active_sessions" not in metrics
 
 
 def test_security_headers_can_be_disabled(tmp_path):
@@ -937,6 +1060,45 @@ def test_web_success_notification_is_accessible_and_deduplicated(tmp_path):
     assert "setTimeout(hideExecutionSuccessToast, 4000)" in js
 
 
+def test_web_shows_the_shared_startup_screen_for_three_seconds(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    splash_js = client.get("/static/js/startup_splash.js").get_data(as_text=True)
+
+    assert 'id="startupSplash"' in html
+    assert "Intro.png" in html
+    assert "js/startup_splash.js" in html
+    assert "Cargando entorno de simulación" in html
+    assert "window.setTimeout(dismiss, 3000)" in splash_js
+    assert "splash.remove()" in splash_js
+    assert ".startup-splash" in css
+    assert ".startup-splash-art" in css
+    assert ".startup-splash-progress" in css
+    assert "z-index: 10000" in css
+
+
+def test_web_stop_and_reset_control_uses_the_danger_colour(tmp_path):
+    client = make_client(tmp_path)
+
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+
+    assert ".sim-control-bar .stop-button" in css
+    assert "background: var(--ev3-danger);" in css
+    assert "color: #fff;" in css
+
+
+def test_web_help_menu_uses_the_shared_specific_quick_guide_label(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+
+    assert "Guía rápida: primera simulación" in html
+    assert "Guía de actividad" not in html
+    assert "#guide-first-simulation" in html
+
+
 def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
     client = make_client(tmp_path)
 
@@ -986,6 +1148,47 @@ def test_world_editor_uses_jpg_for_floor_tile_c(tmp_path):
     assert image.content_type.startswith("image/")
 
 
+def test_world_editor_exposes_grouped_actions_and_shared_keyboard_shortcuts(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/worlds").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
+
+    assert html.count('class="world-toolbar-group') == 3
+    assert '<legend>Archivo</legend>' in html
+    assert '<legend>Edición</legend>' in html
+    assert '<legend>Simulación</legend>' in html
+    assert 'id="rotateAssetBtn"' in html and "Rotar 90°" in html
+    assert "world-toolbar-group" in css
+    assert "focus-visible" in css
+    assert 'key === "n"' in editor_js
+    assert 'key === "o"' in editor_js
+    assert 'key === "s"' in editor_js
+    assert 'key === "d"' in editor_js
+    assert 'event.key === "Delete"' in editor_js
+    assert 'event.key === "Escape"' in editor_js
+
+
+def test_world_editor_preserves_unsaved_work_and_supports_docking_at_laptop_width(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/worlds").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
+    api_js = client.get("/static/js/api.js").get_data(as_text=True)
+
+    assert 'id="worldDirtyIndicator"' in html
+    assert 'id="toggleLibraryPanelBtn"' in html
+    assert 'id="toggleInspectorPanelBtn"' in html
+    assert "resizeEditorWorld" in api_js
+    assert "canDiscardEditorChanges" in editor_js
+    assert "api.resizeEditorWorld(width, height)" in editor_js
+    assert "setEditorDirty(true)" in editor_js
+    assert "is-library-collapsed" in css
+    assert "is-inspector-collapsed" in css
+
+
 def test_help_page_documents_web_workflows(tmp_path):
     client = make_client(tmp_path)
 
@@ -1003,6 +1206,12 @@ def test_help_page_documents_web_workflows(tmp_path):
         "Depurar un programa paso a paso",
         "Resolver un error de programa",
         "data-help-guide",
+        "data-guide-step",
+        "data-guide-progress",
+        "data-teacher-mode",
+        "data-teacher-route",
+        "Copiar ejemplo seguro",
+        "Reiniciar guía",
         "help_center.js",
     ):
         assert expected in html
@@ -1049,6 +1258,7 @@ def test_help_page_renders_every_shared_guide_reference_and_glossary_term(tmp_pa
         assert guide.identifier in html
         assert guide.title in html
         assert guide.expected_result in html
+        assert f"/static/images/help/{guide.image_name}" in html
     for reference in HELP_REFERENCES:
         assert reference.title in html
         assert f"/documentation/{reference.identifier}" in html

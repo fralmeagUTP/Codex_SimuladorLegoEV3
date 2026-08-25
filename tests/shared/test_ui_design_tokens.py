@@ -64,6 +64,7 @@ def test_web_and_tkinter_share_composition_metrics() -> None:
 
 def test_syntax_colours_match_between_web_and_tkinter() -> None:
     from pathlib import Path
+
     from simulador_ev3.ui.editor_panel import _DARK_SYNTAX_COLORS, _LIGHT_SYNTAX_COLORS
 
     root = Path(__file__).resolve().parents[2]

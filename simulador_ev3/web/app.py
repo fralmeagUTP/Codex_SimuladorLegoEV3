@@ -12,6 +12,7 @@ from flask import Flask, jsonify
 from opentelemetry import trace
 
 from simulador_ev3 import __version__
+from simulador_ev3.runtime.isolated_worker import cleanup_worker_temp_dirs
 from simulador_ev3.web.config import (
     DefaultWebConfig,
     apply_env_overrides,
@@ -21,6 +22,7 @@ from simulador_ev3.web.errors import WebError
 from simulador_ev3.web.file_session_store import FileSessionStore
 from simulador_ev3.web.redis_session_store import RedisSessionStore
 from simulador_ev3.web.routes import register_blueprints
+from simulador_ev3.web.security import ClientRateLimiter, enforce_operational_access, enforce_origin, enforce_rate_limit
 from simulador_ev3.web.session_manager import SessionCleanupWorker, SessionManager
 
 logger = logging.getLogger("simulador_ev3.web")
@@ -52,6 +54,11 @@ def create_app(config: dict | None = None) -> Flask:
     app.extensions["worker_id"] = worker_id
     app.extensions["worker_pid"] = worker_pid
     app.extensions["operational_metrics"] = {"requests_total": 0, "responses_5xx": 0, "total_duration_ms": 0.0}
+    app.extensions["client_rate_limiter"] = ClientRateLimiter(max_keys=int(app.config["RATE_LIMIT_MAX_CLIENTS"]))
+    app.extensions["worker_temp_cleanup"] = cleanup_worker_temp_dirs(
+        app.config.get("WORKER_TEMP_ROOT"),
+        max_age_s=float(app.config.get("WORKER_TEMP_MAX_AGE_S", 3_600)),
+    )
 
     @app.before_request
     def _request_started():
@@ -69,10 +76,19 @@ def create_app(config: dict | None = None) -> Flask:
             span.set_attribute("ev3.command_id", request.headers["X-EV3-Command-Id"])
         g.ev3_span = span
 
+    @app.before_request
+    def _security_controls():
+        from flask import request
+
+        enforce_operational_access(request, app.config)
+        enforce_origin(request)
+        enforce_rate_limit(request, app.config, app.extensions["client_rate_limiter"])
+
     metadata_store = _create_metadata_store(app.config)
     app.extensions["session_metadata_store"] = metadata_store
     session_manager = SessionManager(app.config, metadata_store=metadata_store)
     app.extensions["session_manager"] = session_manager
+    app.extensions["shutdown_sessions"] = session_manager.close_all
     app.extensions["session_cleanup_worker"] = None
     if app.config.get("ENABLE_SESSION_CLEANUP_THREAD", True) and not app.config.get("TESTING", False):
         cleanup_worker = SessionCleanupWorker(
@@ -139,8 +155,12 @@ def create_app(config: dict | None = None) -> Flask:
                 "script-src 'self'; "
                 "style-src 'self'; "
                 "base-uri 'self'; "
+                "object-src 'none'; "
+                "form-action 'self'; "
                 "frame-ancestors 'none'",
             )
+            if app.config.get("ENABLE_HSTS", False):
+                response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
         return response
 
     @app.errorhandler(WebError)

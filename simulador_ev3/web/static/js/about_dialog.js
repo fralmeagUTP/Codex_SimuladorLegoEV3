@@ -4,12 +4,17 @@ window.EV3AboutDialog = {
     const dialog = document.getElementById("aboutDialog");
     const backdrop = document.getElementById("aboutDialogBackdrop");
     const text = document.getElementById("aboutDialogText");
+    const title = document.getElementById("aboutDialogTitle");
+    const groups = dialog?.querySelector(".about-groups");
     const close = () => {
       dialog?.classList.add("hidden");
       backdrop?.classList.add("hidden");
     };
-    const open = () => {
-      if (text) text.textContent = message;
+    const open = (content = message, options = {}) => {
+      const { title: dialogTitle = "Acerca de", showGroups = true } = options;
+      if (title) title.textContent = dialogTitle;
+      if (text) text.textContent = content;
+      if (groups) groups.hidden = !showGroups;
       dialog?.classList.remove("hidden");
       backdrop?.classList.remove("hidden");
     };

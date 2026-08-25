@@ -18,13 +18,17 @@ from flask import (
 
 from simulador_ev3 import __version__
 from simulador_ev3.shared.asset_catalog import asset_filename, editor_asset_manifest
-from simulador_ev3.shared.interface_catalog import SESSION_STATUS_LABELS
 from simulador_ev3.shared.help_tutorials import (
     HELP_CATEGORIES,
     HELP_GUIDES,
+    HELP_MENU_ACTIONS,
     HELP_REFERENCES,
+    HELP_SAFE_EXAMPLES,
     PYBRICKS_GLOSSARY,
+    TEACHER_ROUTE,
 )
+from simulador_ev3.shared.help_visual_manifest import visual_for
+from simulador_ev3.shared.interface_catalog import SESSION_STATUS_LABELS
 from simulador_ev3.shared.paths import resolve_documentation_path, resolve_image_assets_dir
 from simulador_ev3.web.errors import InvalidPayload
 from simulador_ev3.web.redis_support import redis_runtime_state
@@ -45,6 +49,7 @@ def index():
             "robotica_aplicada": asset_filename("logo-robotica-aplicada"),
             "utp": asset_filename("logo-utp"),
         },
+        help_menu_actions={action.identifier: action for action in HELP_MENU_ACTIONS},
     )
 
 
@@ -60,8 +65,11 @@ def help_page():
         categories=HELP_CATEGORIES,
         guides=HELP_GUIDES,
         guides_by_id={guide.identifier: guide for guide in HELP_GUIDES},
+        guide_visuals={guide.identifier: visual_for(guide.identifier) for guide in HELP_GUIDES},
+        safe_examples=HELP_SAFE_EXAMPLES,
         references=HELP_REFERENCES,
         glossary=PYBRICKS_GLOSSARY,
+        teacher_route=TEACHER_ROUTE,
         destinations={
             "simulation": url_for("pages.index"),
             "worlds": url_for("pages.worlds_page"),
@@ -89,6 +97,10 @@ def operations_page():
 
 @bp.get("/healthz")
 def healthz():
+    if str(current_app.config.get("OPERATIONS_ACCESS_POLICY", "public")).strip().lower() == "public":
+        # El healthcheck público confirma disponibilidad sin revelar PIDs,
+        # capacidad, almacenes ni topología interna del proceso.
+        return jsonify({"status": "ok", "version": __version__})
     manager = current_app.extensions["session_manager"]
     return jsonify(
         {
@@ -108,6 +120,8 @@ def metrics():
     values = dict(current_app.extensions["operational_metrics"])
     total = values["requests_total"]
     values["average_duration_ms"] = round(values["total_duration_ms"] / total, 3) if total else 0.0
+    if str(current_app.config.get("OPERATIONS_ACCESS_POLICY", "public")).strip().lower() == "public":
+        return jsonify(values)
     session_stats = current_app.extensions["session_manager"].stats()
     worker_stats = current_app.extensions["session_manager"].worker_stats()
     wants_prometheus = request.args.get("format") == "prometheus" or "text/plain" in request.headers.get("Accept", "")

@@ -22,6 +22,12 @@ from tkinter import filedialog, messagebox
 from typing import Any, Callable, Optional
 
 from simulador_ev3.shared.debug_configuration import normalize_watches
+from simulador_ev3.shared.local_file_security import (
+    MAX_SCRIPT_FILE_BYTES,
+    LocalFileSecurityError,
+    read_text_limited,
+    write_text_atomically,
+)
 from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, tokens_for_theme
 
 # Nombres integrados adicionales que se resaltan como parte de la sintaxis.
@@ -337,8 +343,8 @@ class EditorPanel(tk.Frame):
 
     def load_file(self, path: str) -> None:
         """Carga el código desde un fichero externo."""
-        with open(path, encoding="utf-8") as f:
-            self.set_code(f.read())
+        _, source = read_text_limited(path, allowed_suffixes=(".py",), max_bytes=MAX_SCRIPT_FILE_BYTES)
+        self.set_code(source)
 
     # ------------------------------------------------------------------
     # Construcción
@@ -980,8 +986,10 @@ class EditorPanel(tk.Frame):
             try:
                 self.load_file(path)
                 self.set_status(f"Cargado: {os.path.basename(path)}")
-            except OSError as exc:
-                messagebox.showerror("Error al abrir", str(exc))
+            except (LocalFileSecurityError, OSError):
+                messagebox.showerror(
+                    "Error al abrir", "No se pudo abrir el script seleccionado. Verifique su formato y tamano."
+                )
 
     def _cmd_save(self) -> None:
         path = filedialog.asksaveasfilename(
@@ -991,11 +999,15 @@ class EditorPanel(tk.Frame):
         )
         if path:
             try:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(self.get_code())
+                write_text_atomically(
+                    path,
+                    self.get_code(),
+                    allowed_suffixes=(".py",),
+                    max_bytes=MAX_SCRIPT_FILE_BYTES,
+                )
                 self.set_status(f"Guardado: {os.path.basename(path)}")
-            except OSError as exc:
-                messagebox.showerror("Error al guardar", str(exc))
+            except (LocalFileSecurityError, OSError):
+                messagebox.showerror("Error al guardar", "No se pudo guardar el script en el destino seleccionado.")
 
     # ------------------------------------------------------------------
     # Resaltado de sintaxis con la biblioteca estándar de Python

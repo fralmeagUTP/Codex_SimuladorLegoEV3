@@ -21,6 +21,22 @@ def test_dockerfile_runs_the_web_server_without_root() -> None:
     assert 'CMD ["python", "-m", "simulador_ev3.web.waitress_server"]' in dockerfile
 
 
+def test_production_compose_applies_external_worker_boundaries() -> None:
+    root = Path(__file__).resolve().parents[2]
+    compose = (root / "docker-compose.production.yml").read_text(encoding="utf-8")
+
+    for expected in (
+        "read_only: true",
+        "pids_limit: 64",
+        "mem_limit: 768m",
+        "no-new-privileges:true",
+        "cap_drop:",
+        "- ALL",
+        "/tmp/ev3:rw,noexec,nosuid,size=128m,mode=0700",
+    ):
+        assert expected in compose
+
+
 def test_docker_smoke_provides_required_production_configuration() -> None:
     root = Path(__file__).resolve().parents[2]
     workflow = (root / ".github" / "workflows" / "quality.yml").read_text(encoding="utf-8")

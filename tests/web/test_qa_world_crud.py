@@ -60,3 +60,32 @@ def test_isolated_world_crud_preserves_saved_version_until_explicit_save(qa_work
     deleted = client.delete(f"{editor_url}/save/qa_temporal.json", headers=headers)
     assert deleted.status_code == 200
     assert not path.exists()
+
+
+def test_resize_editor_world_preserves_placements_and_rejects_invalid_shrink(qa_workspace) -> None:
+    client, session_id, headers = _client_and_session(qa_workspace)
+    editor_url = f"/api/sessions/{session_id}/editor/world"
+
+    assert client.post(editor_url, json={"width_cells": 10, "height_cells": 10}, headers=headers).status_code == 200
+    placed = client.post(
+        f"{editor_url}/place",
+        json={"asset_key": "wall_64x64_a", "x": 64, "y": 64, "rotation": 0},
+        headers=headers,
+    )
+    assert placed.status_code == 200
+
+    enlarged = client.post(
+        f"{editor_url}/resize", json={"width_cells": 12, "height_cells": 12}, headers=headers
+    )
+    assert enlarged.status_code == 200
+    enlarged_world = enlarged.get_json()["world"]
+    assert enlarged_world["world_width_cells"] == 12
+    assert [item["asset_key"] for item in enlarged_world["placements"]] == ["wall_64x64_a"]
+
+    rejected = client.post(
+        f"{editor_url}/resize", json={"width_cells": 2, "height_cells": 2}, headers=headers
+    )
+    assert rejected.status_code == 400
+    unchanged = client.get(editor_url, headers=headers).get_json()["world"]
+    assert unchanged["world_width_cells"] == 12
+    assert [item["asset_key"] for item in unchanged["placements"]] == ["wall_64x64_a"]

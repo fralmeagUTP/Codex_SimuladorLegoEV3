@@ -2,9 +2,12 @@ import json
 import time
 from pathlib import Path
 
+import pytest
+
 from simulador_ev3.application.desktop_session_adapter import DesktopSessionAdapter
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
+from simulador_ev3.shared.local_file_security import LocalFileSecurityError
 
 
 def test_desktop_session_adapter_exposes_local_simulation_use_cases() -> None:
@@ -62,6 +65,23 @@ def test_desktop_session_adapter_recovers_worker_before_mirroring_world(monkeypa
         session._worker.close()
         session.load_world_file(world)
         assert session._worker is not None
+    finally:
+        session.close()
+
+
+def test_desktop_session_adapter_rejects_non_json_or_oversized_world_before_worker(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
+    session = DesktopSessionAdapter(SimEngineConfig())
+    invalid = tmp_path / "world.txt"
+    invalid.write_text("{}", encoding="utf-8")
+    oversized = tmp_path / "world.json"
+    oversized.write_bytes(b"x" * (2 * 1024 * 1024 + 1))
+    try:
+        with pytest.raises(LocalFileSecurityError):
+            session.load_world_file(invalid)
+        with pytest.raises(LocalFileSecurityError):
+            session.load_world_file(oversized)
+        assert session._worker is None
     finally:
         session.close()
 

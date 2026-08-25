@@ -62,7 +62,7 @@ LIGHT_TOKENS = ThemeTokens(
 DARK_TOKENS = ThemeTokens(
     background="#0F1724", surface="#152238", surface_muted="#17253A",
     text="#DBE5F5", text_muted="#B8C8DA", primary="#2E5EA3",
-    primary_active="#3B67A5", danger="#EF9A9A", success="#81C784",
+    primary_active="#3B67A5", danger="#C62828", success="#81C784",
     warning="#FFCC80", focus="#90CAF9", border="#2B4A66",
     # La variante oscura replica `html[data-theme="dark"] .menu-bar`.
     toolbar="#111C2D", toolbar_text="#E2E8F0",

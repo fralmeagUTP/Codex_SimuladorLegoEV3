@@ -91,6 +91,7 @@ class SimulationService:
         config: Optional[SimEngineConfig] = None,
         policy: Optional[ExecutionPolicy] = None,
         tick_rate_hz: float = 50.0,
+        trace_max_snapshots: int = 5_000,
     ) -> None:
         self._config = config or SimEngineConfig()
         self._policy = policy or ExecutionPolicy()
@@ -113,7 +114,7 @@ class SimulationService:
         self._debug_breakpoints: set[int] = set()
         self._debug_watches: list[str] = []
         self._latest_debug_event: dict | None = None
-        self._trace = SimulationTrace()
+        self._trace = SimulationTrace(max_snapshots=max(1, int(trace_max_snapshots)))
         self._trace_recording = False
         self._active_mission: MissionDefinition | None = None
         self._mission_result: dict | None = None
@@ -192,6 +193,12 @@ class SimulationService:
 
     def stop_trace(self) -> None:
         self._trace_recording = False
+
+    def clear_trace(self) -> None:
+        """Libera snapshots retenidos al reiniciar o cerrar una sesión."""
+
+        self._trace_recording = False
+        self._trace.clear()
 
     def activate_mission(self, mission: MissionDefinition) -> None:
         """Asocia una misión a la próxima ejecución y registra su evidencia."""

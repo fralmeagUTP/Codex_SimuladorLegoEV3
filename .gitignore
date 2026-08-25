@@ -17,3 +17,6 @@ artifacts/qa-wheel/
 artifacts/e2e-web/
 artifacts/mmi/
 artifacts/pytest-phase12/
+.pytest-*/
+.capture-tmp/
+.cache-check.png

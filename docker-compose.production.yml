@@ -1,0 +1,25 @@
+services:
+  simulador-ev3:
+    build: .
+    image: simulador-ev3:production
+    ports:
+      - "5050:5050"
+    environment:
+      EV3_WEB_APP_ENV: production
+      EV3_WEB_SECRET_KEY: ${EV3_WEB_SECRET_KEY:?configure_a_secret}
+      EV3_WEB_SESSION_COOKIE_SECURE: "true"
+      EV3_WEB_SESSION_COOKIE_PREFIX: __Host-ev3_
+      EV3_WEB_ENABLE_HSTS: "true"
+      EV3_WEB_OPERATIONS_ACCESS_POLICY: token
+      EV3_WEB_OPERATIONS_TOKEN: ${EV3_WEB_OPERATIONS_TOKEN:?configure_an_operations_token}
+    read_only: true
+    tmpfs:
+      - /tmp/ev3:rw,noexec,nosuid,size=128m,mode=0700
+    pids_limit: 64
+    mem_limit: 768m
+    cpus: 2.0
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped

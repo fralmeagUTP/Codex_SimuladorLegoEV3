@@ -3,6 +3,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from simulador_ev3.domain.editor.world_editor_model import normalize_asset_key
 from simulador_ev3.shared.asset_catalog import (
     ASSET_CATALOG_VERSION,
     ASSET_DESCRIPTORS,
@@ -11,7 +12,6 @@ from simulador_ev3.shared.asset_catalog import (
     editor_asset_manifest,
     validate_asset_catalog,
 )
-from simulador_ev3.domain.editor.world_editor_model import normalize_asset_key
 from simulador_ev3.shared.interface_catalog import label_for_status
 from simulador_ev3.shared.world_editor_projection import placement_geometry
 
@@ -40,6 +40,9 @@ def test_editor_asset_manifest_declares_geometry_hash_and_anchors() -> None:
     assert robot["logical_width_mm"] == 100.0
     assert robot["placement_anchor"] == "top_left"
     assert robot["visual_anchor"] == "center"
+    assert robot["category"] == "Robot"
+    assert robot["label"] == "Robot EV3"
+    assert "posición inicial" in robot["tooltip"]
     assert line["logical_width_mm"] == 200.0
     assert line["connectors"] == ["E", "W"]
 

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Centro de ayuda - Simulador EV3 Pybricks{% endblock %}
+{% block head_data %}<link rel="stylesheet" href="{{ url_for('static', filename='css/help_progress.css', v=asset_version) }}">{% endblock %}
 {% block body %}
 <main class="help-center" data-help-center>
   <header class="help-hero">
@@ -14,6 +15,7 @@
       <option value="light">Claro</option>
       <option value="dark">Oscuro</option>
     </select>
+    <button type="button" class="help-teacher-toggle" data-teacher-mode aria-pressed="false">Modo docente</button>
   </header>
 
   <section class="help-search-panel" aria-label="Buscar en la ayuda">
@@ -40,6 +42,14 @@
       </a>
       {% endfor %}
     </div>
+  </section>
+  <section class="help-teacher-route" data-teacher-route hidden aria-labelledby="teacherRouteTitle">
+    <p class="help-eyebrow">MODO DOCENTE · {{ teacher_route.minutes }} MIN</p>
+    <h2 id="teacherRouteTitle">{{ teacher_route.title }}</h2>
+    <p><strong>Objetivo:</strong> {{ teacher_route.objective }}</p>
+    <p><strong>Evidencia sugerida:</strong> {{ teacher_route.suggested_evidence }}</p>
+    <p class="help-teacher-warning"><strong>Antes de usar un robot físico:</strong> {{ teacher_route.physical_robot_warning }}</p>
+    <p>Ruta: {% for guide_id in teacher_route.guide_ids %}<a href="#guide-{{ guide_id }}">{{ guides_by_id[guide_id].title }}</a>{% if not loop.last %} → {% endif %}{% endfor %}</p>
   </section>
 
   <div class="help-workspace">
@@ -82,6 +92,7 @@
         </div>
         <figure class="help-guide-figure">
           <img src="{{ url_for('static', filename='images/help/' + guide.image_name, v=asset_version) }}" alt="{{ guide.image_alt }}" loading="lazy">
+          <figcaption>{{ guide_visuals[guide.identifier].transcript }}</figcaption>
         </figure>
         <div class="help-guide-content">
           <section>
@@ -90,7 +101,7 @@
           </section>
           <section>
             <h4>Pasos</h4>
-            <ol>{% for step in guide.steps %}<li>{{ step }}</li>{% endfor %}</ol>
+            <ol class="help-steps" data-guide-steps="{{ guide.identifier }}">{% for step in guide.steps %}<li><label><input type="checkbox" data-guide-step data-guide-id="{{ guide.identifier }}" data-step-id="{{ loop.index0 }}"> <span>{{ step }}</span></label></li>{% endfor %}</ol>
           </section>
         </div>
         <div class="help-guide-outcomes">
@@ -99,6 +110,12 @@
         </div>
         <footer class="help-guide-footer">
           <a class="help-primary-action" href="{{ destinations[guide.destination] }}">Abrir {{ "Editor de mundos" if guide.destination == "worlds" else "Simulación" }} <span aria-hidden="true">→</span></a>
+          {% if guide.identifier in safe_examples %}<button type="button" class="help-copy-example" data-copy-example="{{ guide.identifier }}">Copiar ejemplo seguro</button><template id="help-example-{{ guide.identifier }}">{{ safe_examples[guide.identifier] }}</template>{% endif %}
+          <div class="help-guide-progress" data-guide-progress="{{ guide.identifier }}" aria-live="polite">
+            <progress value="0" max="{{ guide.steps|length }}"></progress>
+            <span>0 de {{ guide.steps|length }} pasos</span>
+            <button type="button" data-guide-reset="{{ guide.identifier }}">Reiniciar guía</button>
+          </div>
           {% if guide.related %}<span>También: {% for related in guide.related %}<a href="#guide-{{ related }}">{{ guides_by_id[related].title }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
         </footer>
       </article>

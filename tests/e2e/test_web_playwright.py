@@ -6,7 +6,6 @@ import re
 import shutil
 import socket
 import threading
-import time
 from contextlib import closing
 from pathlib import Path
 
@@ -47,15 +46,18 @@ def _computed_text_and_background(locator) -> dict[str, str]:
     return locator.evaluate(
         """
         node => {
+          const visibleStatusText = node.matches('#sessionStatus[data-label], #telemetryStatus[data-label]')
+            ? getComputedStyle(node, '::after').color
+            : getComputedStyle(node).color;
           let current = node;
           while (current) {
             const background = getComputedStyle(current).backgroundColor;
             if (background && !background.endsWith(', 0)')) {
-              return { foreground: getComputedStyle(node).color, background };
+              return { foreground: visibleStatusText, background };
             }
             current = current.parentElement;
           }
-          return { foreground: getComputedStyle(node).color, background: 'rgb(255, 255, 255)' };
+          return { foreground: visibleStatusText, background: 'rgb(255, 255, 255)' };
         }
         """
     )
@@ -262,6 +264,20 @@ def test_simulation_page_runs_default_script(page, live_web_app, expect):
     expect(page.locator("#sessionStatus")).to_have_text("finished", timeout=7000)
     expect(page.locator("#runBtn")).to_be_enabled()
     expect(page.locator("#telemetryTick")).not_to_have_text("--", timeout=5000)
+
+
+def test_web_startup_screen_closes_after_three_seconds(page, live_web_app, expect):
+    """La introducción no puede dejar la aplicación web bloqueada."""
+
+    page.goto(f"{live_web_app}/")
+    splash = page.locator("#startupSplash")
+    expect(splash).to_be_visible()
+
+    page.wait_for_timeout(2800)
+    expect(splash).to_be_visible()
+    page.wait_for_timeout(700)
+    expect(splash).to_be_hidden()
+    expect(page.locator("#worldCanvas")).to_be_visible()
 
 
 def test_terminal_snapshot_synchronizes_status_telemetry_and_lcd(page, live_web_app, expect):
@@ -835,6 +851,46 @@ def test_help_menu_opens_the_help_center(page, live_web_app, expect):
     expect(manual_page.locator("body")).to_contain_text("¿Qué quieres hacer hoy?")
 
 
+def test_help_diagnostics_has_its_own_title_and_exports_safe_json(page, live_web_app, expect):
+    """Diagnóstico y Acerca de no comparten semántica ni contenido visual."""
+
+    page.goto(f"{live_web_app}/")
+    page.get_by_role("button", name="Ayuda", exact=True).click()
+    page.get_by_role("button", name="Diagnóstico de sesión", exact=True).click()
+
+    dialog = page.get_by_role("dialog")
+    expect(dialog).to_be_visible()
+    expect(dialog.locator("#aboutDialogTitle")).to_have_text("Diagnóstico de sesión")
+    expect(dialog.locator(".about-groups")).to_be_hidden()
+    dialog.press("Escape")
+    expect(dialog).to_be_hidden()
+
+    page.get_by_role("button", name="Ayuda", exact=True).click()
+    with page.expect_download() as download_info:
+        page.get_by_role("button", name="Exportar diagnóstico JSON", exact=True).click()
+    download = download_info.value
+    assert download.suggested_filename.startswith("diagnostico-sesion-")
+    assert download.suggested_filename.endswith(".json")
+
+    page.get_by_role("button", name="Ayuda", exact=True).click()
+    page.get_by_role("button", name="Acerca de", exact=True).click()
+    expect(dialog.locator("#aboutDialogTitle")).to_have_text("Acerca de")
+    expect(dialog.locator(".about-groups")).to_be_visible()
+
+
+def test_help_menu_offers_the_lego_ev3_book_in_a_new_secure_tab(page, live_web_app, expect):
+    page.goto(f"{live_web_app}/")
+    page.get_by_role("button", name="Ayuda", exact=True).click()
+
+    book = page.get_by_role("link", name="Libro: Programación en Python para robótica (LEGO EV3)", exact=True)
+    expect(book).to_have_attribute("target", "_blank")
+    expect(book).to_have_attribute("rel", re.compile(r"noopener"))
+    expect(book).to_have_attribute(
+        "href",
+        re.compile(r"repositorio\.utp\.edu\.co/entities/publication/2cb3c888-47b1-4653-8b05-46c27a87ae81"),
+    )
+
+
 def test_secondary_web_controls_are_operable_with_keyboard(page, live_web_app, expect):
     """Ayuda y herramientas de mapa conservan un recorrido de teclado útil."""
 
@@ -1259,13 +1315,42 @@ def test_world_editor_drags_selected_asset(page, live_web_app, expect):
     expect(page.locator("#console")).to_contain_text("Mundo valido.", timeout=5000)
 
 
+def test_world_editor_preserves_assets_when_resizing_and_docks_panels(page, live_web_app, expect):
+    """Recorrido visible de la protección contra pérdida y el diseño portátil."""
+
+    page.set_viewport_size({"width": 1024, "height": 768})
+    page.goto(f"{live_web_app}/worlds")
+    expect(page.locator("#worldCanvas")).to_be_visible()
+
+    page.locator("#assetPalette .asset-tool[data-asset-key='wall_64x64_a']").click()
+    box = page.locator("#worldCanvas").bounding_box()
+    assert box is not None
+    page.mouse.click(box["x"] + 160, box["y"] + 160)
+    expect(page.locator("#worldDirtyIndicator")).to_be_visible()
+
+    page.locator("#worldWidthInput").fill("50")
+    page.locator("#worldHeightInput").fill("40")
+    page.locator("#applyWorldSizeBtn").click()
+    expect(page.locator("#selectedAsset")).to_contain_text("Muro A", timeout=5000)
+    expect(page.locator("#worldDirtyIndicator")).to_be_visible()
+
+    page.locator("#toggleLibraryPanelBtn").click()
+    expect(page.locator(".world-editor-shell")).to_have_class(re.compile(r"\bis-library-collapsed\b"))
+    expect(page.locator("#worldCanvas")).to_be_visible()
+    page.locator("#toggleInspectorPanelBtn").click()
+    expect(page.locator(".world-editor-shell")).to_have_class(
+        re.compile(r"(?=.*\bis-library-collapsed\b)(?=.*\bis-inspector-collapsed\b)")
+    )
+    expect(page.locator("#worldCanvas")).to_be_visible()
+
+
 def test_help_page_is_available_from_browser(page, live_web_app, expect):
     page.goto(f"{live_web_app}/help")
 
     expect(page.get_by_role("heading", name="¿Qué quieres hacer hoy?")).to_be_visible()
     search = page.get_by_role("searchbox", name="Buscar una guía, control o error")
     expect(search).to_be_visible()
-    expect(page.locator("[data-help-guide]")).to_have_count(7)
+    expect(page.locator("[data-help-guide]")).to_have_count(11)
 
     search.fill("ultrasónico")
     expect(page.locator("#helpSearchStatus")).to_have_text("1 guía disponible.")
@@ -1274,8 +1359,9 @@ def test_help_page_is_available_from_browser(page, live_web_app, expect):
 
     search.fill("")
     page.get_by_role("button", name="Resolver problemas").click()
-    expect(page.locator("[data-help-guide]:not([hidden])")).to_have_count(2)
+    expect(page.locator("[data-help-guide]:not([hidden])")).to_have_count(3)
     expect(page.locator("#guide-recover-script-error")).to_be_visible()
+    expect(page.locator("#guide-session-diagnostics")).to_be_visible()
 
     page.locator("#helpThemeSelect").select_option("light")
     expect(page.locator("html")).to_have_attribute("data-theme", "light")
@@ -1284,6 +1370,48 @@ def test_help_page_is_available_from_browser(page, live_web_app, expect):
 
     page.set_viewport_size({"width": 390, "height": 844})
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+
+
+def test_help_progress_teacher_mode_and_keyboard_are_accessible(page, live_web_app, expect):
+    """El recorrido guiado conserva el avance y funciona sin ratÃ³n."""
+
+    page.goto(f"{live_web_app}/help")
+    page.evaluate("localStorage.removeItem('ev3-help-guide-progress-v1')")
+    page.evaluate("localStorage.removeItem('ev3-help-teacher-mode-v1')")
+    page.reload()
+
+    first_step = page.locator("[data-guide-step]").first
+    first_step.focus()
+    first_step.press("Space")
+    expect(first_step).to_be_checked()
+    progress = page.locator("[data-guide-progress]").first
+    expect(progress).to_have_attribute("aria-live", "polite")
+    expect(progress.locator("progress")).to_have_attribute("value", "1")
+
+    page.reload()
+    expect(page.locator("[data-guide-step]").first).to_be_checked()
+
+    teacher_mode = page.locator("[data-teacher-mode]")
+    teacher_mode.focus()
+    teacher_mode.press("Enter")
+    expect(teacher_mode).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("[data-teacher-route]")).to_be_visible()
+
+
+def test_help_page_respects_dark_mobile_and_reduced_motion(page, live_web_app, expect):
+    """La ayuda mantiene contenido utilizable con preferencias de accesibilidad."""
+
+    page.emulate_media(reduced_motion="reduce")
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(f"{live_web_app}/help")
+    page.locator("#helpThemeSelect").select_option("dark")
+
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+    expect(page.locator("[data-help-guide]").first).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+    assert page.evaluate(
+        "getComputedStyle(document.querySelector('.help-teacher-route')).animationName"
+    ) in {"none", ""}
 
 
 def test_two_browser_contexts_keep_sessions_independent(browser, live_web_app, expect):

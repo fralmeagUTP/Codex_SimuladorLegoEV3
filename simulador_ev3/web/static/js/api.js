@@ -459,6 +459,10 @@ window.EV3Api = (() => {
       method: "POST",
       body: JSON.stringify({ width_cells: widthCells, height_cells: heightCells }),
     }),
+    resizeEditorWorld: (widthCells, heightCells) => request(`/api/sessions/${sessionId}/editor/world/resize`, {
+      method: "POST",
+      body: JSON.stringify({ width_cells: widthCells, height_cells: heightCells }),
+    }),
     importEditorWorld: (world) => request(`/api/sessions/${sessionId}/editor/world`, {
       method: "POST",
       body: JSON.stringify(world),

@@ -39,3 +39,13 @@ def test_desktop_session_is_saved_alongside_theme(monkeypatch, tmp_path) -> None
 
     assert load_ui_theme() == "dark"
     assert load_desktop_session() == {"source": "x = 1", "breakpoints": [2]}
+
+
+def test_settings_are_written_without_leaving_a_temporary_file(monkeypatch, tmp_path) -> None:
+    settings_file = tmp_path / "settings" / "ui.json"
+    monkeypatch.setenv("EV3_UI_SETTINGS_PATH", str(settings_file))
+
+    save_ui_theme("dark")
+
+    assert settings_file.exists()
+    assert not list(settings_file.parent.glob("*.tmp"))

@@ -8,6 +8,7 @@ import io
 import multiprocessing as mp
 import os
 import queue
+import shutil
 import socket
 import sys
 import tempfile
@@ -19,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 IPC_PROTOCOL_VERSION = 1
+WORKER_TEMP_PREFIX = "ev3-worker-"
 
 
 class WorkerNetworkDisabled(OSError):
@@ -229,6 +231,58 @@ def worker_isolation_enabled() -> bool:
     return local_compatibility.strip().lower() not in {"1", "true", "yes", "on"}
 
 
+def worker_temp_root(configured_root: str | Path | None = None) -> Path:
+    """Devuelve un directorio propio para workers; nunca usa residuos ajenos."""
+
+    configured = configured_root or os.environ.get("EV3_WORKER_TEMP_ROOT")
+    root = Path(configured).expanduser() if configured else Path(tempfile.gettempdir()) / "ev3-worker-runtime"
+    root = root.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(root, 0o700)
+    except OSError:
+        pass
+    return root
+
+
+def _pid_is_active(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def cleanup_worker_temp_dirs(configured_root: str | Path | None, *, max_age_s: float) -> dict[str, int]:
+    """Elimina sólo directorios de worker propios y vencidos, sin tocar procesos."""
+
+    root = worker_temp_root(configured_root)
+    now = time.time()
+    removed = skipped_active = errors = 0
+    for candidate in root.iterdir():
+        if not candidate.is_dir() or not candidate.name.startswith(WORKER_TEMP_PREFIX):
+            continue
+        try:
+            if candidate.resolve().parent != root or now - candidate.stat().st_mtime < max(1.0, float(max_age_s)):
+                continue
+            marker = candidate / ".ev3-worker-pid"
+            pid = int(marker.read_text(encoding="ascii").strip()) if marker.exists() else 0
+            if _pid_is_active(pid):
+                skipped_active += 1
+                continue
+            shutil.rmtree(candidate)
+            removed += 1
+        except (OSError, ValueError):
+            errors += 1
+    return {"removed": removed, "skipped_active": skipped_active, "errors": errors}
+
+
 @dataclass(frozen=True)
 class WorkerMessage:
     session_id: str
@@ -251,7 +305,7 @@ class WorkerMessage:
         }
 
 
-def _worker_main(commands, events, session_id: str) -> None:
+def _worker_main(commands, events, session_id: str, configured_temp_root: str | None = None) -> None:
     sequence = 0
     status = "created"
     service = None
@@ -262,8 +316,10 @@ def _worker_main(commands, events, session_id: str) -> None:
         events.put(WorkerMessage(session_id, sequence, "event", event_type, payload, command_id).to_dict())
 
     original_cwd = os.getcwd()
-    with tempfile.TemporaryDirectory(prefix="ev3-worker-") as workdir:
+    temp_root = worker_temp_root(configured_temp_root)
+    with tempfile.TemporaryDirectory(prefix=WORKER_TEMP_PREFIX, dir=temp_root) as workdir:
         os.chdir(workdir)
+        Path(workdir, ".ev3-worker-pid").write_text(str(os.getpid()), encoding="ascii")
         removed_environment_variables = _sanitize_worker_environment()
         os.environ["TMP"] = workdir
         os.environ["TEMP"] = workdir
@@ -618,19 +674,23 @@ def _worker_main(commands, events, session_id: str) -> None:
 class IsolatedRuntimeWorker:
     """Cliente del worker aislado v1; la migración de sesiones se hace en 3.4."""
 
-    def __init__(self, session_id: str | None = None) -> None:
+    def __init__(self, session_id: str | None = None, *, temp_root: str | Path | None = None) -> None:
         self.session_id = session_id or str(uuid.uuid4())
         self._context = mp.get_context("spawn")
         self._commands = self._context.Queue()
         self._events = self._context.Queue()
         self._process: Any = None
         self._sequence = 0
+        self._temp_root = str(worker_temp_root(temp_root))
+        self._last_close_clean = True
 
     def start(self) -> None:
         if self._process and self._process.is_alive():
             return
         self._process = self._context.Process(
-            target=_worker_main, args=(self._commands, self._events, self.session_id), daemon=True
+            target=_worker_main,
+            args=(self._commands, self._events, self.session_id, self._temp_root),
+            daemon=True,
         )
         self._process.start()
 
@@ -673,22 +733,36 @@ class IsolatedRuntimeWorker:
         return drained
 
     def close(self) -> None:
+        self._last_close_clean = True
         if self._process and self._process.is_alive():
             try:
                 self.send("shutdown")
                 self.receive(1.0)
             except (RuntimeError, TimeoutError):
+                self._last_close_clean = False
                 self._process.terminate()
             self._process.join(timeout=1.0)
         if self._process and self._process.is_alive():
+            self._last_close_clean = False
             self._process.terminate()
             self._process.join(timeout=1.0)
+        if self._process and self._process.is_alive():
+            self._last_close_clean = False
         self._process = None
         # Cada cliente crea sus propias colas. Cerrarlas evita que los
         # semáforos sobrevivan entre pruebas o sesiones consecutivas.
         for channel in (self._commands, self._events):
-            channel.close()
-            channel.join_thread()
+            try:
+                channel.close()
+                channel.join_thread()
+            except (OSError, ValueError):
+                self._last_close_clean = False
+
+    @property
+    def last_close_clean(self) -> bool:
+        """Indica si el worker finalizó sin requerir terminación forzada."""
+
+        return self._last_close_clean
 
     def restart(self) -> None:
         """Recrea el proceso aislado después de una caída o cancelación forzada."""

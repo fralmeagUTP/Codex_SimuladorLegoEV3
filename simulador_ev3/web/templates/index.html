@@ -6,6 +6,20 @@
 <script>window.EV3_STATUS_LABELS = {{ status_labels|tojson }};</script>
 {% endblock %}
 {% block body %}
+<div id="startupSplash" class="startup-splash" role="status" aria-live="polite" aria-label="Cargando BotLab Studio">
+  <div class="startup-splash-art">
+    <img
+      src="{{ url_for('pages.image_asset', name='Intro.png') }}"
+      alt=""
+      class="startup-splash-image"
+    >
+    <div class="startup-splash-loader" aria-hidden="true">
+      <span class="startup-splash-loader-text">Cargando entorno de simulación…</span>
+      <div class="startup-splash-progress"><span></span></div>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/startup_splash.js', v=asset_version) }}"></script>
 <main class="app-shell">
   <div id="executionSuccessToast" class="execution-success-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
     <span id="executionSuccessToastMessage">El programa se ejecutó correctamente.</span>
@@ -90,10 +104,12 @@
       <div class="menu-group">
         <button type="button" class="menu-trigger" aria-haspopup="true">Ayuda</button>
         <div class="menu-dropdown">
-          <a href="{{ url_for('pages.help_page') }}" target="_blank">Centro de ayuda</a>
-          <a id="activityGuideLink" href="{{ url_for('pages.help_page') }}#guide-first-simulation" target="_blank">Guía de actividad</a>
-          <button type="button" id="diagnosticsMenuBtn">Diagnóstico de sesión</button>
-          <button type="button" id="aboutMenuBtn">Acerca de</button>
+          <a href="{{ url_for('pages.help_page') }}" target="_blank">{{ help_menu_actions['help-center'].label }}</a>
+          <a id="activityGuideLink" href="{{ url_for('pages.help_page') }}#guide-first-simulation" target="_blank">{{ help_menu_actions['quick-first-simulation'].label }}</a>
+          <button type="button" id="diagnosticsMenuBtn">{{ help_menu_actions['session-diagnostics'].label }}</button>
+          <button type="button" id="exportDiagnosticsMenuBtn">{{ help_menu_actions['export-diagnostics'].label }}</button>
+          <a href="{{ help_menu_actions['lego-ev3-book'].external_url }}" target="_blank" rel="noopener noreferrer">{{ help_menu_actions['lego-ev3-book'].label }}</a>
+          <button type="button" id="aboutMenuBtn">{{ help_menu_actions['about'].label }}</button>
         </div>
       </div>
     </nav>

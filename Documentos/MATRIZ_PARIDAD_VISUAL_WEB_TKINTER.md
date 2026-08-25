@@ -12,6 +12,7 @@ La Web es la fuente de verdad. Esta matriz define el inventario de Fase 1.
 | Brick | LED, LCD, altavoz | EV3 Brick | Misma paleta y encabezados |
 | Menús | Tema, Fidelidad, Trazas, Ayuda | Barra de menú | Mismos nombres y orden |
 | Centro de ayuda | Búsqueda, categorías, guías por tarea y recuperación | Ventana nativa del Centro de ayuda | Mismo catálogo, destinos y semántica; adaptado a controles nativos |
+| Ayuda y soporte | Diagnóstico titulado, exportación JSON y Acerca de institucional | Diálogo nativo, guardado JSON y Acerca de institucional | Mismos cinco comandos, orden, contenido seguro y destino |
 
 Las áreas de verificación comunes son: simulación, mundo, editor,
 depuración, telemetría, brick, tema, fidelidad, trazas y ayuda.

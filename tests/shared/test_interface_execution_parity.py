@@ -316,10 +316,14 @@ def test_line_world_uses_identical_start_pose_and_asset_geometry_in_both_clients
 
         assert web.snapshot_response()["snapshot"]["robot"] == desktop.current_snapshot().to_dict()["robot"]
         web_placements = editor_placements(web_world.get("editor_spec"))
-        source_placements = editor_placements(json.loads(world_path.read_text(encoding="utf-8")).get("editor_spec"))
+        source_payload = json.loads(world_path.read_text(encoding="utf-8"))
+        source_placements = editor_placements(source_payload.get("editor_spec"))
         assert [item["asset_key"] for item in web_placements] == [item["asset_key"] for item in source_placements]
-        assert [placement_geometry(item) for item in web_placements] == [placement_geometry(item) for item in source_placements]
-        assert all(item and item["layer"] in {"floor", "zone", "line", "wall", "robot"} for item in map(placement_geometry, web_placements))
+        web_geometry = [placement_geometry(item) for item in web_placements]
+        source_geometry = [placement_geometry(item) for item in source_placements]
+        assert web_geometry == source_geometry
+        layers = {"floor", "zone", "line", "wall", "robot"}
+        assert all(item and item["layer"] in layers for item in web_geometry)
     finally:
         web.close()
         desktop.close()
