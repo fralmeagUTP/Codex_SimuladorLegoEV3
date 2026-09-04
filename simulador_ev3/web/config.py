@@ -53,6 +53,7 @@ class DefaultWebConfig:
     RATE_LIMIT_SESSION_COMMAND = 120
     RATE_LIMIT_MAX_CLIENTS = 4096
     TRUST_PROXY_HEADERS = False
+    PUBLIC_ORIGIN = ""
     OPERATIONS_ACCESS_POLICY = "public"
     OPERATIONS_ALLOWED_CLIENTS = "127.0.0.1,::1"
     OPERATIONS_TOKEN = ""
@@ -109,6 +110,7 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "RATE_LIMIT_SESSION_COMMAND": int,
     "RATE_LIMIT_MAX_CLIENTS": int,
     "TRUST_PROXY_HEADERS": lambda value: _parse_bool(value),
+    "PUBLIC_ORIGIN": str,
     "OPERATIONS_ACCESS_POLICY": str,
     "OPERATIONS_ALLOWED_CLIENTS": str,
     "OPERATIONS_TOKEN": str,

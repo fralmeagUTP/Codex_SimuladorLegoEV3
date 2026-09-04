@@ -472,7 +472,11 @@ def test_mutable_api_rejects_cross_origin_requests(tmp_path):
 
 
 def test_mutable_api_accepts_public_origin_through_trusted_proxy(tmp_path):
-    client = make_client_with_config(tmp_path, TRUST_PROXY_HEADERS=True)
+    client = make_client_with_config(
+        tmp_path,
+        TRUST_PROXY_HEADERS=True,
+        PUBLIC_ORIGIN="https://botlab.example",
+    )
 
     response = client.post(
         "/api/sessions",

@@ -68,7 +68,7 @@ def client_identity(request: Request, config: dict[str, Any]) -> str:
     return str(request.remote_addr or "unknown")
 
 
-def enforce_origin(request: Request) -> None:
+def enforce_origin(request: Request, config: dict[str, Any]) -> None:
     """Rechaza peticiones mutables de navegador que declaran origen cruzado."""
 
     if request.method not in {"POST", "PUT", "PATCH", "DELETE"} or not request.path.startswith("/api/"):
@@ -79,7 +79,10 @@ def enforce_origin(request: Request) -> None:
     origin = request.headers.get("Origin", "").strip()
     if not origin:
         return
-    expected = request.host_url.rstrip("/")
+    # Un proxy puede conservar el Host interno aunque exponga HTTPS al
+    # navegador. En ese caso se usa exclusivamente el origen público
+    # configurado para mantener la comparación estricta sin debilitar CSRF.
+    expected = str(config.get("PUBLIC_ORIGIN") or request.host_url).strip().rstrip("/")
     if not secrets.compare_digest(origin.rstrip("/"), expected):
         raise CrossOriginRequest("La solicitud no pertenece al origen de la aplicación.")
 

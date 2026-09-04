@@ -87,7 +87,7 @@ def create_app(config: dict | None = None) -> Flask:
         from flask import request
 
         enforce_operational_access(request, app.config)
-        enforce_origin(request)
+        enforce_origin(request, app.config)
         enforce_rate_limit(request, app.config, app.extensions["client_rate_limiter"])
 
     metadata_store = _create_metadata_store(app.config)
