@@ -260,6 +260,39 @@ def test_production_configuration_accepts_required_security_values(tmp_path):
     assert app.config["APP_ENV"] == "production"
 
 
+def test_production_configuration_rejects_invalid_capacity_and_relative_temp_dirs(tmp_path):
+    with pytest.raises(RuntimeError, match="MAX_RUNNING_SIMULATIONS"):
+        create_app(
+            {
+                "TESTING": True,
+                "APP_ENV": "production",
+                "SECRET_KEY": "clave-de-produccion-segura-con-32-caracteres",
+                "SESSION_COOKIE_SECURE": True,
+                "ENABLE_HSTS": True,
+                "OPERATIONS_ACCESS_POLICY": "local",
+                "MAX_ACTIVE_SESSIONS": 2,
+                "MAX_RUNNING_SIMULATIONS": 3,
+                "WORLDS_DIR": tmp_path,
+                "EXAMPLES_DIR": tmp_path,
+            }
+        )
+
+    with pytest.raises(RuntimeError, match="WORKER_TEMP_ROOT"):
+        create_app(
+            {
+                "TESTING": True,
+                "APP_ENV": "production",
+                "SECRET_KEY": "clave-de-produccion-segura-con-32-caracteres",
+                "SESSION_COOKIE_SECURE": True,
+                "ENABLE_HSTS": True,
+                "OPERATIONS_ACCESS_POLICY": "local",
+                "WORKER_TEMP_ROOT": "relative-workers",
+                "WORLDS_DIR": tmp_path,
+                "EXAMPLES_DIR": tmp_path,
+            }
+        )
+
+
 def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     worlds_dir = tmp_path / "worlds_env"
     examples_dir = tmp_path / "examples_env"

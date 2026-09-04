@@ -54,6 +54,8 @@
 | `Documentos/GUIA_WEB_FLASK_WINDOWS.md` | Especializado | Web Windows/Waitress. |
 | `Documentos/GUIA_RELEASE_WINDOWS.md` | Especializado | Paquete Tkinter Windows. |
 | `Documentos/GUIA_DESPLIEGUE_LINUX.md` | Canónico | Contenedor Linux. |
+| `Documentos/REQUERIMIENTOS_HOSTING_Y_DESPLIEGUE_WEB.md` | Canónico | Requisitos del hosting y despliegue Web en Linux o cPanel. |
+| `Documentos/OPERACION_VPS_WEB.md` | Canónico | Monitoreo, actualización, respaldo y reversión del VPS Web. |
 | `Documentos/GUIA_INSTALACION_CPANEL.md` | Especializado | cPanel. |
 | `Documentos/CHECKLIST_POST_DEPLOY_CPANEL.md` | Especializado | Verificación cPanel. |
 | `Documentos/PLAYBOOK_FILE_MIRROR_CPANEL_SHARED.md` | Especializado | Sesiones por archivos. |

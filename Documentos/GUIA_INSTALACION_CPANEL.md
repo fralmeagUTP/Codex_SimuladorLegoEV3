@@ -1,5 +1,7 @@
 ﻿# Guia de instalacion en cPanel (Hosting Web)
 
+> Antes de iniciar, consulte también [Requerimientos técnicos y manual de despliegue Web](REQUERIMIENTOS_HOSTING_Y_DESPLIEGUE_WEB.md). Esta guía solo aplica si el proveedor permite procesos hijos de Python, procesos persistentes y directorios temporales privados.
+
 Esta guia explica como publicar la app web del simulador EV3 en cPanel, usando **Setup Python App** (Passenger).
 Esta version ya viene adaptada al panel que mostraste en captura.
 

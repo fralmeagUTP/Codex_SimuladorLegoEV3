@@ -192,10 +192,28 @@ def validate_runtime_config(config: dict[str, Any]) -> None:
 
     try:
         timeout_s = float(config.get("SCRIPT_MAX_RUNTIME_S", 0.0))
+        max_active_sessions = int(config.get("MAX_ACTIVE_SESSIONS", 0))
+        max_running_simulations = int(config.get("MAX_RUNNING_SIMULATIONS", 0))
     except (TypeError, ValueError):
         timeout_s = 0.0
+        max_active_sessions = 0
+        max_running_simulations = 0
     if timeout_s <= 0:
         problems.append("EV3_WEB_SCRIPT_MAX_RUNTIME_S debe ser un valor positivo")
+    if max_active_sessions <= 0:
+        problems.append("EV3_WEB_MAX_ACTIVE_SESSIONS debe ser un valor positivo")
+    if max_running_simulations <= 0:
+        problems.append("EV3_WEB_MAX_RUNNING_SIMULATIONS debe ser un valor positivo")
+    elif max_active_sessions > 0 and max_running_simulations > max_active_sessions:
+        problems.append("EV3_WEB_MAX_RUNNING_SIMULATIONS no puede superar EV3_WEB_MAX_ACTIVE_SESSIONS")
+
+    worker_temp_root = Path(config.get("WORKER_TEMP_ROOT", ""))
+    if not worker_temp_root.is_absolute():
+        problems.append("EV3_WEB_WORKER_TEMP_ROOT debe ser una ruta absoluta en produccion")
+    if bool(config.get("FILE_MIRROR_ENABLED", True)):
+        file_mirror_dir = Path(config.get("FILE_MIRROR_DIR", ""))
+        if not file_mirror_dir.is_absolute():
+            problems.append("EV3_WEB_FILE_MIRROR_DIR debe ser una ruta absoluta en produccion")
 
     if not bool(config.get("SESSION_COOKIE_SECURE", False)):
         problems.append("EV3_WEB_SESSION_COOKIE_SECURE debe ser true en produccion HTTPS")

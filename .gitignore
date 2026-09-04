@@ -20,3 +20,6 @@ artifacts/pytest-phase12/
 .pytest-*/
 .capture-tmp/
 .cache-check.png
+
+# Configuración privada de despliegue: el ejemplo versionado no contiene secretos.
+.env.production

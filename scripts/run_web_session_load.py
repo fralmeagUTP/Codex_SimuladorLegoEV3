@@ -55,7 +55,7 @@ def request_json(
 class LocalWebServer:
     """Instancia HTTP temporal que no interfiere con el servidor del usuario."""
 
-    def __init__(self, max_sessions: int) -> None:
+    def __init__(self, max_sessions: int, max_running_simulations: int) -> None:
         self.port = free_port()
         temp_root = ROOT / ".load-test-tmp"
         temp_root.mkdir(exist_ok=True)
@@ -67,9 +67,14 @@ class LocalWebServer:
                 "EXAMPLES_DIR": root / "examples",
                 "WORLDS_DIR": root / "worlds",
                 "MAX_ACTIVE_SESSIONS": max_sessions,
-                "MAX_RUNNING_SIMULATIONS": max_sessions,
+                "MAX_RUNNING_SIMULATIONS": max_running_simulations,
                 "ENABLE_SESSION_CLEANUP_THREAD": False,
                 "FILE_MIRROR_ENABLED": False,
+                "OPERATIONS_ACCESS_POLICY": "local",
+                "OPERATIONS_ALLOWED_CLIENTS": "127.0.0.1,::1",
+                # La campaña mide capacidad global de sesión/worker; el
+                # limitador por cliente se cubre por sus pruebas de seguridad.
+                "RATE_LIMIT_ENABLED": False,
             }
         )
         self.server = make_server("127.0.0.1", self.port, self.app, threaded=True)
@@ -89,11 +94,11 @@ class LocalWebServer:
         self._temp.cleanup()
 
 
-def run_campaign(users: int, parallelism: int) -> dict[str, object]:
-    """Crea usuarios, demuestra aislamiento y deja el servidor sin sesiones."""
+def run_campaign(users: int, parallelism: int, simulations: int) -> dict[str, object]:
+    """Crea sesiones, ocupa la capacidad de ejecución y verifica su limpieza."""
 
     started = time.perf_counter()
-    with LocalWebServer(max_sessions=users) as server:
+    with LocalWebServer(max_sessions=users, max_running_simulations=simulations) as server:
         def create_user(index: int) -> dict[str, object]:
             user_started = time.perf_counter()
             status, created = request_json(server.base_url, "/api/sessions", method="POST")
@@ -143,6 +148,28 @@ def run_campaign(users: int, parallelism: int) -> dict[str, object]:
                 token=str(valid_users[0]["token"]),
             )
 
+        simulation_source = "from pybricks.tools import wait\\nwait(1500)"
+
+        def start_simulation(item: dict[str, object]) -> int:
+            status, _payload = request_json(
+                server.base_url,
+                f"/api/sessions/{item['session_id']}/start",
+                method="POST",
+                payload={"source": simulation_source, "request_id": f"load-{item['index']}"},
+                token=str(item["token"]),
+            )
+            return status
+
+        selected_for_execution = valid_users[:simulations]
+        with ThreadPoolExecutor(max_workers=simulations) as executor:
+            simulation_start_statuses = list(executor.map(start_simulation, selected_for_execution))
+        # El worker se inicia de forma asíncrona; permite publicar sus métricas
+        # antes de probar el rechazo de una ejecución adicional.
+        time.sleep(0.15)
+        extra_simulation_status = 0
+        if len(valid_users) > simulations:
+            extra_simulation_status = start_simulation(valid_users[simulations])
+
         overflow_status, overflow = request_json(server.base_url, "/api/sessions", method="POST")
         _, metrics_before_close = request_json(server.base_url, "/metrics")
         close_statuses = [
@@ -158,7 +185,12 @@ def run_campaign(users: int, parallelism: int) -> dict[str, object]:
 
     return {
         "timestamp_utc": datetime.now(UTC).isoformat(),
-        "campaign": {"users": users, "parallelism": parallelism, "transport": "local_http"},
+        "campaign": {
+            "users": users,
+            "parallelism": parallelism,
+            "simulations": simulations,
+            "transport": "local_http",
+        },
         "results": {
             "created": len(valid_users),
             "unique_session_ids": len(unique_ids),
@@ -167,6 +199,8 @@ def run_campaign(users: int, parallelism: int) -> dict[str, object]:
                 item.get("script_status") == 200 and item.get("has_script") for item in valid_users
             ),
             "cross_session_status": unauthorized_status,
+            "simulation_start_statuses": simulation_start_statuses,
+            "extra_simulation_status": extra_simulation_status,
             "overflow_status": overflow_status,
             "overflow_error": overflow,
             "all_closed": all(status == 200 for status in close_statuses),
@@ -182,12 +216,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Carga HTTP local de sesiones concurrentes EV3.")
     parser.add_argument("--users", type=int, default=24)
     parser.add_argument("--parallelism", type=int, default=8)
+    parser.add_argument("--simulations", type=int, default=4)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_EVIDENCE_DIR)
     args = parser.parse_args()
     if args.users < 2 or args.parallelism < 1 or args.parallelism > args.users:
         parser.error("Use al menos dos usuarios y una concurrencia entre 1 y el total.")
+    if args.simulations < 1 or args.simulations >= args.users:
+        parser.error("Use entre una y usuarios-1 simulaciones concurrentes.")
 
-    evidence = run_campaign(args.users, args.parallelism)
+    evidence = run_campaign(args.users, args.parallelism, args.simulations)
     results = evidence["results"]
     assert isinstance(results, dict)
     passed = (
@@ -196,14 +233,19 @@ def main() -> int:
         and results["unique_owner_tokens"] == args.users
         and results["all_scripts_loaded"]
         and results["cross_session_status"] in {403, 404}
+        and results["simulation_start_statuses"] == [200] * args.simulations
+        and results["extra_simulation_status"] == 429
         and results["overflow_status"] == 429
         and results["all_closed"]
         and results["metrics_before_close"].get("active_sessions") == args.users
+        and results["metrics_before_close"].get("running_simulations") == args.simulations
         and results["metrics_after_close"].get("active_sessions") == 0
+        and results["metrics_after_close"].get("running_simulations") == 0
     )
     evidence["passed"] = passed
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    target = args.output_dir / "campana_sesiones_local.json"
+    output_dir = args.output_dir.resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    target = output_dir / "campana_sesiones_local.json"
     target.write_text(json.dumps(evidence, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(evidence, indent=2, ensure_ascii=False))
     print(f"Evidencia: {target.relative_to(ROOT)}")
