@@ -12,7 +12,7 @@ Revisión de la navegación web y de los controles equivalentes del editor de es
 | Ejemplos | Útil, pero contiene 24 entradas técnicas y se solapa con Escenarios. | Mantener como biblioteca completa; agrupar por nivel y tema. |
 | Mundos | Útil para cargar, crear y seleccionar mapas. | Mantener; separar claramente “Editor”, “En blanco” y “Preestablecidos”. |
 | Escenarios | Parcialmente redundante: cada escenario carga simultáneamente un mundo y un ejemplo. | Renombrar a “Prácticas guiadas” y mostrar objetivo, mundo y programa antes de cargar. |
-| Misiones | Útil para actividades evaluables. | Mantener; diferenciar visualmente de ejemplos y mostrar progreso. |
+| Misiones | Su contenido evaluable es útil, pero como menú principal duplica la intención de Prácticas guiadas. | Integrar sus retos dentro de Prácticas guiadas con requisitos y progreso visibles. |
 | Tema | Útil, pero de bajo impacto funcional. | Mantener como ajuste de apariencia dentro de Preferencias, no como menú principal. |
 | Fidelidad | Configuración técnica poco clara para usuarios nuevos. | Integrar en “Configuración de simulación” con explicación de precisión y rendimiento. |
 | Tiempo máximo | Útil para evitar ejecuciones infinitas, pero demasiado técnico. | Mover a Configuración y mostrar valor actual, unidad y recomendación. |
@@ -35,7 +35,7 @@ Revisión de la navegación web y de los controles equivalentes del editor de es
 
 ## Propuesta de menú final
 
-**Archivo · Aprender · Mundos · Prácticas guiadas · Misiones · Configuración · Diagnóstico · Ayuda**
+**Archivo · Aprender · Mundos · Prácticas guiadas · Configuración · Diagnóstico · Ayuda**
 
 - **Aprender** contiene Ejemplos, agrupados por dificultad.
 - **Prácticas guiadas** reemplaza Escenarios y declara mundo, programa y objetivo.

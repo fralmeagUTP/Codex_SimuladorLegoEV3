@@ -8,7 +8,7 @@ BotLab Studio Web y la aplicación de escritorio exponen controles similares con
 
 Adoptar en ambos productos una taxonomía común:
 
-**Archivo · Aprender · Mundos · Prácticas guiadas · Misiones · Configuración · Diagnóstico · Ayuda**
+**Archivo · Aprender · Mundos · Prácticas guiadas · Configuración · Diagnóstico · Ayuda**
 
 La organización conserva todas las capacidades útiles, reduce duplicidad y explica las opciones técnicas mediante etiquetas, valores actuales y ayuda contextual. No se eliminan funciones sin una alternativa equivalente.
 
@@ -16,7 +16,7 @@ La organización conserva todas las capacidades útiles, reduce duplicidad y exp
 
 - Reorganizar el menú principal Web y Tkinter con las mismas categorías, orden, etiquetas y atajos cuando sean aplicables.
 - Trasladar los ejemplos a **Aprender**, agrupados por nivel y tema.
-- Renombrar **Escenarios** como **Prácticas guiadas** e informar objetivo, programa y mundo que se cargarán.
+- Renombrar **Escenarios** como **Prácticas guiadas** e informar objetivo, programa y mundo que se cargarán; integrar allí los retos evaluables para no duplicar rutas didácticas.
 - Reunir tema, fidelidad y límite de ejecución en **Configuración de simulación**.
 - Reunir trazas, diagnóstico de sesión y exportación en **Diagnóstico**.
 - Mantener en Ayuda el centro de ayuda, guía rápida, libro y Acerca de.
@@ -25,7 +25,7 @@ La organización conserva todas las capacidades útiles, reduce duplicidad y exp
 
 ## Fuera de alcance
 
-- Eliminar ejemplos, mundos, misiones, diagnósticos o preferencias existentes.
+- Eliminar ejemplos, mundos, retos evaluables, diagnósticos o preferencias existentes.
 - Cambiar el motor de simulación, el modelo de sesión o el formato de mundos.
 - Añadir autenticación, roles o cuentas de usuario.
 
@@ -39,8 +39,7 @@ Una persona identifica dónde encontrar cada función sin conocer términos téc
 | **Archivo** | Nuevo, abrir, guardar, guardar como y estado de cambios | Punto único para el programa del usuario. |
 | **Aprender** | Ejemplos agrupados por nivel y tema | **Ejemplos**. |
 | **Mundos** | Editor, mundo en blanco, importar y preestablecidos | **Mundos** actual, con sus acciones diferenciadas. |
-| **Prácticas guiadas** | Objetivo, mundo, programa y pasos | **Escenarios**. |
-| **Misiones** | Retos evaluables, propósito, requisitos, progreso y resultado | **Misiones**. |
+| **Prácticas guiadas** | Objetivo, mundo, programa, pasos y sección de retos evaluables | **Escenarios** y la antigua ruta principal de **Misiones**. |
 | **Configuración** | Tema, fidelidad/perfil y límite de ejecución | **Tema**, **Fidelidad** y **Tiempo máximo**. |
 | **Diagnóstico** | Trazas, salud de sesión y exportación segura | **Trazas** y herramientas diagnósticas dispersas. |
 | **Ayuda** | Centro de ayuda, guía rápida, manual, libro y Acerca de | Entradas informativas de **Ayuda**. |

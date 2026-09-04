@@ -755,9 +755,9 @@ def test_execution_context_menus_are_marked_for_a_shared_lock_policy(tmp_path):
     lifecycle_js = client.get("/static/js/page_lifecycle_controller.js").get_data(as_text=True)
     page = client.get("/").get_data(as_text=True)
 
-    # Archivo, Aprender, Mundos, Prácticas guiadas, Misiones, Configuración y
+    # Archivo, Aprender, Mundos, Prácticas guiadas, Configuración y
     # Diagnóstico modifican contexto o ejecución y comparten el mismo bloqueo.
-    assert page.count("data-execution-lockable") == 7
+    assert page.count("data-execution-lockable") == 6
     assert "<button type=\"button\" class=\"menu-trigger\"" in page
     assert "const POLLING_INTERVAL_MS = Number.isFinite(configuredPollingIntervalMs)" in js
     assert "const SSE_ENABLED =" in js
@@ -810,7 +810,6 @@ def test_primary_menu_uses_the_shared_learning_and_support_taxonomy(tmp_path):
         "Aprender",
         "Mundos",
         "Prácticas guiadas",
-        "Misiones",
         "Configuración",
         "Diagnóstico",
         "Ayuda",
@@ -860,7 +859,7 @@ def test_content_replacement_protects_unsaved_work_and_sanitizes_visible_errors(
     assert 'confirmDiscardUnsavedChanges("Cargar un ejemplo")' in script
     assert 'confirmDiscardUnsavedChanges("Cargar un mundo")' in script
     assert 'confirmDiscardUnsavedChanges("Cargar esta práctica guiada")' in script
-    assert 'confirmDiscardUnsavedChanges("Cargar esta misión")' in script
+    assert 'confirmDiscardUnsavedChanges("Cargar esta práctica evaluable")' in script
     assert "function safeContentLoadError(err, fallback)" in script
     assert "pid=${error.workerPid}" not in api_script
     assert "worker=${error.workerId}" not in api_script
@@ -883,11 +882,15 @@ def test_configuration_controls_expose_the_current_session_values(tmp_path):
     assert '"max_runtime_s": self._max_runtime_s' in session_source
 
 
-def test_missions_expose_objective_and_estimated_duration_in_both_products(tmp_path):
+def test_evaluated_practices_expose_objective_and_estimated_duration_in_both_products(tmp_path):
     client = make_client(tmp_path)
     script = client.get("/static/js/simulation_app.js").get_data(as_text=True)
     desktop_source = (PROJECT_ROOT / "simulador_ev3" / "ui" / "main_window.py").read_text(encoding="utf-8")
 
+    assert "loadAssessmentPractices" in script
+    assert "Retos evaluables" in script
+    assert "button.dataset.mission" in script
+    assert "missionsMenu" not in script
     assert "mission.objective" in script
     assert "Duración estimada" in script
     assert "aria-description" in script

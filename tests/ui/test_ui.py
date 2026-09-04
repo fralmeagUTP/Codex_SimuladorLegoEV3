@@ -1512,7 +1512,7 @@ class TestMainWindow:
         assert app._execution_menu_locked is False
         # Ayuda permanece disponible durante la ejecución; las siete categorías
         # que pueden cambiar el estado sí se bloquean de forma coherente.
-        assert len(app._lockable_menu_buttons) == 7
+        assert len(app._lockable_menu_buttons) == 6
 
         app._on_status("started")
         assert app._execution_menu_locked is True

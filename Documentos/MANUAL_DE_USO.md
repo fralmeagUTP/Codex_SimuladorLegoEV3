@@ -179,7 +179,7 @@ Las siguientes secciones corresponden a la version de escritorio basada en `tkin
 
 La ventana de escritorio sigue el mismo orden de la pagina de simulacion Web:
 
-- Barra de menús: Archivo, Aprender, Mundos, Prácticas guiadas, Misiones,
+- Barra de menús: Archivo, Aprender, Mundos, Prácticas guiadas, Configuración,
   Configuración, Diagnóstico y Ayuda.
 - Barra de simulacion: Ejecutar, Pausar, Reanudar y Detener y reiniciar.
 - Mundo a la izquierda y editor/depuracion a la derecha.

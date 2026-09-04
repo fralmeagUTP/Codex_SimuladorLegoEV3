@@ -2,7 +2,7 @@
 
 ### Requirement: categorías comunes y sin duplicidad
 
-Ambas aplicaciones MUST presentar Archivo, Aprender, Mundos, Prácticas guiadas, Misiones, Configuración, Diagnóstico y Ayuda, en ese orden lógico o una adaptación visual equivalente para el espacio disponible. Una acción MUST tener una sola categoría principal y la interfaz NO DEBE conservar rótulos anteriores como rutas principales redundantes.
+Ambas aplicaciones MUST presentar Archivo, Aprender, Mundos, Prácticas guiadas, Configuración, Diagnóstico y Ayuda, en ese orden lógico o una adaptación visual equivalente para el espacio disponible. Una acción MUST tener una sola categoría principal y la interfaz NO DEBE conservar rótulos anteriores como rutas principales redundantes. Los retos evaluables MUST integrarse como sección de Prácticas guiadas, no como menú principal independiente.
 
 #### Scenario: usuario cambia de producto
 
@@ -19,7 +19,7 @@ Ambas aplicaciones MUST presentar Archivo, Aprender, Mundos, Prácticas guiadas,
 
 ### Requirement: intención didáctica diferenciada
 
-La aplicación MUST diferenciar Aprender, Prácticas guiadas y Misiones con una descripción visible y accesible de su propósito. Aprender permite explorar código; Prácticas guiadas carga una actividad preparada; Misiones presenta un reto evaluable.
+La aplicación MUST diferenciar Aprender y Prácticas guiadas con una descripción visible y accesible de su propósito. Aprender permite explorar código; Prácticas guiadas carga una actividad preparada e incluye una sección identificable de retos evaluables.
 
 #### Scenario: seleccionar una práctica guiada
 
@@ -28,9 +28,9 @@ La aplicación MUST diferenciar Aprender, Prácticas guiadas y Misiones con una 
 - **entonces** verá objetivo, mundo y programa antes de confirmar,
 - **y** al cancelar conservará programa y mundo anteriores.
 
-#### Scenario: explorar una misión
+#### Scenario: explorar un reto evaluable
 
-- **Dado** que el usuario abre Misiones,
+- **Dado** que el usuario abre Prácticas guiadas,
 - **cuando** consulte una misión,
 - **entonces** podrá identificar propósito, requisitos, progreso y resultado disponible sin confundirla con un ejemplo libre.
 

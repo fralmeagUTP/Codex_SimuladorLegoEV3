@@ -11,7 +11,7 @@ Para valorar si los nombres se comprenden sin guía, completar también
 
 1. Abrir una sesión nueva de la aplicación Web y una instancia nueva de escritorio.
 2. Cargar un mundo conocido y conservar un script con cambios no guardados.
-3. Verificar que la barra muestra, en orden, Archivo, Aprender, Mundos, Prácticas guiadas, Misiones, Configuración, Diagnóstico y Ayuda.
+3. Verificar que la barra muestra, en orden, Archivo, Aprender, Mundos, Prácticas guiadas, Configuración, Diagnóstico y Ayuda; y que Prácticas guiadas contiene la sección Retos evaluables.
 
 ## Casos de prueba
 
@@ -34,7 +34,7 @@ Para valorar si los nombres se comprenden sin guía, completar también
 - No hay categorías antiguas independientes de Tema, Fidelidad, Tiempo máximo o Trazas.
 - Ninguna acción muestra éxito si editor, mundo o sesión no se actualizaron.
 - Los mensajes de recuperación no exponen identificadores internos, procesos, tokens ni rutas privadas.
-- Web y escritorio usan las mismas ocho categorías y etiquetas equivalentes.
+- Web y escritorio usan las mismas siete categorías y etiquetas equivalentes; los retos evaluables están dentro de Prácticas guiadas.
 - Los controles funcionan con teclado y muestran foco visible.
 - Se registra una captura por producto para MNU-01, MNU-05, MNU-07 y MNU-10.
 

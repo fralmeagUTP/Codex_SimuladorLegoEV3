@@ -371,8 +371,8 @@ def test_desktop_preset_world_catalog_loads_every_world() -> None:
 
 
 @pytest.mark.skipif(not _desktop_e2e_enabled(), reason="requiere EV3_RUN_DESKTOP_E2E=1 y escritorio Windows")
-def test_desktop_real_catalog_loads_examples_scenarios_and_missions() -> None:
-    """Recorre físicamente los recursos distribuidos desde los menús Tkinter."""
+def test_desktop_real_catalog_loads_examples_scenarios_and_evaluated_practices() -> None:
+    """Recorre recursos distribuidos desde Aprender y Prácticas guiadas."""
 
     pytest.importorskip("pywinauto")
     root = Path(__file__).resolve().parents[2]
@@ -466,8 +466,8 @@ def test_desktop_real_catalog_loads_examples_scenarios_and_missions() -> None:
 
         for index, identifier in enumerate(("sigue-linea-basico", "evita-obstaculos", "radar-ultrasonido")):
             main.set_focus()
-            main.click_input(coords=menu_positions["Misiones"])
-            main.type_keys("{DOWN}" * (index + 1) + "{ENTER}")
+            main.click_input(coords=menu_positions["Prácticas guiadas"])
+            main.type_keys("{DOWN}" * 5 + "{RIGHT}" + "{DOWN}" * index + "{ENTER}")
             assert _wait_for_state_file(state_path, f"mission:{identifier}")
     finally:
         _stop_native_application(application)

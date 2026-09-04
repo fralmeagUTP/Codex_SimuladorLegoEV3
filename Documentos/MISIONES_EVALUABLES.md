@@ -30,7 +30,7 @@ Las trazas permiten repetir la revisión sin exigir acceso al robot físico.
 
 ## Flujo local para el docente
 
-1. En **Misiones**, elija una actividad. Web y Tkinter cargan el mismo mundo y
+1. En **Prácticas guiadas**, sección **Retos evaluables**, elija una actividad. Web y Tkinter cargan el mismo mundo y
    script inicial desde el catálogo local.
 2. Active **Trazas → Iniciar registro**, ejecute el programa y detenga el
    registro al terminar.

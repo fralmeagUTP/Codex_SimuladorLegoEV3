@@ -6,14 +6,14 @@
 - [x] 1.2 Definir un catálogo compartido de categorías, etiquetas, descripciones, iconos, orden y equivalencias de acciones antiguas.
 - [x] 1.3 Definir la matriz de migración de enlaces, preferencias y atajos.
 - [x] 1.4 Añadir especificaciones y pruebas contractuales de paridad Web/Tkinter.
-- [ ] 1.5 Validar con docentes o estudiantes que los ocho nombres se entienden sin entrenamiento técnico y ajustar microcopias si procede.
+- [ ] 1.5 Validar con docentes o estudiantes que los siete nombres se entienden sin entrenamiento técnico y ajustar microcopias si procede.
 
 ## Fase 2 — Contenido didáctico y navegación principal
 
 - [x] 2.1 Sustituir **Ejemplos** por **Aprender** y agrupar los programas por nivel y tema, con descripciones de aprendizaje.
 - [x] 2.2 Sustituir **Escenarios** por **Prácticas guiadas** y mostrar objetivo, mundo y programa antes de cargar.
 - [x] 2.3 Reorganizar **Mundos** para distinguir editor, mundo en blanco, importación y preestablecidos.
-- [x] 2.4 Mantener **Misiones** como categoría propia y mostrar progreso, propósito y requisitos.
+- [x] 2.4 Integrar retos evaluables en **Prácticas guiadas** y mostrar progreso, propósito y requisitos sin una categoría principal duplicada.
 - [x] 2.5 Implementar la estructura y comportamiento equivalente en Web y Tkinter.
 - [x] 2.6 Advertir cambios sin guardar antes de sustituir programa, mundo o misión en ambos productos.
 

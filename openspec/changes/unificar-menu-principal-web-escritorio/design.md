@@ -7,8 +7,7 @@
 | Archivo | Nuevo, abrir, guardar y estado de cambios | Todos |
 | Aprender | Ejemplos por nivel: iniciar, movimiento, sensores, control y retos | Estudiantes y docentes |
 | Mundos | Editor, mundo en blanco, importar y mundos preestablecidos | Todos |
-| Prácticas guiadas | Paquetes de objetivo + mundo + programa + pasos | Estudiantes |
-| Misiones | Actividades evaluables y su progreso | Estudiantes y docentes |
+| Prácticas guiadas | Paquetes de objetivo + mundo + programa + pasos, incluidos retos evaluables con progreso | Estudiantes y docentes |
 | Configuración | Tema, fidelidad, tiempo máximo y explicación de impacto | Todos |
 | Diagnóstico | Estado de sesión, trazas y exportación de diagnóstico | Soporte y docentes |
 | Ayuda | Centro, guía rápida, libro y Acerca de | Todos |
@@ -35,9 +34,9 @@ La carga de ejemplo, mundo, práctica o misión deberá tratar una sesión expir
 
 | Aspecto | Contrato Web / escritorio |
 |---|---|
-| Catálogo | Mismos ocho identificadores, etiquetas, orden y descripciones funcionales. |
+| Catálogo | Mismos siete identificadores, etiquetas, orden y descripciones funcionales. |
 | Acciones | Una acción tiene una categoría principal idéntica; pueden diferir los controles nativos, no la intención ni el resultado. |
-| Contenido | Ejemplos, mundos, prácticas y misiones resuelven el mismo catálogo distribuido. |
+| Contenido | Ejemplos, mundos y prácticas —incluidos retos evaluables— resuelven el mismo catálogo distribuido. |
 | Estados | Durante ejecución, depuración, error y sesión expirada, ambos explican qué está bloqueado, qué se conserva y cómo continuar. |
 | Accesibilidad | Web expone nombre, descripción y estado ARIA; escritorio conserva foco visible, atajos y contraste suficiente. |
 | Evidencia | Una prueba contractual compara taxonomía y una matriz manual comprueba flujos equivalentes. |

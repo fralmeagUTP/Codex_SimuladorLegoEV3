@@ -651,7 +651,7 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
     expect(page.locator("#console")).to_contain_text("Simulador EV3 Web")
 
 
-def test_real_catalog_loads_every_example_world_scenario_and_mission(
+def test_real_catalog_loads_every_example_world_scenario_and_evaluated_practice(
     page, full_catalog_web_app, expect
 ):
     """Recorre con Chromium todos los recursos realmente distribuidos.
@@ -694,12 +694,12 @@ def test_real_catalog_loads_every_example_world_scenario_and_mission(
         page.locator(f"#scenariosMenu button[data-scenario='{scenario}']").click()
         expect(page.locator("#console")).to_contain_text("Práctica guiada cargada:")
 
-    page.locator(".menu-trigger", has_text="Misiones").hover()
-    mission_names = page.locator("#missionsMenu button").all_inner_texts()
+    page.locator(".menu-trigger", has_text="Prácticas guiadas").hover()
+    mission_names = page.locator("#scenariosMenu button[data-mission]").all_inner_texts()
     assert mission_names
     for name in mission_names:
-        page.locator(".menu-trigger", has_text="Misiones").hover()
-        page.locator("#missionsMenu").get_by_role("button", name=name, exact=True).click()
+        page.locator(".menu-trigger", has_text="Prácticas guiadas").hover()
+        page.locator("#scenariosMenu").get_by_role("button", name=name, exact=True).click()
         expect(page.locator("#console")).to_contain_text("Misión cargada:")
 
 
@@ -746,8 +746,8 @@ def test_reset_hides_the_terminal_mission_result(page, live_web_app, expect):
     """Una misión terminada no puede dejar resultado visible tras reiniciar."""
 
     page.goto(f"{live_web_app}/")
-    page.locator(".menu-trigger", has_text="Misiones").hover()
-    mission = page.locator("#missionsMenu button").first
+    page.locator(".menu-trigger", has_text="Prácticas guiadas").hover()
+    mission = page.locator("#scenariosMenu button[data-mission]").first
     expect(mission).to_be_visible()
     mission.click()
     expect(page.locator("#console")).to_contain_text("Misión cargada")
@@ -829,7 +829,6 @@ def test_all_primary_menu_triggers_are_reachable_in_tab_order(page, live_web_app
         "Aprender",
         "Mundos",
         "Prácticas guiadas",
-        "Misiones",
         "Configuración",
         "Diagnóstico",
         "Ayuda",
@@ -861,13 +860,13 @@ def test_settings_menu_updates_theme_profile_and_runtime_with_visible_state(page
     expect(limit).to_have_attribute("aria-pressed", "true")
 
 
-def test_mission_menu_exposes_requirements_and_visible_progress(page, live_web_app, expect):
-    """Misiones informa intención, requisitos y progreso antes de ejecutar."""
+def test_evaluated_practices_expose_requirements_and_visible_progress(page, live_web_app, expect):
+    """Los retos evaluables se integran en Prácticas guiadas sin perder sus requisitos."""
 
     page.goto(f"{live_web_app}/")
-    missions = page.get_by_role("button", name="Misiones", exact=True)
-    missions.click()
-    mission = page.locator("#missionsMenu button").first
+    practices = page.get_by_role("button", name="Prácticas guiadas", exact=True)
+    practices.click()
+    mission = page.locator("#scenariosMenu button[data-mission]").first
     expect(mission).to_have_attribute("aria-description", re.compile(r"Objetivo:|Requisitos"))
     mission.click()
     expect(page.locator("#missionProgress")).to_be_visible()

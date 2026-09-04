@@ -4,7 +4,7 @@
 
 Evidencia técnica de la implementación del menú final:
 
-`Archivo · Aprender · Mundos · Prácticas guiadas · Misiones · Configuración · Diagnóstico · Ayuda`
+`Archivo · Aprender · Mundos · Prácticas guiadas · Configuración · Diagnóstico · Ayuda`
 
 No sustituye la revisión pedagógica con estudiantes o docentes ni la inspección visual humana de contraste y redimensionamiento. Esas actividades se mantienen en el protocolo manual asociado.
 
@@ -25,18 +25,18 @@ No sustituye la revisión pedagógica con estudiantes o docentes ni la inspecci�
 
 | Conjunto | Resultado |
 |---|---:|
-| Pruebas unitarias e integración Web/Tkinter | 220 aprobadas |
+| Pruebas unitarias e integración Web/Tkinter | 221 aprobadas |
 | Recorrido Web de menús, catálogos, configuración, misiones y bloqueo durante ejecución | 5 aprobadas |
 | Interacción nativa de escritorio: catálogo, controles, Tab, aviso de finalización y restauración | 5 aprobadas |
 
 ## Comandos ejecutados
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\web\test_web_app.py -k "content_loading or content_replacement or missions" -q
-.\.venv\Scripts\python.exe -m pytest tests\e2e\test_web_playwright.py::test_simulation_menus_load_examples_worlds_and_scenarios tests\e2e\test_web_playwright.py::test_real_catalog_loads_every_example_world_scenario_and_mission -q
-.\.venv\Scripts\python.exe -m pytest tests\e2e\test_web_playwright.py::test_settings_menu_updates_theme_profile_and_runtime_with_visible_state tests\e2e\test_web_playwright.py::test_mission_menu_exposes_requirements_and_visible_progress -q
+.\.venv\Scripts\python.exe -m pytest tests\shared\test_navigation_catalog.py tests\web\test_web_app.py tests\ui\test_ui.py -q
+.\.venv\Scripts\python.exe -m pytest tests\e2e\test_web_playwright.py::test_simulation_menus_load_examples_worlds_and_scenarios tests\e2e\test_web_playwright.py::test_real_catalog_loads_every_example_world_scenario_and_evaluated_practice -q
+.\.venv\Scripts\python.exe -m pytest tests\e2e\test_web_playwright.py::test_settings_menu_updates_theme_profile_and_runtime_with_visible_state tests\e2e\test_web_playwright.py::test_evaluated_practices_expose_requirements_and_visible_progress -q
 $env:EV3_RUN_DESKTOP_E2E = "1"
-.\.venv\Scripts\python.exe -m pytest tests\e2e\test_desktop_pywinauto.py::test_desktop_real_catalog_loads_examples_scenarios_and_missions tests\e2e\test_desktop_pywinauto.py::test_desktop_menus_unlock_after_execution_finishes_or_resets -q
+.\.venv\Scripts\python.exe -m pytest tests\e2e\test_desktop_pywinauto.py::test_desktop_real_catalog_loads_examples_scenarios_and_evaluated_practices tests\e2e\test_desktop_pywinauto.py::test_desktop_menus_unlock_after_execution_finishes_or_resets -q
 .\.venv\Scripts\python.exe -m pytest tests\e2e\test_desktop_pywinauto.py::test_desktop_controls_cover_execution_debug_and_keyboard tests\e2e\test_desktop_pywinauto.py::test_desktop_tab_reaches_header_menus_from_native_window tests\e2e\test_desktop_pywinauto.py::test_desktop_success_dialog_is_shown_once_after_finished -q
 ```
 

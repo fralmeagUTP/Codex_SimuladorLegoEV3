@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from simulador_ev3.shared.interface_catalog import KEYBOARD_SHORTCUTS, NAVIGATION_MENU_ORDER
+from simulador_ev3.shared.interface_catalog import KEYBOARD_SHORTCUTS, NAVIGATION_MENU, NAVIGATION_MENU_ORDER
 
 
 def test_web_and_tkinter_keep_the_shared_menu_order_and_shortcuts() -> None:
@@ -8,9 +8,10 @@ def test_web_and_tkinter_keep_the_shared_menu_order_and_shortcuts() -> None:
     web = (root / "simulador_ev3" / "web" / "templates" / "index.html").read_text(encoding="utf-8")
     tkinter = (root / "simulador_ev3" / "ui" / "main_window.py").read_text(encoding="utf-8")
 
-    for label in NAVIGATION_MENU_ORDER:
-        assert label in web
-        assert label in tkinter
+    for key, label in NAVIGATION_MENU.items():
+        assert label in NAVIGATION_MENU_ORDER
+        assert f"navigation_menu['{key}']" in web
+        assert f'NAVIGATION_MENU["{key}"]' in tkinter
     assert KEYBOARD_SHORTCUTS == {
         "run": "F5",
         "pause_resume": "F6",

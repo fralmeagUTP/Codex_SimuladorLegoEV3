@@ -37,7 +37,7 @@ Pedir una valoración de 1 a 5 para cada afirmación:
 | Afirmación | 1 | 2 | 3 | 4 | 5 |
 |---|---:|---:|---:|---:|---:|
 | Los nombres de las categorías describen lo que contienen. | | | | | |
-| Distingo Aprender, Prácticas guiadas y Misiones. | | | | | |
+| Distingo Aprender de Prácticas guiadas y ubico los retos evaluables dentro de esta última. | | | | | |
 | Entiendo dónde cambiar opciones técnicas sin temor a dañar el programa. | | | | | |
 | Sé dónde buscar ayuda y dónde reportar un problema técnico. | | | | | |
 | Cambiar entre Web y escritorio resulta predecible. | | | | | |

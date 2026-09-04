@@ -15,7 +15,7 @@
   let interpolationController = null;
   const statusSavePath = document.getElementById("statusSavePath");
   const examplesMenu = document.getElementById("examplesMenu");
-  const missionsMenu = document.getElementById("missionsMenu");
+  const scenariosMenu = document.getElementById("scenariosMenu");
   const missionProgressEl = document.getElementById("missionProgress");
   const missionResultEl = document.getElementById("missionResult");
   const worldsMenu = document.getElementById("worldsMenu");
@@ -1464,9 +1464,12 @@
       examplesMenu.innerHTML = '<span class="menu-empty">No se pudieron cargar ejemplos</span>';
       log(`Error cargando ejemplos: ${err.message}`);
     });
-    void loadMissions().catch((err) => {
-      missionsMenu.innerHTML = '<span class="menu-empty">No se pudieron cargar misiones</span>';
-      log(`Error cargando misiones: ${err.message}`);
+    void loadAssessmentPractices().catch((err) => {
+      const message = document.createElement("span");
+      message.className = "menu-empty";
+      message.textContent = "No se pudieron cargar los retos evaluables";
+      scenariosMenu.appendChild(message);
+      log(`Error cargando retos evaluables: ${err.message}`);
     });
     void (async () => {
       try {
@@ -1511,9 +1514,12 @@
     return "Retos avanzados";
   }
 
-  async function loadMissions() {
+  async function loadAssessmentPractices() {
     const data = await api.listMissions();
-    missionsMenu.innerHTML = "";
+    const label = document.createElement("span");
+    label.className = "menu-section-label";
+    label.textContent = "Retos evaluables";
+    scenariosMenu.appendChild(label);
     for (const mission of data.missions) {
       const estimatedMinutes = mission.metadata?.estimated_minutes;
       const requirements = (mission.acceptance_criteria || [])
@@ -1526,12 +1532,16 @@
         "Progreso: por iniciar.",
       ].filter(Boolean).join(" ");
       const button = menuButton(mission.title, () => loadMission(mission));
+      button.dataset.mission = mission.id;
       button.title = detail;
       button.setAttribute("aria-description", detail);
-      missionsMenu.appendChild(button);
+      scenariosMenu.appendChild(button);
     }
     if (!data.missions.length) {
-      missionsMenu.innerHTML = '<span class="menu-empty">No hay misiones disponibles</span>';
+      const empty = document.createElement("span");
+      empty.className = "menu-empty";
+      empty.textContent = "No hay retos evaluables disponibles";
+      scenariosMenu.appendChild(empty);
     }
   }
 
@@ -2215,7 +2225,7 @@
 
   async function loadMission(mission) {
     if (guardMenuAction()) return;
-    if (!confirmDiscardUnsavedChanges("Cargar esta misión")) return;
+    if (!confirmDiscardUnsavedChanges("Cargar esta práctica evaluable")) return;
     try {
       const exampleData = await getExampleWithRecovery(mission.starter_script);
       await loadWorldByName(mission.world_file, { throwOnError: true, confirmDiscard: false });

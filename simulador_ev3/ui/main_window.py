@@ -331,11 +331,11 @@ class EV3SimulatorApp(tk.Tk):
         # Prácticas guiadas: combinan un mundo y un ejemplo con un objetivo.
         scenario_menu = tk.Menu(header, tearoff=0, **menu_style)
         self._populate_scenarios_menu(scenario_menu)
+        scenario_menu.add_separator()
+        assessment_menu = tk.Menu(scenario_menu, tearoff=0, **menu_style)
+        self._populate_missions_menu(assessment_menu)
+        scenario_menu.add_cascade(label="Retos evaluables", menu=assessment_menu)
         add_menu_button(NAVIGATION_MENU["guided_practice"], scenario_menu, lockable=True)
-
-        missions_menu = tk.Menu(header, tearoff=0, **menu_style)
-        self._populate_missions_menu(missions_menu)
-        add_menu_button(NAVIGATION_MENU["missions"], missions_menu, lockable=True)
 
         configuration_menu = tk.Menu(header, tearoff=0, **menu_style)
         current_profile = self._service.engine_config.simulation_profile
@@ -831,7 +831,7 @@ class EV3SimulatorApp(tk.Tk):
         """Carga el mismo catálogo evaluable que expone la interfaz Web."""
         missions = self._missions.list_missions()
         if not missions:
-            menu.add_command(label="(No hay misiones disponibles)", state=tk.DISABLED)
+            menu.add_command(label="(No hay retos evaluables disponibles)", state=tk.DISABLED)
             return
         for mission in missions:
             minutes = mission.metadata.get("estimated_minutes") if isinstance(mission.metadata, dict) else None
