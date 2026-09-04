@@ -1,6 +1,6 @@
 # Operacion local en Windows
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Audiencia:
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Audiencia:
 > estudiante, docente y soporte local.
 
 ## Preparar entorno
@@ -11,6 +11,13 @@ Desde la raiz del repositorio, con Python 3.11 o superior:
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```
+
+Para E2E de escritorio y servidor Web de producción local:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[desktop-e2e,web-prod]"
+.\.venv\Scripts\python.exe -m playwright install chromium
 ```
 
 Si PowerShell no permite activar entornos, no es necesario activarlo: usar
@@ -65,3 +72,6 @@ diagnostico controlado.
 
 Para verificacion completa, consultar `docs/testing/estrategia_pruebas.md` y
 `CHECKLIST_QA_RELEASE.md`.
+
+El resultado vigente de liberación está en `ESTADO_ACTUAL_PROYECTO.md`. Los
+informes fechados anteriores son evidencia histórica.

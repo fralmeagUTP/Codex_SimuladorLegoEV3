@@ -1,0 +1,124 @@
+.help-steps {
+  list-style-position: outside;
+}
+
+.help-guide-figure figcaption {
+  margin-top: 6px;
+  color: var(--help-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.help-steps label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.help-steps input {
+  margin-top: 3px;
+  accent-color: var(--help-accent);
+}
+
+.help-guide-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--help-muted);
+  font-size: 12px;
+}
+
+.help-guide-progress progress {
+  width: 92px;
+  accent-color: var(--help-success);
+}
+
+.help-guide-progress button {
+  border: 1px solid var(--help-border);
+  border-radius: 6px;
+  padding: 5px 7px;
+  background: transparent;
+  color: var(--help-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.help-copy-example {
+  border: 1px solid var(--help-border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--help-panel);
+  color: var(--help-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.help-guide-progress button:focus-visible,
+.help-copy-example:focus-visible,
+.help-teacher-toggle:focus-visible,
+.help-steps input:focus-visible {
+  outline: 3px solid #e89620;
+  outline-offset: 2px;
+}
+
+.help-teacher-toggle {
+  border: 1px solid var(--help-accent);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--help-panel);
+  color: var(--help-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.help-teacher-route {
+  margin: 0 0 24px;
+  padding: 18px;
+  border: 1px solid var(--help-border);
+  border-left: 5px solid var(--help-success);
+  border-radius: 12px;
+  background: var(--help-panel);
+}
+
+.help-teacher-route h2,
+.help-teacher-route p {
+  margin: 7px 0;
+}
+
+.help-teacher-route a {
+  color: var(--help-accent);
+  font-weight: 700;
+}
+
+.help-teacher-warning {
+  padding: 10px;
+  border-radius: 7px;
+  background: #fff5e9;
+  color: #824006;
+}
+
+html[data-theme="dark"] .help-teacher-warning {
+  background: #4a2c13;
+  color: #ffe0ad;
+}
+
+@media (max-width: 620px) {
+  .help-guide-progress {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-guide-progress,
+  .help-copy-example,
+  .help-teacher-route,
+  .help-teacher-toggle {
+    animation: none !important;
+    transition: none !important;
+  }
+}

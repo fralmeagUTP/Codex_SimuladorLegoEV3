@@ -1,7 +1,7 @@
 # Arquitectura C4
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Fuente de requisitos:
-> `openspec/project.md` y cambios OpenSpec activos.
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Fuentes:
+> `openspec/project.md`, `openspec/specs/` y código productivo.
 
 ## Contexto
 
@@ -32,6 +32,11 @@ produccion, HTTPS y autenticacion apropiada para el contexto.
 | Worker aislado | Ejecuta scripts Pybricks con IPC, limites y recuperacion | `runtime/isolated_worker.py` |
 | Motor y dominio | Robot, mundo, sensores, brick, fisica y perfiles | `core/`, `domain/`, `pybricks_api/` |
 | Almacenamiento | Mundos JSON, ejemplos y metadatos de sesion configurables | `worlds/`, `examples/`, backend de sesion |
+
+La Web divide su frontend por responsabilidades de API, sesión, renderizado,
+telemetría, mundo, diálogos, ayuda y depuración. Tkinter usa presentadores y
+adaptadores de sesión; las diferencias visuales admitidas se limitan a controles
+nativos, no a casos de uso.
 
 ## Componentes y limites
 
@@ -68,6 +73,15 @@ flowchart TB
 El modo local solo es compatibilidad explicita de desarrollo/pruebas mediante
 `EV3_LOCAL_RUNTIME_ENABLED=true`; la ruta predeterminada usa worker aislado.
 
+## Estados y consistencia terminal
+
+`created`, `ready`, `running`, `paused`, `finished`, `error`, `timed_out` y
+`stopped` forman el ciclo observable de sesión. Los eventos incluyen generación
+y correlación para descartar respuestas tardías. Una finalización actualiza
+primero el snapshot coherente de robot, canvas, motores, sensores, LCD y
+telemetría; después emite la notificación. Reiniciar cancela la generación,
+limpia traza/artefactos y restaura la pose inicial del mundo activo.
+
 ## Operacion y observabilidad
 
 - `/healthz` devuelve version, diagnostico de sesiones, worker y backend.
@@ -85,3 +99,4 @@ El modo local solo es compatibilidad explicita de desarrollo/pruebas mediante
 - Paridad de interfaces: `tests/shared/test_interface_execution_parity.py`.
 - Web y observabilidad: `tests/web/` y `tests/e2e/test_web_playwright.py`.
 - Riesgos y diferencias de hardware: `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md`.
+- Estado de liberación: `Documentos/ESTADO_ACTUAL_PROYECTO.md`.

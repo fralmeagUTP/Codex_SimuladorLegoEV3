@@ -32,14 +32,32 @@ class DefaultWebConfig:
     SCRIPT_MAX_RUNTIME_S = 120.0
     MAX_SCRIPT_SIZE_BYTES = 128 * 1024
     MAX_WORLD_JSON_SIZE_BYTES = 2 * 1024 * 1024
+    TRACE_MAX_SNAPSHOTS = 5_000
+    WORKER_TEMP_ROOT = Path(tempfile.gettempdir()) / "ev3-worker-runtime"
+    WORKER_TEMP_MAX_AGE_S = 3_600
     SSE_HEARTBEAT_S = 15
-    WEB_SNAPSHOT_MAX_HZ = 12.0
+    # El motor conserva sus 50 Hz autoritativos. La Web recibe 30 Hz y
+    # renderiza los fotogramas intermedios con requestAnimationFrame: así se
+    # evita saturar el IPC del worker sin que el movimiento se perciba a saltos.
+    WEB_SNAPSHOT_MAX_HZ = 30.0
     START_IDEMPOTENCY_TTL_S = 20.0
     STATIC_ASSET_VERSION = WEB_ASSET_VERSION
     SESSION_CLEANUP_INTERVAL_S = 60
     ENABLE_SESSION_CLEANUP_THREAD = True
     ENABLE_SECURITY_HEADERS = True
     SESSION_COOKIE_SECURE = False
+    SESSION_COOKIE_PREFIX = "ev3_"
+    RATE_LIMIT_ENABLED = True
+    RATE_LIMIT_WINDOW_S = 60.0
+    RATE_LIMIT_SESSION_CREATE = 12
+    RATE_LIMIT_SESSION_COMMAND = 120
+    RATE_LIMIT_MAX_CLIENTS = 4096
+    TRUST_PROXY_HEADERS = False
+    PUBLIC_ORIGIN = ""
+    OPERATIONS_ACCESS_POLICY = "public"
+    OPERATIONS_ALLOWED_CLIENTS = "127.0.0.1,::1"
+    OPERATIONS_TOKEN = ""
+    ENABLE_HSTS = False
     SESSION_BACKEND = "memory"
     REDIS_ENABLED = False
     REDIS_URL = ""
@@ -55,7 +73,10 @@ class DefaultWebConfig:
     WEB_DEBUGSTATE_V2 = True
     TK_DEBUGSTATE_V2 = True
     WEB_SSE_ENABLED = True
-    WEB_POLLING_INTERVAL_MS = 900
+    # Mantiene el estado terminal, telemetría y canvas cerca del tiempo real
+    # cuando el stream SSE no está disponible. 900 ms hacía perceptible el
+    # retraso de una misión corta en el navegador.
+    WEB_POLLING_INTERVAL_MS = 250
     WEB_SESSION_CREATE_WAIT_MS = 0
 
 
@@ -71,6 +92,9 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "SCRIPT_MAX_RUNTIME_S": float,
     "MAX_SCRIPT_SIZE_BYTES": int,
     "MAX_WORLD_JSON_SIZE_BYTES": int,
+    "TRACE_MAX_SNAPSHOTS": int,
+    "WORKER_TEMP_ROOT": Path,
+    "WORKER_TEMP_MAX_AGE_S": float,
     "SSE_HEARTBEAT_S": int,
     "WEB_SNAPSHOT_MAX_HZ": float,
     "START_IDEMPOTENCY_TTL_S": float,
@@ -79,6 +103,18 @@ _ENV_OVERRIDES: dict[str, Callable[[str], Any]] = {
     "ENABLE_SESSION_CLEANUP_THREAD": lambda value: _parse_bool(value),
     "ENABLE_SECURITY_HEADERS": lambda value: _parse_bool(value),
     "SESSION_COOKIE_SECURE": lambda value: _parse_bool(value),
+    "SESSION_COOKIE_PREFIX": str,
+    "RATE_LIMIT_ENABLED": lambda value: _parse_bool(value),
+    "RATE_LIMIT_WINDOW_S": float,
+    "RATE_LIMIT_SESSION_CREATE": int,
+    "RATE_LIMIT_SESSION_COMMAND": int,
+    "RATE_LIMIT_MAX_CLIENTS": int,
+    "TRUST_PROXY_HEADERS": lambda value: _parse_bool(value),
+    "PUBLIC_ORIGIN": str,
+    "OPERATIONS_ACCESS_POLICY": str,
+    "OPERATIONS_ALLOWED_CLIENTS": str,
+    "OPERATIONS_TOKEN": str,
+    "ENABLE_HSTS": lambda value: _parse_bool(value),
     "SESSION_BACKEND": str,
     "REDIS_ENABLED": lambda value: _parse_bool(value),
     "REDIS_URL": str,
@@ -127,25 +163,79 @@ def is_production(config: dict[str, Any]) -> bool:
 
 
 def validate_runtime_config(config: dict[str, Any]) -> None:
-    """Reject insecure settings when the web app is explicitly deployed to production."""
+    """Valida límites seguros de transporte y, en producción, de seguridad."""
+    problems: list[str] = []
+    try:
+        snapshot_hz = float(config.get("WEB_SNAPSHOT_MAX_HZ", 0.0))
+    except (TypeError, ValueError):
+        snapshot_hz = 0.0
+    if not 10.0 <= snapshot_hz <= 60.0:
+        problems.append("EV3_WEB_WEB_SNAPSHOT_MAX_HZ debe estar entre 10 y 60")
+
+    try:
+        trace_max_snapshots = int(config.get("TRACE_MAX_SNAPSHOTS", 0))
+        worker_temp_max_age_s = float(config.get("WORKER_TEMP_MAX_AGE_S", 0.0))
+    except (TypeError, ValueError):
+        trace_max_snapshots = 0
+        worker_temp_max_age_s = 0.0
+    if trace_max_snapshots <= 0:
+        problems.append("EV3_WEB_TRACE_MAX_SNAPSHOTS debe ser positivo")
+    if worker_temp_max_age_s <= 0:
+        problems.append("EV3_WEB_WORKER_TEMP_MAX_AGE_S debe ser positivo")
 
     if not is_production(config):
+        if problems:
+            raise RuntimeError("Configuracion Web invalida: " + "; ".join(problems))
         return
 
-    problems: list[str] = []
     secret_key = str(config.get("SECRET_KEY", ""))
     if secret_key == DEVELOPMENT_SECRET_KEY or len(secret_key) < 32:
         problems.append("EV3_WEB_SECRET_KEY debe ser distinta de la clave de desarrollo y tener al menos 32 caracteres")
 
     try:
         timeout_s = float(config.get("SCRIPT_MAX_RUNTIME_S", 0.0))
+        max_active_sessions = int(config.get("MAX_ACTIVE_SESSIONS", 0))
+        max_running_simulations = int(config.get("MAX_RUNNING_SIMULATIONS", 0))
     except (TypeError, ValueError):
         timeout_s = 0.0
+        max_active_sessions = 0
+        max_running_simulations = 0
     if timeout_s <= 0:
         problems.append("EV3_WEB_SCRIPT_MAX_RUNTIME_S debe ser un valor positivo")
+    if max_active_sessions <= 0:
+        problems.append("EV3_WEB_MAX_ACTIVE_SESSIONS debe ser un valor positivo")
+    if max_running_simulations <= 0:
+        problems.append("EV3_WEB_MAX_RUNNING_SIMULATIONS debe ser un valor positivo")
+    elif max_active_sessions > 0 and max_running_simulations > max_active_sessions:
+        problems.append("EV3_WEB_MAX_RUNNING_SIMULATIONS no puede superar EV3_WEB_MAX_ACTIVE_SESSIONS")
+
+    worker_temp_root = Path(config.get("WORKER_TEMP_ROOT", ""))
+    if not worker_temp_root.is_absolute():
+        problems.append("EV3_WEB_WORKER_TEMP_ROOT debe ser una ruta absoluta en produccion")
+    if bool(config.get("FILE_MIRROR_ENABLED", True)):
+        file_mirror_dir = Path(config.get("FILE_MIRROR_DIR", ""))
+        if not file_mirror_dir.is_absolute():
+            problems.append("EV3_WEB_FILE_MIRROR_DIR debe ser una ruta absoluta en produccion")
 
     if not bool(config.get("SESSION_COOKIE_SECURE", False)):
         problems.append("EV3_WEB_SESSION_COOKIE_SECURE debe ser true en produccion HTTPS")
+
+    if not bool(config.get("ENABLE_HSTS", False)):
+        problems.append("EV3_WEB_ENABLE_HSTS debe ser true en produccion HTTPS")
+
+    operations_policy = str(config.get("OPERATIONS_ACCESS_POLICY", "")).strip().lower()
+    if operations_policy not in {"local", "token"}:
+        problems.append("EV3_WEB_OPERATIONS_ACCESS_POLICY debe ser local o token en produccion")
+    if operations_policy == "token" and len(str(config.get("OPERATIONS_TOKEN", ""))) < 32:
+        problems.append("EV3_WEB_OPERATIONS_TOKEN debe tener al menos 32 caracteres con politica token")
+
+    try:
+        session_create_limit = int(config.get("RATE_LIMIT_SESSION_CREATE", 0))
+        session_command_limit = int(config.get("RATE_LIMIT_SESSION_COMMAND", 0))
+    except (TypeError, ValueError):
+        session_create_limit = session_command_limit = 0
+    if session_create_limit <= 0 or session_command_limit <= 0:
+        problems.append("Los limites por cliente deben ser positivos en produccion")
 
     if problems:
         raise RuntimeError("Configuracion de produccion invalida: " + "; ".join(problems))

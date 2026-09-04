@@ -1,7 +1,31 @@
 # Despliegue Linux para aula o servidor
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Audiencia:
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Audiencia:
 > operacion. Fuente ejecutable: `Dockerfile` y `simulador_ev3/web/config.py`.
+
+## Perfil endurecido de contenedor
+
+Para producción use `docker-compose.production.yml`, con secretos entregados por
+el entorno del servidor y no por Git:
+
+```bash
+export EV3_WEB_SECRET_KEY='secreto-aleatorio-de-al-menos-32-caracteres'
+export EV3_WEB_OPERATIONS_TOKEN='otro-secreto-operativo-de-al-menos-32-caracteres'
+docker compose -f docker-compose.production.yml up -d --build
+```
+
+El perfil ejecuta como usuario no privilegiado, usa raíz de solo lectura, crea
+`/tmp/ev3` como `tmpfs` privado, limita memoria, CPU y PIDs, elimina capacidades
+Linux y activa `no-new-privileges`. El límite de PIDs es el límite del
+contenedor, no una garantía de que cada script use una cantidad determinada de
+procesos. El worker bloquea red dentro de Python; la denegación de egress a
+nivel de red debe configurarse además en el firewall, proxy o política de red
+de Nyquist/Docker.
+
+Los workers usan sólo `/tmp/ev3/workers`; al iniciar, la aplicación limpia
+directorios `ev3-worker-*` vencidos sin borrar archivos ajenos ni terminar
+procesos activos. Ajuste `EV3_WEB_WORKER_TEMP_MAX_AGE_S` si su operación
+necesita otra antigüedad.
 
 ## Requisitos
 
@@ -52,3 +76,10 @@ documentados; revisar `/healthz`, logs y la notificacion de la interfaz.
 - Definir limites de sesiones y simulaciones segun memoria disponible.
 - Conservar `EV3_WEB_ENABLE_SECURITY_HEADERS=true` salvo excepcion justificada.
 - Consultar `SEGURIDAD_Y_USO_EN_AULA.md` y `REFERENCIA_CONFIGURACION.md`.
+
+## Compuerta de liberación
+
+Antes de publicar una imagen, ejecutar la construcción, `/healthz`, métricas y
+una simulación corta; registrar tag, digest y commit. La campaña del 2026-08-05
+aprobó construcción y smoke HTTP 200 como usuario no privilegiado. Ese resultado
+es evidencia histórica del commit evaluado y debe repetirse para una imagen nueva.

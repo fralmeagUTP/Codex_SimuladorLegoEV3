@@ -10,3 +10,16 @@ build/
 .vscode/
 backups/
 temp_world.json
+
+# Resultados efímeros de calidad y empaquetado local.
+mutants/
+artifacts/qa-wheel/
+artifacts/e2e-web/
+artifacts/mmi/
+artifacts/pytest-phase12/
+.pytest-*/
+.capture-tmp/
+.cache-check.png
+
+# Configuración privada de despliegue: el ejemplo versionado no contiene secretos.
+.env.production

@@ -13,7 +13,9 @@ from typing import Any, Callable, Optional, cast
 
 from simulador_ev3.application.world_validation_engine import rotated_connectors
 from simulador_ev3.domain.editor.world_editor_model import CELL_SIZE_MM, GRID_SIZE_PX, Direction, get_asset_spec
+from simulador_ev3.shared.asset_catalog import asset_candidate_paths
 from simulador_ev3.shared.paths import resolve_image_assets_dir
+from simulador_ev3.shared.ui_design_tokens import tokens_for_theme
 from simulador_ev3.shared.ui_settings import UI_FIT_PADDING_RATIO
 
 _BG = "#F4F6F8"
@@ -26,16 +28,6 @@ _MAX_ZOOM_FACTOR = 3.0
 _ZOOM_STEP = 0.15
 _FIT_PADDING_RATIO = UI_FIT_PADDING_RATIO
 _IMAGES_DIR = os.path.normpath(str(resolve_image_assets_dir()))
-_ASSET_IMAGE_OVERRIDES: dict[str, list[str]] = {
-    "line_64x64_cruz": ["line_64X64_Cruz.png"],
-    "line_64_64_hor": ["line_64_64_Hor.png"],
-    "line_64_64_ver": ["line_64_64_Ver.png"],
-    "line_64_64_infder": ["line_64_64_InfDer.png"],
-    "line_64_64_infizq": ["line_64_64_InfIzq.png"],
-    "line_64_64_supder": ["line_64_64_SupDer.png"],
-    "line_64_64_supizq": ["line_64_64_SupIzq.png"],
-    "floor_tile_256_c": ["floor_tile_256_c.jpg", "floor_tile_256_b.png"],
-}
 
 
 class WorldCanvasEditor(tk.Canvas):
@@ -67,6 +59,8 @@ class WorldCanvasEditor(tk.Canvas):
         self._tool = "select"
         self._placements: list[dict[str, Any]] = []
         self._selected_id: Optional[str] = None
+        self._hidden_layer_ids: set[str] = set()
+        self._locked_layer_ids: set[str] = set()
         self._item_to_obj_id: dict[int, str] = {}
         self._placement_index: dict[str, dict[str, Any]] = {}
         self._image_lookup = self._build_image_lookup()
@@ -110,6 +104,25 @@ class WorldCanvasEditor(tk.Canvas):
 
     def set_selected_id(self, object_id: Optional[str]) -> None:
         self._selected_id = object_id
+        self._redraw()
+
+    def set_theme(self, theme: str) -> None:
+        """Actualiza fondo y cuadrícula según los tokens compartidos."""
+
+        tokens = tokens_for_theme(theme)
+        is_dark = str(theme).strip().lower() == "dark"
+        global _BG, _GRID, _BORDER
+        _BG = tokens.background if is_dark else tokens.surface_muted
+        _GRID = "#29415E" if is_dark else "#D0D7DE"
+        _BORDER = tokens.border
+        self.configure(bg=_BG, highlightbackground=_BORDER)
+        self._redraw()
+
+    def set_presentation_layers(self, hidden_ids: set[str], locked_ids: set[str]) -> None:
+        """Configura capas locales; no se persisten ni afectan la simulación."""
+
+        self._hidden_layer_ids = set(hidden_ids)
+        self._locked_layer_ids = set(locked_ids)
         self._redraw()
 
     def zoom_in(self) -> float:
@@ -166,13 +179,16 @@ class WorldCanvasEditor(tk.Canvas):
         obj_id = self._pick_object_id(canvas_x, canvas_y)
         if self._tool == "delete":
             if obj_id:
+                if obj_id in self._locked_layer_ids:
+                    self._on_status("El elemento está bloqueado. Desbloquéalo desde Capas para eliminarlo.")
+                    return
                 self._on_delete(obj_id)
             return
 
         if self._tool == "select":
             self._selected_id = obj_id
             self._on_select(obj_id)
-            if obj_id:
+            if obj_id and obj_id not in self._locked_layer_ids:
                 placement = self._placement_index.get(obj_id)
                 if placement is not None:
                     cursor_x_px, cursor_y_px = self._cursor_to_editor_px(canvas_x, canvas_y)
@@ -215,7 +231,54 @@ class WorldCanvasEditor(tk.Canvas):
         self._draw_background()
         for placement in self._placements:
             self._draw_placement(placement)
+        if not self._placements:
+            self._draw_empty_world_guide()
         self._draw_preview()
+
+    def _draw_empty_world_guide(self) -> None:
+        """Da un primer paso visible sin reemplazar la cuadrícula de trabajo."""
+
+        x0, y0, x1, y1 = 48, 48, 460, 196
+        self.create_rectangle(
+            x0,
+            y0,
+            x1,
+            y1,
+            fill="#FFFFFF",
+            outline="#90A4AE",
+            width=1,
+            tags="empty_guide",
+        )
+        self.create_text(
+            x0 + 18,
+            y0 + 24,
+            text="Comienza a crear tu mundo",
+            anchor=tk.W,
+            fill="#0D47A1",
+            font=("Segoe UI", 12, "bold"),
+            tags="empty_guide",
+        )
+        self.create_text(
+            x0 + 18,
+            y0 + 54,
+            text="1. Elige un elemento en la Biblioteca.\n"
+            "2. Haz clic en la cuadrícula para colocarlo.\n"
+            "3. Guarda y usa ‘Probar mundo guardado’.",
+            anchor=tk.NW,
+            justify=tk.LEFT,
+            fill="#37474F",
+            font=("Segoe UI", 9),
+            tags="empty_guide",
+        )
+        self.create_text(
+            x0 + 18,
+            y1 - 18,
+            text="Consejo: usa Seleccionar para mover o editar un elemento.",
+            anchor=tk.W,
+            fill="#546E7A",
+            font=("Segoe UI", 8, "italic"),
+            tags="empty_guide",
+        )
 
     def _draw_background(self) -> None:
         world_w_px, world_h_px = self._world_px_size()
@@ -229,6 +292,8 @@ class WorldCanvasEditor(tk.Canvas):
 
     def _draw_placement(self, placement: dict[str, Any]) -> None:
         placement_id = str(placement.get("id", ""))
+        if placement_id in self._hidden_layer_ids:
+            return
         asset_key = str(placement.get("asset_key", ""))
         spec = get_asset_spec(asset_key)
         if spec is None:
@@ -353,14 +418,20 @@ class WorldCanvasEditor(tk.Canvas):
 
     def _resolve_asset_image_paths(self, asset_key: str) -> list[str]:
         key = str(asset_key).strip().lower()
-        candidates = list(_ASSET_IMAGE_OVERRIDES.get(key, []))
+        try:
+            candidates = [str(path) for path in asset_candidate_paths(key)]
+        except KeyError:
+            candidates = []
         candidates.extend([f"{key}.png", f"{key}.jpg", f"{key}.jpeg"])
         resolved: list[str] = []
         for candidate in candidates:
+            if os.path.isabs(candidate) and os.path.isfile(candidate):
+                resolved.append(candidate)
+                continue
             hit = self._image_lookup.get(candidate.lower())
             if hit:
                 resolved.append(hit)
-        return resolved
+        return list(dict.fromkeys(resolved))
 
     def _load_asset_base_image(self, asset_key: str) -> tk.PhotoImage | None:
         key = str(asset_key).strip().lower()

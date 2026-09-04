@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 import threading
 import time
@@ -14,6 +15,8 @@ from typing import Any
 
 from simulador_ev3.web.errors import CapacityExceeded, SessionForbidden, SessionNotFound
 from simulador_ev3.web.services.simulation_session import SimulationSession
+
+logger = logging.getLogger("simulador_ev3.web.session_manager")
 
 
 def _utcnow() -> datetime:
@@ -168,6 +171,25 @@ class SessionManager:
                     self._mark_degraded_locked("redis_mirror_delete_failed_cleanup")
             record.session.close()
         return len(expired)
+
+    def close_all(self) -> int:
+        """Cierra cada sesión y su worker durante un apagado ordenado."""
+
+        with self._lock:
+            records = list(self._sessions.values())
+            self._sessions.clear()
+            if records:
+                self._capacity_changed.notify_all()
+        for record in records:
+            self._mirror_delete(record.session_id)
+            try:
+                record.session.close()
+            except (OSError, RuntimeError) as exc:
+                logger.warning(
+                    "session_close_failed",
+                    extra={"event": "session_close_failed", "error_type": type(exc).__name__},
+                )
+        return len(records)
 
     def running_count(self) -> int:
         with self._lock:
@@ -336,8 +358,11 @@ class SessionManager:
                 parsed = json.loads(raw_runtime_state)
                 if isinstance(parsed, dict):
                     session.restore_runtime_checkpoint(parsed)
-            except Exception:  # noqa: BLE001
-                pass
+            except (OSError, ValueError, RuntimeError, TimeoutError) as exc:
+                logger.warning(
+                    "session_checkpoint_restore_failed",
+                    extra={"event": "session_checkpoint_restore_failed", "error_type": type(exc).__name__},
+                )
         recovered = SessionRecord(
             session_id=session_id,
             owner_token_hash=stored_hash,

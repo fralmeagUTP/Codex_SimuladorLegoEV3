@@ -8,6 +8,7 @@ sólo la lógica no visual (callbacks, métodos de actualización, etc.).
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 import unittest.mock as mock
@@ -60,6 +61,12 @@ def _make_tk_mock():
             return self
 
         def grid_columnconfigure(self, *a, **kw):
+            return None
+
+        def grid_rowconfigure(self, *a, **kw):
+            return None
+
+        def grid_propagate(self, *a, **kw):
             return None
 
         def configure(self, **kw):
@@ -403,6 +410,21 @@ class TestWorldCanvas:
         wc.clear_trail()
         assert wc._trail == []
 
+    def test_world_transition_clears_robot_beams_trail_and_placement_layers(self):
+        wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
+        wc.delete = mock.Mock()
+        wc._trail = [(10, 10), (20, 20)]
+        wc._robot_items = [101, 102]  # Robot y haz de sensor del mundo anterior.
+        wc._placement_hover_pos = (100.0, 100.0)
+
+        wc.clear_world_transition_visuals()
+
+        assert wc._trail == []
+        assert wc._robot_items == []
+        assert wc._placement_hover_pos is None
+        wc.delete.assert_any_call("placement_ghost")
+        wc.delete.assert_any_call("placement_marker")
+
     def test_reset_clears_trail(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
         wc._trail = [(5, 5)]
@@ -414,6 +436,7 @@ class TestWorldCanvas:
         obs = [{"x_mm": 100, "y_mm": 100, "width_mm": 200, "height_mm": 200}]
         wc.set_obstacles(obs)
         assert wc._obstacles == obs
+
 
     def test_robot_sprite_preserves_square_aspect_ratio(self):
         wc = self.WorldCanvas(mock.MagicMock(), world_w_mm=2000, world_h_mm=2000)
@@ -495,6 +518,46 @@ class TestWorldCanvas:
 
         wc.delete.assert_any_call("placement_ghost")
         wc.delete.assert_any_call("placement_marker")
+
+
+class TestWorldCanvasEditor:
+    def test_empty_world_guide_explains_how_to_start(self):
+        from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
+
+        editor = WorldCanvasEditor(
+            mock.MagicMock(),
+            on_place_asset=lambda *_args: None,
+            on_select=lambda _object_id: None,
+            on_move=lambda *_args: None,
+            on_delete=lambda _object_id: None,
+            on_status=lambda _status: None,
+        )
+        editor.create_rectangle = mock.Mock()
+        editor.create_text = mock.Mock()
+
+        editor._draw_empty_world_guide()
+
+        assert editor.create_text.call_count == 3
+        assert "Comienza a crear tu mundo" in editor.create_text.call_args_list[0].kwargs["text"]
+
+    def test_hidden_layer_is_not_drawn_on_canvas(self):
+        from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
+
+        editor = WorldCanvasEditor(
+            mock.MagicMock(),
+            on_place_asset=lambda *_args: None,
+            on_select=lambda _object_id: None,
+            on_move=lambda *_args: None,
+            on_delete=lambda _object_id: None,
+            on_status=lambda _status: None,
+        )
+        editor.create_rectangle = mock.Mock()
+        editor.set_presentation_layers({"wall-1"}, set())
+        editor.create_rectangle.reset_mock()
+
+        editor._draw_placement({"id": "wall-1", "asset_key": "wall_64x64_a", "x_px": 0, "y_px": 0})
+
+        editor.create_rectangle.assert_not_called()
 
 
 # ===========================================================================
@@ -691,6 +754,21 @@ class TestBrickPanel:
         bp = self.BrickPanel(mock.MagicMock())
         assert bp is not None
 
+    def test_lcd_canvas_uses_thirty_percent_larger_reference_size(self):
+        from simulador_ev3.ui import brick_panel
+
+        assert brick_panel._LCD_CANVAS_W == 507
+        assert brick_panel._LCD_CANVAS_H == 169
+
+    def test_lcd_canvas_does_not_force_the_brick_panel_to_overflow(self):
+        """La LCD se escala dentro del ancho disponible del panel."""
+        import inspect
+
+        from simulador_ev3.ui import brick_panel
+
+        source = inspect.getsource(brick_panel.BrickPanel._build_screen)
+        assert "width=1" in source
+
     def test_update_from_dto_no_crash(self):
         bp = self.BrickPanel(mock.MagicMock())
         bp.update_from_dto(_snap())
@@ -719,6 +797,16 @@ class TestBrickPanel:
         bp.update_from_dto(dto)
         assert bp._robot_vars["x"].get() == f"{dto.robot['x_mm'] / 10.0:.1f}"
         assert bp._robot_vars["theta"].get() == f"{dto.robot['theta_deg']:.1f}"
+
+    def test_narrow_brick_panel_stacks_status_cells_without_truncating_them(self):
+        bp = self.BrickPanel(mock.MagicMock())
+        bp._led_cell = mock.Mock()
+        bp._speaker_cell = mock.Mock()
+        bp._on_status_resize(mock.Mock(width=250))
+
+        assert bp._status_compact is True
+        bp._led_cell.grid.assert_called_once_with(row=0, column=0, columnspan=2, sticky="ew")
+        bp._speaker_cell.grid.assert_called_once_with(row=1, column=0, columnspan=2, sticky="ew")
 
 
 # ===========================================================================
@@ -858,6 +946,19 @@ class TestWorldToolbar:
         tb.set_simulate_saved_enabled(True)
 
 
+class TestAssetLibraryPanel:
+    def test_selecting_a_named_asset_activates_the_placement_callback(self):
+        from simulador_ev3.ui.asset_library_panel import AssetLibraryPanel
+
+        on_select = mock.Mock()
+        library = AssetLibraryPanel(mock.MagicMock(), on_select=on_select)
+
+        library._select_asset("wall_64x64_a")
+
+        on_select.assert_called_once_with("wall_64x64_a")
+        assert library._selected_asset == "wall_64x64_a"
+
+
 class TestMainWindow:
     @pytest.fixture(autouse=True)
     def imp(self):
@@ -874,6 +975,40 @@ class TestMainWindow:
         app = self.EV3SimulatorApp()
         assert app is not None
         app._on_close()
+
+    def test_session_diagnostics_uses_shared_schema_and_safe_native_export(self, tmp_path):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.ui import main_window as mw
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        output = tmp_path / "diagnostico.json"
+
+        with (
+            mock.patch.object(mw.messagebox, "showinfo") as showinfo,
+            mock.patch.object(mw.filedialog, "asksaveasfilename", return_value=str(output)),
+        ):
+            app._show_session_diagnostics()
+            app._export_session_diagnostics()
+
+        displayed = showinfo.call_args.args[1].split("\n\nNo contiene", maxsplit=1)[0]
+        shown_payload = json.loads(displayed)
+        exported_payload = json.loads(output.read_text(encoding="utf-8"))
+        assert shown_payload["schema_version"] == 1
+        assert exported_payload["schema_version"] == 1
+        assert {"session", "runtime", "render", "worker"} <= exported_payload.keys()
+        assert "source_code" not in output.read_text(encoding="utf-8")
+        app._on_close()
+
+    def test_external_book_reference_opens_the_default_browser(self):
+        from simulador_ev3.ui import main_window as mw
+
+        with mock.patch.object(mw.webbrowser, "open_new_tab") as open_new_tab:
+            self.EV3SimulatorApp._open_external_help_link("https://editorial.utp.edu.co/libro-ev3")
+
+        open_new_tab.assert_called_once_with("https://editorial.utp.edu.co/libro-ev3")
 
     def test_cmd_run_calls_service(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
@@ -900,6 +1035,48 @@ class TestMainWindow:
         app._cmd_run("x = 1\n")
         app._cmd_stop()
         assert not app._service.is_running
+        app._on_close()
+
+    def test_reset_discards_late_snapshot_from_stopped_execution(self):
+        """Un snapshot antiguo no puede restaurar haces o trazas tras reset."""
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        old_epoch = app._snapshot_epoch
+        app._apply_snapshot = mock.Mock()
+
+        with (
+            mock.patch.object(app._service, "reset"),
+            mock.patch.object(app._service, "current_snapshot", return_value=None),
+        ):
+            app._cmd_reset()
+
+        app._apply_snapshot_if_current(_snap(), old_epoch)
+        app._apply_snapshot.assert_not_called()
+        app._on_close()
+
+    def test_worker_reset_discards_queued_snapshot_before_reset_reply(self):
+        """La cola IPC previa no puede volver a dibujar la trayectoria."""
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        app._awaiting_worker_reset_snapshot = True
+        app._reset_worker_command_id = "reset-actual"
+        app._apply_snapshot = mock.Mock()
+        payload = _snap().to_dict()
+
+        app._apply_worker_snapshot_event({"command_id": "ejecucion-anterior"}, payload)
+        app._apply_snapshot.assert_not_called()
+
+        app._apply_worker_snapshot_event({"command_id": "reset-actual"}, payload)
+        app._apply_snapshot.assert_called_once()
+        assert app._awaiting_worker_reset_snapshot is False
         app._on_close()
 
     def test_simulation_control_states_follow_execution_state(self):
@@ -939,7 +1116,9 @@ class TestMainWindow:
 
         assert app._sim_control_buttons["run"].configure.call_args.kwargs["bg"] == DARK_TOKENS.primary
         assert app._sim_control_buttons["pause"].configure.call_args.kwargs["bg"] == DARK_TOKENS.surface
-        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["bg"] == DARK_TOKENS.surface
+        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["bg"] == DARK_TOKENS.danger
+        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["fg"] == "white"
+        assert app._sim_control_buttons["stop"].configure.call_args.kwargs["disabledforeground"] == "white"
         assert app._pose_control_button.configure.call_args.kwargs["fg"] == DARK_TOKENS.text
         assert app._theta_label.configure.call_args.kwargs["bg"] == DARK_TOKENS.surface
         app._on_close()
@@ -1073,6 +1252,24 @@ class TestMainWindow:
         app._cmd_save_script()
 
         app._editor.save_script_dialog.assert_called_once()
+        app._on_close()
+
+    def test_dirty_script_confirmation_can_cancel_a_destructive_menu_action(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.ui import main_window as mw
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        app._editor.is_dirty = mock.Mock(return_value=True)
+        app._editor.set_code = mock.Mock()
+
+        with mock.patch.object(mw.messagebox, "askyesno", return_value=False) as confirm:
+            app._cmd_new()
+
+        confirm.assert_called_once()
+        app._editor.set_code.assert_not_called()
         app._on_close()
 
     def test_apply_scenario_loads_world_and_example(self):
@@ -1220,6 +1417,28 @@ class TestMainWindow:
         assert "Linea 7" in shown_msg
         app._on_close()
 
+    def test_worker_error_event_transitions_ui_to_terminal_error_state(self):
+        """Un error IPC no puede dejar los controles en estado ejecutando."""
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        event = {"type": "error", "payload": {"message": "invalid syntax"}}
+
+        with (
+            mock.patch.object(app, "_schedule_tick"),
+            mock.patch.object(app._service, "drain_worker_events", return_value=[event]),
+            mock.patch.object(app, "_on_error") as on_error,
+            mock.patch.object(app, "_on_status") as on_status,
+        ):
+            app._tick()
+
+        on_error.assert_called_once_with({"message": "invalid syntax", "error": "invalid syntax"})
+        on_status.assert_called_once_with("error")
+        app._on_close()
+
     def test_cmd_debug_calls_service_start_with_debug_true(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory
@@ -1291,18 +1510,24 @@ class TestMainWindow:
         app = self.EV3SimulatorApp()
 
         assert app._execution_menu_locked is False
+        # Ayuda permanece disponible durante la ejecución; las siete categorías
+        # que pueden cambiar el estado sí se bloquean de forma coherente.
+        assert len(app._lockable_menu_buttons) == 6
 
         app._on_status("started")
         assert app._execution_menu_locked is True
 
         app._on_status("stopped")
-        assert app._execution_menu_locked is True
+        assert app._execution_menu_locked is False
 
         app._on_status("finished")
-        assert app._execution_menu_locked is True
+        assert app._execution_menu_locked is False
 
         app._on_status("timed_out")
-        assert app._execution_menu_locked is True
+        assert app._execution_menu_locked is False
+
+        app._on_status("error")
+        assert app._execution_menu_locked is False
 
         app._on_status("reset")
         assert app._execution_menu_locked is False
@@ -1324,6 +1549,29 @@ class TestMainWindow:
 
         preserve.assert_called_once_with("finished")
         activate.assert_not_called()
+        app._on_close()
+
+    def test_success_notification_is_emitted_once_only_for_finished_execution(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.ui import main_window as mw
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+
+        with mock.patch.object(mw.messagebox, "showinfo") as showinfo:
+            app._begin_execution_notification_cycle()
+            app._on_status("finished")
+            app._on_status("finished")
+            app._begin_execution_notification_cycle()
+            app._on_status("timed_out")
+
+        showinfo.assert_called_once_with(
+            "Ejecución finalizada",
+            "El programa se ejecutó correctamente.",
+            parent=app,
+        )
         app._on_close()
 
     def test_stop_and_reset_applies_initial_snapshot_to_all_tkinter_views(self):
@@ -1411,6 +1659,49 @@ class TestMainWindow:
 
         assert calls == ["freeze", "launch"]
 
+    def test_desktop_startup_uses_fixed_intro_and_maximizes_main_window(self):
+        from simulador_ev3.ui import main_window as mw
+
+        class FakeSplash:
+            def winfo_screenwidth(self):
+                return 1920
+
+            def winfo_screenheight(self):
+                return 1080
+
+            def geometry(self, value):
+                self.geometry_value = value
+
+        class FakeApp:
+            def state(self, value):
+                self.state_value = value
+
+        splash = FakeSplash()
+        app = FakeApp()
+        mw._center_splash_window(splash)
+        mw._maximize_main_window(app)
+
+        assert splash.geometry_value == "800x450+560+315"
+        assert app.state_value == "zoomed"
+
+    def test_intro_image_is_resized_to_exact_startup_dimensions(self):
+        from simulador_ev3.ui import main_window as mw
+
+        source = mock.MagicMock()
+        source.convert.return_value.resize.return_value = "scaled-image"
+        source.__enter__.return_value = source
+
+        with (
+            mock.patch.object(mw.Image, "open", return_value=source),
+            mock.patch.object(mw.ImageTk, "PhotoImage", return_value="tk-image") as photo_image,
+        ):
+            result = mw._load_intro_image()
+
+        source.convert.assert_called_once_with("RGBA")
+        source.convert.return_value.resize.assert_called_once_with((800, 450), mw.Image.Resampling.LANCZOS)
+        photo_image.assert_called_once_with("scaled-image")
+        assert result == "tk-image"
+
     def test_about_dialog_is_centered_over_the_main_window(self):
         app = self.EV3SimulatorApp()
 
@@ -1439,4 +1730,32 @@ class TestMainWindow:
         app._center_dialog_over_main_window(dialog)
 
         assert dialog.geometry_value == "200x100+400+330"
+        app._on_close()
+
+    def test_help_progress_resets_only_the_selected_guide(self):
+        app = self.EV3SimulatorApp()
+        app._help_progress = {"first-simulation": {0, 1}, "create-world": {0}}
+        app._manual_window = None
+
+        app._reset_help_guide_progress("first-simulation")
+
+        assert "first-simulation" not in app._help_progress
+        assert app._help_progress["create-world"] == {0}
+        app._on_close()
+
+    def test_help_copies_only_the_shared_safe_example_and_close_releases_images(self):
+        app = self.EV3SimulatorApp()
+        app.clipboard_clear = mock.Mock()
+        app.clipboard_append = mock.Mock()
+        app._help_images = [mock.Mock()]
+        app._manual_window = None
+
+        app._copy_help_example("first-simulation")
+        app._copy_help_example("unknown-guide")
+        app._close_manual_window()
+
+        app.clipboard_clear.assert_called_once()
+        copied = app.clipboard_append.call_args.args[0]
+        assert "EV3Brick" in copied
+        assert app._help_images == []
         app._on_close()

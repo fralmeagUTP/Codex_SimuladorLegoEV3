@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import simulador_ev3.web.app as web_app_module
 from simulador_ev3 import __version__
 from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.web.app import create_app
@@ -28,6 +29,7 @@ def make_client(tmp_path):
             "MAX_ACTIVE_SESSIONS": 5,
             "MAX_RUNNING_SIMULATIONS": 5,
             "SCRIPT_MAX_RUNTIME_S": 2.0,
+            "OPERATIONS_ACCESS_POLICY": "local",
         }
     )
     return app.test_client()
@@ -41,6 +43,7 @@ def make_client_with_config(tmp_path, **config):
         "MAX_ACTIVE_SESSIONS": 5,
         "MAX_RUNNING_SIMULATIONS": 5,
         "SCRIPT_MAX_RUNTIME_S": 2.0,
+        "OPERATIONS_ACCESS_POLICY": "local",
     }
     base_config.update(config)
     return create_app(base_config).test_client()
@@ -65,15 +68,101 @@ def test_index_page_references_existing_static_assets(tmp_path):
         assert asset.status_code == 200, path
 
 
+def test_session_exposes_versioned_presentation_learning_and_observability_contracts(tmp_path):
+    client = make_client(tmp_path)
+    created = client.post("/api/sessions", json={}).get_json()
+    headers = auth_headers(created)
+    session_id = created["session_id"]
+
+    presentation = client.get(f"/api/sessions/{session_id}/presentation", headers=headers)
+    learning = client.get(f"/api/sessions/{session_id}/learning", headers=headers)
+    observability = client.get(f"/api/sessions/{session_id}/observability", headers=headers)
+
+    assert presentation.status_code == learning.status_code == observability.status_code == 200
+    assert presentation.get_json()["version"] == 1
+    assert presentation.get_json()["controls"]["run"] is True
+    assert learning.get_json()["version"] == 1
+    assert observability.get_json()["session_id"] == session_id
+
+
+def test_observability_endpoint_never_exposes_session_token_or_source_code(tmp_path):
+    client = make_client(tmp_path)
+    created = client.post("/api/sessions", json={}).get_json()
+    headers = auth_headers(created)
+
+    response = client.get(f"/api/sessions/{created['session_id']}/observability", headers=headers)
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert created["owner_token"] not in body
+    assert "source_code" not in body
+
+
+def test_web_help_menu_offers_diagnostic_view_and_safe_json_export(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    app_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "static" / "js" / "simulation_app.js").read_text(
+        encoding="utf-8"
+    )
+    dialog_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "static" / "js" / "about_dialog.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'id="exportDiagnosticsMenuBtn"' in html
+    assert "Exportar diagnóstico JSON" in html
+    assert 'rel="noopener noreferrer"' in html
+    assert "2cb3c888-47b1-4653-8b05-46c27a87ae81" in html
+    assert 'title: "Diagnóstico de sesión"' in app_source
+    assert "showGroups: false" in app_source
+    assert "new Blob" in app_source
+    assert "schema_version" in app_source
+    assert "title.textContent = dialogTitle" in dialog_source
+
+
 def test_wsgi_entrypoint_exposes_flask_app():
     assert wsgi_app.name == "simulador_ev3.web.app"
     assert "session_manager" in wsgi_app.extensions
+
+
+def test_official_development_server_keeps_sse_and_commands_concurrent(monkeypatch):
+    """El entrypoint oficial no puede bloquear POST mientras SSE sigue abierto."""
+
+    captured: dict[str, object] = {}
+
+    class FakeApp:
+        def run(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(web_app_module, "create_app", lambda: FakeApp())
+    monkeypatch.setenv("EV3_WEB_HOST", "127.0.0.1")
+    monkeypatch.setenv("EV3_WEB_PORT", "5054")
+
+    web_app_module.main()
+
+    assert captured == {
+        "host": "127.0.0.1",
+        "port": 5054,
+        "debug": False,
+        "use_reloader": False,
+        "threaded": True,
+    }
 
 
 def test_testing_app_does_not_start_cleanup_thread(tmp_path):
     client = make_client(tmp_path)
 
     assert client.application.extensions["session_cleanup_worker"] is None
+
+
+def test_application_exposes_orderly_session_shutdown(tmp_path):
+    client = make_client(tmp_path)
+    client.post("/api/sessions", json={})
+
+    closed = client.application.extensions["shutdown_sessions"]()
+
+    assert closed == 1
+    assert client.application.extensions["session_manager"].stats()["active_sessions"] == 0
 
 
 def test_cleanup_worker_closes_expired_sessions(tmp_path):
@@ -141,6 +230,18 @@ def test_production_configuration_rejects_unsafe_defaults(tmp_path):
         )
 
 
+def test_configuration_rejects_invalid_resource_retention_limits(tmp_path):
+    with pytest.raises(RuntimeError, match="TRACE_MAX_SNAPSHOTS"):
+        create_app(
+            {
+                "TESTING": True,
+                "WORLDS_DIR": tmp_path,
+                "EXAMPLES_DIR": tmp_path,
+                "TRACE_MAX_SNAPSHOTS": 0,
+            }
+        )
+
+
 def test_production_configuration_accepts_required_security_values(tmp_path):
     app = create_app(
         {
@@ -149,12 +250,47 @@ def test_production_configuration_accepts_required_security_values(tmp_path):
             "SECRET_KEY": "clave-de-produccion-segura-con-32-caracteres",
             "SCRIPT_MAX_RUNTIME_S": 30.0,
             "SESSION_COOKIE_SECURE": True,
+            "ENABLE_HSTS": True,
+            "OPERATIONS_ACCESS_POLICY": "local",
             "WORLDS_DIR": tmp_path,
             "EXAMPLES_DIR": tmp_path,
         }
     )
 
     assert app.config["APP_ENV"] == "production"
+
+
+def test_production_configuration_rejects_invalid_capacity_and_relative_temp_dirs(tmp_path):
+    with pytest.raises(RuntimeError, match="MAX_RUNNING_SIMULATIONS"):
+        create_app(
+            {
+                "TESTING": True,
+                "APP_ENV": "production",
+                "SECRET_KEY": "clave-de-produccion-segura-con-32-caracteres",
+                "SESSION_COOKIE_SECURE": True,
+                "ENABLE_HSTS": True,
+                "OPERATIONS_ACCESS_POLICY": "local",
+                "MAX_ACTIVE_SESSIONS": 2,
+                "MAX_RUNNING_SIMULATIONS": 3,
+                "WORLDS_DIR": tmp_path,
+                "EXAMPLES_DIR": tmp_path,
+            }
+        )
+
+    with pytest.raises(RuntimeError, match="WORKER_TEMP_ROOT"):
+        create_app(
+            {
+                "TESTING": True,
+                "APP_ENV": "production",
+                "SECRET_KEY": "clave-de-produccion-segura-con-32-caracteres",
+                "SESSION_COOKIE_SECURE": True,
+                "ENABLE_HSTS": True,
+                "OPERATIONS_ACCESS_POLICY": "local",
+                "WORKER_TEMP_ROOT": "relative-workers",
+                "WORLDS_DIR": tmp_path,
+                "EXAMPLES_DIR": tmp_path,
+            }
+        )
 
 
 def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
@@ -166,6 +302,7 @@ def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     monkeypatch.setenv("EV3_WEB_EXAMPLES_DIR", str(examples_dir))
     monkeypatch.setenv("EV3_WEB_MAX_ACTIVE_SESSIONS", "7")
     monkeypatch.setenv("EV3_WEB_SCRIPT_MAX_RUNTIME_S", "4.5")
+    monkeypatch.setenv("EV3_WEB_WEB_SNAPSHOT_MAX_HZ", "30")
     monkeypatch.setenv("EV3_WEB_SESSION_CLEANUP_INTERVAL_S", "12.5")
     monkeypatch.setenv("EV3_WEB_ENABLE_SESSION_CLEANUP_THREAD", "false")
     monkeypatch.setenv("EV3_WEB_ENABLE_SECURITY_HEADERS", "false")
@@ -186,6 +323,7 @@ def test_environment_config_overrides_defaults(monkeypatch, tmp_path):
     assert app.config["EXAMPLES_DIR"] == examples_dir
     assert app.config["MAX_ACTIVE_SESSIONS"] == 7
     assert app.config["SCRIPT_MAX_RUNTIME_S"] == 4.5
+    assert app.config["WEB_SNAPSHOT_MAX_HZ"] == 30.0
     assert app.config["SESSION_CLEANUP_INTERVAL_S"] == 12.5
     assert app.config["ENABLE_SESSION_CLEANUP_THREAD"] is False
     assert app.config["ENABLE_SECURITY_HEADERS"] is False
@@ -280,9 +418,104 @@ def test_security_headers_are_enabled_by_default(tmp_path):
     assert res.headers["X-Frame-Options"] == "DENY"
     assert res.headers["Referrer-Policy"] == "same-origin"
     assert "default-src 'self'" in res.headers["Content-Security-Policy"]
+    assert "object-src 'none'" in res.headers["Content-Security-Policy"]
+    assert "form-action 'self'" in res.headers["Content-Security-Policy"]
     assert "frame-ancestors 'none'" in res.headers["Content-Security-Policy"]
     assert res.headers["X-Worker-Id"].startswith("pid-")
     assert res.headers["X-Worker-Pid"].isdigit()
+
+
+def test_security_headers_enable_hsts_only_when_configured(tmp_path):
+    secure_client = make_client_with_config(tmp_path, ENABLE_HSTS=True)
+
+    secure = secure_client.get("/")
+    plain = make_client(tmp_path).get("/")
+
+    assert secure.headers["Strict-Transport-Security"] == "max-age=31536000; includeSubDomains"
+    assert "Strict-Transport-Security" not in plain.headers
+
+
+def test_rate_limit_rejects_second_session_creation_before_allocating_worker(tmp_path):
+    client = make_client_with_config(
+        tmp_path,
+        RATE_LIMIT_SESSION_CREATE=1,
+        RATE_LIMIT_WINDOW_S=60.0,
+    )
+
+    first = client.post("/api/sessions", json={})
+    rejected = client.post("/api/sessions", json={})
+
+    assert first.status_code == 201
+    assert rejected.status_code == 429
+    assert rejected.get_json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert int(rejected.headers["Retry-After"]) >= 1
+    assert client.application.extensions["session_manager"].stats()["active_sessions"] == 1
+
+
+def test_rate_limit_is_scoped_to_client_address(tmp_path):
+    client = make_client_with_config(tmp_path, RATE_LIMIT_SESSION_CREATE=1, RATE_LIMIT_WINDOW_S=60.0)
+
+    first = client.post("/api/sessions", json={}, environ_overrides={"REMOTE_ADDR": "198.51.100.10"})
+    second_client = client.post("/api/sessions", json={}, environ_overrides={"REMOTE_ADDR": "198.51.100.11"})
+
+    assert first.status_code == 201
+    assert second_client.status_code == 201
+
+
+def test_mutable_api_rejects_cross_origin_requests(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.post("/api/sessions", json={}, headers={"Origin": "https://evil.example"})
+
+    assert response.status_code == 403
+    assert response.get_json()["error"]["code"] == "CROSS_ORIGIN_REQUEST"
+
+
+def test_mutable_api_accepts_public_origin_through_trusted_proxy(tmp_path):
+    client = make_client_with_config(
+        tmp_path,
+        TRUST_PROXY_HEADERS=True,
+        PUBLIC_ORIGIN="https://botlab.example",
+    )
+
+    response = client.post(
+        "/api/sessions",
+        json={},
+        headers={
+            "Origin": "https://botlab.example",
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "botlab.example",
+        },
+    )
+
+    assert response.status_code == 201
+
+
+def test_operational_endpoints_require_configured_token(tmp_path):
+    token = "t" * 32
+    client = make_client_with_config(
+        tmp_path,
+        OPERATIONS_ACCESS_POLICY="token",
+        OPERATIONS_TOKEN=token,
+    )
+
+    denied = client.get("/metrics")
+    allowed = client.get("/metrics", headers={"X-EV3-Operations-Token": token})
+
+    assert denied.status_code == 403
+    assert denied.get_json()["error"]["code"] == "OPERATIONS_ACCESS_DENIED"
+    assert allowed.status_code == 200
+
+
+def test_public_health_and_metrics_do_not_expose_internal_session_details(tmp_path):
+    client = make_client_with_config(tmp_path, OPERATIONS_ACCESS_POLICY="public")
+
+    health = client.get("/healthz").get_json()
+    metrics = client.get("/metrics").get_json()
+
+    assert health == {"status": "ok", "version": __version__}
+    assert "worker_pid" not in health
+    assert "active_sessions" not in metrics
 
 
 def test_security_headers_can_be_disabled(tmp_path):
@@ -424,8 +657,8 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     client = make_client(tmp_path)
 
     js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
-    api_js = client.get("/static/js/api.js").get_data(as_text=True)
     speaker_audio = client.get("/static/js/speaker_audio.js").get_data(as_text=True)
+    interpolation = client.get("/static/js/render_interpolation_controller.js")
 
     for expected in (
         "11_siguelineas_basico.py",
@@ -442,6 +675,7 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "Cargar mundo desde tu equipo",
         "scenariosMenu",
         "loadScenario",
+        "throwOnError: true",
         "renderEditorGutter",
         "toggleBreakpoint",
         "currentDebugLine",
@@ -486,14 +720,20 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "watchesInput",
         "setWatches",
         "let executionMenuLocked = false",
+        "const ACTIVE_EXECUTION_STATUSES = new Set([\"running\", \"paused\"]);",
+        "function isExecutionActive(status)",
         "function updateMenuLockState()",
         "function guardMenuAction()",
         "MENU_LOCK_MESSAGE",
-        "executionMenuLocked = true;",
-        "executionMenuLocked = false;",
+        "executionMenuLocked = isExecutionActive(currentStatus);",
+        "[data-execution-lockable] button",
+        "[data-execution-lockable] a",
         "if (guardMenuAction()) return;",
     ):
         assert expected in js
+    assert interpolation.status_code == 200
+    assert "EV3RenderInterpolationController" in interpolation.get_data(as_text=True)
+    assert "render_interpolation_controller.js?v=" in client.get("/").get_data(as_text=True)
     file_input_js = client.get("/static/js/file_input_controller.js").get_data(as_text=True)
     assert "EV3FileInputController.bind" in js
     assert 'input?.addEventListener("change"' in file_input_js
@@ -505,6 +745,20 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert "closeSession();" in lifecycle_js
     assert "recoveryFailures" in js
     assert "const configuredPollingIntervalMs = Number.parseInt(" in js
+
+
+def test_execution_context_menus_are_marked_for_a_shared_lock_policy(tmp_path):
+    client = make_client(tmp_path)
+
+    js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    api_js = client.get("/static/js/api.js").get_data(as_text=True)
+    lifecycle_js = client.get("/static/js/page_lifecycle_controller.js").get_data(as_text=True)
+    page = client.get("/").get_data(as_text=True)
+
+    # Archivo, Aprender, Mundos, Prácticas guiadas, Configuración y
+    # Diagnóstico modifican contexto o ejecución y comparten el mismo bloqueo.
+    assert page.count("data-execution-lockable") == 6
+    assert "<button type=\"button\" class=\"menu-trigger\"" in page
     assert "const POLLING_INTERVAL_MS = Number.isFinite(configuredPollingIntervalMs)" in js
     assert "const SSE_ENABLED =" in js
     assert "setInterval(refreshSnapshot, POLLING_INTERVAL_MS)" in js
@@ -542,6 +796,110 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
     assert 'window.addEventListener("ev3-session-recovered"' in lifecycle_js
 
 
+def test_primary_menu_uses_the_shared_learning_and_support_taxonomy(tmp_path):
+    """Web conserva la misma taxonomía prevista para la interfaz Tkinter."""
+    client = make_client(tmp_path)
+    page = client.get("/").get_data(as_text=True)
+    desktop_source = (PROJECT_ROOT / "simulador_ev3" / "ui" / "main_window.py").read_text(encoding="utf-8")
+    template_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    from simulador_ev3.shared.interface_catalog import LEGACY_NAVIGATION_CATEGORY_MAP, NAVIGATION_MENU
+
+    expected = (
+        "Archivo",
+        "Aprender",
+        "Mundos",
+        "Prácticas guiadas",
+        "Configuración",
+        "Diagnóstico",
+        "Ayuda",
+    )
+    for label in expected:
+        assert label in page
+    assert tuple(NAVIGATION_MENU.values()) == expected
+    for key in NAVIGATION_MENU:
+        assert f"navigation_menu['{key}']" in template_source
+        assert f'NAVIGATION_MENU["{key}"]' in desktop_source
+    assert "NAVIGATION_MENU" in (PROJECT_ROOT / "simulador_ev3" / "shared" / "interface_catalog.py").read_text(encoding="utf-8")
+    assert LEGACY_NAVIGATION_CATEGORY_MAP == {
+        "Ejemplos": "learn",
+        "Escenarios": "guided_practice",
+        "Tema": "settings",
+        "Fidelidad": "settings",
+        "Tiempo máximo": "settings",
+        "Trazas": "diagnostics",
+    }
+
+    assert '<span class="menu-section-label">Trazas de simulación</span>' in page
+    assert "data-simulation-profile=\"ideal\"" in page
+    assert "Actual: tema" in desktop_source
+
+
+def test_content_loading_recovers_a_lost_session_before_reporting_failure(tmp_path):
+    client = make_client(tmp_path)
+    script = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+
+    assert "La sesión venció. Se está recuperando para cargar el ejemplo" in script
+    assert "La sesión venció. Se está recuperando para cargar el mundo" in script
+    assert "retryAfterRecovery = true" in script
+    assert "async function getExampleWithRecovery(name" in script
+    assert "return getExampleWithRecovery(name, { retryAfterRecovery: false })" in script
+    assert "return loadWorldByName(name, { throwOnError, retryAfterRecovery: false, confirmDiscard: false })" in script
+
+
+def test_content_replacement_protects_unsaved_work_and_sanitizes_visible_errors(tmp_path):
+    """El contrato de navegación conserva el trabajo y no muestra datos internos."""
+
+    client = make_client(tmp_path)
+    script = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    api_script = client.get("/static/js/api.js").get_data(as_text=True)
+
+    assert "function confirmDiscardUnsavedChanges(actionLabel)" in script
+    assert "Hay cambios sin guardar" in script
+    assert 'confirmDiscardUnsavedChanges("Cargar un ejemplo")' in script
+    assert 'confirmDiscardUnsavedChanges("Cargar un mundo")' in script
+    assert 'confirmDiscardUnsavedChanges("Cargar esta práctica guiada")' in script
+    assert 'confirmDiscardUnsavedChanges("Cargar esta práctica evaluable")' in script
+    assert "function safeContentLoadError(err, fallback)" in script
+    assert "pid=${error.workerPid}" not in api_script
+    assert "worker=${error.workerId}" not in api_script
+    assert "function applyExampleData(name, data)" in script
+    assert "const exampleData = await getExampleWithRecovery(scenario.example);" in script
+    assert "const exampleData = await getExampleWithRecovery(mission.starter_script);" in script
+    assert "¿Deseas cargarla?" in script
+
+
+def test_configuration_controls_expose_the_current_session_values(tmp_path):
+    client = make_client(tmp_path)
+    profile_controls = client.get("/static/js/profile_controls.js").get_data(as_text=True)
+    runtime_controls = client.get("/static/js/runtime_limit_controls.js").get_data(as_text=True)
+    session_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "services" / "simulation_session.py").read_text(encoding="utf-8")
+
+    assert "setActiveProfile" in profile_controls
+    assert "aria-pressed" in profile_controls
+    assert "setActiveRuntimeLimit" in runtime_controls
+    assert "aria-pressed" in runtime_controls
+    assert '"max_runtime_s": self._max_runtime_s' in session_source
+
+
+def test_evaluated_practices_expose_objective_and_estimated_duration_in_both_products(tmp_path):
+    client = make_client(tmp_path)
+    script = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    desktop_source = (PROJECT_ROOT / "simulador_ev3" / "ui" / "main_window.py").read_text(encoding="utf-8")
+
+    assert "loadAssessmentPractices" in script
+    assert "Retos evaluables" in script
+    assert "button.dataset.mission" in script
+    assert "missionsMenu" not in script
+    assert "mission.objective" in script
+    assert "Duración estimada" in script
+    assert "aria-description" in script
+    assert 'mission.metadata.get("estimated_minutes")' in desktop_source
+    assert "mission.acceptance_criteria" in script
+    assert "renderMissionProgress" in script
+    assert 'len(mission.acceptance_criteria)' in desktop_source
+
+
 def test_simulation_canvas_preserves_physical_world_scale(tmp_path):
     client = make_client(tmp_path)
 
@@ -554,6 +912,7 @@ def test_simulation_canvas_preserves_physical_world_scale(tmp_path):
     assert "const MAX_ZOOM = 3.0" in js
     assert "staticLayerCache" in js
     assert "staticWorldLayer" in js
+    assert "if (!snapshot?.visual_interpolated)" in js
     assert "resetTrail" in js
     assert "trail.length = 0" in js
     assert "TRAIL_TELEPORT_THRESHOLD_MM" in js
@@ -717,7 +1076,8 @@ def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
     assert "@media (max-height: 820px)" in css
     assert "width: min(240px, calc(100% - 24px));" in css
     assert "aspect-ratio: 178 / 128;" in css
-    assert "grid-template-columns: minmax(430px, 1.18fr) minmax(300px, 0.82fr);" in css
+    assert "--ev3-brick-min-width: 340px;" in css
+    assert "grid-template-columns: minmax(430px, 1.18fr) minmax(var(--ev3-brick-min-width), 0.82fr);" in css
     assert "grid-template-columns: minmax(220px, 34fr)" in css
 
 
@@ -757,7 +1117,7 @@ def test_code_editor_uses_horizontal_scroll_instead_of_wrapping(tmp_path):
 
     css = client.get("/static/css/app.css").get_data(as_text=True)
     editor_block = re.search(
-        r"\.syntax-highlight,\n\.sim-code-pane #codeEditor \{(?P<body>.*?)\n\}",
+        r"\.syntax-highlight,\r?\n\.sim-code-pane #codeEditor \{(?P<body>.*?)\r?\n\}",
         css,
         re.DOTALL,
     )
@@ -778,8 +1138,10 @@ def test_simulation_workspace_uses_compact_vertical_spacing(tmp_path):
     workspace_block = re.search(r"\.sim-workspace \{(?P<body>.*?)\n\}", css, re.DOTALL)
     assert workspace_block is not None
     body = workspace_block.group("body")
-    assert "gap: 6px;" in body
-    assert "padding: 4px 12px 0;" in body
+    assert "--ev3-space-compact: 6px;" in css
+    assert "--ev3-space-page: 12px;" in css
+    assert "gap: var(--ev3-space-compact);" in body
+    assert "padding: 4px var(--ev3-space-page) 0;" in body
     assert "grid-template-rows: minmax(0, 1fr) 36px;" in body
     assert "gap: 10px;" not in body
     assert "padding: 8px 12px 0;" not in body
@@ -840,11 +1202,69 @@ def test_telemetry_panel_uses_three_columns_and_brick_robot_state(tmp_path):
     assert "JSON.stringify(s.value)" not in js
 
 
+def test_web_success_notification_is_accessible_and_deduplicated(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    js = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+
+    assert 'id="executionSuccessToast"' in html
+    assert 'aria-live="polite"' in html
+    assert 'id="executionSuccessToastClose"' in html
+    assert "El programa se ejecutó correctamente." in html
+    assert ".execution-success-toast" in css
+    assert 'html[data-theme="dark"] .execution-success-toast' in css
+    assert "beginExecutionNotificationCycle" in js
+    assert "scheduleExecutionSuccessNotification" in js
+    assert "notifiedExecutionNotificationId === executionId" in js
+    assert "setTimeout(hideExecutionSuccessToast, 4000)" in js
+
+
+def test_web_shows_the_shared_startup_screen_for_three_seconds(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    splash_js = client.get("/static/js/startup_splash.js").get_data(as_text=True)
+
+    assert 'id="startupSplash"' in html
+    assert "Intro.png" in html
+    assert "js/startup_splash.js" in html
+    assert "Cargando entorno de simulación" in html
+    assert "window.setTimeout(dismiss, 3000)" in splash_js
+    assert "splash.remove()" in splash_js
+    assert ".startup-splash" in css
+    assert ".startup-splash-art" in css
+    assert ".startup-splash-progress" in css
+    assert "z-index: 10000" in css
+
+
+def test_web_stop_and_reset_control_uses_the_danger_colour(tmp_path):
+    client = make_client(tmp_path)
+
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+
+    assert ".sim-control-bar .stop-button" in css
+    assert "background: var(--ev3-danger);" in css
+    assert "color: #fff;" in css
+
+
+def test_web_help_menu_uses_the_shared_specific_quick_guide_label(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/").get_data(as_text=True)
+
+    assert "Guía rápida: primera simulación" in html
+    assert "Guía de actividad" not in html
+    assert "#guide-first-simulation" in html
+
+
 def test_web_editor_places_assets_like_tkinter_tool_origin(tmp_path):
     client = make_client(tmp_path)
 
     canvas_js = client.get("/static/js/canvas_world.js").get_data(as_text=True)
-    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
+    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True).replace("\r\n", "\n")
 
     assert "function placementOriginForAsset" in canvas_js
     assert "Math.floor(size.w / 2) * gridSize" in canvas_js
@@ -889,6 +1309,47 @@ def test_world_editor_uses_jpg_for_floor_tile_c(tmp_path):
     assert image.content_type.startswith("image/")
 
 
+def test_world_editor_exposes_grouped_actions_and_shared_keyboard_shortcuts(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/worlds").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
+
+    assert html.count('class="world-toolbar-group') == 3
+    assert '<legend>Archivo</legend>' in html
+    assert '<legend>Edición</legend>' in html
+    assert '<legend>Simulación</legend>' in html
+    assert 'id="rotateAssetBtn"' in html and "Rotar 90°" in html
+    assert "world-toolbar-group" in css
+    assert "focus-visible" in css
+    assert 'key === "n"' in editor_js
+    assert 'key === "o"' in editor_js
+    assert 'key === "s"' in editor_js
+    assert 'key === "d"' in editor_js
+    assert 'event.key === "Delete"' in editor_js
+    assert 'event.key === "Escape"' in editor_js
+
+
+def test_world_editor_preserves_unsaved_work_and_supports_docking_at_laptop_width(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/worlds").get_data(as_text=True)
+    css = client.get("/static/css/app.css").get_data(as_text=True)
+    editor_js = client.get("/static/js/world_editor_app.js").get_data(as_text=True)
+    api_js = client.get("/static/js/api.js").get_data(as_text=True)
+
+    assert 'id="worldDirtyIndicator"' in html
+    assert 'id="toggleLibraryPanelBtn"' in html
+    assert 'id="toggleInspectorPanelBtn"' in html
+    assert "resizeEditorWorld" in api_js
+    assert "canDiscardEditorChanges" in editor_js
+    assert "api.resizeEditorWorld(width, height)" in editor_js
+    assert "setEditorDirty(true)" in editor_js
+    assert "is-library-collapsed" in css
+    assert "is-inspector-collapsed" in css
+
+
 def test_help_page_documents_web_workflows(tmp_path):
     client = make_client(tmp_path)
 
@@ -897,19 +1358,73 @@ def test_help_page_documents_web_workflows(tmp_path):
 
     assert res.status_code == 200
     for expected in (
-        "nyquist.app/simuladorlego",
-        "Simulacion del robot",
-        "Creacion de mundos",
-        "Escenarios",
-        "sin escribir nombres ni rutas",
-        "no necesitas ejecutar scripts locales",
-        "Ctrl+Space",
-        "Ubicar robot",
-        "altavoz EV3",
-        "panel de propiedades",
-        "Cargar mundo desde tu equipo",
+        "CENTRO DE APRENDIZAJE",
+        "Simulador EV3 Pybricks",
+        "Buscar una guía, control o error",
+        "Mi primera simulación",
+        "Crear un mundo con obstáculos",
+        "Usar motores y sensores",
+        "Depurar un programa paso a paso",
+        "Resolver un error de programa",
+        "data-help-guide",
+        "data-guide-step",
+        "data-guide-progress",
+        "data-teacher-mode",
+        "data-teacher-route",
+        "Copiar ejemplo seguro",
+        "Reiniciar guía",
+        "help_center.js",
     ):
         assert expected in html
+    assert "nyquist.app/simuladorlego" not in html
+
+
+def test_critical_web_controls_link_to_contextual_help(tmp_path):
+    client = make_client(tmp_path)
+
+    simulation = client.get("/").get_data(as_text=True)
+    worlds = client.get("/worlds").get_data(as_text=True)
+
+    for fragment in (
+        "#guide-run-simulation",
+        "#guide-first-simulation",
+        "#guide-use-sensors",
+        "#guide-recover-script-error",
+    ):
+        assert fragment in simulation
+    assert "#guide-create-world" in worlds
+
+
+def test_help_page_exposes_shared_references_and_glossary(tmp_path):
+    client = make_client(tmp_path)
+
+    html = client.get("/help").get_data(as_text=True)
+    manual = client.get("/documentation/user-manual")
+    limits = client.get("/documentation/pybricks-limits")
+
+    assert "Manual de uso" in html
+    assert "GLOSARIO PYBRICKS" in html
+    assert "DriveBase" in html
+    assert manual.status_code == 200
+    assert limits.status_code == 200
+    assert "Simulador" in manual.get_data(as_text=True)
+
+
+def test_help_page_renders_every_shared_guide_reference_and_glossary_term(tmp_path):
+    from simulador_ev3.shared.help_tutorials import HELP_GUIDES, HELP_REFERENCES, PYBRICKS_GLOSSARY
+
+    html = make_client(tmp_path).get("/help").get_data(as_text=True)
+
+    for guide in HELP_GUIDES:
+        assert guide.identifier in html
+        assert guide.title in html
+        assert guide.expected_result in html
+        assert f"/static/images/help/{guide.image_name}" in html
+    for reference in HELP_REFERENCES:
+        assert reference.title in html
+        assert f"/documentation/{reference.identifier}" in html
+    for term in PYBRICKS_GLOSSARY:
+        assert term.term in html
 
 
 def test_create_session_returns_id_and_token(tmp_path):
@@ -1217,6 +1732,25 @@ def test_snapshot_endpoint_accepts_post_for_proxy_compatibility(tmp_path):
     assert snap["session_id"] == session["session_id"]
 
 
+def test_start_endpoint_accepts_source_in_the_same_request(tmp_path):
+    """La Web evita una ida y vuelta separada para cargar y arrancar código."""
+
+    client = make_client(tmp_path)
+    session_data = client.post("/api/sessions").get_json()
+    headers = auth_headers(session_data)
+    sid = session_data["session_id"]
+
+    response = client.post(
+        f"/api/sessions/{sid}/start",
+        json={"source": "from pybricks.tools import wait\nwait(20)\n"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "running"
+    client.post(f"/api/sessions/{sid}/stop", headers=headers)
+
+
 def test_snapshot_contract_has_sequence_and_new_generation_after_reset(tmp_path):
     client = make_client(tmp_path)
     session = client.post("/api/sessions").get_json()
@@ -1247,6 +1781,48 @@ def test_reset_snapshot_is_a_complete_created_state(tmp_path):
     assert payload["snapshot"]["status"] == "created"
     assert payload["snapshot"]["tick"] <= 1
     assert payload["snapshot"]["sim_time_s"] <= 0.02
+
+
+def test_tick_step_uses_authoritative_worker_snapshot_when_isolation_is_enabled(tmp_path, monkeypatch):
+    """Evita que Trazas anuncie éxito mientras la UI conserva el tick viejo."""
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sid = session["session_id"]
+
+    loaded = client.post(
+        f"/api/sessions/{sid}/script",
+        json={"source": "from pybricks.tools import wait\nwait(1)\n"},
+        headers=headers,
+    )
+    before = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()["snapshot"]
+    started = client.post(f"/api/sessions/{sid}/trace/start", headers=headers)
+    advanced = client.post(f"/api/sessions/{sid}/tick-step", headers=headers)
+    after = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()["snapshot"]
+
+    assert loaded.status_code == 200
+    assert started.status_code == 200
+    assert advanced.status_code == 200
+    assert advanced.get_json()["tick"] > before["tick"], (before, advanced.get_json(), after)
+    assert after["tick"] == advanced.get_json()["tick"]
+    assert after["tick"] > before["tick"]
+
+
+def test_trace_tick_advances_a_new_isolated_session_before_running_a_script(tmp_path, monkeypatch):
+    """El control de trazas debe funcionar desde la pantalla recién abierta."""
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+    headers = auth_headers(session)
+    sid = session["session_id"]
+
+    before = client.get(f"/api/sessions/{sid}/snapshot", headers=headers).get_json()["snapshot"]
+    assert client.post(f"/api/sessions/{sid}/trace/start", headers=headers).status_code == 200
+    advanced = client.post(f"/api/sessions/{sid}/tick-step", headers=headers)
+
+    assert advanced.status_code == 200
+    assert advanced.get_json()["tick"] > before["tick"], (before, advanced.get_json())
 
 
 def test_pause_does_not_consume_runtime_timeout_budget(tmp_path):

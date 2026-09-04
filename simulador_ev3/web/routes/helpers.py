@@ -14,7 +14,8 @@ def get_manager():
 
 
 def request_token() -> str | None:
-    return request.headers.get("X-Session-Token") or request.cookies.get("ev3_owner_token")
+    prefix = str(current_app.config.get("SESSION_COOKIE_PREFIX", "ev3_"))
+    return request.headers.get("X-Session-Token") or request.cookies.get(f"{prefix}owner_token")
 
 
 def require_session(session_id: str):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import timedelta
 from io import BytesIO
@@ -74,9 +75,31 @@ def test_asset_catalog_serializes_expected_metadata():
 
     assert catalog["grid_size_px"] == 32
     assert catalog["cell_size_mm"] == 100.0
+    assert catalog["asset_catalog_version"] == 2
     assert assets["robot_ev3_32x32"]["type"] == "robot"
+    assert assets["robot_ev3_32x32"]["image"] == "robot_ev3_32x32.png"
+    assert len(assets["robot_ev3_32x32"]["sha256"]) == 64
+    assert assets["robot_ev3_32x32"]["source_width_px"] == 32
+    assert assets["robot_ev3_32x32"]["visual_anchor"] == "center"
     assert assets["line_64_64_hor"]["connectors"] == ["E", "W"]
+    assert assets["line_64_64_hor"]["logical_width_mm"] == 200.0
     assert assets["floor_tile_256_c"]["width_cells"] == 8
+
+
+def test_learning_endpoint_publishes_the_shared_initial_activity(tmp_path):
+    client = make_client(tmp_path)
+    session = client.post("/api/sessions").get_json()
+
+    response = client.get(
+        f"/api/sessions/{session['session_id']}/learning",
+        headers=auth_headers(session),
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["activity_id"] == "first-simulation"
+    assert "Ejecutar un ejemplo" in payload["objective"]
+    assert "Cargue un ejemplo" in payload["next_step"]
 
 
 def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path):
@@ -86,7 +109,7 @@ def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path)
             "WORLDS_DIR": tmp_path / "worlds",
             "EXAMPLES_DIR": tmp_path / "examples",
             "SCRIPT_MAX_RUNTIME_S": 1.0,
-            "WEB_SNAPSHOT_MAX_HZ": 5.0,
+            "WEB_SNAPSHOT_MAX_HZ": 10.0,
         },
         max_runtime_s=1.0,
     )
@@ -101,10 +124,25 @@ def test_web_session_throttles_snapshot_events_without_stalling_engine(tmp_path)
     finally:
         session.stop()
 
-    assert 1 <= len(snapshot_events) <= 4
-    assert latest["tick"] > snapshot_events[-1]["payload"]["tick"]
+    # A 10 Hz, 450 ms de ejecución producen hasta cinco eventos, incluido el
+    # inicial; la simulación interna sigue avanzando a 50 Hz.
+    assert 2 <= len(snapshot_events) <= 6
+    assert latest["tick"] >= snapshot_events[-1]["payload"]["tick"]
     assert latest["snapshot_version"] == 1
     assert latest["snapshot_generation"] == 0
+
+
+@pytest.mark.parametrize("snapshot_hz", [0, 9, 61, "not-a-number"])
+def test_web_rejects_unsafe_snapshot_rate(tmp_path, snapshot_hz):
+    with pytest.raises(RuntimeError, match="WEB_SNAPSHOT_MAX_HZ"):
+        create_app(
+            {
+                "TESTING": True,
+                "WORLDS_DIR": tmp_path / "worlds",
+                "EXAMPLES_DIR": tmp_path / "examples",
+                "WEB_SNAPSHOT_MAX_HZ": snapshot_hz,
+            }
+        )
 
 
 def test_web_session_discards_late_transition_after_finished(tmp_path):
@@ -119,6 +157,67 @@ def test_web_session_discards_late_transition_after_finished(tmp_path):
     assert session._transition(SessionStatus.FINISHED)
     assert not session._transition(SessionStatus.PAUSED)
     assert session.status == "finished"
+
+
+def test_terminal_status_is_preceded_by_a_snapshot_with_the_same_status(tmp_path):
+    """El consumidor SSE nunca debe recibir ``finished`` antes de su DTO final."""
+
+    session = SimulationSession(
+        session_id="terminal-snapshot-order",
+        config={"WORLDS_DIR": tmp_path / "worlds", "EXAMPLES_DIR": tmp_path / "examples"},
+        max_runtime_s=1.0,
+    )
+    try:
+        assert session._transition(SessionStatus.READY)
+        assert session._transition(SessionStatus.RUNNING)
+        session._latest_snapshot = {
+            "tick": 42,
+            "sim_time_s": 0.84,
+            "robot": {"x_mm": 120.0, "y_mm": 80.0, "theta_deg": 90.0},
+        }
+
+        session._on_status("finished")
+        events = session.events_since(0)
+        terminal_status_index = next(
+            index
+            for index, event in enumerate(events)
+            if event["type"] == "status" and event["payload"]["status"] == "finished"
+        )
+        final_snapshot = events[terminal_status_index - 1]
+
+        assert final_snapshot["type"] == "snapshot"
+        assert final_snapshot["payload"]["status"] == "finished"
+        assert final_snapshot["payload"]["tick"] == 42
+    finally:
+        session.close()
+
+
+def test_snapshot_response_redecorates_stale_worker_snapshot_with_terminal_status(tmp_path):
+    """El sondeo no puede reintroducir ``running`` tras una finalización."""
+
+    session = SimulationSession(
+        session_id="terminal-worker-snapshot",
+        config={"WORLDS_DIR": tmp_path / "worlds", "EXAMPLES_DIR": tmp_path / "examples"},
+        max_runtime_s=1.0,
+    )
+    try:
+        assert session._transition(SessionStatus.READY)
+        assert session._transition(SessionStatus.RUNNING)
+        session._worker_shadow_snapshot = {
+            "tick": 19,
+            "sim_time_s": 0.38,
+            "status": "running",
+            "robot": {"x_mm": 40.0, "y_mm": 50.0, "theta_deg": 0.0},
+        }
+
+        session._on_status("finished")
+        response = session.snapshot_response()
+
+        assert response["status"] == "finished"
+        assert response["snapshot"]["status"] == "finished"
+        assert response["snapshot"]["tick"] == 19
+    finally:
+        session.close()
 
 
 def test_error_response_for_non_object_json_payload(tmp_path):
@@ -580,6 +679,69 @@ def test_loading_plain_world_clears_stale_editor_overlays(tmp_path):
     assert loaded["world"]["editor_spec"] is None
 
 
+def test_uploading_world_releases_its_temporary_json(monkeypatch, tmp_path):
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
+    worlds_dir = tmp_path / "worlds"
+    examples_dir = tmp_path / "examples"
+    worlds_dir.mkdir()
+    examples_dir.mkdir()
+    session = SimulationSession(
+        session_id="uploaded-world-cleanup",
+        config={"WORLDS_DIR": worlds_dir, "EXAMPLES_DIR": examples_dir, "SCRIPT_MAX_RUNTIME_S": 1.0},
+        max_runtime_s=1.0,
+    )
+    captured: dict[str, object] = {}
+    original_load = session._service.load_world_file
+
+    def observe_path(path):
+        captured["path"] = path
+        return original_load(path)
+
+    monkeypatch.setattr(session._service, "load_world_file", observe_path)
+    try:
+        session.upload_world_json(
+            {
+                "version": 1,
+                "world": {
+                    "width_mm": 1000.0,
+                    "height_mm": 1000.0,
+                    "surface": {"cell_size_mm": 50.0, "default_color": "WHITE", "cells": []},
+                    "obstacles": [],
+                    "beacons": [],
+                },
+            }
+        )
+    finally:
+        session.close()
+
+    assert captured["path"] is not None
+    assert not captured["path"].exists()
+
+
+def test_session_error_summary_does_not_expose_traceback_or_source(monkeypatch, tmp_path):
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
+    session = SimulationSession(
+        session_id="safe-error-summary",
+        config={"WORLDS_DIR": tmp_path, "EXAMPLES_DIR": tmp_path, "SCRIPT_MAX_RUNTIME_S": 1.0},
+        max_runtime_s=1.0,
+    )
+    try:
+        session._status = SessionStatus.RUNNING.value
+        session._on_error(
+            {
+                "code": "SCRIPT_ERROR",
+                "error": "falló la operación",
+                "traceback": "secret = 'no debe aparecer'",
+                "source_code": "print('no debe aparecer')",
+            }
+        )
+        error = session.summary()["error"]
+    finally:
+        session.close()
+
+    assert error == {"code": "SCRIPT_ERROR", "error": "falló la operación"}
+
+
 def test_loading_large_editor_world_keeps_original_dimensions(tmp_path):
     worlds_dir = tmp_path / "worlds"
     examples_dir = tmp_path / "examples"
@@ -625,6 +787,62 @@ def test_loading_large_editor_world_keeps_original_dimensions(tmp_path):
     assert world["editor_spec"]["world_height_cells"] == 160
 
 
+def test_loading_world_replaces_terminal_snapshot_with_configured_robot_start(tmp_path, monkeypatch):
+    """Un mundo nuevo no puede conservar la pose de una ejecucion anterior."""
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    worlds_dir = tmp_path / "worlds"
+    examples_dir = tmp_path / "examples"
+    worlds_dir.mkdir()
+    examples_dir.mkdir()
+    (worlds_dir / "robot_start.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "grid_size_px": 32,
+                "world_width_cells": 40,
+                "world_height_cells": 40,
+                "placements": [
+                    {
+                        "id": "robot_0001",
+                        "asset_key": "robot_ev3_32x32",
+                        "x": 96,
+                        "y": 512,
+                        "rotation": 90,
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    session = SimulationSession(
+        session_id="world-start-replaces-stale-snapshot",
+        config={
+            "WORLDS_DIR": worlds_dir,
+            "EXAMPLES_DIR": examples_dir,
+            "SCRIPT_MAX_RUNTIME_S": 1.0,
+        },
+        max_runtime_s=1.0,
+    )
+    try:
+        # Simula el snapshot preferente que deja un worker al terminar una mision.
+        session._status = SessionStatus.FINISHED.value
+        session._worker_shadow_snapshot = {"robot": {"x_mm": 999.0, "y_mm": 999.0, "theta_deg": 180.0}}
+
+        session.load_world_name("robot_start.json")
+        response = session.snapshot_response()
+
+        assert response["status"] == SessionStatus.READY.value
+        assert response["snapshot"]["robot"] == {
+            "x_mm": 350.0,
+            "y_mm": 1650.0,
+            "theta_deg": 90.0,
+        }
+        assert response["snapshot"]["snapshot_generation"] == 1
+    finally:
+        session.close()
+
+
 def test_file_session_store_lifecycle(tmp_path):
     store = FileSessionStore(
         {
@@ -660,3 +878,21 @@ def test_file_session_store_expires_records(tmp_path):
     assert store.upsert_metadata("sid-exp", {"status": "ready"}, ttl_s=1)
     time.sleep(1.1)
     assert store.fetch_metadata("sid-exp") is None
+
+
+def test_file_session_store_restricts_permissions_and_rejects_unsafe_ids(tmp_path):
+    mirror = tmp_path / "mirror"
+    store = FileSessionStore(
+        {
+            "FILE_MIRROR_ENABLED": True,
+            "FILE_MIRROR_DIR": mirror,
+            "REDIS_PREFIX": "ev3test",
+        }
+    )
+
+    assert store.upsert_metadata("sid_safe-1", {"status": "ready"}, ttl_s=30)
+    metadata_path = next(mirror.glob("*.json"))
+    if os.name != "nt":
+        assert metadata_path.stat().st_mode & 0o077 == 0
+    assert store.upsert_metadata("../../outside", {"status": "ready"}, ttl_s=30) is False
+    assert not (tmp_path / "outside").exists()

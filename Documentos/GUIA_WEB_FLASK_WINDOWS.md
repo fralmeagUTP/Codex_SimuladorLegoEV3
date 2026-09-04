@@ -8,7 +8,7 @@ Estado oficial de interfaces:
 - La Web es la referencia visual y ofrece simulacion, mundos, ayuda y operaciones.
 
 Version documentada: 1.5.0
-Fecha de actualizacion: 2026-07-24
+Fecha de actualización: 2026-08-05
 
 ## 1. Requisitos
 
@@ -17,7 +17,7 @@ Fecha de actualizacion: 2026-07-24
 - Dependencias instaladas con:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install -e ".[web-prod]"
 ```
 
 ## 2. Iniciar servidor

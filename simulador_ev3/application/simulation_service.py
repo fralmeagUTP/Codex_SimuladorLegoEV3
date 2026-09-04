@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from simulador_ev3.application.mission_evaluator import MissionEvaluator
+from simulador_ev3.application.mission_feedback import formative_mission_feedback
 from simulador_ev3.application.simulation_trace import SimulationTrace
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.application.world_editor_service import WorldEditorService
@@ -90,6 +91,7 @@ class SimulationService:
         config: Optional[SimEngineConfig] = None,
         policy: Optional[ExecutionPolicy] = None,
         tick_rate_hz: float = 50.0,
+        trace_max_snapshots: int = 5_000,
     ) -> None:
         self._config = config or SimEngineConfig()
         self._policy = policy or ExecutionPolicy()
@@ -112,7 +114,7 @@ class SimulationService:
         self._debug_breakpoints: set[int] = set()
         self._debug_watches: list[str] = []
         self._latest_debug_event: dict | None = None
-        self._trace = SimulationTrace()
+        self._trace = SimulationTrace(max_snapshots=max(1, int(trace_max_snapshots)))
         self._trace_recording = False
         self._active_mission: MissionDefinition | None = None
         self._mission_result: dict | None = None
@@ -192,6 +194,12 @@ class SimulationService:
     def stop_trace(self) -> None:
         self._trace_recording = False
 
+    def clear_trace(self) -> None:
+        """Libera snapshots retenidos al reiniciar o cerrar una sesión."""
+
+        self._trace_recording = False
+        self._trace.clear()
+
     def activate_mission(self, mission: MissionDefinition) -> None:
         """Asocia una misión a la próxima ejecución y registra su evidencia."""
         self._active_mission = mission
@@ -230,6 +238,7 @@ class SimulationService:
                 "version": self._active_mission.version,
             },
             "result": result,
+            "feedback": formative_mission_feedback(outcome=outcome, result=result),
         }
         return dict(self._mission_result)
 
@@ -538,8 +547,12 @@ class SimulationService:
         self._controller.set_debug_step_mode(step_mode if debug else False)
         self._controller.set_debug_breakpoints(self._debug_breakpoints if debug else set())
         self._controller.set_debug_watches(self._debug_watches if debug else [])
-        self._controller.start()
+        # Notificar antes de crear el hilo de runtime. Un script que falla en
+        # su primera instrucción puede publicar ``error`` antes de que
+        # ``RuntimeController.start`` retorne; emitir ``started`` después
+        # sobrescribía erróneamente ese estado terminal en ambos clientes.
         self._notify_status("started")
+        self._controller.start()
 
     def pause(self) -> None:
         """Pausa el engine (el script queda bloqueado en wait())."""

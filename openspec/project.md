@@ -7,7 +7,9 @@ Simulador educativo de programas LEGO EV3 escritos con una API de Python similar
 ## Alcance actual del producto
 
 - La web es la interfaz principal: simulación (`/`), editor de mundos (`/worlds`) y ayuda (`/help`).
-- Tkinter permanece como interfaz de escritorio heredada con mantenimiento correctivo.
+- Tkinter es una interfaz de escritorio activa y mantiene paridad funcional con
+  la Web para los casos de uso compartidos; la Web sigue siendo la referencia
+  visual adaptable.
 - El simulador está dirigido al aprendizaje guiado y al uso local o en aulas controladas.
 - La API virtual implementa un subconjunto útil de Pybricks EV3; no es un reemplazo byte a byte ni físicamente equivalente al hardware.
 
@@ -17,7 +19,8 @@ Simulador educativo de programas LEGO EV3 escritos con una API de Python similar
 - La simulación usa un paso fijo nominal de 20 ms (50 Hz).
 - Las distancias del mundo y del movimiento se expresan en milímetros; la UI las muestra en centímetros; los ángulos visibles al usuario se expresan en grados.
 - JSON es el formato estable de intercambio para mundos físicos.
-- Las pruebas usan pytest y Playwright; GitHub Actions ejecuta la suite en Windows.
+- Las pruebas usan pytest, Playwright y Pywinauto; GitHub Actions ejecuta matrices
+  Python 3.11/3.12 en Windows y Linux, además de E2E, contenedor y empaquetado.
 
 ## Principios de diseño
 

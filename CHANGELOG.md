@@ -1,5 +1,30 @@
 # Changelog
 
+## Pendiente de la próxima versión
+
+- El resaltado del editor Tkinter ahora usa el tokenizador estándar de Python:
+  comentarios, comentarios en línea y docstrings multilínea reciben color en
+  todas sus líneas y conservan contraste en los temas claro y oscuro.
+- El empaquetado Windows incluye todos los assets de escritorio, crea un ZIP
+  portable verificable y puede generar un instalador Inno Setup para la misma
+  distribución.
+
+## v1.5.0 - 2026-08-05
+
+- Cerrada la paridad funcional Web/Tkinter para ejecución, menús, catálogos,
+  telemetría, temas, depuración, trazas, perfiles y ayuda.
+- Estabilizados los snapshots terminales, el reinicio completo, la limpieza de
+  trazas y la notificación única de finalización correcta.
+- Mejorado el renderizado Web en tiempo real, la experiencia móvil y el editor
+  de mundos en ambas plataformas.
+- Consolidado el worker aislado, la recuperación de sesión, los límites de
+  ejecución configurables y la observabilidad Prometheus/OpenTelemetry.
+- Añadidas misiones evaluables, resultados portables y exportación JSON/CSV.
+- Verificada la liberación con 829 pruebas globales, 6/6 E2E Tkinter, 55/55 E2E
+  Web, CI Windows/Linux, contenedor y empaquetado Windows.
+- Actualizada la documentación técnica, operativa, de QA y derechos de autor;
+  el dictamen final es **apta con observaciones**.
+
 ## v1.4.0 - 2026-07-24
 
 - Incorporado contrato de sesion versionado y worker aislado como ruta normal

@@ -19,6 +19,21 @@ def test_trace_exports_flat_csv() -> None:
     assert "tick,sim_time_s,x_mm,y_mm,theta_deg,colliding" in trace.to_csv()
 
 
+def test_trace_is_bounded_and_declares_truncation() -> None:
+    trace = SimulationTrace(max_snapshots=2)
+    trace.record({"tick": 1})
+    trace.record({"tick": 2})
+    trace.record({"tick": 3})
+
+    exported = trace.to_json()
+    restored = SimulationTrace.from_json(exported)
+
+    assert [item["tick"] for item in trace.snapshots] == [2, 3]
+    assert trace.dropped_snapshots == 1
+    assert '"truncated":true' in exported
+    assert restored.dropped_snapshots == 1
+
+
 def test_service_steps_exactly_one_tick_and_records_it() -> None:
     service = SimulationService()
     service.start_trace()

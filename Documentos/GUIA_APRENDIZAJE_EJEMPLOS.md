@@ -42,6 +42,18 @@ Esta guia propone un orden didactico para usar los ejemplos del simulador.
 5. `21_drivebase_curva_estado.py`: arcos y telemetria de estado.
 6. `22_stopwatch_mision_etapas.py`: mision por etapas con `StopWatch`.
 
+## Recorrido guiado y evidencia docente
+
+Además de los ejemplos, el Centro de ayuda propone recorridos verificables:
+crear mundo, primera simulación, motores y sensores, depuración, misión,
+trazas, tiempo máximo y diagnóstico. Marque cada paso cuando pueda comprobar
+su resultado; reinicie la guía para repetir una práctica.
+
+Para evaluación, conserve una captura del mundo, el programa final, el estado
+terminal de la misión y una explicación de la lectura de un sensor. Las trazas
+permiten comparar intentos, pero deben limpiarse al reiniciar antes de evaluar
+un nuevo recorrido. Valide finalmente el comportamiento con el robot físico.
+
 ## Mundos sugeridos
 
 1. `01_linea_negra_basica.json`: ideal para color y siguelineas.
@@ -56,7 +68,7 @@ Para convertir un ejemplo en una actividad evaluable:
 
 1. Selecciona el ejemplo y el mundo sugerido.
 2. Ejecuta el programa con el perfil de simulacion indicado por el docente.
-3. Inicia el registro desde **Trazas** antes de ejecutar.
+3. Inicia el registro desde **Diagnóstico > Trazas de simulación** antes de ejecutar.
 4. Exporta la traza en JSON o CSV al finalizar.
 5. Revisa la evidencia con los criterios de `Documentos/MISIONES_EVALUABLES.md`.
 

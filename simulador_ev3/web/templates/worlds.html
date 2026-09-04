@@ -19,23 +19,31 @@
   </header>
 
   <section class="world-editor-shell">
-    <section class="world-editor-toolbar">
-      <button id="newWorldBtn" title="Crear un mundo nuevo">Nuevo</button>
-      <button id="openWorldBtn" title="Abrir mundo desde archivo JSON">Abrir</button>
-      <button id="saveWorldBtn" title="Guardar mundo en el servidor">Guardar</button>
-      <button id="deleteSavedWorldBtn" title="Eliminar el último mundo guardado" disabled>Eliminar archivo</button>
-      <button id="exportWorldBtn" title="Descargar mundo como archivo JSON">Guardar como</button>
-      <span class="toolbar-separator"></span>
-      <button id="moveAssetBtn" title="Seleccionar y mover asset">Seleccionar</button>
-      <button id="deleteAssetBtn" title="Eliminar asset seleccionado">Eliminar</button>
-      <button id="rotateAssetBtn" title="Rotar 90 grados el asset seleccionado">Rotar</button>
-      <button id="duplicateAssetBtn" title="Duplicar asset seleccionado">Duplicar</button>
-      <button id="validateWorldBtn" title="Validar reglas del mundo">Validar</button>
-      <button id="applyWorldBtn" title="Aplicar mundo al simulador">Aplicar</button>
-      <span class="toolbar-separator"></span>
-      <label for="assetSelect" class="visually-hidden">Asset</label>
+    <section class="world-editor-toolbar" aria-label="Acciones del editor de mundos">
+      <fieldset class="world-toolbar-group">
+        <legend>Archivo</legend>
+        <button id="newWorldBtn" title="Crear un mundo nuevo (Ctrl+N)">Nuevo</button>
+        <button id="openWorldBtn" title="Abrir mundo desde archivo JSON (Ctrl+O)">Abrir</button>
+        <button id="saveWorldBtn" title="Guardar mundo en el servidor (Ctrl+S)">Guardar</button>
+        <button id="exportWorldBtn" title="Descargar mundo como archivo JSON (Ctrl+Mayús+S)">Guardar como</button>
+        <button id="deleteSavedWorldBtn" title="Eliminar el último mundo guardado" disabled>Eliminar archivo</button>
+      </fieldset>
+      <fieldset class="world-toolbar-group">
+        <legend>Edición</legend>
+        <button id="moveAssetBtn" title="Seleccionar y mover elemento">Seleccionar</button>
+        <button id="deleteAssetBtn" title="Eliminar elemento seleccionado (Supr)" disabled>Eliminar</button>
+        <button id="rotateAssetBtn" title="Rotar 90 grados el elemento seleccionado (R)" disabled>Rotar 90°</button>
+        <button id="duplicateAssetBtn" title="Duplicar elemento seleccionado (Ctrl+D)" disabled>Duplicar</button>
+        <button id="validateWorldBtn" title="Validar reglas del mundo">Validar</button>
+        <button id="applyWorldBtn" title="Aplicar mundo al simulador">Aplicar</button>
+      </fieldset>
+      <fieldset class="world-toolbar-group world-toolbar-group-simulation">
+        <legend>Simulación</legend>
+        <a id="simulateSavedWorldLink" class="action-link hidden" href="{{ url_for('pages.index') }}">Probar mundo guardado</a>
+        <a class="contextual-help-link" href="{{ url_for('pages.help_page') }}#guide-create-world" target="_blank">? Crear mundo</a>
+      </fieldset>
+      <label for="assetSelect" class="visually-hidden">Elemento</label>
       <select id="assetSelect" class="hidden" aria-hidden="true"></select>
-      <div id="assetPalette" class="asset-palette"></div>
       <input id="importWorldInput" class="hidden" type="file" accept="application/json,.json">
     </section>
 
@@ -45,6 +53,12 @@
       <label for="worldHeightInput">Alto (celdas):</label>
       <input id="worldHeightInput" type="number" min="1" max="160" value="40">
       <button id="applyWorldSizeBtn" title="Aplicar nuevo ancho y alto del mundo">Aplicar tamano</button>
+      <span class="world-size-presets" aria-label="Preajustes de tamaño">
+        <button type="button" data-world-size="40x30">Pequeño</button>
+        <button type="button" data-world-size="80x60">Aula</button>
+        <button type="button" data-world-size="160x120">Grande</button>
+      </span>
+      <span id="worldSizeHint" class="world-size-hint"></span>
       <label for="robotThetaInput">Theta robot:</label>
       <input id="robotThetaInput" type="number" value="0" step="15" min="0" max="359">
       <button id="placeRobotStartBtn" title="Definir pose inicial del robot con clic en el mapa">Colocar robot</button>
@@ -52,31 +66,47 @@
       <button id="worldMapZoomInBtn" type="button" title="Acercar mapa">+</button>
       <button id="worldMapZoomOutBtn" type="button" title="Alejar mapa">-</button>
       <button id="worldMapZoomResetBtn" type="button" title="Ajustar vista">[]</button>
-      <span class="world-name-readout">Mundo: <span id="worldNameLabel">sin nombre</span></span>
-      <a id="simulateSavedWorldLink" class="action-link hidden" href="{{ url_for('pages.index') }}">Simular mundo guardado</a>
+      <button id="toggleLibraryPanelBtn" type="button" title="Mostrar u ocultar la Biblioteca" aria-pressed="false">Biblioteca</button>
+      <button id="toggleInspectorPanelBtn" type="button" title="Mostrar u ocultar el Inspector" aria-pressed="false">Inspector</button>
+      <span class="world-name-readout">Mundo: <span id="worldNameLabel">sin nombre</span><span id="worldDirtyIndicator" class="world-dirty-indicator hidden">Cambios sin guardar</span></span>
     </section>
 
     <section class="world-editor-main">
+      <aside class="asset-library-pane" aria-label="Biblioteca de elementos">
+        <h2>Biblioteca</h2>
+        <label for="assetSearchInput">Buscar elemento</label>
+        <input id="assetSearchInput" type="search" placeholder="Robot, muro, línea…">
+        <p id="assetLibraryHint" class="library-hint">Selecciona un elemento y haz clic en el mapa para colocarlo.</p>
+        <div id="assetPalette" class="asset-palette"></div>
+      </aside>
       <section class="world-canvas-pane">
         <canvas id="worldCanvas" width="1120" height="800"></canvas>
+        <div id="emptyWorldGuide" class="empty-world-guide hidden" aria-live="polite">
+          <strong>Comienza a crear tu mundo</strong>
+          <span>1. Elige un elemento en la Biblioteca.</span>
+          <span>2. Haz clic en el mapa para colocarlo.</span>
+          <span>3. Guarda y aplica el mundo al simulador.</span>
+        </div>
       </section>
       <aside class="properties-pane">
-        <h2>Propiedades</h2>
-        <div id="selectedAsset" class="selection-readout">Sin seleccion</div>
+        <h2>Inspector</h2>
+        <div id="selectedAsset" class="selection-readout">Selecciona un elemento del lienzo para editarlo.</div>
         <dl id="assetProperties" class="asset-properties"></dl>
         <form id="assetPropertiesForm" class="asset-properties-form hidden">
-          <label for="assetKeyInput">Asset</label>
+          <label for="assetKeyInput">Tipo</label>
           <select id="assetKeyInput"></select>
-          <label for="assetXInput">X px</label>
-          <input id="assetXInput" type="number" step="32">
-          <label for="assetYInput">Y px</label>
-          <input id="assetYInput" type="number" step="32">
-          <label for="assetRotationInput">Rotacion</label>
+          <label for="assetXInput">Posición X (celdas)</label>
+          <input id="assetXInput" type="number" step="1">
+          <label for="assetYInput">Posición Y (celdas)</label>
+          <input id="assetYInput" type="number" step="1">
+          <label for="assetRotationInput">Rotación (°)</label>
           <input id="assetRotationInput" type="number" step="90">
           <button id="applyAssetPropertiesBtn" type="submit" title="Guardar cambios de propiedades del asset">Aplicar propiedades</button>
         </form>
         <h2>Pose inicial</h2>
         <div id="robotStartReadout" class="selection-readout">Pose no fijada</div>
+        <h2>Capas</h2>
+        <div id="layerList" class="layer-list" aria-label="Capas del mundo"></div>
       </aside>
     </section>
 

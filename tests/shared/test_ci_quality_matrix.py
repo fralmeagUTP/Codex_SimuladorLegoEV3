@@ -17,5 +17,14 @@ def test_ci_runs_supported_python_versions_and_platforms() -> None:
         "playwright install --with-deps chromium",
         "runtime-resilience",
         "coverage-core",
+        "coverage.xml",
+        "cobertura-${{ matrix.os }}-py${{ matrix.python }}",
+        "evidencia-e2e-web",
+        "docker-smoke",
+        "docker build --tag simulador-ev3:ci .",
+        "http://127.0.0.1:5050/healthz",
+        "windows-release-smoke",
+        "build_release_windows.ps1 -PythonExe python",
+        "SimuladorEV3.exe",
     ):
         assert expected in workflow

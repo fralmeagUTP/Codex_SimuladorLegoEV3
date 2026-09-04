@@ -12,15 +12,31 @@ from typing import Any
 @dataclass
 class SimulationTrace:
     snapshots: list[dict[str, Any]] = field(default_factory=list)
+    max_snapshots: int = 5_000
+    dropped_snapshots: int = 0
 
     def record(self, snapshot: dict[str, Any]) -> None:
+        limit = max(1, int(self.max_snapshots))
+        if len(self.snapshots) >= limit:
+            self.snapshots.pop(0)
+            self.dropped_snapshots += 1
         self.snapshots.append(dict(snapshot))
 
     def clear(self) -> None:
         self.snapshots.clear()
+        self.dropped_snapshots = 0
 
     def to_json(self) -> str:
-        return json.dumps({"trace_version": 1, "snapshots": self.snapshots}, ensure_ascii=False, separators=(",", ":"))
+        return json.dumps(
+            {
+                "trace_version": 2,
+                "snapshots": self.snapshots,
+                "truncated": self.dropped_snapshots > 0,
+                "dropped_snapshots": self.dropped_snapshots,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
 
     def to_csv(self) -> str:
         output = io.StringIO(newline="")
@@ -49,4 +65,8 @@ class SimulationTrace:
         snapshots = data.get("snapshots") if isinstance(data, dict) else None
         if not isinstance(snapshots, list) or not all(isinstance(item, dict) for item in snapshots):
             raise ValueError("La traza no contiene snapshots validos.")
-        return cls(snapshots=[dict(item) for item in snapshots])
+        try:
+            dropped_count = max(0, int(data.get("dropped_snapshots", 0)))
+        except (TypeError, ValueError):
+            dropped_count = 0
+        return cls(snapshots=[dict(item) for item in snapshots], dropped_snapshots=dropped_count)

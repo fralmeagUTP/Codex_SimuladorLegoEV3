@@ -1,0 +1,78 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\MisProyectos\Codex_SimuladorLegoEV3
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 57 items / 56 deselected / 1 selected
+
+tests\e2e\test_web_playwright.py F                                       [100%]
+
+================================== FAILURES ===================================
+______ test_real_catalog_loads_every_example_world_scenario_and_mission _______
+tests\e2e\test_web_playwright.py:620: in test_real_catalog_loads_every_example_world_scenario_and_mission
+    expect(page.locator("#worldsMenu .menu-sublist")).to_be_visible()
+E   AssertionError: Locator expected to be visible
+E   Actual value: hidden 
+E   Call log:
+E     - Expect "to_be_visible" with timeout 5000ms
+E     - waiting for locator("#worldsMenu .menu-sublist")
+E       13 × locator resolved to <div class="menu-sublist hidden">…</div>
+E          - unexpected value "hidden"
+------------------------------ Captured log call ------------------------------
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET / HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/css/app.css?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/about_dialog.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/theme_manager.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/trace_controls.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/profile_controls.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/speaker_audio.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/runtime_limit_controls.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/session_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/stream_health_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/snapshot_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/render_interpolation_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/telemetry_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/menu_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/world_view_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/editor_interaction_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/api.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/page_lifecycle_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/canvas_world.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/file_input_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/live_update_controller.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /static/js/simulation_app.js?v=v1.5.0-ui3 HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "[35m[1mPOST /api/sessions HTTP/1.1[0m" 201 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /api/missions HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /api/examples HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /api/sessions/1b14df14-c6bb-44ee-a3f2-aba08c1c70b3/learning HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /api/worlds HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "POST /api/sessions/1b14df14-c6bb-44ee-a3f2-aba08c1c70b3/snapshot HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /api/sessions/1b14df14-c6bb-44ee-a3f2-aba08c1c70b3/stream HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:46] "GET /assets/robot_ev3_32x32.png HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/01_intro_led.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/02_intro_pantalla_altavoz.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/03_movimiento_basico.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/04_movimiento_motores_individuales.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/05_drivebase_cuadrado.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/06_drivebase_perfiles_aceleracion.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/07_sensor_tacto_reaccion.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:47] "GET /api/examples/08_sensor_ultrasonido_frenado.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/09_sensor_color_stop.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/10_sensores_combinados.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/11_siguelineas_basico.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/12_siguelineas_robusto.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/13_colision_controlada.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/14_navegacion_hasta_pared.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/15_esquiva_obstaculos.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/16_resolver_laberinto.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:48] "GET /api/examples/17_gyro_correccion_rumbo.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:49] "GET /api/examples/18_infrarrojo_beacon_seguidor.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:49] "GET /api/examples/19_motor_encoder_objetivos.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:49] "GET /api/examples/20_motor_run_until_stalled.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:49] "GET /api/examples/21_drivebase_curva_estado.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:49] "GET /api/examples/22_stopwatch_mision_etapas.py HTTP/1.1" 200 -
+INFO     werkzeug:_internal.py:97 127.0.0.1 - - [23/Aug/2026 20:47:49] "GET /api/examples/23_radar_ultrasonido_5grados.py HTTP/1.1" 200 -
+- generated xml file: D:\MisProyectos\Codex_SimuladorLegoEV3\artifacts\mmi-e2e-2026-08-23\web-real-catalog.xml -
+=========================== short test summary info ===========================
+FAILED tests/e2e/test_web_playwright.py::test_real_catalog_loads_every_example_world_scenario_and_mission
+====================== 1 failed, 56 deselected in 12.02s ======================

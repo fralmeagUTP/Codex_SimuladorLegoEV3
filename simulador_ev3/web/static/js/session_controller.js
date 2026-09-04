@@ -1,6 +1,6 @@
 /* Controlador de comandos de sesión, independiente de la representación DOM. */
 window.EV3SessionController = {
-  create({ api, onStatus, onError, beforeStart, afterStart, onDebug, onBreakpoints }) {
+  create({ api, onStatus, onPresentation, onError, beforeStart, beforeRuntimeStart, afterStart, onDebug, onBreakpoints }) {
     async function invoke(action) {
       try {
         return await action();
@@ -10,13 +10,26 @@ window.EV3SessionController = {
       }
     }
 
+    async function synchronizePresentation() {
+      const presentation = await api.presentationState();
+      onPresentation?.(presentation);
+      return presentation;
+    }
+
     return {
       async run(source) {
         return invoke(async () => {
           beforeStart();
           await api.loadScript(source);
+          beforeRuntimeStart?.();
           const result = await api.start();
           onStatus(result.status);
+          // El snapshot inmediato de afterStart ya sincroniza canvas, LCD y
+          // telemetría. No bloqueamos el inicio del programa esperando una
+          // segunda solicitud de presentación; en Windows eso añadía una
+          // latencia perceptible a scripts cortos. Conservamos el contrato de
+          // presentación y aplicamos su respuesta cuando llegue.
+          void synchronizePresentation().catch(onError);
           await afterStart();
           return result;
         });
@@ -25,6 +38,7 @@ window.EV3SessionController = {
         return invoke(async () => {
           const result = await api.pause();
           onStatus(result.status);
+          await synchronizePresentation();
           return result;
         });
       },
@@ -32,6 +46,7 @@ window.EV3SessionController = {
         return invoke(async () => {
           const result = await api.resume();
           onStatus(result.status);
+          await synchronizePresentation();
           return result;
         });
       },
@@ -49,8 +64,10 @@ window.EV3SessionController = {
           const breakpointResult = await api.setBreakpoints(breakpoints);
           await api.setWatches(watches);
           onBreakpoints(breakpointResult.breakpoints);
+          beforeRuntimeStart?.();
           const result = await api.start({ debug: true, step_mode: stepMode });
           onStatus(result.status);
+          void synchronizePresentation().catch(onError);
           await afterStart();
           return result;
         });

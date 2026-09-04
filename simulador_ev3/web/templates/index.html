@@ -1,26 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Simulador EV3 Web{% endblock %}
+{% block title %}BotLab Studio{% endblock %}
+{% block head_data %}
+<script>window.EV3_ASSET_FILES = {{ asset_files|tojson }};</script>
+<script>window.EV3_ASSET_MANIFEST = {{ asset_manifest|tojson }};</script>
+<script>window.EV3_STATUS_LABELS = {{ status_labels|tojson }};</script>
+{% endblock %}
 {% block body %}
+<div id="startupSplash" class="startup-splash" role="status" aria-live="polite" aria-label="Cargando BotLab Studio">
+  <div class="startup-splash-art">
+    <img
+      src="{{ url_for('pages.image_asset', name='Intro.png') }}"
+      alt=""
+      class="startup-splash-image"
+    >
+    <div class="startup-splash-loader" aria-hidden="true">
+      <span class="startup-splash-loader-text">Cargando entorno de simulación…</span>
+      <div class="startup-splash-progress"><span></span></div>
+    </div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/startup_splash.js', v=asset_version) }}"></script>
 <main class="app-shell">
+  <div id="executionSuccessToast" class="execution-success-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <span id="executionSuccessToastMessage">El programa se ejecutó correctamente.</span>
+    <button id="executionSuccessToastClose" type="button" aria-label="Cerrar notificación de ejecución finalizada">×</button>
+  </div>
   <header class="menu-bar">
-    <strong class="app-brand"><span class="brand-mark">EV3</span>Simulador EV3 Pybricks</strong>
+    <strong class="app-brand"><span class="brand-mark">EV3</span>BotLab Studio</strong>
     <nav class="app-menu" aria-label="Menu principal">
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Archivo</button>
+      <div class="menu-group" data-execution-lockable>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['file'] }}">{{ navigation_menu['file'] }}</button>
         <div class="menu-dropdown">
           <button type="button" id="newScriptMenuBtn">Nuevo script</button>
           <button type="button" id="openScriptMenuBtn">Abrir script</button>
           <button type="button" id="saveScriptMenuBtn">Guardar script</button>
         </div>
       </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Ejemplos</button>
+      <div class="menu-group" data-execution-lockable>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['learn'] }}">{{ navigation_menu['learn'] }}</button>
         <div id="examplesMenu" class="menu-dropdown">
           <span class="menu-empty">Cargando ejemplos</span>
         </div>
       </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Mundos</button>
+      <div class="menu-group" data-execution-lockable>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['worlds'] }}">{{ navigation_menu['worlds'] }}</button>
         <div id="worldsMenu" class="menu-dropdown">
           <a href="{{ url_for('pages.worlds_page') }}">Editor de mundos</a>
           <button type="button" id="loadBlankWorldMenuBtn">Mundo en blanco (sin mapa)</button>
@@ -28,61 +51,57 @@
           <span class="menu-empty">Cargando mundos</span>
         </div>
       </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Escenarios</button>
+      <div class="menu-group" data-execution-lockable>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['guided_practice'] }}">{{ navigation_menu['guided_practice'] }}</button>
         <div id="scenariosMenu" class="menu-dropdown">
-          <button type="button" data-scenario="line">Seguidor de linea</button>
-          <button type="button" data-scenario="ultrasonic">Ultrasonido + obstaculos</button>
-          <button type="button" data-scenario="brick">Test pantalla/altavoz</button>
-          <button type="button" data-scenario="radar">Radar 360 ultrasonido</button>
+          <span class="menu-section-label">Prácticas de exploración</span>
+          <button type="button" data-scenario="line" title="Objetivo: seguir una línea. Mundo: línea negra básica. Programa: seguidor de línea básico." aria-description="Objetivo: seguir una línea. Carga el mundo Línea negra básica y el programa seguidor de línea básico.">Seguidor de línea</button>
+          <button type="button" data-scenario="ultrasonic" title="Objetivo: evitar obstáculos. Mundo: obstáculos con baliza. Programa: esquiva obstáculos." aria-description="Objetivo: evitar obstáculos. Carga el mundo Obstáculos con baliza y el programa esquiva obstáculos.">Ultrasonido y obstáculos</button>
+          <button type="button" data-scenario="brick" title="Objetivo: usar la pantalla LCD y el altavoz. Mundo: obstáculos con baliza. Programa: introducción a pantalla y altavoz." aria-description="Objetivo: usar la pantalla LCD y el altavoz. Carga el mundo Obstáculos con baliza y el programa de pantalla y altavoz.">Pantalla y altavoz</button>
+          <button type="button" data-scenario="radar" title="Objetivo: medir con ultrasonido y dibujar un radar. Mundo: radar ultrasónico 360. Programa: radar en pasos de 5 grados." aria-description="Objetivo: medir con ultrasonido y dibujar un radar. Carga el mundo Radar ultrasónico 360 y el programa radar en pasos de 5 grados.">Radar ultrasónico 360°</button>
         </div>
       </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Misiones</button>
-        <div id="missionsMenu" class="menu-dropdown">
-          <span class="menu-empty">Cargando misiones</span>
-        </div>
-      </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Tema</button>
+      <div class="menu-group" data-execution-lockable>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['settings'] }}">{{ navigation_menu['settings'] }}</button>
         <div class="menu-dropdown">
-          <button type="button" data-theme-choice="light" aria-pressed="false">Claro</button>
-          <button type="button" data-theme-choice="dark" aria-pressed="false">Oscuro</button>
-        </div>
-      </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Fidelidad</button>
-        <div class="menu-dropdown">
-          <button type="button" data-simulation-profile="ideal">Ideal</button>
-          <button type="button" data-simulation-profile="realistic">Realista</button>
-          <button type="button" data-simulation-profile="calibrated">Calibrado</button>
-        </div>
-      </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Tiempo máximo</button>
-        <div class="menu-dropdown">
+          <span class="menu-section-label">Apariencia</span>
+          <button type="button" data-theme-choice="light" aria-pressed="false">Tema claro</button>
+          <button type="button" data-theme-choice="dark" aria-pressed="false">Tema oscuro</button>
+          <span class="menu-section-label">Precisión de simulación</span>
+          <button type="button" data-simulation-profile="ideal">Ideal — prioriza aprendizaje</button>
+          <button type="button" data-simulation-profile="realistic">Realista — simula restricciones</button>
+          <button type="button" data-simulation-profile="calibrated">Calibrado — usa parámetros ajustados</button>
+          <span class="menu-section-label">Límite de ejecución</span>
           <button type="button" data-runtime-limit="30">30 s</button>
           <button type="button" data-runtime-limit="60">60 s</button>
-          <button type="button" data-runtime-limit="120">120 s</button>
+          <button type="button" data-runtime-limit="120">120 s (recomendado)</button>
           <button type="button" data-runtime-limit="300">300 s</button>
           <button type="button" data-runtime-limit="0">Sin límite</button>
         </div>
       </div>
-      <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Trazas</button>
+      <div class="menu-group" data-execution-lockable>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['diagnostics'] }}">{{ navigation_menu['diagnostics'] }}</button>
         <div class="menu-dropdown">
+          <span class="menu-section-label">Trazas de simulación</span>
           <button type="button" data-trace-action="start">Iniciar registro</button>
           <button type="button" data-trace-action="stop">Detener registro</button>
           <button type="button" data-trace-action="step">Avanzar un tick</button>
           <button type="button" data-trace-action="json">Exportar JSON</button>
           <button type="button" data-trace-action="csv">Exportar CSV</button>
+          <span class="menu-section-label">Sesión y soporte</span>
+          <button type="button" id="diagnosticsMenuBtn">{{ help_menu_actions['session-diagnostics'].label }}</button>
+          <button type="button" id="exportDiagnosticsMenuBtn">{{ help_menu_actions['export-diagnostics'].label }}</button>
         </div>
       </div>
       <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Ayuda</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['help'] }}">{{ navigation_menu['help'] }}</button>
         <div class="menu-dropdown">
-          <a href="{{ url_for('pages.help_page') }}" target="_blank">Manual de uso</a>
-          <button type="button" id="aboutMenuBtn">Acerca de</button>
+          <span class="menu-section-label">Aprender</span>
+          <a href="{{ url_for('pages.help_page') }}" target="_blank">{{ help_menu_actions['help-center'].label }}</a>
+          <a id="activityGuideLink" href="{{ url_for('pages.help_page') }}#guide-first-simulation" target="_blank">{{ help_menu_actions['quick-first-simulation'].label }}</a>
+          <span class="menu-section-label">Información</span>
+          <a href="{{ help_menu_actions['lego-ev3-book'].external_url }}" target="_blank" rel="noopener noreferrer">{{ help_menu_actions['lego-ev3-book'].label }}</a>
+          <button type="button" id="aboutMenuBtn">{{ help_menu_actions['about'].label }}</button>
         </div>
       </div>
     </nav>
@@ -99,15 +118,16 @@
             <button id="pauseBtn">Pausar</button>
             <button id="resumeBtn">Reanudar</button>
             <button id="stopBtn" class="stop-button" title="Detiene el programa y reinicia la simulacion">Detener y reiniciar</button>
+            <a class="contextual-help-link" href="{{ url_for('pages.help_page') }}#guide-run-simulation" target="_blank">? Ejecución</a>
           </div>
           <div class="sim-control-group robot-location-controls" aria-label="Ubicacion inicial del robot">
             <button id="placeRobotStartBtn" type="button">Ubicar robot</button>
             <label for="robotThetaInput">Theta</label>
             <input id="robotThetaInput" class="theta-input" type="number" value="0" step="15" aria-label="Theta robot">
             <div id="robotStartReadout" class="robot-start-readout">Pose inicial no fijada</div>
+            <a class="contextual-help-link" href="{{ url_for('pages.help_page') }}#guide-first-simulation" target="_blank">? Ubicar</a>
           </div>
         </div>
-
         <section class="sim-panel sim-map-panel">
           <div class="sim-panel-header">
             <div class="panel-title-row">
@@ -116,6 +136,7 @@
             </div>
             <div class="map-tools" aria-label="Herramientas del mapa">
               <button id="toggleSensorBeamsBtn" type="button" title="Mostrar/ocultar haces de sensores" aria-label="Mostrar haces de sensores">Haces ON</button>
+              <a class="contextual-help-link" href="{{ url_for('pages.help_page') }}#guide-use-sensors" target="_blank">?</a>
               <button id="mapZoomInBtn" type="button" title="Acercar" aria-label="Acercar mapa">+</button>
               <button id="mapZoomOutBtn" type="button" title="Alejar" aria-label="Alejar mapa">-</button>
               <button id="mapZoomResetBtn" type="button" title="Ajustar vista" aria-label="Ajustar vista del mapa">[]</button>
@@ -137,6 +158,7 @@
               <span>Tick</span><strong id="telemetryTick">--</strong>
               <span>Colisión</span><strong id="telemetryCollision">--</strong>
             </div>
+            <div id="missionProgress" class="mission-progress" aria-live="polite" hidden></div>
             <div id="missionResult" class="mission-result" aria-live="polite" hidden></div>
             <section class="telemetry-section motors-section motors-ab-section">
               <h3>Motores A-B (28%)</h3>
@@ -226,6 +248,7 @@ motor.stop()
         <span class="save-path-inline">Ruta guardado: <span id="statusSavePath">sin guardar</span></span>
       </div>
       <pre id="console" class="console"></pre>
+      <a class="contextual-help-link code-error-help" href="{{ url_for('pages.help_page') }}#guide-recover-script-error">? Resolver un error de programa</a>
       </section>
     </section>
 
@@ -254,21 +277,21 @@ motor.stop()
   <pre id="aboutDialogText" class="about-dialog-text"></pre>
   <section class="about-groups" aria-label="Grupos de investigacion">
     <article class="about-group-card">
-      <img src="{{ url_for('pages.image_asset', name='Logo_Nyquist.jpg') }}" alt="Logo Nyquist" loading="lazy" />
+      <img src="{{ url_for('pages.image_asset', name=brand_assets.nyquist) }}" alt="Logo Nyquist" loading="lazy" />
       <div>
         <h4>Grupo Nyquist</h4>
         <p>Lineas UTP: analisis y procesamiento de senales 1D/2D, comunicaciones inalambricas, procesamiento digital de senales, protocolos y redes de comunicacion, seguridad TIC y educacion.</p>
       </div>
     </article>
     <article class="about-group-card">
-      <img src="{{ url_for('pages.image_asset', name='Logo_Robotica_Aplicada.jpg') }}" alt="Logo Robotica Aplicada" loading="lazy" />
+      <img src="{{ url_for('pages.image_asset', name=brand_assets.robotica_aplicada) }}" alt="Logo Robotica Aplicada" loading="lazy" />
       <div>
         <h4>Robotica Aplicada</h4>
         <p>Lineas UTP: instrumentacion electronica y transmision de datos, instrumentacion fisica y simulacion de procesos industriales, reconocimiento de voz, tratamiento de senales y vision artificial.</p>
       </div>
     </article>
     <article class="about-group-card">
-      <img src="{{ url_for('pages.image_asset', name='utp_logo.png') }}" alt="Logo UTP" loading="lazy" />
+      <img src="{{ url_for('pages.image_asset', name=brand_assets.utp) }}" alt="Logo UTP" loading="lazy" />
       <div>
         <h4>Universidad Tecnologica de Pereira</h4>
         <p>Institucion academica que respalda el proyecto en contexto formativo y de investigacion.</p>
@@ -292,6 +315,7 @@ motor.stop()
 <script src="{{ url_for('static', filename='js/session_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/stream_health_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/snapshot_controller.js', v=asset_version) }}"></script>
+<script src="{{ url_for('static', filename='js/render_interpolation_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/telemetry_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/world_view_controller.js', v=asset_version) }}"></script>
 <script src="{{ url_for('static', filename='js/editor_interaction_controller.js', v=asset_version) }}"></script>

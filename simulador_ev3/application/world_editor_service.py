@@ -33,6 +33,11 @@ from simulador_ev3.domain.world.obstacle_model import ObstacleModel
 from simulador_ev3.domain.world.surface_model import SurfaceColor, SurfaceModel
 from simulador_ev3.domain.world.world_model import WorldModel
 from simulador_ev3.persistence.world_repository import WorldRepository
+from simulador_ev3.shared.local_file_security import (
+    MAX_WORLD_FILE_BYTES,
+    read_text_limited,
+    write_text_atomically,
+)
 
 _DEFAULT_WORLD_W = DEFAULT_WORLD_MM
 _DEFAULT_WORLD_H = DEFAULT_WORLD_MM
@@ -476,18 +481,20 @@ class WorldEditorService:
     # ------------------------------------------------------------------
 
     def save_json(self, path: str | Path) -> Path:
-        out = Path(path)
-        out.parent.mkdir(parents=True, exist_ok=True)
         self._rebuild_legacy_from_formal()
         data = WorldRepository.to_dict(self.to_world_model())
         data["editor_objects"] = self.to_editor_dict()
         data["editor_spec"] = self._formal_world.to_dict()
-        out.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        return out
+        return write_text_atomically(
+            path,
+            json.dumps(data, indent=2, ensure_ascii=False),
+            allowed_suffixes=(".json",),
+            max_bytes=MAX_WORLD_FILE_BYTES,
+        )
 
     def load_json(self, path: str | Path) -> tuple[Path, Optional[str]]:
-        src = Path(path)
-        data = json.loads(src.read_text(encoding="utf-8"))
+        src, source = read_text_limited(path, allowed_suffixes=(".json",), max_bytes=MAX_WORLD_FILE_BYTES)
+        data = json.loads(source)
 
         if "editor_spec" in data and isinstance(data["editor_spec"], dict):
             self._formal_world = EditorWorldModel.from_dict(data["editor_spec"])

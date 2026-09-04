@@ -13,6 +13,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from simulador_ev3.application.interface_ports import (
+    LearningPort,
+    LearningState,
+    ObservabilityPort,
+    ObservabilitySnapshot,
+    PresentationPort,
+    PresentationState,
+)
 from simulador_ev3.application.session_contract import SessionEvent
 from simulador_ev3.application.simulation_service import SimulationService
 from simulador_ev3.application.simulation_session_port import SimulationSessionPort
@@ -21,7 +29,6 @@ from simulador_ev3.application.world_editor_service import WorldEditorService
 from simulador_ev3.core.simulation_engine import SimEngineConfig
 from simulador_ev3.domain.assessment import MissionDefinition
 from simulador_ev3.domain.editor.world_editor_model import (
-    ASSET_CATALOG,
     CELL_SIZE_MM,
     DEFAULT_WORLD_CELLS,
     DEFAULT_WORLD_MM,
@@ -31,13 +38,16 @@ from simulador_ev3.domain.editor.world_editor_model import (
 from simulador_ev3.persistence.world_repository import WorldRepository
 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
 from simulador_ev3.runtime.isolated_worker import IsolatedRuntimeWorker, worker_isolation_enabled
+from simulador_ev3.shared.asset_catalog import editor_asset_manifest
 from simulador_ev3.shared.debug_configuration import normalize_breakpoints, normalize_watches
+from simulador_ev3.shared.interface_catalog import controls_for_status, is_supported_runtime_limit, message_for_status
+from simulador_ev3.shared.learning_catalog import initial_learning_route
 from simulador_ev3.shared.session_status import SessionStatus, can_transition
 from simulador_ev3.web.errors import InvalidPayload, InvalidSessionState
 from simulador_ev3.web.services.world_dto import world_to_dict
 
 
-class SimulationSession(SimulationSessionPort):
+class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, ObservabilityPort):
     """Isolated state and callbacks for one browser/user session."""
 
     def __init__(
@@ -61,7 +71,7 @@ class SimulationSession(SimulationSessionPort):
         self._latest_debug: dict[str, Any] | None = None
         self._latest_debug_context: dict[str, Any] | None = None
         self._last_snapshot_event_at = 0.0
-        snapshot_hz = float(self._config.get("WEB_SNAPSHOT_MAX_HZ", 12.0))
+        snapshot_hz = float(self._config.get("WEB_SNAPSHOT_MAX_HZ", 30.0))
         self._snapshot_event_interval_s = 0.0 if snapshot_hz <= 0 else 1.0 / snapshot_hz
         self._debug_breakpoints: set[int] = set()
         self._debug_watches: list[str] = []
@@ -80,6 +90,7 @@ class SimulationSession(SimulationSessionPort):
                 world_height_mm=DEFAULT_WORLD_MM,
             ),
             policy=ExecutionPolicy(max_runtime_s=max_runtime_s),
+            trace_max_snapshots=max(1, int(self._config.get("TRACE_MAX_SNAPSHOTS", 5_000))),
         )
         self._worker_shadow: IsolatedRuntimeWorker | None = None
         self._worker_shadow_last_sequence = 0
@@ -87,8 +98,11 @@ class SimulationSession(SimulationSessionPort):
         self._worker_shadow_status: str | None = None
         self._reset_in_progress = False
         self._worker_diagnostics: dict[str, int | float | str] = {}
+        self._last_command_id: str | None = None
         if worker_isolation_enabled():
-            self._worker_shadow = IsolatedRuntimeWorker(f"web-shadow-{session_id}")
+            self._worker_shadow = IsolatedRuntimeWorker(
+                f"web-shadow-{session_id}", temp_root=self._config.get("WORKER_TEMP_ROOT")
+            )
             self._worker_shadow.start()
             self._worker_shadow.receive()
             self._mirror_worker(
@@ -100,9 +114,16 @@ class SimulationSession(SimulationSessionPort):
                         "max_cpu_s": max(1.0, float(max_runtime_s)),
                     },
                     "engine_config": asdict(self._service.engine_config),
+                    "snapshot_hz": snapshot_hz,
                 },
             )
         self._wire_callbacks()
+        if self._worker_shadow is not None:
+            # La primera vista de una sesión aislada también debe proceder del
+            # worker. Sin este snapshot, ``GET /snapshot`` construía un tick
+            # local y el primer paso manual devolvía el mismo tick del worker.
+            with self._lock:
+                self._mirror_worker("snapshot")
         self._latest_debug = self._build_debug_state("idle")
 
     @property
@@ -119,9 +140,13 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             self._source_code = source
             self._service.load_script(source)
-            self._mirror_worker("load_script", {"source": source})
             if self._status in {"created", "stopped", "finished", "error", "timed_out"}:
                 self._transition(SessionStatus.READY)
+            self._mirror_worker("load_script", {"source": source})
+            # Sin este snapshot inicial, el primer ``step_tick`` del worker
+            # podía coincidir con el snapshot local previo y el navegador no
+            # observaba ningún incremento de tick.
+            self._mirror_worker("snapshot")
             self._latest_error = None
             self._set_debug_state("idle")
             self._push_event("status", {"status": self._status})
@@ -132,18 +157,44 @@ class SimulationSession(SimulationSessionPort):
         """El worker es la unica ruta de ejecucion cuando el aislamiento esta activo."""
         return self._worker_shadow is not None
 
-    def start(self, *, debug: bool = False, step_mode: bool = False) -> dict[str, Any]:
+    def start(
+        self,
+        *,
+        debug: bool = False,
+        step_mode: bool = False,
+        source: str | None = None,
+    ) -> dict[str, Any]:
         with self._lock:
+            if source is not None:
+                if not isinstance(source, str):
+                    raise InvalidPayload("El campo source debe ser texto.")
+                max_size = int(self._config.get("MAX_SCRIPT_SIZE_BYTES", 128 * 1024))
+                if len(source.encode("utf-8")) > max_size:
+                    raise InvalidPayload("El script excede el tamano maximo permitido.")
+                # Ruta de baja latencia usada por la Web: el mismo comando IPC
+                # carga y ejecuta el programa. Antes se esperaban por separado
+                # ``load_script`` y ``start``, lo que retrasaba visualmente los
+                # programas cortos aunque el motor ya tuviera capacidad libre.
+                self._source_code = source
+                self._service.load_script(source)
+                if self._status in {"created", "stopped", "finished", "error", "timed_out"}:
+                    self._transition(SessionStatus.READY)
             if not self._source_code:
                 raise InvalidSessionState("No hay script cargado para ejecutar.")
             if debug:
                 self._service.set_debug_breakpoints(self._debug_breakpoints)
                 self._service.set_debug_watches(self._debug_watches)
-            if not self._worker_executes:
-                self._service.start(debug=debug, step_mode=step_mode)
-            self._mirror_worker("start", {"debug": debug, "step_mode": step_mode})
+            # El worker puede alcanzar un breakpoint inmediatamente al arrancar.
+            # La transición debe ocurrir antes de enviar el comando: de otro
+            # modo ``ready -> paused`` se descarta y la pausa queda oculta.
             self._transition(SessionStatus.RUNNING)
             self._set_debug_state("running")
+            if not self._worker_executes:
+                self._service.start(debug=debug, step_mode=step_mode)
+            worker_payload: dict[str, Any] = {"debug": debug, "step_mode": step_mode}
+            if source is not None:
+                worker_payload["source"] = source
+            self._mirror_worker("start", worker_payload)
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -175,6 +226,10 @@ class SimulationSession(SimulationSessionPort):
             self._mirror_worker("pause")
             self._transition(SessionStatus.PAUSED)
             self._set_debug_state("paused_manual", reason="manual")
+            # El resumen de telemetría depende exclusivamente del snapshot.
+            # Publicarlo tras la transición evita que la barra diga "paused"
+            # mientras el panel conserva el estado anterior "running".
+            self._publish_current_snapshot()
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -185,6 +240,7 @@ class SimulationSession(SimulationSessionPort):
             self._mirror_worker("resume")
             self._transition(SessionStatus.RUNNING)
             self._set_debug_state("running")
+            self._publish_current_snapshot()
             self._push_event("status", {"status": self._status})
             return self.summary()
 
@@ -195,6 +251,9 @@ class SimulationSession(SimulationSessionPort):
             if not self._worker_executes:
                 self._service.stop()
             self._mirror_worker("stop")
+            # El estado stopped no puede adelantar al último snapshot visible:
+            # canvas, telemetría y LCD deben conservar la misma pose terminal.
+            self._publish_current_snapshot()
             self._push_event("status", {"status": self._status})
             self._complete_mission("cancelled")
             return self.summary()
@@ -211,6 +270,7 @@ class SimulationSession(SimulationSessionPort):
                 self._worker_shadow_snapshot = None
                 self._worker_shadow_status = None
                 self._last_snapshot_event_at = 0.0
+                self._service.clear_trace()
                 self._service.reset()
                 self._mirror_worker("reset", discard_unrelated_events=True, wait_for_status="reset")
                 # El comando reset genera primero las notificaciones de parada del
@@ -231,7 +291,10 @@ class SimulationSession(SimulationSessionPort):
                 self._set_debug_state("idle")
                 # Se decora tras la transición para que telemetría, canvas y el
                 # resumen de sesión reciban el mismo estado terminal: ``created``.
-                initial_dto = self._service.get_snapshot()
+                # ``get_snapshot`` avanza el motor un tick para compatibilidad
+                # con pruebas antiguas. Tras reiniciar necesitamos una lectura
+                # pura: el canvas, LCD y telemetrÃ­a deben volver al tick 0.
+                initial_dto = self._service.current_snapshot()
                 initial = self._decorate_snapshot(initial_dto.to_dict() if initial_dto is not None else None)
                 self._latest_snapshot = initial
                 if initial is not None:
@@ -262,6 +325,8 @@ class SimulationSession(SimulationSessionPort):
         payload = self._service.complete_active_mission(outcome)
         if payload is None:
             return None
+        payload = dict(payload)
+        payload["snapshot_generation"] = self._snapshot_generation
         self._latest_mission_result = payload
         self._push_event("mission_result", payload)
         return payload
@@ -269,7 +334,7 @@ class SimulationSession(SimulationSessionPort):
     def set_max_runtime_s(self, max_runtime_s: float) -> dict[str, Any]:
         """Configura el watchdog de la sesion antes de iniciar una ejecucion."""
         value = float(max_runtime_s)
-        if value < 0 or value not in {0.0, 30.0, 60.0, 120.0, 300.0}:
+        if not is_supported_runtime_limit(value):
             raise InvalidPayload("El tiempo maximo debe ser 30, 60, 120, 300 o 0 (sin limite).")
         with self._lock:
             if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
@@ -327,7 +392,13 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             if self._status in {SessionStatus.RUNNING.value, SessionStatus.PAUSED.value}:
                 raise InvalidSessionState("El paso de tick requiere una simulacion detenida.")
-            snapshot = self._decorate_snapshot(self._service.step_tick().to_dict())
+            if self._worker_executes:
+                # El worker aislado es la fuente de verdad para snapshots. El
+                # avance local dejaba visible el snapshot previo del worker.
+                self._mirror_worker("step_tick")
+                snapshot = self._worker_shadow_snapshot
+            else:
+                snapshot = self._decorate_snapshot(self._service.step_tick().to_dict())
             if snapshot is None:
                 raise RuntimeError("No fue posible generar el snapshot de la sesión.")
             self._latest_snapshot = snapshot
@@ -350,18 +421,28 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             if not self._worker_executes:
                 self._service.debug_continue()
+                self._service.resume()
             self._mirror_worker("debug_continue")
+            changed = self._transition(SessionStatus.RUNNING)
             payload = {"type": "command", "status": self._status, "action": "continue"}
             self._set_debug_state("running", legacy=payload)
+            if changed:
+                self._publish_current_snapshot()
+                self._push_event("status", {"status": self._status, "raw_status": "debug_continue"})
             return payload
 
     def debug_step(self) -> dict[str, Any]:
         with self._lock:
             if not self._worker_executes:
                 self._service.debug_step()
+                self._service.resume()
             self._mirror_worker("debug_step")
+            changed = self._transition(SessionStatus.RUNNING)
             payload = {"type": "command", "status": self._status, "action": "step"}
             self._set_debug_state("running", legacy=payload)
+            if changed:
+                self._publish_current_snapshot()
+                self._push_event("status", {"status": self._status, "raw_status": "debug_step"})
             return payload
 
     def set_robot_start(
@@ -384,12 +465,18 @@ class SimulationSession(SimulationSessionPort):
             raise InvalidPayload("Mundo no encontrado.")
         with self._lock:
             self._service.load_world_file(path)
-            self._mirror_worker("load_world", {"source": path.read_text(encoding="utf-8")})
+            # Una carga de mundo inicia una nueva representacion visual. El
+            # worker puede conservar snapshots encolados de una ejecucion
+            # anterior; no pueden ganar prioridad sobre la pose inicial del
+            # robot que acaba de definir el mundo.
+            self._replace_visible_snapshot_for_loaded_world()
+            self._mirror_worker(
+                "load_world",
+                {"source": path.read_text(encoding="utf-8")},
+                discard_unrelated_events=True,
+            )
             self._sync_editor_from_world_file(path)
-            self._latest_snapshot = None
             self._loaded_world_name = name
-            if self._status == SessionStatus.CREATED.value:
-                self._transition(SessionStatus.READY)
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
 
@@ -398,23 +485,31 @@ class SimulationSession(SimulationSessionPort):
         max_size = int(self._config.get("MAX_WORLD_JSON_SIZE_BYTES", 2 * 1024 * 1024))
         if len(raw.encode("utf-8")) > max_size:
             raise InvalidPayload("El mundo excede el tamano maximo permitido.")
-        with tempfile.NamedTemporaryFile(
-            "w",
-            suffix=".json",
-            delete=False,
-            encoding="utf-8",
-            dir=Path(tempfile.gettempdir()),
-        ) as fh:
-            fh.write(raw)
-            tmp_path = Path(fh.name)
-        with self._lock:
-            self._service.load_world_file(tmp_path)
-            self._mirror_worker("load_world", {"source": raw})
-            self._sync_editor_from_world_file(tmp_path)
-            self._latest_snapshot = None
-            self._loaded_world_name = None
-            self._push_event("world", self.current_world())
-            return self.summary() | {"world": self.current_world()}
+        tmp_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                suffix=".json",
+                delete=False,
+                encoding="utf-8",
+                dir=Path(tempfile.gettempdir()),
+            ) as fh:
+                fh.write(raw)
+                tmp_path = Path(fh.name)
+            with self._lock:
+                self._service.load_world_file(tmp_path)
+                self._replace_visible_snapshot_for_loaded_world()
+                self._mirror_worker("load_world", {"source": raw}, discard_unrelated_events=True)
+                self._sync_editor_from_world_file(tmp_path)
+                self._loaded_world_name = None
+                self._push_event("world", self.current_world())
+                return self.summary() | {"world": self.current_world()}
+        finally:
+            if tmp_path is not None:
+                try:
+                    tmp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def load_blank_world(
         self,
@@ -431,13 +526,15 @@ class SimulationSession(SimulationSessionPort):
             w_mm = float(w_cells * CELL_SIZE_MM)
             h_mm = float(h_cells * CELL_SIZE_MM)
             self._service.load_blank_world(width_mm=w_mm, height_mm=h_mm)
-            self._mirror_worker("load_blank_world", {"width_mm": w_mm, "height_mm": h_mm})
+            self._replace_visible_snapshot_for_loaded_world()
+            self._mirror_worker(
+                "load_blank_world",
+                {"width_mm": w_mm, "height_mm": h_mm},
+                discard_unrelated_events=True,
+            )
             self._editor.reset_formal_world(w_cells, h_cells)
             self._world_has_editor_spec = True
-            self._latest_snapshot = None
             self._loaded_world_name = None
-            if self._status == SessionStatus.CREATED.value:
-                self._transition(SessionStatus.READY)
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
 
@@ -445,7 +542,7 @@ class SimulationSession(SimulationSessionPort):
         """Keep editor_spec aligned with the currently loaded simulation world file."""
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
             # Si el archivo no se puede parsear, al menos limpiar estado visual.
             self._editor.reset_formal_world(DEFAULT_WORLD_CELLS, DEFAULT_WORLD_CELLS)
             self._world_has_editor_spec = False
@@ -479,7 +576,7 @@ class SimulationSession(SimulationSessionPort):
                 self._editor.reset_formal_world(width_cells, height_cells)
                 self._world_has_editor_spec = False
                 return
-        except Exception:  # noqa: BLE001
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
             # Fallback defensivo: estado limpio por defecto.
             self._editor.reset_formal_world(DEFAULT_WORLD_CELLS, DEFAULT_WORLD_CELLS)
             self._world_has_editor_spec = False
@@ -496,8 +593,15 @@ class SimulationSession(SimulationSessionPort):
             if snapshot is None:
                 dto = self._service.get_snapshot()
                 snapshot = dto.to_dict() if dto else None
-                self._latest_snapshot = self._decorate_snapshot(snapshot)
-                snapshot = self._latest_snapshot
+            # La copia del worker puede haberse producido en el último tick de
+            # ejecución, antes del evento terminal. Nunca debe devolver
+            # ``running`` cuando el estado autoritativo de sesión ya es
+            # ``finished``/``error``/etc.; telemetría, LCD y canvas consumen
+            # este mismo DTO.
+            snapshot = self._decorate_snapshot(snapshot)
+            self._latest_snapshot = snapshot
+            if self._worker_shadow_snapshot is not None:
+                self._worker_shadow_snapshot = snapshot
             return {
                 "session_id": self.session_id,
                 "status": self._status,
@@ -520,14 +624,28 @@ class SimulationSession(SimulationSessionPort):
                 raise InvalidPayload("Dimensiones de mundo invalidas.") from exc
             return self.editor_response()
 
+    def resize_editor_world(self, width_cells: int, height_cells: int) -> dict[str, Any]:
+        """Redimensiona sin sustituir silenciosamente el mundo en edición."""
+
+        with self._lock:
+            try:
+                resized = self._editor.resize_formal_world(int(width_cells), int(height_cells))
+            except (TypeError, ValueError) as exc:
+                raise InvalidPayload("Dimensiones de mundo inválidas.") from exc
+            if not resized:
+                raise InvalidPayload(
+                    "No se pudo cambiar el tamaño: hay elementos fuera de límites o datos no válidos."
+                )
+            return self.editor_response()
+
     def load_editor_world(self, data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data, dict):
             raise InvalidPayload("El mundo del editor debe ser un objeto JSON.")
         with self._lock:
             try:
                 world = self._editor.load(json.dumps(data, ensure_ascii=False))
-            except Exception as exc:  # noqa: BLE001
-                raise InvalidPayload(f"Mundo del editor invalido: {exc}") from exc
+            except (OSError, TypeError, ValueError) as exc:
+                raise InvalidPayload("Mundo del editor invalido.") from exc
             self._editor._formal_world = world
             self._editor._rebuild_legacy_from_formal()
             self._push_event("editor_world", world.to_dict())
@@ -555,8 +673,8 @@ class SimulationSession(SimulationSessionPort):
             with self._lock:
                 try:
                     self._editor.from_editor_dict(legacy_payload)
-                except Exception as exc:  # noqa: BLE001
-                    raise InvalidPayload(f"Mundo del editor invalido: {exc}") from exc
+                except (OSError, TypeError, ValueError) as exc:
+                    raise InvalidPayload("Mundo del editor invalido.") from exc
                 self._world_has_editor_spec = True
                 self._push_event("editor_world", self._editor.current_formal_world().to_dict())
                 return self.editor_response()
@@ -567,8 +685,8 @@ class SimulationSession(SimulationSessionPort):
                 try:
                     world = WorldRepository.from_dict(data)
                     self._editor._from_world_model(world)
-                except Exception as exc:  # noqa: BLE001
-                    raise InvalidPayload(f"Mundo de simulacion invalido: {exc}") from exc
+                except (OSError, TypeError, ValueError) as exc:
+                    raise InvalidPayload("Mundo de simulacion invalido.") from exc
                 self._world_has_editor_spec = True
                 self._push_event("editor_world", self._editor.current_formal_world().to_dict())
                 return self.editor_response()
@@ -703,11 +821,12 @@ class SimulationSession(SimulationSessionPort):
                 x_mm, y_mm, theta_deg = robot_start
                 self._service.set_robot_start(x_mm, y_mm, theta_deg)
             self._service.apply_world_model(world)
+            self._replace_visible_snapshot_for_loaded_world()
             worker_source = json.dumps(
                 {"version": 1, "editor_spec": self._editor.current_formal_world().to_dict()},
                 ensure_ascii=False,
             )
-            self._mirror_worker("load_world", {"source": worker_source})
+            self._mirror_worker("load_world", {"source": worker_source}, discard_unrelated_events=True)
             self._world_has_editor_spec = True
             self._push_event("world", self.current_world())
             return self.summary() | {"world": self.current_world()}
@@ -760,6 +879,7 @@ class SimulationSession(SimulationSessionPort):
             "breakpoints": sorted(self._debug_breakpoints),
             "watches": list(self._debug_watches),
             "simulation_profile": self._service.engine_config.simulation_profile,
+            "max_runtime_s": self._max_runtime_s,
             "active_mission": (
                 {"id": self._active_mission.identifier, "title": self._active_mission.title}
                 if self._active_mission is not None
@@ -767,6 +887,47 @@ class SimulationSession(SimulationSessionPort):
             ),
             "mission_result": self._latest_mission_result,
         }
+
+    def presentation_state(self) -> PresentationState:
+        """DTO estable para que una UI no tenga que inspeccionar el runtime."""
+        status = self.status
+        return PresentationState(
+            session_id=self.session_id,
+            status=status,
+            controls=controls_for_status(status),
+            message=str((self._latest_error or {}).get("message", "")) or message_for_status(status),
+        )
+
+    def learning_state(self) -> LearningState:
+        mission = self._active_mission
+        result = self._latest_mission_result or {}
+        route = initial_learning_route()
+        completed = bool(result.get("result", {}).get("passed")) or (
+            mission is None and self.status == SessionStatus.FINISHED.value
+        )
+        return LearningState(
+            session_id=self.session_id,
+            activity_id=mission.identifier if mission is not None else route.identifier,
+            objective=mission.title if mission is not None else route.objective,
+            next_step=route.practice,
+            result="Actividad completada." if completed else None,
+            progress_current=1 if completed else 0,
+            progress_total=1,
+        )
+
+    def observability_snapshot(self) -> ObservabilitySnapshot:
+        response = self.snapshot_response()
+        snapshot = response.get("snapshot") or {}
+        error = response.get("error") or {}
+        return ObservabilitySnapshot(
+            session_id=self.session_id,
+            command_id=self._last_command_id,
+            worker_id=f"web-shadow-{self.session_id}" if self._worker_shadow is not None else None,
+            status=self.status,
+            tick=int(snapshot["tick"]) if snapshot.get("tick") is not None else None,
+            simulation_time_s=float(snapshot["sim_time_s"]) if snapshot.get("sim_time_s") is not None else None,
+            error_code=str(error.get("code")) if error.get("code") else None,
+        )
 
     def runtime_checkpoint(self) -> dict[str, Any]:
         with self._lock:
@@ -799,7 +960,15 @@ class SimulationSession(SimulationSessionPort):
                 try:
                     self.upload_world_json(world_wrapper)
                     restored_world = True
-                except Exception:  # noqa: BLE001
+                except (
+                    InvalidPayload,
+                    InvalidSessionState,
+                    OSError,
+                    RuntimeError,
+                    TimeoutError,
+                    TypeError,
+                    ValueError,
+                ):
                     restored_world = False
 
             if not restored_world and bool(checkpoint.get("world_has_editor_spec", False)):
@@ -809,7 +978,15 @@ class SimulationSession(SimulationSessionPort):
                         self.load_editor_world(editor_world)
                         self.apply_editor_world()
                         restored_world = True
-                    except Exception:  # noqa: BLE001
+                    except (
+                        InvalidPayload,
+                        InvalidSessionState,
+                        OSError,
+                        RuntimeError,
+                        TimeoutError,
+                        TypeError,
+                        ValueError,
+                    ):
                         restored_world = False
 
             loaded_world_name = checkpoint.get("loaded_world_name")
@@ -844,6 +1021,8 @@ class SimulationSession(SimulationSessionPort):
         with self._lock:
             if self._worker_shadow is not None:
                 self._worker_shadow.close()
+                self._worker_shadow = None
+            self._service.clear_trace()
             self._service.stop(reason="session_close")
             self._transition(SessionStatus.EXPIRED)
             self._set_debug_state("stopped")
@@ -856,11 +1035,12 @@ class SimulationSession(SimulationSessionPort):
         *,
         discard_unrelated_events: bool = False,
         wait_for_status: str | None = None,
-    ) -> None:
+    ) -> str | None:
         """Espeja un comando en el worker sin publicar sus eventos en la sesión visible."""
         if self._worker_shadow is None:
-            return
+            return None
         command_id = self._worker_shadow.send(command, payload)
+        self._last_command_id = command_id
         for _ in range(20):
             try:
                 event = self._worker_shadow.receive(0.2)
@@ -872,9 +1052,9 @@ class SimulationSession(SimulationSessionPort):
             if event.get("command_id") != command_id:
                 continue
             if wait_for_status is None:
-                return
+                return command_id
             if event.get("type") == "status" and event.get("payload", {}).get("status") == wait_for_status:
-                return
+                return command_id
         raise TimeoutError(f"El worker sombra no confirmó {command}")
 
     def _drain_shadow_worker(self) -> None:
@@ -900,16 +1080,29 @@ class SimulationSession(SimulationSessionPort):
             if self._worker_shadow is None:
                 raise InvalidSessionState("La sesión no usa worker aislado.")
             self._worker_shadow.close()
-            self._worker_shadow = IsolatedRuntimeWorker(f"web-recovered-{self.session_id}")
+            self._worker_shadow = IsolatedRuntimeWorker(
+                f"web-recovered-{self.session_id}", temp_root=self._config.get("WORKER_TEMP_ROOT")
+            )
+            # La secuencia IPC pertenece al proceso del worker, no a la
+            # sesion. Un worker recuperado comienza en 1; conservar la ultima
+            # secuencia del proceso anterior descartaria su inicializacion,
+            # politica y snapshots como si fueran eventos atrasados.
+            self._worker_shadow_last_sequence = 0
+            self._worker_shadow_snapshot = None
+            self._worker_shadow_status = None
             self._worker_shadow.start()
             self._consume_shadow_event(self._worker_shadow.receive())
             self._mirror_worker(
                 "initialize",
                 {
                     "execution_policy": {
-                        "max_runtime_s": max(1.0, float(self._config.get("SCRIPT_MAX_RUNTIME_S", 30.0))),
+                        # La recuperacion debe respetar el limite que el usuario
+                        # eligio para *esta* sesion, no volver al valor global de
+                        # configuracion. Esto mantiene el mismo contrato que la
+                        # aplicacion de escritorio al reconstruir el worker.
+                        "max_runtime_s": max(1.0, self._max_runtime_s),
                         "max_memory_mb": 256,
-                        "max_cpu_s": max(1.0, float(self._config.get("SCRIPT_MAX_RUNTIME_S", 30.0))),
+                        "max_cpu_s": max(1.0, self._max_runtime_s),
                     },
                     "engine_config": asdict(self._service.engine_config),
                 },
@@ -936,12 +1129,6 @@ class SimulationSession(SimulationSessionPort):
         if event.get("type") == "snapshot" and isinstance(event.get("payload"), dict):
             if self._reset_in_progress:
                 return
-            # En estado base no existe una ejecución activa que pueda producir
-            # snapshots útiles. Ignorar el último tick que un EngineThread
-            # cancelado pudiera dejar en el pipe evita que reemplace la pose
-            # inicial publicada por ``reset``.
-            if self._status == SessionStatus.CREATED.value and self._source_code is None:
-                return
             snapshot = self._decorate_snapshot(event["payload"])
             self._worker_shadow_snapshot = snapshot
             self._latest_snapshot = snapshot
@@ -952,15 +1139,34 @@ class SimulationSession(SimulationSessionPort):
             if now - self._last_snapshot_event_at >= self._snapshot_event_interval_s:
                 self._last_snapshot_event_at = now
                 self._push_event("snapshot", snapshot)
+        if event.get("type") == "world_loaded" and isinstance(event.get("payload"), dict):
+            # ``load_world`` responde con un evento propio, no con el evento
+            # ``snapshot`` habitual. Consumir su snapshot evita que el canvas
+            # conserve la pose de la mision o mundo anterior mientras el
+            # nombre del mundo ya cambio en la interfaz.
+            world_snapshot = event["payload"].get("snapshot")
+            if isinstance(world_snapshot, dict):
+                snapshot = self._decorate_snapshot(world_snapshot)
+                self._worker_shadow_snapshot = snapshot
+                self._latest_snapshot = snapshot
+                self._service.record_external_snapshot(SnapshotDTO(world_snapshot))
+                if snapshot is not None:
+                    self._worker_diagnostics["last_tick"] = int(snapshot.get("tick", 0))
+                    self._push_event("snapshot", snapshot)
+            self._worker_shadow_status = SessionStatus.READY.value
+            self._on_status("world_loaded")
         if event.get("type") == "status" and isinstance(event.get("payload"), dict):
+            policy = event["payload"].get("execution_policy")
+            if isinstance(policy, dict) and isinstance(policy.get("max_runtime_s"), (int, float)):
+                self._worker_diagnostics["max_runtime_s"] = float(policy["max_runtime_s"])
             candidate = event["payload"].get("status")
             if candidate in {status.value for status in SessionStatus}:
                 self._worker_shadow_status = candidate
                 self._on_status(str(candidate))
         if event.get("type") == "heartbeat" and isinstance(event.get("payload"), dict):
-            self._worker_diagnostics = {
+            self._worker_diagnostics.update({
                 key: value for key, value in event["payload"].items() if isinstance(value, (int, float, str))
-            }
+            })
         if event.get("type") == "error" and isinstance(event.get("payload"), dict):
             self._on_error(event["payload"])
         if event.get("type") == "debug" and isinstance(event.get("payload"), dict):
@@ -1016,18 +1222,56 @@ class SimulationSession(SimulationSessionPort):
         self._latest_snapshot = snapshot
         self._push_event("snapshot", snapshot)
 
+    def _replace_visible_snapshot_for_loaded_world(self) -> None:
+        """Publica la pose inicial del mundo y descarta el snapshot anterior.
+
+        La aplicacion web usa el worker aislado como fuente normal de eventos.
+        Un script que acaba de finalizar puede dejar un snapshot terminal en
+        su cola. Al seleccionar otro mundo, ese estado no pertenece a la nueva
+        escena y no puede usarse para dibujar robot, LCD o telemetria.
+        """
+        self._snapshot_generation += 1
+        self._worker_shadow_snapshot = None
+        self._worker_shadow_status = None
+        self._last_snapshot_event_at = 0.0
+        self._latest_error = None
+        self._latest_mission_result = None
+        self._latest_debug_context = None
+        self._transition(SessionStatus.READY)
+        self._set_debug_state("idle")
+
+        initial_dto = self._service.current_snapshot()
+        initial = self._decorate_snapshot(initial_dto.to_dict() if initial_dto is not None else None)
+        self._latest_snapshot = initial
+        if initial is not None:
+            self._push_event("snapshot", initial)
+        self._push_event("status", {"status": self._status, "raw_status": "world_loaded"})
+
     def _on_error(self, payload: dict[str, Any]) -> None:
         with self._lock:
             if self._status in {"stopped", "created", "expired"}:
                 return
-            self._latest_error = dict(payload)
-            error_reason = "timeout" if "tiempo m" in str(payload.get("error", "")).lower() else "error"
+            self._latest_error = self._safe_error_payload(payload)
+            error_reason = "timeout" if "tiempo m" in str(self._latest_error.get("error", "")).lower() else "error"
             target = SessionStatus.TIMED_OUT if error_reason == "timeout" else SessionStatus.ERROR
             if not self._transition(target):
                 return
             self._set_debug_state(self._status, reason=error_reason)
             self._publish_current_snapshot()
             self._push_event("error", self._latest_error)
+
+    @staticmethod
+    def _safe_error_payload(payload: dict[str, Any]) -> dict[str, str]:
+        """Mantiene el diagnóstico útil sin filtrar traceback, rutas o código."""
+
+        safe: dict[str, str] = {}
+        for key in ("code", "error", "message", "line"):
+            value = payload.get(key)
+            if value is not None:
+                safe[key] = str(value)[:500]
+        if not safe:
+            safe["error"] = "Error de ejecución no especificado."
+        return safe
 
     def _on_status(self, status: str) -> None:
         if self._reset_in_progress:
@@ -1043,9 +1287,23 @@ class SimulationSession(SimulationSessionPort):
             "timed_out": "timed_out",
             "reset": "created",
             "error": "error",
-            "world_loaded": self._status if self._status != "created" else "ready",
+            # Cargar un mundo siempre deja la sesion lista para una nueva
+            # ejecucion; conservar ``finished`` aqui desincronizaba el canvas
+            # de la pose inicial que ya habia cargado el motor.
+            "world_loaded": "ready",
         }.get(status, status)
         with self._lock:
+            # El worker confirma ``running`` después de iniciar el hilo de
+            # script. Si el breakpoint ya pausó ese hilo, esa confirmación es
+            # atrasada y no puede reanudar la sesión por sí sola. ``resumed``
+            # conserva el camino explícito de Reanudar/Continuar.
+            if (
+                status == "running"
+                and self._status == SessionStatus.PAUSED.value
+                and isinstance(self._latest_debug, dict)
+                and str(self._latest_debug.get("debug_state", "")).startswith("paused_")
+            ):
+                return
             if not self._transition(mapped):
                 return
             if status == "started":
@@ -1097,6 +1355,9 @@ class SimulationSession(SimulationSessionPort):
             reason = normalized.get("reason")
             if event_type == "paused":
                 debug_state = "paused_breakpoint" if reason == "breakpoint" else "paused_step"
+                changed = self._transition(SessionStatus.PAUSED)
+                if not self._worker_executes:
+                    self._service.pause()
                 self._set_debug_state(
                     debug_state,
                     line=line,
@@ -1104,6 +1365,11 @@ class SimulationSession(SimulationSessionPort):
                     reason=reason or "step",
                     legacy=normalized,
                 )
+                if changed:
+                    # Un breakpoint también pausa la sesión: editor, controles
+                    # y telemetría deben recibir el mismo estado observable.
+                    self._publish_current_snapshot()
+                    self._push_event("status", {"status": self._status, "raw_status": "debug_paused"})
                 return
             if event_type == "line":
                 self._set_debug_state(
@@ -1266,16 +1532,28 @@ def asset_catalog_dict() -> dict[str, Any]:
     return {
         "grid_size_px": 32,
         "cell_size_mm": 100.0,
+        "asset_catalog_version": 2,
         "assets": [
             {
-                "key": spec.key,
-                "type": spec.asset_type,
-                "layer": spec.layer,
-                "width_cells": spec.width_cells,
-                "height_cells": spec.height_cells,
-                "connectors": sorted(spec.connectors),
+                "key": item["asset_id"],
+                "image": item["filename"],
+                "category": item["category"],
+                "label": item["label"],
+                "tooltip": item["tooltip"],
+                "sha256": item["sha256"],
+                "source_width_px": item["source_width_px"],
+                "source_height_px": item["source_height_px"],
+                "type": item["type"],
+                "layer": item["layer"],
+                "width_cells": item["width_cells"],
+                "height_cells": item["height_cells"],
+                "logical_width_mm": item["logical_width_mm"],
+                "logical_height_mm": item["logical_height_mm"],
+                "placement_anchor": item["placement_anchor"],
+                "visual_anchor": item["visual_anchor"],
+                "connectors": item["connectors"],
             }
-            for spec in ASSET_CATALOG.values()
+            for item in editor_asset_manifest()
         ],
     }
 

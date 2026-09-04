@@ -85,13 +85,6 @@ window.EV3Api = (() => {
           error.retryAfterS = retryAfterInt;
         }
       }
-      if (error.workerId || error.workerPid) {
-        const workerLabel = [
-          error.workerId ? `worker=${error.workerId}` : null,
-          error.workerPid ? `pid=${error.workerPid}` : null,
-        ].filter(Boolean).join(", ");
-        error.message = `${message} [${workerLabel}]`;
-      }
       throw error;
     }
     return data;
@@ -419,6 +412,9 @@ window.EV3Api = (() => {
         timeoutMs: 1200,
       }, { retries: 1, baseDelayMs: 120 }),
     ),
+    presentationState: () => request(`/api/sessions/${sessionId}/presentation`),
+    learningState: () => request(`/api/sessions/${sessionId}/learning`),
+    observabilityState: () => request(`/api/sessions/${sessionId}/observability`),
     listExamples: () => request("/api/examples"),
     getExample: (name) => request(`/api/examples/${encodeURIComponent(name)}`),
     listMissions: () => request("/api/missions"),
@@ -453,6 +449,10 @@ window.EV3Api = (() => {
     }),
     getEditorAssets: () => request("/api/editor/assets"),
     createEditorWorld: (widthCells = 20, heightCells = 20) => request(`/api/sessions/${sessionId}/editor/world`, {
+      method: "POST",
+      body: JSON.stringify({ width_cells: widthCells, height_cells: heightCells }),
+    }),
+    resizeEditorWorld: (widthCells, heightCells) => request(`/api/sessions/${sessionId}/editor/world/resize`, {
       method: "POST",
       body: JSON.stringify({ width_cells: widthCells, height_cells: heightCells }),
     }),

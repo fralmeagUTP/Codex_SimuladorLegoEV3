@@ -38,10 +38,10 @@ _LCD_FG = "#111111"
 _LCD_SCANLINE = "#D7DFCA"
 _LCD_LED_ON = "#F8F8EF"
 _LCD_LED_OFF = "#A4AA95"
-_LCD_CANVAS_W = 300
+_LCD_CANVAS_W = 507
 # Debe dejar espacio visible para la tabla Robot/Estado bajo la LCD en la
 # franja inferior de la ventana, incluso sin redimensionar el panel.
-_LCD_CANVAS_H = 100
+_LCD_CANVAS_H = 169
 
 
 class BrickPanel(tk.Frame):
@@ -100,15 +100,19 @@ class BrickPanel(tk.Frame):
                  anchor="center", relief=tk.SOLID, bd=1).pack(fill=tk.X, padx=8, pady=(8, 0), ipady=12)
         status_row = tk.Frame(self._content, bg=_BRICK_BG, relief=tk.SOLID, bd=1)
         status_row.pack(fill=tk.X, padx=8)
+        self._status_row = status_row
+        self._status_compact: bool | None = None
         status_row.grid_columnconfigure(0, weight=1)
         status_row.grid_columnconfigure(1, weight=1)
         self._build_led(status_row)
         self._build_speaker(status_row)
+        status_row.bind("<Configure>", self._on_status_resize)
         self._build_screen()
         self._build_robot_state()
 
     def _build_led(self, row: tk.Widget) -> None:
         cell = tk.Frame(row, bg=_BRICK_BG, relief=tk.SOLID, bd=0)
+        self._led_cell = cell
         cell.grid(row=0, column=0, sticky="nsew")
         tk.Label(cell, text="LED:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 11)).pack(
             side=tk.LEFT, padx=(16, 6), pady=12
@@ -143,7 +147,11 @@ class BrickPanel(tk.Frame):
 
         self._screen_canvas = tk.Canvas(
             self._content,
-            width=_LCD_CANVAS_W,
+            # El tamaño lógico de referencia sigue siendo 507x169, pero el
+            # canvas no debe imponer ese ancho al panel inferior. Con `fill`
+            # ocupa exactamente el ancho disponible y `_render_screen()`
+            # conserva la relación 178x128 de la LCD al escalarla.
+            width=1,
             height=_LCD_CANVAS_H,
             bg=_BRICK_BG, highlightthickness=0, bd=1, relief=tk.SOLID,
         )
@@ -153,6 +161,7 @@ class BrickPanel(tk.Frame):
 
     def _build_speaker(self, row: tk.Widget) -> None:
         cell = tk.Frame(row, bg=_BRICK_BG, relief=tk.SOLID, bd=0)
+        self._speaker_cell = cell
         cell.grid(row=0, column=1, sticky="nsew")
         tk.Label(cell, text="Altavoz:", bg=_BRICK_BG, fg=_LABEL_FG, font=("Segoe UI", 11)).pack(
             side=tk.LEFT, padx=(18, 8), pady=12
@@ -200,6 +209,25 @@ class BrickPanel(tk.Frame):
 
     def _on_panel_configure(self, event) -> None:
         self._scroll_canvas.itemconfigure(self._content_window, width=event.width)
+
+    def _on_status_resize(self, event) -> None:
+        """Evita truncar LED y altavoz cuando el Brick comparte espacio.
+
+        En ventanas de 1280 px el panel Brick puede recibir unos 250 px. Dos
+        celdas horizontales ya no dan espacio al nombre y al valor; en ese
+        caso se apilan, preservando texto completo y contraste.
+        """
+
+        compact = int(event.width) < 340
+        if compact == self._status_compact:
+            return
+        self._status_compact = compact
+        if compact:
+            self._led_cell.grid(row=0, column=0, columnspan=2, sticky="ew")
+            self._speaker_cell.grid(row=1, column=0, columnspan=2, sticky="ew")
+        else:
+            self._led_cell.grid(row=0, column=0, columnspan=1, sticky="nsew")
+            self._speaker_cell.grid(row=0, column=1, columnspan=1, sticky="nsew")
 
     # ------------------------------------------------------------------
     # Actualizaciones

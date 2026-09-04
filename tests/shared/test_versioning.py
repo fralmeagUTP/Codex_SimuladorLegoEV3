@@ -12,7 +12,8 @@ def test_package_version_has_a_single_python_source() -> None:
     assert __version__ == APP_VERSION == "1.5.0"
     assert pyproject["project"]["dynamic"] == ["version"]
     assert pyproject["tool"]["setuptools"]["dynamic"]["version"] == {"attr": "simulador_ev3.__version__"}
-    assert WEB_ASSET_VERSION == f"v{APP_VERSION}-ui2"
+    # ui3 invalida correctamente la caché de los activos tras el rediseño Web.
+    assert WEB_ASSET_VERSION == f"v{APP_VERSION}-ui3"
 
 
 def test_readme_declares_current_package_version() -> None:

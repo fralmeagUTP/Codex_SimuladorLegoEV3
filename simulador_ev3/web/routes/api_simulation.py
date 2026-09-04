@@ -8,7 +8,7 @@ import time
 from flask import Blueprint, Response, current_app, jsonify, make_response, request, stream_with_context
 
 from simulador_ev3.shared.mission_catalog import MissionCatalog
-from simulador_ev3.web.errors import CapacityExceeded, InvalidPayload
+from simulador_ev3.web.errors import CapacityExceeded, InvalidPayload, SessionForbidden, SessionNotFound
 from simulador_ev3.web.routes.helpers import get_manager, json_body, request_token, require_session
 
 bp = Blueprint("api_simulation", __name__, url_prefix="/api")
@@ -25,7 +25,8 @@ def create_session():
         raise InvalidPayload("wait_ms debe ser un entero >= 0.") from exc
     wait_ms = max(0, min(wait_ms, 120000))
     if data.get("reuse", False):
-        session_id = request.cookies.get("ev3_session_id")
+        cookie_prefix = str(current_app.config.get("SESSION_COOKIE_PREFIX", "ev3_"))
+        session_id = request.cookies.get(f"{cookie_prefix}session_id")
         owner_token = request_token()
         if session_id and owner_token:
             try:
@@ -36,7 +37,7 @@ def create_session():
                     status=session.status,
                 )
                 return response, 200
-            except Exception:  # noqa: BLE001
+            except (SessionForbidden, SessionNotFound):
                 pass
 
     try:
@@ -74,19 +75,22 @@ def _session_response(*, session_id: str, owner_token: str, status: str):
         )
     )
     cookie_secure = bool(current_app.config.get("SESSION_COOKIE_SECURE", False))
+    cookie_prefix = str(current_app.config.get("SESSION_COOKIE_PREFIX", "ev3_"))
     response.set_cookie(
-        "ev3_owner_token",
+        f"{cookie_prefix}owner_token",
         owner_token,
         httponly=True,
         samesite="Lax",
         secure=cookie_secure,
+        path="/",
     )
     response.set_cookie(
-        "ev3_session_id",
+        f"{cookie_prefix}session_id",
         session_id,
         httponly=True,
         samesite="Lax",
         secure=cookie_secure,
+        path="/",
     )
     return response
 
@@ -101,6 +105,24 @@ def close_session(session_id: str):
 def session_info(session_id: str):
     session = require_session(session_id)
     return jsonify(session.summary())
+
+
+@bp.get("/sessions/<session_id>/presentation")
+def presentation_state(session_id: str):
+    """Contrato de presentación compartido con el adaptador Tkinter."""
+    return jsonify(require_session(session_id).presentation_state().to_dict())
+
+
+@bp.get("/sessions/<session_id>/learning")
+def learning_state(session_id: str):
+    """Contrato de aprendizaje, independiente de widgets o transporte."""
+    return jsonify(require_session(session_id).learning_state().to_dict())
+
+
+@bp.get("/sessions/<session_id>/observability")
+def observability_state(session_id: str):
+    """Diagnóstico correlacionable sin exponer el runtime privado."""
+    return jsonify(require_session(session_id).observability_snapshot().to_dict())
 
 
 @bp.post("/sessions/<session_id>/mission")
@@ -185,10 +207,16 @@ def start(session_id: str):
         cached = session.get_start_idempotency(request_id)
         if cached is not None:
             return jsonify(cached)
-    result = session.start(
-        debug=bool(data.get("debug", False)),
-        step_mode=bool(data.get("step_mode", False)),
-    )
+    source = data.get("source")
+    if source is not None and not isinstance(source, str):
+        raise InvalidPayload("El campo source debe ser texto.")
+    start_options = {
+        "debug": bool(data.get("debug", False)),
+        "step_mode": bool(data.get("step_mode", False)),
+    }
+    if source is not None:
+        start_options["source"] = source
+    result = session.start(**start_options)
     if request_id:
         session.remember_start_idempotency(request_id, result)
     manager.sync_session_metadata(session_id)
@@ -322,7 +350,15 @@ def stream(session_id: str):
         while True:
             now = time.monotonic()
             heartbeat_remaining = max(0.0, heartbeat_s - (now - last_heartbeat))
-            wait_timeout = min(heartbeat_remaining, 1.0) if heartbeat_remaining > 0 else 0.0
+            # Los eventos del worker llegan por una cola multiproceso y no
+            # pueden despertar directamente esta condición. Una espera de un
+            # segundo retrasaba en la UI el estado terminal y hacía que el
+            # reloj de pared pareciera más lento que la simulación. Limitar el
+            # El worker aislado comunica por cola multiproceso y no puede
+            # despertar directamente esta condición. El sondeo a 50 ms
+            # mantiene la entrega fluida sin convertir el stream en busy
+            # waiting; la condición sigue bloqueada entre comprobaciones.
+            wait_timeout = min(heartbeat_remaining, 0.05) if heartbeat_remaining > 0 else 0.0
             events = session.wait_for_events_since(last_sequence, timeout_s=wait_timeout)
             if events:
                 for event in events:

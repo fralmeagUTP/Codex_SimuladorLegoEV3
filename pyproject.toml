@@ -7,10 +7,10 @@ name    = "simulador-ev3"
 dynamic = ["version"]
 description = "Simulador educativo LEGO EV3 compatible con API Pybricks"
 requires-python = ">=3.11"
-dependencies = ["Flask>=3.1", "opentelemetry-api>=1.28"]   # tkinter para escritorio, Flask para web
+dependencies = ["Flask>=3.1", "opentelemetry-api>=1.28", "Pillow>=10"]   # tkinter para escritorio, Flask para web
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov", "playwright>=1.45", "Pillow>=10", "ruff>=0.8", "mypy>=1.13", "bandit>=1.8", "pip-audit>=2.7", "pre-commit>=4.0"]
+dev = ["pytest>=8.0", "pytest-cov", "playwright>=1.45", "Pillow>=10", "ruff>=0.8", "mypy>=1.13", "bandit>=1.8", "pip-audit>=2.7", "pre-commit>=4.0", "mutmut>=3.7"]
 desktop-e2e = ["pywinauto>=0.6.9", "Pillow>=10"]
 web-prod = ["waitress>=3.0"]
 web-redis = ["redis>=5.1,<8"]
@@ -22,6 +22,14 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 markers = [
+    "unit: prueba aislada de dominio, modelo o utilidad determinista",
+    "integration: prueba de integración entre capas, persistencia o API",
+    "contract: prueba de contrato de sesión, runtime o paridad entre interfaces",
+    "ui: prueba de interfaz visible o de componentes de interfaz",
+    "e2e: recorrido completo de usuario en navegador o escritorio",
+    "security: prueba de autenticación, autorización, validación o seguridad",
+    "performance: prueba de carga, rendimiento o consumo controlado",
+    "release: prueba de empaquetado, documentación o entrega",
     "desktop_e2e: prueba Windows con escritorio interactivo y controles nativos",
 ]
 
@@ -62,6 +70,18 @@ source = ["simulador_ev3"]
 [tool.coverage.report]
 fail_under = 70
 precision = 1
+
+# Campaña de mutación reproducible: el servicio de sesión concentra los
+# estados terminales, cancelación, pausa y reinicio de la aplicación Web.
+[tool.mutmut]
+source_paths = ["simulador_ev3/web/services/simulation_session.py"]
+pytest_add_cli_args_test_selection = ["tests/web/test_web_app.py"]
+# Flask resuelve estas plantillas y recursos desde el árbol de la aplicación.
+# Mutmut crea una copia aislada, por lo que deben estar disponibles en ella.
+also_copy = ["simulador_ev3/web/templates", "simulador_ev3/web/static", "worlds"]
+mutate_only_covered_lines = true
+timeout_multiplier = 8.0
+timeout_constant = 1.0
 
 [tool.setuptools.packages.find]
 where = ["."]

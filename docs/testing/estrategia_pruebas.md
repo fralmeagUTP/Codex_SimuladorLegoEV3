@@ -1,6 +1,6 @@
 # Estrategia de pruebas
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Los datos de prueba
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Los datos de prueba
 > son mundos y scripts sinteticos del repositorio; nunca datos de produccion ni secretos.
 
 | Tipo | Herramienta | Prioridad | Criterio de aprobación |
@@ -10,10 +10,11 @@
 | Worker/resiliencia | pytest | Crítica | aislamiento, cancelación y recuperación pasan |
 | E2E Web | Playwright Chromium | Alta | flujos de usuario críticos pasan |
 | UI Tkinter | pytest | Alta | contrato, componentes, teclado y estados verificables pasan |
+| E2E Tkinter | Pywinauto, escritorio Windows visible | Alta | interacción real y catálogos pasan; sin falsificar omisiones |
 | Paridad de interfaz | pytest + catalogo compartido | Alta | Web y Tkinter producen estados equivalentes |
 | Regresion visual | capturadores Web/Tkinter | Media | evidencia reproducible; comparacion automatica planificada |
 | Estático | Ruff, Mypy, Bandit, Pip-Audit | Alta | salida 0 |
-| Carga | pytest tests/load | Media | sesiones sin error en escenario smoke |
+| Carga | pytest tests/load + `/metrics` | Media | sesiones concurrentes sin error y métricas operativas disponibles; sin SLA hasta ejecutar carga sostenida en servidor aislado |
 
 ## Ejecucion local
 
@@ -25,8 +26,26 @@ py -3.12 -m ruff check simulador_ev3 tests
 py -3.12 -m mypy
 py -3.12 -m bandit -q -c pyproject.toml -r simulador_ev3 --severity-level medium
 py -3.12 -m pip_audit -r requirements-audit.txt
+openspec validate --all --strict
 ```
 
 Playwright exige Chromium instalado: `py -3.12 -m playwright install chromium`.
 El umbral global de cobertura configurado es 70%; core y domain tienen un gate
 dedicado de 90% en CI. La salida esperada para cada comando es codigo 0.
+
+El E2E Tkinter requiere instalar `.[desktop-e2e]`, una sesión Windows visible y
+la variable `EV3_RUN_DESKTOP_E2E=1`. Sin esas precondiciones debe figurar como
+omitido o bloqueado, nunca como aprobado.
+
+La línea base vigente del 2026-08-05 es: 829 pruebas globales aprobadas, seis
+E2E de escritorio omitidas por compuerta y luego aprobadas 6/6 en ejecución
+gráfica explícita; E2E Web 55/55. Repetir los comandos para cada nuevo commit.
+
+## Límites de la carga automatizada
+
+El smoke de `tests/load` crea ocho sesiones concurrentes, carga un script por
+sesión y consulta `/metrics`; además crea dos sesiones con workers aislados y
+verifica memoria, pico, cola y ticks reales. No afirma un SLA ni sustituye una
+prueba sostenida: para cerrar ese riesgo se debe ejecutar contra el servidor
+real con una duración y umbrales acordados de latencia, memoria, cola y
+recuperación.

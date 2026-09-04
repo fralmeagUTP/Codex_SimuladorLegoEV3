@@ -12,5 +12,11 @@ def test_timeout_is_terminal_and_can_be_reset() -> None:
     assert can_transition(SessionStatus.TIMED_OUT, SessionStatus.RESETTING)
 
 
+def test_error_is_terminal_and_recovers_only_through_a_new_lifecycle() -> None:
+    assert can_transition(SessionStatus.RUNNING, SessionStatus.ERROR)
+    assert is_terminal(SessionStatus.ERROR)
+    assert can_transition(SessionStatus.ERROR, SessionStatus.RESETTING)
+
+
 def test_expired_session_cannot_resume() -> None:
     assert not can_transition(SessionStatus.EXPIRED, SessionStatus.RUNNING)
