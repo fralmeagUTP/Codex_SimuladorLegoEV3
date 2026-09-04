@@ -675,6 +675,7 @@ def test_simulation_js_wires_file_and_scenario_menus(tmp_path):
         "Cargar mundo desde tu equipo",
         "scenariosMenu",
         "loadScenario",
+        "throwOnError: true",
         "renderEditorGutter",
         "toggleBreakpoint",
         "currentDebugLine",

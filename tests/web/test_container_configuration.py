@@ -21,6 +21,14 @@ def test_dockerfile_runs_the_web_server_without_root() -> None:
     assert 'CMD ["python", "-m", "simulador_ev3.web.waitress_server"]' in dockerfile
 
 
+def test_dockerfile_includes_runtime_world_and_example_catalogs() -> None:
+    root = Path(__file__).resolve().parents[2]
+    dockerfile = (root / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "COPY examples ./examples" in dockerfile
+    assert "COPY worlds ./worlds" in dockerfile
+
+
 def test_production_compose_applies_external_worker_boundaries() -> None:
     root = Path(__file__).resolve().parents[2]
     compose = (root / "docker-compose.production.yml").read_text(encoding="utf-8")

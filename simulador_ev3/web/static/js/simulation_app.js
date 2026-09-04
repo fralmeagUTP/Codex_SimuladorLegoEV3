@@ -1969,7 +1969,7 @@
 
   executionSuccessToastClose?.addEventListener("click", hideExecutionSuccessToast);
 
-  async function loadExampleByName(name) {
+  async function loadExampleByName(name, { throwOnError = false } = {}) {
     if (guardMenuAction()) return;
     try {
       const data = await api.getExample(name);
@@ -1980,12 +1980,15 @@
       hideAutocomplete();
       updateSyntaxHighlight();
       log("");
+      return data;
     } catch (err) {
       log(err.message);
+      if (throwOnError) throw err;
+      return null;
     }
   }
 
-  async function loadWorldByName(name) {
+  async function loadWorldByName(name, { throwOnError = false } = {}) {
     if (guardMenuAction()) return;
     try {
       // Nunca transportar rastro, haces ni tick visuales del mundo anterior.
@@ -2003,8 +2006,11 @@
       await refreshSnapshot();
       redrawCanvas();
       log("");
+      return data;
     } catch (err) {
       log(err.message);
+      if (throwOnError) throw err;
+      return null;
     }
   }
 
@@ -2082,8 +2088,8 @@
     const scenario = scenarios[key];
     if (!scenario) return;
     try {
-      await loadWorldByName(scenario.world);
-      await loadExampleByName(scenario.example);
+      await loadWorldByName(scenario.world, { throwOnError: true });
+      await loadExampleByName(scenario.example, { throwOnError: true });
       log(`Escenario cargado: ${scenario.label}`);
     } catch (err) {
       log(err.message);
