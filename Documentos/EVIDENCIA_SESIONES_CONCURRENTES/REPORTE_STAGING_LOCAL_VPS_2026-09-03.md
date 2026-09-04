@@ -92,3 +92,15 @@ la reversión. Se restauró de inmediato el commit actual, se recompuso el
 contenedor y se verificó de nuevo `HTTPS 200` con el puerto interno inaccesible
 desde Internet. Los secretos temporales usados para la prueba se eliminaron;
 los cambios locales preexistentes del servidor se conservaron intactos.
+
+### Liberación de la versión validada
+
+La versión aprobada localmente se publicó en el repositorio y se construyó en
+el VPS desde un directorio de liberación aislado. El despliegue reutilizó las
+variables reales de sesión, los secretos operativos, Traefik, la red interna y
+el perfil de capacidad ya validado; no se sustituyeron claves ni tokens.
+
+Tras recrear el contenedor, la URL pública devolvió `HTTPS 200`, los endpoints
+operativos protegidos respondieron usando el token existente y el puerto
+interno permaneció inaccesible desde Internet. Los archivos temporales de
+construcción y de variables se eliminaron al terminar.

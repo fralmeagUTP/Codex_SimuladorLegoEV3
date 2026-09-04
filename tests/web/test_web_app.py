@@ -471,6 +471,22 @@ def test_mutable_api_rejects_cross_origin_requests(tmp_path):
     assert response.get_json()["error"]["code"] == "CROSS_ORIGIN_REQUEST"
 
 
+def test_mutable_api_accepts_public_origin_through_trusted_proxy(tmp_path):
+    client = make_client_with_config(tmp_path, TRUST_PROXY_HEADERS=True)
+
+    response = client.post(
+        "/api/sessions",
+        json={},
+        headers={
+            "Origin": "https://botlab.example",
+            "X-Forwarded-Proto": "https",
+            "X-Forwarded-Host": "botlab.example",
+        },
+    )
+
+    assert response.status_code == 201
+
+
 def test_operational_endpoints_require_configured_token(tmp_path):
     token = "t" * 32
     client = make_client_with_config(

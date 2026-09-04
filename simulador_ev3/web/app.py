@@ -10,6 +10,7 @@ import uuid
 
 from flask import Flask, jsonify
 from opentelemetry import trace
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from simulador_ev3 import __version__
 from simulador_ev3.runtime.isolated_worker import cleanup_worker_temp_dirs
@@ -49,6 +50,11 @@ def create_app(config: dict | None = None) -> Flask:
     if config:
         app.config.update(config)
     validate_runtime_config(app.config)
+    # En producción la aplicación queda detrás de un proxy TLS. Solo cuando
+    # se declaró explícitamente confiable, se aceptan sus cabeceras para que
+    # Flask reconstruya el origen público al validar operaciones mutables.
+    if app.config.get("TRUST_PROXY_HEADERS", False):
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
     worker_id = os.environ.get("EV3_WEB_WORKER_ID") or f"pid-{os.getpid()}"
     worker_pid = str(os.getpid())
     app.extensions["worker_id"] = worker_id
