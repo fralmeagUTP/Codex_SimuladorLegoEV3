@@ -1254,6 +1254,24 @@ class TestMainWindow:
         app._editor.save_script_dialog.assert_called_once()
         app._on_close()
 
+    def test_dirty_script_confirmation_can_cancel_a_destructive_menu_action(self):
+        from simulador_ev3.pybricks_api._context import PybricksContext
+        from simulador_ev3.pybricks_api.factory import PybricksFactory
+        from simulador_ev3.ui import main_window as mw
+
+        PybricksFactory.cleanup()
+        PybricksContext.clear()
+        app = self.EV3SimulatorApp()
+        app._editor.is_dirty = mock.Mock(return_value=True)
+        app._editor.set_code = mock.Mock()
+
+        with mock.patch.object(mw.messagebox, "askyesno", return_value=False) as confirm:
+            app._cmd_new()
+
+        confirm.assert_called_once()
+        app._editor.set_code.assert_not_called()
+        app._on_close()
+
     def test_apply_scenario_loads_world_and_example(self):
         from simulador_ev3.pybricks_api._context import PybricksContext
         from simulador_ev3.pybricks_api.factory import PybricksFactory
@@ -1492,7 +1510,9 @@ class TestMainWindow:
         app = self.EV3SimulatorApp()
 
         assert app._execution_menu_locked is False
-        assert len(app._lockable_menu_buttons) == 9
+        # Ayuda permanece disponible durante la ejecución; las siete categorías
+        # que pueden cambiar el estado sí se bloquean de forma coherente.
+        assert len(app._lockable_menu_buttons) == 7
 
         app._on_status("started")
         assert app._execution_menu_locked is True

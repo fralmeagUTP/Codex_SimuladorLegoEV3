@@ -447,7 +447,7 @@ def test_success_toast_is_not_emitted_for_error_or_manual_stop(page, live_web_ap
 )
 def test_critical_web_text_keeps_wcag_aa_contrast_in_each_theme(page, live_web_app, theme, selector):
     page.goto(f"{live_web_app}/")
-    page.locator(".menu-trigger", has_text="Tema").hover()
+    page.locator(".menu-trigger", has_text="Configuración").hover()
     page.locator(f"[data-theme-choice='{theme}']").click()
 
     colors = _computed_text_and_background(page.locator(selector))
@@ -462,7 +462,7 @@ def test_critical_web_text_keeps_wcag_aa_contrast_in_each_theme(page, live_web_a
 def test_success_toast_fits_mobile_viewport_in_both_themes(page, live_web_app, expect, theme):
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(f"{live_web_app}/")
-    page.locator(".menu-trigger", has_text="Tema").hover()
+    page.locator(".menu-trigger", has_text="Configuración").hover()
     page.locator(f"[data-theme-choice='{theme}']").click()
     expect(page.locator("html")).to_have_attribute("data-theme", theme)
     page.locator("#codeEditor").fill("from pybricks.tools import wait\nwait(50)\n")
@@ -629,7 +629,7 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
     page.goto(f"{live_web_app}/")
 
     expect(page.locator("#examplesMenu")).to_contain_text("menu_example.py")
-    page.locator(".menu-trigger", has_text="Ejemplos").hover()
+    page.locator(".menu-trigger", has_text="Aprender").hover()
     page.locator("#examplesMenu button", has_text="menu_example.py").click()
     expect(page.locator("#codeEditor")).to_have_value(re.compile("menu"))
 
@@ -639,11 +639,12 @@ def test_simulation_menus_load_examples_worlds_and_scenarios(page, live_web_app,
     page.locator("#worldsMenu .menu-sublist button", has_text="menu_world.json").click()
     expect(page.locator("#statusWorld")).to_have_text("menu_world.json")
 
-    page.locator(".menu-trigger", has_text="Escenarios").hover()
+    page.locator(".menu-trigger", has_text="Prácticas guiadas").hover()
+    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("#scenariosMenu button[data-scenario='line']").click()
     expect(page.locator("#codeEditor")).to_have_value(re.compile("linea"), timeout=5000)
     expect(page.locator("#statusWorld")).to_have_text("01_linea_negra_basica.json")
-    expect(page.locator("#console")).to_contain_text("Escenario cargado: Seguidor de linea")
+    expect(page.locator("#console")).to_contain_text("Práctica guiada cargada: Seguidor de línea")
 
     page.locator(".menu-trigger", has_text="Ayuda").hover()
     page.locator("#aboutMenuBtn").click()
@@ -668,7 +669,7 @@ def test_real_catalog_loads_every_example_world_scenario_and_mission(
     example_names = examples.all_inner_texts()
     assert len(example_names) >= 20
     for name in example_names:
-        page.locator(".menu-trigger", has_text="Ejemplos").hover()
+        page.locator(".menu-trigger", has_text="Aprender").hover()
         page.locator("#examplesMenu").get_by_role("button", name=name, exact=True).click()
         expected_source = (resolve_examples_dir() / name).read_text(encoding="utf-8")
         expect(page.locator("#codeEditor")).to_have_value(expected_source, timeout=3000)
@@ -688,9 +689,10 @@ def test_real_catalog_loads_every_example_world_scenario_and_mission(
         expect(page.locator("#statusWorld")).to_have_text(name)
 
     for scenario in ("line", "ultrasonic", "brick", "radar"):
-        page.locator(".menu-trigger", has_text="Escenarios").hover()
+        page.locator(".menu-trigger", has_text="Prácticas guiadas").hover()
+        page.once("dialog", lambda dialog: dialog.accept())
         page.locator(f"#scenariosMenu button[data-scenario='{scenario}']").click()
-        expect(page.locator("#console")).to_contain_text("Escenario cargado:")
+        expect(page.locator("#console")).to_contain_text("Práctica guiada cargada:")
 
     page.locator(".menu-trigger", has_text="Misiones").hover()
     mission_names = page.locator("#missionsMenu button").all_inner_texts()
@@ -762,7 +764,8 @@ def test_reset_hides_the_terminal_mission_result(page, live_web_app, expect):
 def test_reset_recovers_the_ultrasonic_obstacle_scenario(page, live_web_app, expect):
     """El reinicio de un escenario normal no puede quedar bloqueado en resetting."""
     page.goto(f"{live_web_app}/")
-    page.locator(".menu-trigger", has_text="Escenarios").hover()
+    page.locator(".menu-trigger", has_text="Prácticas guiadas").hover()
+    page.once("dialog", lambda dialog: dialog.accept())
     page.locator("#scenariosMenu button[data-scenario='ultrasonic']").click()
     expect(page.locator("#codeEditor")).to_have_value(re.compile("ultra"), timeout=5000)
 
@@ -811,7 +814,7 @@ def test_primary_menu_has_a_predictable_tab_order(page, live_web_app):
     page.keyboard.press("Tab")
     assert page.evaluate("document.activeElement.textContent.trim()") == "Archivo"
     page.keyboard.press("Tab")
-    assert page.evaluate("document.activeElement.textContent.trim()") == "Ejemplos"
+    assert page.evaluate("document.activeElement.textContent.trim()") == "Aprender"
     page.keyboard.press("Shift+Tab")
     assert page.evaluate("document.activeElement.textContent.trim()") == "Archivo"
     page.keyboard.press("Enter")
@@ -823,20 +826,52 @@ def test_all_primary_menu_triggers_are_reachable_in_tab_order(page, live_web_app
     page.goto(f"{live_web_app}/")
     expected_labels = [
         "Archivo",
-        "Ejemplos",
+        "Aprender",
         "Mundos",
-        "Escenarios",
+        "Prácticas guiadas",
         "Misiones",
-        "Tema",
-        "Fidelidad",
-        "Tiempo máximo",
-        "Trazas",
+        "Configuración",
+        "Diagnóstico",
         "Ayuda",
     ]
 
     for label in expected_labels:
         page.keyboard.press("Tab")
         assert page.evaluate("document.activeElement.textContent.trim()") == label
+
+
+def test_settings_menu_updates_theme_profile_and_runtime_with_visible_state(page, live_web_app, expect):
+    """Configuración agrupa ajustes técnicos y confirma su estado actual."""
+
+    page.goto(f"{live_web_app}/")
+    settings = page.get_by_role("button", name="Configuración", exact=True)
+    settings.click()
+
+    page.get_by_role("button", name="Tema oscuro", exact=True).click()
+    expect(page.locator("html")).to_have_attribute("data-theme", "dark")
+
+    settings.click()
+    realistic = page.get_by_role("button", name=re.compile(r"^Realista"))
+    realistic.click()
+    expect(realistic).to_have_attribute("aria-pressed", "true")
+
+    settings.click()
+    limit = page.get_by_role("button", name="30 s", exact=True)
+    limit.click()
+    expect(limit).to_have_attribute("aria-pressed", "true")
+
+
+def test_mission_menu_exposes_requirements_and_visible_progress(page, live_web_app, expect):
+    """Misiones informa intención, requisitos y progreso antes de ejecutar."""
+
+    page.goto(f"{live_web_app}/")
+    missions = page.get_by_role("button", name="Misiones", exact=True)
+    missions.click()
+    mission = page.locator("#missionsMenu button").first
+    expect(mission).to_have_attribute("aria-description", re.compile(r"Objetivo:|Requisitos"))
+    mission.click()
+    expect(page.locator("#missionProgress")).to_be_visible()
+    expect(page.locator("#missionProgress")).to_contain_text(re.compile(r"Progreso: 0/\d+ requisitos"))
 
 
 def test_help_menu_opens_the_help_center(page, live_web_app, expect):
@@ -855,7 +890,7 @@ def test_help_diagnostics_has_its_own_title_and_exports_safe_json(page, live_web
     """Diagnóstico y Acerca de no comparten semántica ni contenido visual."""
 
     page.goto(f"{live_web_app}/")
-    page.get_by_role("button", name="Ayuda", exact=True).click()
+    page.get_by_role("button", name="Diagnóstico", exact=True).click()
     page.get_by_role("button", name="Diagnóstico de sesión", exact=True).click()
 
     dialog = page.get_by_role("dialog")
@@ -865,7 +900,7 @@ def test_help_diagnostics_has_its_own_title_and_exports_safe_json(page, live_web
     dialog.press("Escape")
     expect(dialog).to_be_hidden()
 
-    page.get_by_role("button", name="Ayuda", exact=True).click()
+    page.get_by_role("button", name="Diagnóstico", exact=True).click()
     with page.expect_download() as download_info:
         page.get_by_role("button", name="Exportar diagnóstico JSON", exact=True).click()
     download = download_info.value
@@ -928,7 +963,7 @@ def test_trace_tick_advances_the_visible_authoritative_snapshot(page, live_web_a
     page.goto(f"{live_web_app}/")
     page.locator("#codeEditor").fill("from pybricks.tools import wait\nwait(1)\n")
 
-    traces_menu = page.get_by_role("button", name="Trazas", exact=True)
+    traces_menu = page.get_by_role("button", name="Diagnóstico", exact=True)
     traces_menu.hover()
     page.get_by_role("button", name="Iniciar registro", exact=True).click()
     expect(page.locator("#console")).to_contain_text("Registro de traza iniciado.")
@@ -1002,7 +1037,7 @@ def test_loading_new_example_clears_stale_breakpoints(page, live_web_app, expect
     page.locator(".gutter-line[data-line='12']").click()
     expect(page.locator("#breakpointsInput")).to_have_value("12")
 
-    page.locator(".menu-trigger", has_text="Ejemplos").hover()
+    page.locator(".menu-trigger", has_text="Aprender").hover()
     page.locator("#examplesMenu button", has_text="menu_example.py").click()
 
     expect(page.locator("#codeEditor")).to_have_value(re.compile("menu"))

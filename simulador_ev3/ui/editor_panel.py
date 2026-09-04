@@ -239,6 +239,7 @@ class EditorPanel(tk.Frame):
         self._debug_line: Optional[int] = None
         self._breakpoints: set[int] = set()
         self._watches: list[str] = []
+        self._dirty = False
         self._ac_popup: Optional[tk.Toplevel] = None
         self._ac_listbox: Optional[tk.Listbox] = None
         self._ac_items: list[str] = []
@@ -275,6 +276,21 @@ class EditorPanel(tk.Frame):
         self.clear_debug_line()
         self._highlight()
         self._update_linenos()
+        self.mark_clean()
+
+    def is_dirty(self) -> bool:
+        """Indica si el usuario ha modificado el script desde la última carga o guardado."""
+
+        return bool(self._dirty)
+
+    def mark_clean(self) -> None:
+        """Marca el contenido actual como persistido o cargado desde una fuente confiable."""
+
+        self._dirty = False
+        try:
+            self._text.edit_modified(False)
+        except Exception:  # noqa: BLE001
+            pass
 
     def focus_editor(self) -> None:
         """Da foco al editor sin exponer el control Tk interno."""
@@ -537,9 +553,11 @@ class EditorPanel(tk.Frame):
         self._text.insert("1.0", _PLACEHOLDER)
         self._highlight()
         self._update_linenos()
+        self.mark_clean()
 
         # Eventos
         self._text.bind("<KeyRelease>", self._on_key_release)
+        self._text.bind("<<Modified>>", self._on_text_modified)
         self._text.bind("<KeyPress>", self._on_key_press)
         self._text.bind("<Control-space>", self._on_ctrl_space)
         self._text.bind("<Tab>", self._on_tab_pressed)
@@ -706,6 +724,18 @@ class EditorPanel(tk.Frame):
             self._show_autocomplete(prefix)
             return
         self._hide_autocomplete()
+
+    def _on_text_modified(self, _event=None) -> None:
+        """Registra inserciones, pegados, deshacer y cambios programáticos no limpios."""
+
+        try:
+            if not self._text.edit_modified():
+                return
+            self._dirty = True
+            self._text.edit_modified(False)
+        except Exception:  # noqa: BLE001
+            # El editor sigue operativo en dobles de prueba sin todas las APIs Tk.
+            self._dirty = True
 
     def _on_text_vertical_scroll(self, first: float, last: float) -> None:
         """Sincroniza scrollbar y gutter cuando el editor se desplaza."""
@@ -1005,6 +1035,7 @@ class EditorPanel(tk.Frame):
                     allowed_suffixes=(".py",),
                     max_bytes=MAX_SCRIPT_FILE_BYTES,
                 )
+                self.mark_clean()
                 self.set_status(f"Guardado: {os.path.basename(path)}")
             except (LocalFileSecurityError, OSError):
                 messagebox.showerror("Error al guardar", "No se pudo guardar el script en el destino seleccionado.")

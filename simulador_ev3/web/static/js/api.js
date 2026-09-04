@@ -85,13 +85,6 @@ window.EV3Api = (() => {
           error.retryAfterS = retryAfterInt;
         }
       }
-      if (error.workerId || error.workerPid) {
-        const workerLabel = [
-          error.workerId ? `worker=${error.workerId}` : null,
-          error.workerPid ? `pid=${error.workerPid}` : null,
-        ].filter(Boolean).join(", ");
-        error.message = `${message} [${workerLabel}]`;
-      }
       throw error;
     }
     return data;

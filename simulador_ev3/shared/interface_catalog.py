@@ -60,18 +60,52 @@ def is_supported_runtime_limit(value: float) -> bool:
 
     return float(value) in RUNTIME_LIMIT_OPTIONS
 
-NAVIGATION_MENU_ORDER = (
-    "Archivo",
-    "Ejemplos",
-    "Mundos",
-    "Escenarios",
-    "Misiones",
-    "Tema",
-    "Fidelidad",
-    "Tiempo máximo",
-    "Trazas",
-    "Ayuda",
-)
+NAVIGATION_MENU = {
+    "file": "Archivo",
+    "learn": "Aprender",
+    "worlds": "Mundos",
+    "guided_practice": "Prácticas guiadas",
+    "missions": "Misiones",
+    "settings": "Configuración",
+    "diagnostics": "Diagnóstico",
+    "help": "Ayuda",
+}
+
+NAVIGATION_MENU_DESCRIPTIONS = {
+    "file": "Crear, abrir y guardar programas.",
+    "learn": "Programas organizados para aprender robótica paso a paso.",
+    "worlds": "Crear, importar y seleccionar entornos de simulación.",
+    "guided_practice": "Actividades que cargan un mundo y programa relacionados.",
+    "missions": "Retos evaluables con objetivo y progreso.",
+    "settings": "Ajustes visuales y de comportamiento de la simulación.",
+    "diagnostics": "Herramientas para revisar el estado técnico y exportar evidencia.",
+    "help": "Guías, referencias e información sobre BotLab Studio.",
+}
+
+NAVIGATION_MENU_ICONS = {
+    "file": "file",
+    "learn": "book",
+    "worlds": "map",
+    "guided_practice": "route",
+    "missions": "flag",
+    "settings": "settings",
+    "diagnostics": "stethoscope",
+    "help": "help",
+}
+
+# Las claves antiguas se conservan únicamente para redireccionar enlaces y
+# pruebas de compatibilidad durante la migración de la interfaz.
+LEGACY_NAVIGATION_CATEGORY_MAP = {
+    "Ejemplos": "learn",
+    "Escenarios": "guided_practice",
+    "Tema": "settings",
+    "Fidelidad": "settings",
+    "Tiempo máximo": "settings",
+    "Trazas": "diagnostics",
+}
+
+# Orden visible común para la Web y la aplicación de escritorio.
+NAVIGATION_MENU_ORDER = tuple(NAVIGATION_MENU.values())
 
 VALIDATION_MESSAGES = {
     "script_required": "No hay script cargado para ejecutar.",

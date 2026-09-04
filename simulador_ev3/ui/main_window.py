@@ -53,7 +53,7 @@ from simulador_ev3.shared.help_tutorials import (
     guide_by_id,
     help_menu_action,
 )
-from simulador_ev3.shared.interface_catalog import RUNTIME_LIMIT_OPTIONS, label_for_status
+from simulador_ev3.shared.interface_catalog import NAVIGATION_MENU, RUNTIME_LIMIT_OPTIONS, label_for_status
 from simulador_ev3.shared.local_file_security import LocalFileSecurityError, safe_desktop_error, write_text_atomically
 from simulador_ev3.shared.mission_catalog import MissionCatalog
 from simulador_ev3.shared.paths import (
@@ -97,10 +97,10 @@ _EXAMPLES_DIR = resolve_examples_dir()
 _WORLDS_DIR = resolve_worlds_dir()
 
 _SCENARIOS: list[tuple[str, str, str]] = [
-    ("Seguidor de línea", "01_linea_negra_basica.json", "11_siguelineas_basico.py"),
-    ("Ultrasonido + obstáculos", "05_obstaculos_baliza_ir.json", "15_esquiva_obstaculos.py"),
-    ("Test pantalla/altavoz", "05_obstaculos_baliza_ir.json", "02_intro_pantalla_altavoz.py"),
-    ("Radar 360 ultrasonido", "12_radar_ultrasonido_360.json", "23_radar_ultrasonido_5grados.py"),
+    ("Seguidor de línea — seguir una línea negra", "01_linea_negra_basica.json", "11_siguelineas_basico.py"),
+    ("Ultrasonido y obstáculos — evitar colisiones", "05_obstaculos_baliza_ir.json", "15_esquiva_obstaculos.py"),
+    ("Pantalla y altavoz — comunicar información", "05_obstaculos_baliza_ir.json", "02_intro_pantalla_altavoz.py"),
+    ("Radar ultrasónico 360° — medir el entorno", "12_radar_ultrasonido_360.json", "23_radar_ultrasonido_5grados.py"),
 ]
 
 # Periodo del tick en ms (â‰ˆ50 Hz)
@@ -300,7 +300,7 @@ class EV3SimulatorApp(tk.Tk):
         )
         file_menu.add_separator()
         file_menu.add_command(label="Salir", command=self._on_close)
-        add_menu_button("Archivo", file_menu, lockable=True)
+        add_menu_button(NAVIGATION_MENU["file"], file_menu, lockable=True)
 
         self.bind("<Control-n>", self._evt_new_script)
         self.bind("<Control-o>", self._evt_open_script)
@@ -311,10 +311,10 @@ class EV3SimulatorApp(tk.Tk):
         self.bind("<Shift-F5>", self._evt_stop_reset)
         self.bind("<Escape>", self._evt_escape)
 
-        # MenÃº Ejemplos
+        # Menú Aprender: catálogo de ejemplos organizados para práctica autónoma.
         examples_menu = tk.Menu(header, tearoff=0, **menu_style)
         self._populate_examples_menu(examples_menu)
-        add_menu_button("Ejemplos", examples_menu, lockable=True)
+        add_menu_button(NAVIGATION_MENU["learn"], examples_menu, lockable=True)
 
         # MenÃº Mundos
         worlds_menu = tk.Menu(header, tearoff=0, **menu_style)
@@ -326,62 +326,81 @@ class EV3SimulatorApp(tk.Tk):
         preset_worlds_menu = tk.Menu(worlds_menu, tearoff=0, **menu_style)
         self._populate_worlds_menu(preset_worlds_menu)
         worlds_menu.add_cascade(label="Mundos preestablecidos", menu=preset_worlds_menu)
-        add_menu_button("Mundos", worlds_menu, lockable=True)
+        add_menu_button(NAVIGATION_MENU["worlds"], worlds_menu, lockable=True)
 
-        # MenÃº Escenarios (mundo + ejemplo)
+        # Prácticas guiadas: combinan un mundo y un ejemplo con un objetivo.
         scenario_menu = tk.Menu(header, tearoff=0, **menu_style)
         self._populate_scenarios_menu(scenario_menu)
-        add_menu_button("Escenarios", scenario_menu, lockable=True)
+        add_menu_button(NAVIGATION_MENU["guided_practice"], scenario_menu, lockable=True)
 
         missions_menu = tk.Menu(header, tearoff=0, **menu_style)
         self._populate_missions_menu(missions_menu)
-        add_menu_button("Misiones", missions_menu, lockable=True)
+        add_menu_button(NAVIGATION_MENU["missions"], missions_menu, lockable=True)
 
-        theme_menu = tk.Menu(header, tearoff=0, **menu_style)
+        configuration_menu = tk.Menu(header, tearoff=0, **menu_style)
+        current_profile = self._service.engine_config.simulation_profile
+        current_limit = self._service.max_runtime_s
+        current_limit_label = "Sin límite" if current_limit == 0 else f"{current_limit:.0f} s"
+        current_theme_label = "oscuro" if self._theme_name == "dark" else "claro"
+        configuration_menu.add_command(
+            label=f"Actual: tema {current_theme_label}, perfil {current_profile}, límite {current_limit_label}",
+            state=tk.DISABLED,
+        )
+        self._configuration_menu = configuration_menu
+        configuration_menu.add_separator()
+        theme_menu = tk.Menu(configuration_menu, tearoff=0, **menu_style)
         theme_menu.add_command(label="Tema claro", command=lambda: self._set_theme("light"))
         theme_menu.add_command(label="Tema oscuro", command=lambda: self._set_theme("dark"))
-        add_menu_button("Tema", theme_menu, lockable=True)
 
-        profile_menu = tk.Menu(header, tearoff=0, **menu_style)
-        profile_menu.add_command(label="Ideal", command=lambda: self._set_simulation_profile("ideal"))
-        profile_menu.add_command(label="Realista", command=lambda: self._set_simulation_profile("realistic"))
-        profile_menu.add_command(label="Calibrado", command=lambda: self._set_simulation_profile("calibrated"))
-        add_menu_button("Fidelidad", profile_menu, lockable=True)
+        profile_menu = tk.Menu(configuration_menu, tearoff=0, **menu_style)
+        profile_menu.add_command(label="Ideal — prioriza aprendizaje", command=lambda: self._set_simulation_profile("ideal"))
+        profile_menu.add_command(label="Realista — simula restricciones", command=lambda: self._set_simulation_profile("realistic"))
+        profile_menu.add_command(label="Calibrado — usa parámetros ajustados", command=lambda: self._set_simulation_profile("calibrated"))
 
-        runtime_menu = tk.Menu(header, tearoff=0, **menu_style)
+        runtime_menu = tk.Menu(configuration_menu, tearoff=0, **menu_style)
         for seconds in (item for item in RUNTIME_LIMIT_OPTIONS if item > 0):
-            runtime_menu.add_command(label=f"{int(seconds)} s", command=partial(self._set_max_runtime, int(seconds)))
+            suffix = " (recomendado)" if seconds == 120 else ""
+            runtime_menu.add_command(label=f"{int(seconds)} s{suffix}", command=partial(self._set_max_runtime, int(seconds)))
         runtime_menu.add_command(label="Sin limite", command=lambda: self._set_max_runtime(0))
-        add_menu_button("Tiempo máximo", runtime_menu, lockable=True)
+        configuration_menu.add_cascade(label="Apariencia", menu=theme_menu)
+        configuration_menu.add_cascade(label="Precisión de simulación", menu=profile_menu)
+        configuration_menu.add_cascade(label="Límite de ejecución", menu=runtime_menu)
+        add_menu_button(NAVIGATION_MENU["settings"], configuration_menu, lockable=True)
 
-        trace_menu = tk.Menu(header, tearoff=0, **menu_style)
-        trace_menu.add_command(label="Iniciar registro", command=self._start_trace)
-        trace_menu.add_command(label="Detener registro", command=self._stop_trace)
-        trace_menu.add_command(label="Avanzar un tick", command=self._step_tick)
-        trace_menu.add_separator()
-        trace_menu.add_command(label="Exportar JSON...", command=lambda: self._export_trace("json"))
-        trace_menu.add_command(label="Exportar CSV...", command=lambda: self._export_trace("csv"))
-        add_menu_button("Trazas", trace_menu, lockable=True)
-
-        # MenÃº Ayuda
-        help_menu = tk.Menu(header, tearoff=0, **menu_style)
         help_center = help_menu_action("help-center")
         quick_start = help_menu_action("quick-first-simulation")
         diagnostics = help_menu_action("session-diagnostics")
         export_diagnostics = help_menu_action("export-diagnostics")
         book = help_menu_action("lego-ev3-book")
         about = help_menu_action("about")
+
+        diagnostics_menu = tk.Menu(header, tearoff=0, **menu_style)
+        trace_menu = tk.Menu(diagnostics_menu, tearoff=0, **menu_style)
+        trace_menu.add_command(label="Iniciar registro", command=self._start_trace)
+        trace_menu.add_command(label="Detener registro", command=self._stop_trace)
+        trace_menu.add_command(label="Avanzar un tick", command=self._step_tick)
+        trace_menu.add_separator()
+        trace_menu.add_command(label="Exportar JSON...", command=lambda: self._export_trace("json"))
+        trace_menu.add_command(label="Exportar CSV...", command=lambda: self._export_trace("csv"))
+
+        diagnostics_menu.add_cascade(label="Trazas de simulación", menu=trace_menu)
+        diagnostics_menu.add_separator()
+        diagnostics_menu.add_command(label=f"{diagnostics.label}...", command=self._show_session_diagnostics)
+        diagnostics_menu.add_command(label=f"{export_diagnostics.label}...", command=self._export_session_diagnostics)
+        add_menu_button(NAVIGATION_MENU["diagnostics"], diagnostics_menu, lockable=True)
+
+        # Menú Ayuda: aprendizaje e información general.
+        help_menu = tk.Menu(header, tearoff=0, **menu_style)
         help_menu.add_command(label=f"{help_center.label}...", command=self._cmd_user_manual)
         help_menu.add_command(
             label=f"{quick_start.label}...",
             command=lambda: self._open_contextual_help(quick_start.guide_id or "first-simulation"),
         )
-        help_menu.add_command(label=f"{diagnostics.label}...", command=self._show_session_diagnostics)
-        help_menu.add_command(label=f"{export_diagnostics.label}...", command=self._export_session_diagnostics)
+        help_menu.add_separator()
         help_menu.add_command(label=book.label, command=lambda: self._open_external_help_link(book.external_url))
         help_menu.add_separator()
         help_menu.add_command(label=f"{about.label}...", command=self._cmd_about)
-        add_menu_button("Ayuda", help_menu)
+        add_menu_button(NAVIGATION_MENU["help"], help_menu)
 
         self._update_menu_lock_state()
 
@@ -416,11 +435,13 @@ class EV3SimulatorApp(tk.Tk):
                 editor_window.apply_theme(self._theme_name)
         except Exception:  # noqa: BLE001
             pass
+        self._refresh_configuration_summary()
 
     def _set_simulation_profile(self, profile: str) -> None:
         try:
             self._service.set_simulation_profile(profile)
             self._editor.set_status(f"Perfil de simulacion: {profile}", "#2E7D32")
+            self._refresh_configuration_summary()
         except RuntimeError as exc:
             messagebox.showwarning("Perfil de simulacion", str(exc))
         except ValueError as exc:
@@ -431,10 +452,22 @@ class EV3SimulatorApp(tk.Tk):
             self._service.set_max_runtime_s(float(seconds))
             label = "Sin limite" if seconds == 0 else f"{seconds} s"
             self._editor.set_status(f"Tiempo maximo: {label}", "#2E7D32")
+            self._refresh_configuration_summary()
         except RuntimeError as exc:
             messagebox.showwarning("Tiempo maximo", str(exc))
         except ValueError as exc:
             messagebox.showerror("Tiempo maximo", str(exc))
+
+    def _refresh_configuration_summary(self) -> None:
+        """Actualiza el valor visible de Configuración sin reconstruir la ventana."""
+        menu = getattr(self, "_configuration_menu", None)
+        if menu is None:
+            return
+        profile = self._service.engine_config.simulation_profile
+        limit = self._service.max_runtime_s
+        limit_label = "Sin límite" if limit == 0 else f"{limit:.0f} s"
+        theme_label = "oscuro" if self._theme_name == "dark" else "claro"
+        menu.entryconfigure(0, label=f"Actual: tema {theme_label}, perfil {profile}, límite {limit_label}")
 
     def _start_trace(self) -> None:
         self._service.start_trace()
@@ -714,17 +747,59 @@ class EV3SimulatorApp(tk.Tk):
         )
         return True
 
+    def _confirm_replace_unsaved_script(self, action_label: str) -> bool:
+        """Evita que una acción de menú reemplace trabajo no guardado sin aviso."""
+
+        editor = getattr(self, "_editor", None)
+        is_dirty = getattr(editor, "is_dirty", None)
+        if not callable(is_dirty) or not is_dirty():
+            return True
+        return messagebox.askyesno(
+            "Cambios sin guardar",
+            f"Hay cambios sin guardar en el programa actual.\n\n{action_label} puede reemplazarlo. ¿Deseas continuar?",
+        )
+
     def _populate_examples_menu(self, menu: tk.Menu) -> None:
-        """AÃ±ade un Ã­tem por cada *.py en el directorio de ejemplos."""
+        """Agrupa ejemplos por propósito didáctico antes de añadirlos al menú."""
         examples = self._examples.list_examples()
         if not examples:
             menu.add_command(label="(No hay ejemplos)", state=tk.DISABLED)
             return
+        tokens = tokens_for_theme(self._theme_name)
+        menu_style: dict[str, Any] = {
+            "bg": tokens.surface,
+            "fg": tokens.text,
+            "activebackground": tokens.primary,
+            "activeforeground": "white",
+        }
+        grouped: dict[str, list[Any]] = {}
         for example in examples:
-            menu.add_command(
-                label=example.name,
-                command=lambda p=str(example.path): self._load_example(p),  # type: ignore[misc]
-            )
+            grouped.setdefault(self._learning_group_for_example(example.name), []).append(example)
+        for group, entries in grouped.items():
+            subgroup = tk.Menu(menu, tearoff=0, **menu_style)
+            for example in entries:
+                subgroup.add_command(
+                    label=example.name,
+                    command=lambda p=str(example.path): self._load_example(p),  # type: ignore[misc]
+                )
+            menu.add_cascade(label=group, menu=subgroup)
+
+    @staticmethod
+    def _learning_group_for_example(name: str) -> str:
+        """Devuelve una categoría didáctica estable a partir del número del ejemplo."""
+        try:
+            order = int(name[:2])
+        except ValueError:
+            return "Otros ejemplos"
+        if order <= 2:
+            return "Empezar"
+        if order <= 6:
+            return "Movimiento"
+        if order <= 10:
+            return "Sensores"
+        if order <= 18:
+            return "Control y navegación"
+        return "Retos avanzados"
 
     def _populate_worlds_menu(self, menu: tk.Menu) -> None:
         if not _WORLDS_DIR.is_dir():
@@ -749,7 +824,7 @@ class EV3SimulatorApp(tk.Tk):
         for label, world_file, example_file in _SCENARIOS:
             menu.add_command(
                 label=label,
-                command=lambda w=world_file, e=example_file: self._apply_scenario(w, e),  # type: ignore[misc]
+                command=lambda l=label, w=world_file, e=example_file: self._apply_scenario(w, e, label=l),  # type: ignore[misc]
             )
 
     def _populate_missions_menu(self, menu: tk.Menu) -> None:
@@ -759,8 +834,11 @@ class EV3SimulatorApp(tk.Tk):
             menu.add_command(label="(No hay misiones disponibles)", state=tk.DISABLED)
             return
         for mission in missions:
+            minutes = mission.metadata.get("estimated_minutes") if isinstance(mission.metadata, dict) else None
+            detail = f" — {minutes} min" if minutes else ""
+            requirements = len(mission.acceptance_criteria)
             menu.add_command(
-                label=mission.title,
+                label=f"{mission.title}{detail} · {requirements} requisitos",
                 command=lambda item=mission: self._load_mission(item.identifier),  # type: ignore[misc]
             )
 
@@ -1631,6 +1709,8 @@ class EV3SimulatorApp(tk.Tk):
         """Abre un script desde disco."""
         if self._guard_menu_locked():
             return
+        if not self._confirm_replace_unsaved_script("Abrir otro script"):
+            return
         if self._service.is_running:
             if not messagebox.askyesno(
                 "Abrir script",
@@ -1650,6 +1730,8 @@ class EV3SimulatorApp(tk.Tk):
         """Nuevo script en blanco."""
         if self._guard_menu_locked():
             return
+        if not self._confirm_replace_unsaved_script("Crear un script nuevo"):
+            return
         if self._service.is_running:
             if not messagebox.askyesno("Nuevo script", "La simulación está corriendo. ¿Detener?"):
                 return
@@ -1659,6 +1741,8 @@ class EV3SimulatorApp(tk.Tk):
     def _load_example(self, path: str) -> None:
         """Carga un script de ejemplo en el editor."""
         if self._guard_menu_locked():
+            return
+        if not self._confirm_replace_unsaved_script("Cargar un ejemplo"):
             return
         if self._service.is_running:
             self._service.stop()
@@ -1720,6 +1804,8 @@ class EV3SimulatorApp(tk.Tk):
             messagebox.showerror("Editor de mundos", safe_desktop_error(exc, "No se pudo aplicar el mundo editado."))
 
     def _load_world(self, path: str) -> None:
+        if not self._confirm_replace_unsaved_script("Cargar un mundo"):
+            return
         try:
             self._service.load_world_file(path)
             self._active_world_path = str(Path(path).resolve())
@@ -1737,6 +1823,8 @@ class EV3SimulatorApp(tk.Tk):
     def _cmd_load_blank_world(self) -> None:
         if self._guard_menu_locked():
             return
+        if not self._confirm_replace_unsaved_script("Crear un mundo en blanco"):
+            return
         try:
             self._service.load_blank_world()
             self._active_world_path = None
@@ -1750,10 +1838,18 @@ class EV3SimulatorApp(tk.Tk):
                 "Error al cargar mundo", safe_desktop_error(exc, "No se pudo crear el mundo en blanco.")
             )
 
-    def _apply_scenario(self, world_file: str, example_file: str) -> None:
+    def _apply_scenario(self, world_file: str, example_file: str, *, label: str = "Práctica guiada", confirm: bool = True) -> bool:
         """Carga un mundo preset y un ejemplo asociado en un solo paso."""
         if self._guard_menu_locked():
-            return
+            return False
+        if confirm and not messagebox.askyesno(
+            "Cargar práctica guiada",
+            f"{label}\n\nMundo: {world_file}\nPrograma: {example_file}\n\n¿Deseas cargarla?",
+        ):
+            self._editor.set_status("Carga de práctica guiada cancelada", "#455A64")
+            return False
+        if not self._confirm_replace_unsaved_script("Cargar esta práctica guiada"):
+            return False
         world_path = _WORLDS_DIR / world_file
         example_path = _EXAMPLES_DIR / example_file
 
@@ -1762,10 +1858,10 @@ class EV3SimulatorApp(tk.Tk):
 
         if not world_path.exists():
             messagebox.showerror("Escenario", f"No existe el mundo: {world_file}")
-            return
+            return False
         if not example_path.exists():
             messagebox.showerror("Escenario", f"No existe el ejemplo: {example_file}")
-            return
+            return False
 
         try:
             self._service.load_world_file(str(world_path))
@@ -1779,8 +1875,10 @@ class EV3SimulatorApp(tk.Tk):
                 f"Escenario cargado: {Path(example_file).stem}",
                 "#2E7D32",
             )
+            return True
         except Exception as exc:  # noqa: BLE001
             messagebox.showerror("Escenario", safe_desktop_error(exc, "No se pudo cargar el escenario solicitado."))
+            return False
 
     def _load_mission(self, identifier: str) -> None:
         """Carga mundo y script inicial de una misión local compartida."""
@@ -1788,10 +1886,14 @@ class EV3SimulatorApp(tk.Tk):
         if mission is None:
             messagebox.showerror("Misiones", "La misión solicitada no está disponible.")
             return
-        self._apply_scenario(mission.world_file, mission.starter_script)
+        if not self._apply_scenario(mission.world_file, mission.starter_script, label=mission.title, confirm=False):
+            return
         self._service.activate_mission(mission)
         self._refresh_learning_hint()
-        self._editor.set_status(f"Misión cargada: {mission.title}", "#2E7D32")
+        self._editor.set_status(
+            f"Misión cargada: {mission.title}. Objetivo: {mission.objective}. Progreso: 0/{len(mission.acceptance_criteria)} requisitos.",
+            "#2E7D32",
+        )
 
     def _refresh_world_canvas(self) -> None:
         # Fondo, obstáculos y assets se reemplazan a continuación. Limpiamos

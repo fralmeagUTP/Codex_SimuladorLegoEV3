@@ -755,9 +755,9 @@ def test_execution_context_menus_are_marked_for_a_shared_lock_policy(tmp_path):
     lifecycle_js = client.get("/static/js/page_lifecycle_controller.js").get_data(as_text=True)
     page = client.get("/").get_data(as_text=True)
 
-    # Archivo, Ejemplos, Mundos, Escenarios, Misiones y los cuatro menús que
-    # modifican configuración de ejecución deben compartir el mismo bloqueo.
-    assert page.count("data-execution-lockable") == 9
+    # Archivo, Aprender, Mundos, Prácticas guiadas, Misiones, Configuración y
+    # Diagnóstico modifican contexto o ejecución y comparten el mismo bloqueo.
+    assert page.count("data-execution-lockable") == 7
     assert "<button type=\"button\" class=\"menu-trigger\"" in page
     assert "const POLLING_INTERVAL_MS = Number.isFinite(configuredPollingIntervalMs)" in js
     assert "const SSE_ENABLED =" in js
@@ -794,6 +794,107 @@ def test_execution_context_menus_are_marked_for_a_shared_lock_policy(tmp_path):
     assert "X-Worker-Pid" in api_js
     assert "lastWorkerInfo" in api_js
     assert 'window.addEventListener("ev3-session-recovered"' in lifecycle_js
+
+
+def test_primary_menu_uses_the_shared_learning_and_support_taxonomy(tmp_path):
+    """Web conserva la misma taxonomía prevista para la interfaz Tkinter."""
+    client = make_client(tmp_path)
+    page = client.get("/").get_data(as_text=True)
+    desktop_source = (PROJECT_ROOT / "simulador_ev3" / "ui" / "main_window.py").read_text(encoding="utf-8")
+    template_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    from simulador_ev3.shared.interface_catalog import LEGACY_NAVIGATION_CATEGORY_MAP, NAVIGATION_MENU
+
+    expected = (
+        "Archivo",
+        "Aprender",
+        "Mundos",
+        "Prácticas guiadas",
+        "Misiones",
+        "Configuración",
+        "Diagnóstico",
+        "Ayuda",
+    )
+    for label in expected:
+        assert label in page
+    assert tuple(NAVIGATION_MENU.values()) == expected
+    for key in NAVIGATION_MENU:
+        assert f"navigation_menu['{key}']" in template_source
+        assert f'NAVIGATION_MENU["{key}"]' in desktop_source
+    assert "NAVIGATION_MENU" in (PROJECT_ROOT / "simulador_ev3" / "shared" / "interface_catalog.py").read_text(encoding="utf-8")
+    assert LEGACY_NAVIGATION_CATEGORY_MAP == {
+        "Ejemplos": "learn",
+        "Escenarios": "guided_practice",
+        "Tema": "settings",
+        "Fidelidad": "settings",
+        "Tiempo máximo": "settings",
+        "Trazas": "diagnostics",
+    }
+
+    assert '<span class="menu-section-label">Trazas de simulación</span>' in page
+    assert "data-simulation-profile=\"ideal\"" in page
+    assert "Actual: tema" in desktop_source
+
+
+def test_content_loading_recovers_a_lost_session_before_reporting_failure(tmp_path):
+    client = make_client(tmp_path)
+    script = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+
+    assert "La sesión venció. Se está recuperando para cargar el ejemplo" in script
+    assert "La sesión venció. Se está recuperando para cargar el mundo" in script
+    assert "retryAfterRecovery = true" in script
+    assert "async function getExampleWithRecovery(name" in script
+    assert "return getExampleWithRecovery(name, { retryAfterRecovery: false })" in script
+    assert "return loadWorldByName(name, { throwOnError, retryAfterRecovery: false, confirmDiscard: false })" in script
+
+
+def test_content_replacement_protects_unsaved_work_and_sanitizes_visible_errors(tmp_path):
+    """El contrato de navegación conserva el trabajo y no muestra datos internos."""
+
+    client = make_client(tmp_path)
+    script = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    api_script = client.get("/static/js/api.js").get_data(as_text=True)
+
+    assert "function confirmDiscardUnsavedChanges(actionLabel)" in script
+    assert "Hay cambios sin guardar" in script
+    assert 'confirmDiscardUnsavedChanges("Cargar un ejemplo")' in script
+    assert 'confirmDiscardUnsavedChanges("Cargar un mundo")' in script
+    assert 'confirmDiscardUnsavedChanges("Cargar esta práctica guiada")' in script
+    assert 'confirmDiscardUnsavedChanges("Cargar esta misión")' in script
+    assert "function safeContentLoadError(err, fallback)" in script
+    assert "pid=${error.workerPid}" not in api_script
+    assert "worker=${error.workerId}" not in api_script
+    assert "function applyExampleData(name, data)" in script
+    assert "const exampleData = await getExampleWithRecovery(scenario.example);" in script
+    assert "const exampleData = await getExampleWithRecovery(mission.starter_script);" in script
+    assert "¿Deseas cargarla?" in script
+
+
+def test_configuration_controls_expose_the_current_session_values(tmp_path):
+    client = make_client(tmp_path)
+    profile_controls = client.get("/static/js/profile_controls.js").get_data(as_text=True)
+    runtime_controls = client.get("/static/js/runtime_limit_controls.js").get_data(as_text=True)
+    session_source = (PROJECT_ROOT / "simulador_ev3" / "web" / "services" / "simulation_session.py").read_text(encoding="utf-8")
+
+    assert "setActiveProfile" in profile_controls
+    assert "aria-pressed" in profile_controls
+    assert "setActiveRuntimeLimit" in runtime_controls
+    assert "aria-pressed" in runtime_controls
+    assert '"max_runtime_s": self._max_runtime_s' in session_source
+
+
+def test_missions_expose_objective_and_estimated_duration_in_both_products(tmp_path):
+    client = make_client(tmp_path)
+    script = client.get("/static/js/simulation_app.js").get_data(as_text=True)
+    desktop_source = (PROJECT_ROOT / "simulador_ev3" / "ui" / "main_window.py").read_text(encoding="utf-8")
+
+    assert "mission.objective" in script
+    assert "Duración estimada" in script
+    assert "aria-description" in script
+    assert 'mission.metadata.get("estimated_minutes")' in desktop_source
+    assert "mission.acceptance_criteria" in script
+    assert "renderMissionProgress" in script
+    assert 'len(mission.acceptance_criteria)' in desktop_source
 
 
 def test_simulation_canvas_preserves_physical_world_scale(tmp_path):
@@ -972,7 +1073,8 @@ def test_ev3_lcd_keeps_original_screen_ratio(tmp_path):
     assert "@media (max-height: 820px)" in css
     assert "width: min(240px, calc(100% - 24px));" in css
     assert "aspect-ratio: 178 / 128;" in css
-    assert "grid-template-columns: minmax(430px, 1.18fr) minmax(300px, 0.82fr);" in css
+    assert "--ev3-brick-min-width: 340px;" in css
+    assert "grid-template-columns: minmax(430px, 1.18fr) minmax(var(--ev3-brick-min-width), 0.82fr);" in css
     assert "grid-template-columns: minmax(220px, 34fr)" in css
 
 
@@ -1033,8 +1135,10 @@ def test_simulation_workspace_uses_compact_vertical_spacing(tmp_path):
     workspace_block = re.search(r"\.sim-workspace \{(?P<body>.*?)\n\}", css, re.DOTALL)
     assert workspace_block is not None
     body = workspace_block.group("body")
-    assert "gap: 6px;" in body
-    assert "padding: 4px 12px 0;" in body
+    assert "--ev3-space-compact: 6px;" in css
+    assert "--ev3-space-page: 12px;" in css
+    assert "gap: var(--ev3-space-compact);" in body
+    assert "padding: 4px var(--ev3-space-page) 0;" in body
     assert "grid-template-rows: minmax(0, 1fr) 36px;" in body
     assert "gap: 10px;" not in body
     assert "padding: 8px 12px 0;" not in body

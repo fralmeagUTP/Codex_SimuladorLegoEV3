@@ -879,6 +879,7 @@ class SimulationSession(SimulationSessionPort, PresentationPort, LearningPort, O
             "breakpoints": sorted(self._debug_breakpoints),
             "watches": list(self._debug_watches),
             "simulation_profile": self._service.engine_config.simulation_profile,
+            "max_runtime_s": self._max_runtime_s,
             "active_mission": (
                 {"id": self._active_mission.identifier, "title": self._active_mission.title}
                 if self._active_mission is not None

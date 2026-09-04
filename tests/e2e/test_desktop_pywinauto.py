@@ -395,8 +395,9 @@ def test_desktop_real_catalog_loads_examples_scenarios_and_missions() -> None:
         "load_example = app._load_example; "
         "app._load_example = lambda path: (load_example(path), state_path.write_text("
         "'example:' + Path(path).name, encoding='utf-8'))[0]; "
+        "from tkinter import messagebox; messagebox.askyesno = lambda *args, **kwargs: True; "
         "apply_scenario = app._apply_scenario; "
-        "app._apply_scenario = lambda world, example: (apply_scenario(world, example), state_path.write_text("
+        "app._apply_scenario = lambda world, example, **kwargs: (apply_scenario(world, example, **kwargs), state_path.write_text("
         "'scenario:' + world + ':' + example, encoding='utf-8'))[0]; "
         "load_mission = app._load_mission; "
         "app._load_mission = lambda identifier: (load_mission(identifier), state_path.write_text("
@@ -426,10 +427,29 @@ def test_desktop_real_catalog_loads_examples_scenarios_and_missions() -> None:
         # Las coordenadas relativas provienen de los botones reales de esta
         # ventana Tkinter. Cada selección usa el menú nativo y Enter; la
         # instrumentación solo captura su geometría para evitar clicks frágiles.
-        for index, example in enumerate(examples):
+        def learning_group(name: str) -> str:
+            order = int(name[:2])
+            if order <= 2:
+                return "Empezar"
+            if order <= 6:
+                return "Movimiento"
+            if order <= 10:
+                return "Sensores"
+            if order <= 18:
+                return "Control y navegación"
+            return "Retos avanzados"
+
+        learning_groups = ("Empezar", "Movimiento", "Sensores", "Control y navegación", "Retos avanzados")
+        grouped_examples = {group: [item for item in examples if learning_group(item.name) == group] for group in learning_groups}
+        for example in examples:
+            group = learning_group(example.name)
+            group_index = learning_groups.index(group)
+            item_index = grouped_examples[group].index(example)
             main.set_focus()
-            main.click_input(coords=menu_positions["Ejemplos"])
-            main.type_keys("{DOWN}" * (index + 1) + "{ENTER}")
+            main.click_input(coords=menu_positions["Aprender"])
+            # Al abrir una cascada Tk ya selecciona su primer elemento; por
+            # ello el desplazamiento interno es cero para el primer ejemplo.
+            main.type_keys("{DOWN}" * (group_index + 1) + "{RIGHT}" + "{DOWN}" * item_index + "{ENTER}")
             assert _wait_for_state_file(state_path, f"example:{example.name}")
 
         scenarios = (
@@ -440,7 +460,7 @@ def test_desktop_real_catalog_loads_examples_scenarios_and_missions() -> None:
         )
         for index, (world, example) in enumerate(scenarios):
             main.set_focus()
-            main.click_input(coords=menu_positions["Escenarios"])
+            main.click_input(coords=menu_positions["Prácticas guiadas"])
             main.type_keys("{DOWN}" * (index + 1) + "{ENTER}")
             assert _wait_for_state_file(state_path, f"scenario:{world}:{example}")
 
@@ -579,6 +599,7 @@ def test_desktop_menus_unlock_after_execution_finishes_or_resets() -> None:
     state_path.unlink(missing_ok=True)
     state_path_literal = repr(str(state_path))
     source = (
+        "from tkinter import messagebox; messagebox.askyesno = lambda *args, **kwargs: True; "
         "from pathlib import Path; "
         "from simulador_ev3.ui.main_window import EV3SimulatorApp; "
         "app = EV3SimulatorApp(restore_session=False, persist_session=False); "
@@ -628,7 +649,8 @@ def test_desktop_menus_unlock_after_execution_finishes_or_resets() -> None:
         paste_script(running_source)
         main.click_input(coords=run)
         assert _wait_for_state_file(state_path, "locked")
-        invoke_new_from_file_menu()
+        # Archivo queda realmente deshabilitado durante la ejecución: no se
+        # intenta inyectar teclas sobre un control nativo deshabilitado.
         assert read_editor().strip() == running_source.strip()
 
         main.click_input(coords=stop)

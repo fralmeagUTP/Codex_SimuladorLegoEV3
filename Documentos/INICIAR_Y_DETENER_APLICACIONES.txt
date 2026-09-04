@@ -63,5 +63,6 @@ Web:
 
 Escritorio:
   - Debe aparecer la ventana BotLab Studio.
-  - Use Tab desde la barra superior para navegar por Archivo, Ejemplos,
-    Mundos y los demás menús; Enter abre el menú enfocado.
+  - Use Tab desde la barra superior para navegar por Archivo, Aprender,
+    Mundos, Prácticas guiadas, Misiones, Configuración, Diagnóstico y Ayuda;
+    Enter abre el menú enfocado.

@@ -113,11 +113,11 @@ Las dos interfaces permiten configurar puntos de interrupcion, watches, avanzar
 un paso y continuar la ejecucion. El estado de depuracion se recibe mediante el
 contrato de sesion y muestra la linea actual cuando el script se pausa.
 
-El menu **Fidelidad** permite elegir perfiles de simulacion disponibles. Los
+En **Configuración > Precisión de simulación** se eligen los perfiles disponibles. Los
 perfiles no sustituyen la calibracion de un robot fisico; consultar
 `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md` antes de usar una actividad en aula.
 
-El menu **Trazas** inicia o detiene el registro, permite avanzar un tick y
+En **Diagnóstico > Trazas de simulación** se inicia o detiene el registro, permite avanzar un tick y
 exportar la evidencia en JSON/CSV. Las trazas no dependen de la interfaz usada.
 
 ### 2.7 Accesibilidad y teclado
@@ -179,8 +179,8 @@ Las siguientes secciones corresponden a la version de escritorio basada en `tkin
 
 La ventana de escritorio sigue el mismo orden de la pagina de simulacion Web:
 
-- Barra de menus: Archivo, Ejemplos, Mundos, Escenarios, Tema, Fidelidad,
-  Trazas y Ayuda.
+- Barra de menús: Archivo, Aprender, Mundos, Prácticas guiadas, Misiones,
+  Configuración, Diagnóstico y Ayuda.
 - Barra de simulacion: Ejecutar, Pausar, Reanudar y Detener y reiniciar.
 - Mundo a la izquierda y editor/depuracion a la derecha.
 - Telemetria y EV3 Brick debajo del mundo; la telemetria se divide en Robot,
@@ -217,9 +217,10 @@ Atajos:
 - `Ctrl+O`: abrir script.
 - `Ctrl+S`: guardar script.
 
-### 4.2 Menu Ejemplos
+### 4.2 Menú Aprender
 
-Carga scripts de ejemplo desde `examples/`.
+Carga scripts de ejemplo desde `examples/`, agrupados en Empezar, Movimiento,
+Sensores, Control y navegación y Retos avanzados.
 
 ### 4.3 Menu Mundos
 
@@ -227,9 +228,11 @@ Carga scripts de ejemplo desde `examples/`.
 - `Editor de mundos...`: abre el editor visual.
 - Lista de mundos detectados en `worlds/`.
 
-### 4.4 Menu Escenarios
+### 4.4 Menú Prácticas guiadas
 
-Carga combinaciones predefinidas de mundo + script.
+Carga combinaciones predefinidas de objetivo + mundo + script. Antes de confirmar
+se informa qué recursos cambiarán; si hay cambios sin guardar, puede cancelar sin
+perder el programa actual.
 
 ### 4.5 Centro de ayuda contextual
 
@@ -240,10 +243,10 @@ indica requisitos, pasos, resultado esperado y una forma de recuperación.
 
 ### 4.6 Diagnóstico de sesión y soporte
 
-En ambas interfaces, el menú `Ayuda` presenta el mismo orden de comandos:
-`Centro de ayuda`, `Guía rápida: primera simulación`, `Diagnóstico de sesión`,
-`Exportar diagnóstico JSON`, `Libro: Programación en Python para robótica
-(LEGO EV3)` y `Acerca de`.
+En ambas interfaces, `Diagnóstico` concentra `Diagnóstico de sesión`, trazas y
+`Exportar diagnóstico JSON`. `Ayuda` contiene `Centro de ayuda`, `Guía rápida:
+primera simulación`, `Libro: Programación en Python para robótica (LEGO EV3)` y
+`Acerca de`.
 
 El diagnóstico muestra datos técnicos seguros de la sesión actual (estado,
 tick, tiempo y worker cuando exista). En la Web añade métricas de renderizado;

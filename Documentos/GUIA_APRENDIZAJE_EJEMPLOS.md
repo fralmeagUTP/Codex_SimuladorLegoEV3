@@ -68,7 +68,7 @@ Para convertir un ejemplo en una actividad evaluable:
 
 1. Selecciona el ejemplo y el mundo sugerido.
 2. Ejecuta el programa con el perfil de simulacion indicado por el docente.
-3. Inicia el registro desde **Trazas** antes de ejecutar.
+3. Inicia el registro desde **Diagnóstico > Trazas de simulación** antes de ejecutar.
 4. Exporta la traza en JSON o CSV al finalizar.
 5. Revisa la evidencia con los criterios de `Documentos/MISIONES_EVALUABLES.md`.
 

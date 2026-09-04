@@ -29,7 +29,7 @@
     <strong class="app-brand"><span class="brand-mark">EV3</span>BotLab Studio</strong>
     <nav class="app-menu" aria-label="Menu principal">
       <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Archivo</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['file'] }}">{{ navigation_menu['file'] }}</button>
         <div class="menu-dropdown">
           <button type="button" id="newScriptMenuBtn">Nuevo script</button>
           <button type="button" id="openScriptMenuBtn">Abrir script</button>
@@ -37,13 +37,13 @@
         </div>
       </div>
       <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Ejemplos</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['learn'] }}">{{ navigation_menu['learn'] }}</button>
         <div id="examplesMenu" class="menu-dropdown">
           <span class="menu-empty">Cargando ejemplos</span>
         </div>
       </div>
       <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Mundos</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['worlds'] }}">{{ navigation_menu['worlds'] }}</button>
         <div id="worldsMenu" class="menu-dropdown">
           <a href="{{ url_for('pages.worlds_page') }}">Editor de mundos</a>
           <button type="button" id="loadBlankWorldMenuBtn">Mundo en blanco (sin mapa)</button>
@@ -52,62 +52,59 @@
         </div>
       </div>
       <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Escenarios</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['guided_practice'] }}">{{ navigation_menu['guided_practice'] }}</button>
         <div id="scenariosMenu" class="menu-dropdown">
-          <button type="button" data-scenario="line">Seguidor de linea</button>
-          <button type="button" data-scenario="ultrasonic">Ultrasonido + obstaculos</button>
-          <button type="button" data-scenario="brick">Test pantalla/altavoz</button>
-          <button type="button" data-scenario="radar">Radar 360 ultrasonido</button>
+          <button type="button" data-scenario="line" title="Objetivo: seguir una línea. Mundo: línea negra básica. Programa: seguidor de línea básico." aria-description="Objetivo: seguir una línea. Carga el mundo Línea negra básica y el programa seguidor de línea básico.">Seguidor de línea</button>
+          <button type="button" data-scenario="ultrasonic" title="Objetivo: evitar obstáculos. Mundo: obstáculos con baliza. Programa: esquiva obstáculos." aria-description="Objetivo: evitar obstáculos. Carga el mundo Obstáculos con baliza y el programa esquiva obstáculos.">Ultrasonido y obstáculos</button>
+          <button type="button" data-scenario="brick" title="Objetivo: usar la pantalla LCD y el altavoz. Mundo: obstáculos con baliza. Programa: introducción a pantalla y altavoz." aria-description="Objetivo: usar la pantalla LCD y el altavoz. Carga el mundo Obstáculos con baliza y el programa de pantalla y altavoz.">Pantalla y altavoz</button>
+          <button type="button" data-scenario="radar" title="Objetivo: medir con ultrasonido y dibujar un radar. Mundo: radar ultrasónico 360. Programa: radar en pasos de 5 grados." aria-description="Objetivo: medir con ultrasonido y dibujar un radar. Carga el mundo Radar ultrasónico 360 y el programa radar en pasos de 5 grados.">Radar ultrasónico 360°</button>
         </div>
       </div>
       <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Misiones</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['missions'] }}">{{ navigation_menu['missions'] }}</button>
         <div id="missionsMenu" class="menu-dropdown">
           <span class="menu-empty">Cargando misiones</span>
         </div>
       </div>
       <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Tema</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['settings'] }}">{{ navigation_menu['settings'] }}</button>
         <div class="menu-dropdown">
-          <button type="button" data-theme-choice="light" aria-pressed="false">Claro</button>
-          <button type="button" data-theme-choice="dark" aria-pressed="false">Oscuro</button>
-        </div>
-      </div>
-      <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Fidelidad</button>
-        <div class="menu-dropdown">
-          <button type="button" data-simulation-profile="ideal">Ideal</button>
-          <button type="button" data-simulation-profile="realistic">Realista</button>
-          <button type="button" data-simulation-profile="calibrated">Calibrado</button>
-        </div>
-      </div>
-      <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Tiempo máximo</button>
-        <div class="menu-dropdown">
+          <span class="menu-section-label">Apariencia</span>
+          <button type="button" data-theme-choice="light" aria-pressed="false">Tema claro</button>
+          <button type="button" data-theme-choice="dark" aria-pressed="false">Tema oscuro</button>
+          <span class="menu-section-label">Precisión de simulación</span>
+          <button type="button" data-simulation-profile="ideal">Ideal — prioriza aprendizaje</button>
+          <button type="button" data-simulation-profile="realistic">Realista — simula restricciones</button>
+          <button type="button" data-simulation-profile="calibrated">Calibrado — usa parámetros ajustados</button>
+          <span class="menu-section-label">Límite de ejecución</span>
           <button type="button" data-runtime-limit="30">30 s</button>
           <button type="button" data-runtime-limit="60">60 s</button>
-          <button type="button" data-runtime-limit="120">120 s</button>
+          <button type="button" data-runtime-limit="120">120 s (recomendado)</button>
           <button type="button" data-runtime-limit="300">300 s</button>
           <button type="button" data-runtime-limit="0">Sin límite</button>
         </div>
       </div>
       <div class="menu-group" data-execution-lockable>
-        <button type="button" class="menu-trigger" aria-haspopup="true">Trazas</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['diagnostics'] }}">{{ navigation_menu['diagnostics'] }}</button>
         <div class="menu-dropdown">
+          <span class="menu-section-label">Trazas de simulación</span>
           <button type="button" data-trace-action="start">Iniciar registro</button>
           <button type="button" data-trace-action="stop">Detener registro</button>
           <button type="button" data-trace-action="step">Avanzar un tick</button>
           <button type="button" data-trace-action="json">Exportar JSON</button>
           <button type="button" data-trace-action="csv">Exportar CSV</button>
+          <span class="menu-section-label">Sesión y soporte</span>
+          <button type="button" id="diagnosticsMenuBtn">{{ help_menu_actions['session-diagnostics'].label }}</button>
+          <button type="button" id="exportDiagnosticsMenuBtn">{{ help_menu_actions['export-diagnostics'].label }}</button>
         </div>
       </div>
       <div class="menu-group">
-        <button type="button" class="menu-trigger" aria-haspopup="true">Ayuda</button>
+        <button type="button" class="menu-trigger" aria-haspopup="true" aria-description="{{ navigation_menu_descriptions['help'] }}">{{ navigation_menu['help'] }}</button>
         <div class="menu-dropdown">
+          <span class="menu-section-label">Aprender</span>
           <a href="{{ url_for('pages.help_page') }}" target="_blank">{{ help_menu_actions['help-center'].label }}</a>
           <a id="activityGuideLink" href="{{ url_for('pages.help_page') }}#guide-first-simulation" target="_blank">{{ help_menu_actions['quick-first-simulation'].label }}</a>
-          <button type="button" id="diagnosticsMenuBtn">{{ help_menu_actions['session-diagnostics'].label }}</button>
-          <button type="button" id="exportDiagnosticsMenuBtn">{{ help_menu_actions['export-diagnostics'].label }}</button>
+          <span class="menu-section-label">Información</span>
           <a href="{{ help_menu_actions['lego-ev3-book'].external_url }}" target="_blank" rel="noopener noreferrer">{{ help_menu_actions['lego-ev3-book'].label }}</a>
           <button type="button" id="aboutMenuBtn">{{ help_menu_actions['about'].label }}</button>
         </div>
@@ -166,6 +163,7 @@
               <span>Tick</span><strong id="telemetryTick">--</strong>
               <span>Colisión</span><strong id="telemetryCollision">--</strong>
             </div>
+            <div id="missionProgress" class="mission-progress" aria-live="polite" hidden></div>
             <div id="missionResult" class="mission-result" aria-live="polite" hidden></div>
             <section class="telemetry-section motors-section motors-ab-section">
               <h3>Motores A-B (28%)</h3>

@@ -28,7 +28,7 @@ from simulador_ev3.shared.help_tutorials import (
     TEACHER_ROUTE,
 )
 from simulador_ev3.shared.help_visual_manifest import visual_for
-from simulador_ev3.shared.interface_catalog import SESSION_STATUS_LABELS
+from simulador_ev3.shared.interface_catalog import NAVIGATION_MENU, NAVIGATION_MENU_DESCRIPTIONS, SESSION_STATUS_LABELS
 from simulador_ev3.shared.paths import resolve_documentation_path, resolve_image_assets_dir
 from simulador_ev3.web.errors import InvalidPayload
 from simulador_ev3.web.redis_support import redis_runtime_state
@@ -44,6 +44,8 @@ def index():
         asset_files={str(item["asset_id"]): str(item["filename"]) for item in asset_manifest},
         asset_manifest=asset_manifest,
         status_labels=SESSION_STATUS_LABELS,
+        navigation_menu=NAVIGATION_MENU,
+        navigation_menu_descriptions=NAVIGATION_MENU_DESCRIPTIONS,
         brand_assets={
             "nyquist": asset_filename("logo-nyquist"),
             "robotica_aplicada": asset_filename("logo-robotica-aplicada"),

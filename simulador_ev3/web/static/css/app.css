@@ -687,6 +687,16 @@ dd {
   white-space: nowrap;
 }
 
+.menu-section-label {
+  display: block;
+  margin: 6px 10px 2px;
+  color: var(--muted-text, #526277);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .menu-dropdown button:hover,
 .menu-dropdown a:hover {
   background: color-mix(in srgb, var(--ev3-primary) 10%, var(--ev3-toolbar));
@@ -1011,6 +1021,17 @@ html[data-theme="dark"] #telemetryStatus[data-status="ready"]::after {
   padding: 7px 10px;
   border: 1px solid var(--border-color, #9aa4b2);
   border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.mission-progress {
+  margin: 8px 10px 0;
+  padding: 7px 10px;
+  border: 1px solid #8eb4df;
+  border-radius: 4px;
+  color: #1d4f80;
+  background: #eef6ff;
   font-size: 0.82rem;
   font-weight: 600;
 }
@@ -2443,6 +2464,12 @@ html[data-theme="dark"] .mission-result-failure {
   color: #ffaaa1;
   background: #482323;
   border-color: #90514c;
+}
+
+html[data-theme="dark"] .mission-progress {
+  color: #a8d2ff;
+  background: #18324e;
+  border-color: #3d6f9d;
 }
 
 html[data-theme="dark"] .sim-telemetry-pane dd,

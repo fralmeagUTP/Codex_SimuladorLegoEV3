@@ -79,6 +79,9 @@ constituyen por sí mismos un registro de derechos de autor.
 |---|---|---|
 | `Documentos/CONTROLES_CALIDAD.md` | Canónico | Herramientas y compuertas. |
 | `Documentos/CHECKLIST_QA_RELEASE.md` | Canónico | Lista de liberación reproducible. |
+| `Documentos/PRUEBAS/PROTOCOLO_VALIDACION_MENU_UNIFICADO.md` | Canónico | Validación funcional y visual de la navegación común. |
+| `Documentos/PRUEBAS/FORMULARIO_COMPRENSION_MENU_UNIFICADO.md` | Canónico | Evaluación de comprensión con estudiante o docente. |
+| `Documentos/PRUEBAS/REPORTE_MENU_UNIFICADO_AUTOMATIZADO.md` | Evidencia vigente | Resultados técnicos y capturas de la implementación del menú. |
 | `docs/testing/estrategia_pruebas.md` | Canónico | Estrategia por nivel y ambiente. |
 | `docs/testing/inventario_funcional.md` | Canónico | Capacidades y riesgos. |
 | `docs/testing/casos_prueba.md` | Canónico | Casos críticos. |

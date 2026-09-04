@@ -39,9 +39,9 @@ Fecha de actualización: 2026-08-05
 ## 4. Flujo de simulacion
 
 - Usar menu `Archivo` para crear, abrir y guardar script.
-- Cargar un ejemplo desde el menu `Ejemplos`.
+- Cargar un ejemplo desde el menu `Aprender`.
 - Cargar un ejemplo desde el selector.
-- Cargar un escenario desde el menu `Escenarios`.
+- Cargar una práctica desde el menu `Prácticas guiadas` y confirmar objetivo, mundo y programa.
 - Cargar un mundo existente.
 - Ejecutar, pausar, reanudar y detener.
 - Ejecutar un script corto con `wait(100)` y confirmar que el estado final sea `finished`.
@@ -85,7 +85,7 @@ Fecha de actualización: 2026-08-05
 - Confirmar paridad de mapa con Tkinter: mundo base `2000 x 2000 mm` debe renderizarse como `640 x 640 px`.
 - Confirmar que celdas, lineas, muros, zonas y pisos no estan estirados.
 - Confirmar que el panel usa scroll si el mapa no cabe completo.
-- Revisar captura de menu de ejemplos.
+- Revisar captura de menu `Aprender` y de `Prácticas guiadas`.
 - Revisar captura de editor con sintaxis y autocompletado.
 - Revisar captura de brick con altavoz.
 - Revisar captura de propiedades del editor de mundos.

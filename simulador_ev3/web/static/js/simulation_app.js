@@ -16,6 +16,7 @@
   const statusSavePath = document.getElementById("statusSavePath");
   const examplesMenu = document.getElementById("examplesMenu");
   const missionsMenu = document.getElementById("missionsMenu");
+  const missionProgressEl = document.getElementById("missionProgress");
   const missionResultEl = document.getElementById("missionResult");
   const worldsMenu = document.getElementById("worldsMenu");
   const scriptFileInput = document.getElementById("scriptFileInput");
@@ -159,22 +160,26 @@
   const defaultScript = codeEditor.value;
   const scenarios = {
     line: {
-      label: "Seguidor de linea",
+      label: "Seguidor de línea",
+      objective: "Controlar el robot para seguir una línea negra.",
       world: "01_linea_negra_basica.json",
       example: "11_siguelineas_basico.py",
     },
     ultrasonic: {
-      label: "Ultrasonido + obstaculos",
+      label: "Ultrasonido y obstáculos",
+      objective: "Detectar y evitar obstáculos con el sensor ultrasónico.",
       world: "05_obstaculos_baliza_ir.json",
       example: "15_esquiva_obstaculos.py",
     },
     brick: {
-      label: "Test pantalla/altavoz",
+      label: "Pantalla y altavoz",
+      objective: "Mostrar información en la LCD y emitir sonido.",
       world: "05_obstaculos_baliza_ir.json",
       example: "02_intro_pantalla_altavoz.py",
     },
     radar: {
-      label: "Radar 360 ultrasonido",
+      label: "Radar ultrasónico 360°",
+      objective: "Medir el entorno y dibujar un radar de 360 grados.",
       world: "12_radar_ultrasonido_360.json",
       example: "23_radar_ultrasonido_5grados.py",
     },
@@ -257,6 +262,8 @@
   let selectedWorldName = null;
   let selectedBlankWorld = false;
   let currentScriptName = "editor_actual.py";
+  let scriptDirty = false;
+  let activeMission = null;
   const ACTIVE_EXECUTION_STATUSES = new Set(["running", "paused"]);
   let executionMenuLocked = false;
   let nextExecutionNotificationId = 0;
@@ -307,6 +314,35 @@
 
   function setSavePath(text) {
     if (statusSavePath) statusSavePath.textContent = text || "sin guardar";
+  }
+
+  function setScriptDirty(dirty) {
+    scriptDirty = Boolean(dirty);
+    if (statusProgram) {
+      statusProgram.dataset.dirty = scriptDirty ? "true" : "false";
+      statusProgram.title = scriptDirty ? "Programa con cambios sin guardar" : "Programa guardado o cargado";
+    }
+  }
+
+  function confirmDiscardUnsavedChanges(actionLabel) {
+    if (!scriptDirty) return true;
+    return window.confirm(
+      `Hay cambios sin guardar en ${currentScriptName}.\n\n${actionLabel} reemplazará el contenido actual. ¿Deseas continuar?`,
+    );
+  }
+
+  function safeContentLoadError(err, fallback) {
+    const code = String(err?.code || "").trim();
+    if (code === "SESSION_NOT_FOUND" || code === "SESSION_EXPIRED") {
+      return "La sesión no está disponible. Intenta recuperar la sesión y vuelve a cargar el contenido.";
+    }
+    if (code === "NETWORK_TIMEOUT") {
+      return "La solicitud tardó demasiado. Verifica la conexión e inténtalo de nuevo.";
+    }
+    if (Number(err?.status) >= 500) {
+      return `${fallback} El servidor no pudo completar la solicitud; inténtalo de nuevo.`;
+    }
+    return fallback;
   }
 
   function setStatus(status) {
@@ -1416,6 +1452,8 @@
     // closeSessionOnUnload de una pestana previa; usamos sesion nueva.
     const session = await api.createSession();
     setStatus(session.status);
+    profileControls?.setActiveProfile(session.simulation_profile);
+    runtimeLimitControls?.setActiveRuntimeLimit(session.max_runtime_s);
 
     // Priorizar que la simulacion quede operativa de inmediato.
     liveUpdateController.start();
@@ -1444,19 +1482,53 @@
   async function loadExamples() {
     const data = await api.listExamples();
     examplesMenu.innerHTML = "";
+    const groups = new Map();
     for (const item of data.examples) {
-      examplesMenu.appendChild(menuButton(item.name, () => loadExampleByName(item.name)));
+      const group = learningGroupForExample(item.name);
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(item);
+    }
+    for (const [group, examples] of groups) {
+      const label = document.createElement("span");
+      label.className = "menu-section-label";
+      label.textContent = group;
+      examplesMenu.appendChild(label);
+      for (const item of examples) {
+        examplesMenu.appendChild(menuButton(item.name, () => loadExampleByName(item.name)));
+      }
     }
     if (!data.examples.length) {
       examplesMenu.innerHTML = '<span class="menu-empty">No hay ejemplos</span>';
     }
   }
 
+  function learningGroupForExample(name) {
+    const order = Number.parseInt(String(name).slice(0, 2), 10);
+    if (order <= 2) return "Empezar";
+    if (order <= 6) return "Movimiento";
+    if (order <= 10) return "Sensores";
+    if (order <= 18) return "Control y navegación";
+    return "Retos avanzados";
+  }
+
   async function loadMissions() {
     const data = await api.listMissions();
     missionsMenu.innerHTML = "";
     for (const mission of data.missions) {
-      missionsMenu.appendChild(menuButton(mission.title, () => loadMission(mission)));
+      const estimatedMinutes = mission.metadata?.estimated_minutes;
+      const requirements = (mission.acceptance_criteria || [])
+        .map((criterion) => criterion.description)
+        .filter(Boolean);
+      const detail = [
+        mission.objective,
+        estimatedMinutes ? `Duración estimada: ${estimatedMinutes} min.` : null,
+        requirements.length ? `Requisitos (${requirements.length}): ${requirements.join("; ")}.` : "Requisitos: consulta la misión antes de ejecutar.",
+        "Progreso: por iniciar.",
+      ].filter(Boolean).join(" ");
+      const button = menuButton(mission.title, () => loadMission(mission));
+      button.title = detail;
+      button.setAttribute("aria-description", detail);
+      missionsMenu.appendChild(button);
     }
     if (!data.missions.length) {
       missionsMenu.innerHTML = '<span class="menu-empty">No hay misiones disponibles</span>';
@@ -1969,27 +2041,53 @@
 
   executionSuccessToastClose?.addEventListener("click", hideExecutionSuccessToast);
 
-  async function loadExampleByName(name, { throwOnError = false } = {}) {
-    if (guardMenuAction()) return;
+  function applyExampleData(name, data) {
+    codeEditor.value = data.source;
+    setScriptName(name);
+    setScriptDirty(false);
+    clearBreakpoints();
+    clearDebugState();
+    hideAutocomplete();
+    updateSyntaxHighlight();
+  }
+
+  async function getExampleWithRecovery(name, { retryAfterRecovery = true } = {}) {
     try {
-      const data = await api.getExample(name);
-      codeEditor.value = data.source;
-      setScriptName(name);
-      clearBreakpoints();
-      clearDebugState();
-      hideAutocomplete();
-      updateSyntaxHighlight();
+      return await api.getExample(name);
+    } catch (err) {
+      if (retryAfterRecovery && isSessionLost(err)) {
+        log("La sesión venció. Se está recuperando para cargar el ejemplo…");
+        await recoverSession();
+        if (currentStatus !== "error") {
+          return getExampleWithRecovery(name, { retryAfterRecovery: false });
+        }
+      }
+      throw err;
+    }
+  }
+
+  async function loadExampleByName(name, { throwOnError = false, retryAfterRecovery = true } = {}) {
+    if (guardMenuAction()) return;
+    if (!confirmDiscardUnsavedChanges("Cargar un ejemplo")) return null;
+    try {
+      const data = await getExampleWithRecovery(name, { retryAfterRecovery });
+      applyExampleData(name, data);
       log("");
       return data;
     } catch (err) {
-      log(err.message);
+      log(safeContentLoadError(err, "No se pudo cargar el ejemplo."));
       if (throwOnError) throw err;
       return null;
     }
   }
 
-  async function loadWorldByName(name, { throwOnError = false } = {}) {
+  async function loadWorldByName(name, {
+    throwOnError = false,
+    retryAfterRecovery = true,
+    confirmDiscard = true,
+  } = {}) {
     if (guardMenuAction()) return;
+    if (confirmDiscard && !confirmDiscardUnsavedChanges("Cargar un mundo")) return null;
     try {
       // Nunca transportar rastro, haces ni tick visuales del mundo anterior.
       // El primer snapshot del nuevo mundo volverá a sembrar la pose inicial.
@@ -2008,7 +2106,14 @@
       log("");
       return data;
     } catch (err) {
-      log(err.message);
+      if (retryAfterRecovery && isSessionLost(err)) {
+        log("La sesión venció. Se está recuperando para cargar el mundo…");
+        await recoverSession();
+        if (currentStatus !== "error") {
+          return loadWorldByName(name, { throwOnError, retryAfterRecovery: false, confirmDiscard: false });
+        }
+      }
+      log(safeContentLoadError(err, "No se pudo cargar el mundo."));
       if (throwOnError) throw err;
       return null;
     }
@@ -2016,6 +2121,7 @@
 
   async function loadBlankWorld() {
     if (guardMenuAction()) return;
+    if (!confirmDiscardUnsavedChanges("Crear un mundo en blanco")) return;
     try {
       window.EV3Canvas.resetTrail();
       const data = await api.loadBlankWorld({ width_cells: 40, height_cells: 40 });
@@ -2030,7 +2136,7 @@
       redrawCanvas();
       log("Mundo en blanco cargado.");
     } catch (err) {
-      log(err.message);
+      log(safeContentLoadError(err, "No se pudo cargar el mundo en blanco."));
     }
   }
 
@@ -2087,22 +2193,41 @@
     if (guardMenuAction()) return;
     const scenario = scenarios[key];
     if (!scenario) return;
+    const confirmed = window.confirm(
+      `Práctica guiada: ${scenario.label}\n\nObjetivo: ${scenario.objective}\nMundo: ${scenario.world}\nPrograma: ${scenario.example}\n\n¿Deseas cargarla?`,
+    );
+    if (!confirmed) {
+      log("Carga de práctica guiada cancelada.");
+      return;
+    }
+    if (!confirmDiscardUnsavedChanges("Cargar esta práctica guiada")) return;
     try {
-      await loadWorldByName(scenario.world, { throwOnError: true });
-      await loadExampleByName(scenario.example, { throwOnError: true });
-      log(`Escenario cargado: ${scenario.label}`);
+      // Validar primero el programa: así no se modifica el mundo si el
+      // contenido asociado no está disponible o la sesión debe recuperarse.
+      const exampleData = await getExampleWithRecovery(scenario.example);
+      await loadWorldByName(scenario.world, { throwOnError: true, confirmDiscard: false });
+      applyExampleData(scenario.example, exampleData);
+      log(`Práctica guiada cargada: ${scenario.label}. Objetivo: ${scenario.objective}`);
     } catch (err) {
-      log(err.message);
+      log(safeContentLoadError(err, "No se pudo cargar la práctica guiada."));
     }
   }
 
   async function loadMission(mission) {
     if (guardMenuAction()) return;
-    await loadWorldByName(mission.world_file);
-    await loadExampleByName(mission.starter_script);
-    await api.selectMission(mission.id);
-    clearMissionResult();
-    log(`Misión cargada: ${mission.title}`);
+    if (!confirmDiscardUnsavedChanges("Cargar esta misión")) return;
+    try {
+      const exampleData = await getExampleWithRecovery(mission.starter_script);
+      await loadWorldByName(mission.world_file, { throwOnError: true, confirmDiscard: false });
+      applyExampleData(mission.starter_script, exampleData);
+      await api.selectMission(mission.id);
+      activeMission = mission;
+      renderMissionProgress("En curso", 0, (mission.acceptance_criteria || []).length);
+      clearMissionResult();
+      log(`Misión cargada: ${mission.title}. Objetivo: ${mission.objective}`);
+    } catch (err) {
+      log(safeContentLoadError(err, "No se pudo cargar la misión."));
+    }
   }
 
   function clearMissionResult() {
@@ -2110,6 +2235,14 @@
     missionResultEl.hidden = true;
     missionResultEl.textContent = "";
     missionResultEl.className = "mission-result";
+  }
+
+  function renderMissionProgress(status, completed, total) {
+    if (!missionProgressEl || !activeMission) return;
+    const safeTotal = Math.max(0, Number(total) || 0);
+    const safeCompleted = Math.min(safeTotal, Math.max(0, Number(completed) || 0));
+    missionProgressEl.textContent = `Misión: ${activeMission.title}. Progreso: ${safeCompleted}/${safeTotal} requisitos. Estado: ${status}.`;
+    missionProgressEl.hidden = false;
   }
 
   function renderMissionResult(payload) {
@@ -2126,6 +2259,7 @@
     const completed = payload.outcome === "finished" && result.passed;
     const label = completed ? "Misión completada" : payload.outcome === "cancelled" ? "Misión cancelada" : "Misión no superada";
     const criteria = (result.criteria || []).map((item) => `${item.passed ? "✓" : "✗"} ${item.id}`).join(" · ");
+    renderMissionProgress(completed ? "Completada" : "Finalizada", (result.criteria || []).filter((item) => item.passed).length, (result.criteria || []).length);
     const feedback = payload.feedback || {};
     const summary = feedback.summary || "Revisa los criterios y la telemetría para continuar.";
     const nextStep = feedback.next_step || "Valida el resultado también en un robot EV3 físico.";
@@ -2160,6 +2294,7 @@
         await writable.close();
         setScriptName(handle.name || suggestedName);
         setSavePath(handle.name || suggestedName);
+        setScriptDirty(false);
         log(`Script guardado: ${handle.name || suggestedName}. Ubicacion: seleccionada en el dialogo del sistema.`);
         return;
       } catch (err) {
@@ -2180,13 +2315,16 @@
     link.remove();
     URL.revokeObjectURL(url);
     setSavePath("Descargas (navegador)");
+    setScriptDirty(false);
     log(`Script descargado: ${suggestedName}. Ubicacion: Descargas del navegador.`);
   }
 
   function createNewScript() {
     if (guardMenuAction()) return;
+    if (!confirmDiscardUnsavedChanges("Crear un script nuevo")) return;
     codeEditor.value = defaultScript;
     setScriptName("editor_actual.py");
+    setScriptDirty(false);
     clearBreakpoints();
     clearDebugState();
     hideAutocomplete();
@@ -2196,6 +2334,7 @@
 
   function openScriptFromDevice() {
     if (guardMenuAction()) return;
+    if (!confirmDiscardUnsavedChanges("Abrir otro script")) return;
     scriptFileInput.click();
   }
 
@@ -2253,6 +2392,7 @@
     try {
       codeEditor.value = await file.text();
       setScriptName(file.name);
+      setScriptDirty(false);
       clearBreakpoints();
       clearDebugState();
       hideAutocomplete();
@@ -2422,6 +2562,7 @@
 
   window.EV3EditorInteractionController.bind(codeEditor, {
     input: () => {
+    setScriptDirty(true);
     syncEditorMetrics();
     renderEditorGutter();
     updateSyntaxHighlight();
@@ -2497,8 +2638,8 @@
 
   window.addEventListener("keydown", handleGlobalShortcuts, true);
 
-  window.EV3ProfileControls.bind(api, log);
-  window.EV3RuntimeLimitControls.bind(api, log);
+  const profileControls = window.EV3ProfileControls.bind(api, log);
+  const runtimeLimitControls = window.EV3RuntimeLimitControls.bind(api, log);
 
   window.EV3TraceControls.bind(api, log, refreshSnapshot);
   try {
