@@ -31,6 +31,20 @@ class CapacityExceeded(WebError):
         self.retry_after_s = retry_after_s
 
 
+class RateLimitExceeded(CapacityExceeded):
+    code = "RATE_LIMIT_EXCEEDED"
+
+
+class CrossOriginRequest(WebError):
+    status_code = 403
+    code = "CROSS_ORIGIN_REQUEST"
+
+
+class OperationalAccessDenied(WebError):
+    status_code = 403
+    code = "OPERATIONS_ACCESS_DENIED"
+
+
 class InvalidPayload(WebError):
     status_code = 400
     code = "INVALID_PAYLOAD"

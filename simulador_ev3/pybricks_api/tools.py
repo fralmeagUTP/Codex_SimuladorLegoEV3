@@ -25,9 +25,14 @@ def wait(time_ms: float) -> None:
     naturalmente al salir del bucle o al no haber más instrucciones).
     """
     ctx = PybricksContext.get_current()
-    # Esperamos en intervalos de 10 ms para reaccionar al stop_event rápido
+    # Esperamos mediante el propio evento de parada, no mediante decenas de
+    # ``sleep(10 ms)``. En Windows cada sleep corto puede redondearse al tick
+    # del planificador (~15 ms): una espera Pybricks de 900 ms acababa tardando
+    # más de 1.4 s de pared y el render web quedaba artificialmente retrasado.
+    # El evento despierta de inmediato al cancelar; 100 ms conserva una pausa
+    # cooperativa ágil sin acumular ese error de temporización.
     remaining_s = max(0.0, float(time_ms)) / 1000.0
-    interval = 0.01  # 10 ms
+    interval = 0.1  # 100 ms
 
     if ctx.stop_event.is_set():
         raise SystemExit
@@ -41,8 +46,7 @@ def wait(time_ms: float) -> None:
                 raise SystemExit
             _time.sleep(interval)
         sleep_s = min(remaining_s, interval)
-        _time.sleep(sleep_s)
-        if ctx.stop_event.is_set():
+        if ctx.stop_event.wait(timeout=sleep_s):
             raise SystemExit
         if not ctx.pause_event.is_set():
             remaining_s -= sleep_s

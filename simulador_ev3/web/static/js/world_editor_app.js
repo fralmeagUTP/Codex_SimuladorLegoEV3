@@ -12,20 +12,28 @@
   const selectedAssetEl = document.getElementById("selectedAsset");
   const assetPropertiesEl = document.getElementById("assetProperties");
   const assetPalette = document.getElementById("assetPalette");
+  const assetSearchInput = document.getElementById("assetSearchInput");
+  const assetLibraryHint = document.getElementById("assetLibraryHint");
   const moveAssetBtn = document.getElementById("moveAssetBtn");
   const placeRobotStartBtn = document.getElementById("placeRobotStartBtn");
   const robotThetaInput = document.getElementById("robotThetaInput");
   const robotStartReadout = document.getElementById("robotStartReadout");
   const worldNameLabel = document.getElementById("worldNameLabel");
+  const worldDirtyIndicator = document.getElementById("worldDirtyIndicator");
   const simulateSavedWorldLink = document.getElementById("simulateSavedWorldLink");
   const deleteSavedWorldBtn = document.getElementById("deleteSavedWorldBtn");
   const worldWidthInput = document.getElementById("worldWidthInput");
   const worldHeightInput = document.getElementById("worldHeightInput");
+  const worldSizeHint = document.getElementById("worldSizeHint");
+  const emptyWorldGuide = document.getElementById("emptyWorldGuide");
   const cursorReadout = document.getElementById("cursorReadout");
   const validationStatus = document.getElementById("validationStatus");
+  const layerList = document.getElementById("layerList");
   const worldMapZoomInBtn = document.getElementById("worldMapZoomInBtn");
   const worldMapZoomOutBtn = document.getElementById("worldMapZoomOutBtn");
   const worldMapZoomResetBtn = document.getElementById("worldMapZoomResetBtn");
+  const toggleLibraryPanelBtn = document.getElementById("toggleLibraryPanelBtn");
+  const toggleInspectorPanelBtn = document.getElementById("toggleInspectorPanelBtn");
   const DEFAULT_WORLD_CELLS = 40;
   let currentWorld = null;
   let editorWorld = null;
@@ -35,9 +43,12 @@
   let robotStart = null;
   let activeWorldBaseName = "";
   let savedWorldFileName = "";
+  let editorDirty = false;
   let placementPreview = null;
   let dragPlacement = null;
   let suppressNextClick = false;
+  const hiddenLayerIds = new Set();
+  const lockedLayerIds = new Set();
 
   function log(message) {
     consoleEl.textContent = message || "";
@@ -61,15 +72,16 @@
     assetPalette.innerHTML = "";
     const groups = {
       robot: "Robot",
-      wall: "Muros",
-      line: "Lineas",
-      zone: "Zonas",
-      floor: "Pisos",
+      wall: "Obstáculos",
+      line: "Líneas",
+      zone: "Zonas y metas",
+      floor: "Suelos",
     };
+    const categoryContainers = {};
     for (const item of data.assets) {
       const option = document.createElement("option");
       option.value = item.key;
-      option.textContent = `${groups[item.type] || item.type}: ${item.key}`;
+      option.textContent = `${item.category || groups[item.type] || item.type}: ${assetLabel(item)}`;
       assetSelect.appendChild(option);
       assetKeyInput.appendChild(option.cloneNode(true));
 
@@ -78,22 +90,39 @@
       button.className = "asset-tool";
       button.title = assetTooltip(item);
       button.dataset.assetKey = item.key;
+      button.dataset.assetLabel = `${assetLabel(item)} ${item.category || groups[item.type] || ""}`.toLocaleLowerCase();
       const img = document.createElement("img");
-      img.src = api.resolvePath(`/assets/${encodeURIComponent(assetImageFile(item.key))}`);
+      img.src = api.resolvePath(`/assets/${encodeURIComponent(item.image || assetImageFile(item.key))}`);
       img.alt = "";
       img.onerror = () => {
         img.remove();
         button.textContent = assetShortLabel(item);
       };
       button.appendChild(img);
+      const label = document.createElement("span");
+      label.textContent = assetLabel(item);
+      button.appendChild(label);
       button.addEventListener("click", () => {
         assetSelect.value = item.key;
         syncAssetPalette();
         updateSelection(null);
+        assetLibraryHint.textContent = `${assetLabel(item)} seleccionado. Haz clic en el mapa para colocarlo.`;
       });
-      assetPalette.appendChild(button);
+      const category = item.category || groups[item.type] || "Otros";
+      if (!categoryContainers[category]) {
+        const section = document.createElement("section");
+        section.className = "asset-category";
+        section.innerHTML = `<h3>${category}</h3>`;
+        const items = document.createElement("div");
+        items.className = "asset-category-items";
+        section.appendChild(items);
+        assetPalette.appendChild(section);
+        categoryContainers[category] = items;
+      }
+      categoryContainers[category].appendChild(button);
     }
     syncAssetPalette();
+    assetSearchInput?.addEventListener("input", filterAssetPalette);
   }
 
   function assetImageFile(key) {
@@ -110,7 +139,40 @@
     return "F";
   }
 
+  function assetLabel(item) {
+    if (item?.label) return String(item.label);
+    const key = String(item?.key || "");
+    if (key.includes("robot")) return "Robot EV3";
+    if (key.includes("wall")) return `Muro ${key.slice(-1).toUpperCase()}`;
+    if (key.includes("floor")) return `Suelo ${key.slice(-1).toUpperCase()}`;
+    if (key.includes("zone_green")) return "Zona verde";
+    if (key.includes("zone_red")) return "Zona roja";
+    if (key.includes("zone_white")) return "Zona blanca";
+    if (key.includes("cruz")) return "Cruce";
+    if (key.includes("hor")) return "Línea horizontal";
+    if (key.includes("ver")) return "Línea vertical";
+    if (key.includes("infder")) return "Curva inferior derecha";
+    if (key.includes("infizq")) return "Curva inferior izquierda";
+    if (key.includes("supder")) return "Curva superior derecha";
+    if (key.includes("supizq")) return "Curva superior izquierda";
+    return key;
+  }
+
+  function filterAssetPalette() {
+    const query = String(assetSearchInput?.value || "").trim().toLocaleLowerCase();
+    for (const section of assetPalette.querySelectorAll(".asset-category")) {
+      let visible = 0;
+      for (const button of section.querySelectorAll(".asset-tool")) {
+        const matches = !query || String(button.dataset.assetLabel || "").includes(query);
+        button.hidden = !matches;
+        if (matches) visible += 1;
+      }
+      section.hidden = visible === 0;
+    }
+  }
+
   function assetTooltip(item) {
+    if (item?.tooltip) return String(item.tooltip);
     const key = String(item?.key || "");
     const type = String(item?.type || "");
     if (type === "robot") return "Robot EV3 (pose inicial)";
@@ -137,7 +199,6 @@
     const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
     setEditorWorld(data.world);
     await hydrateRobotStartFromSnapshotIfMissing();
-    await ensureRobotVisibleOnEditor();
     showValidation(data.validation);
   }
 
@@ -145,6 +206,7 @@
     editorWorld = world;
     if (worldWidthInput) worldWidthInput.value = world.world_width_cells || DEFAULT_WORLD_CELLS;
     if (worldHeightInput) worldHeightInput.value = world.world_height_cells || DEFAULT_WORLD_CELLS;
+    updateWorldSizeHint();
     currentWorld = editorWorldToRenderWorld(world);
     robotStart = robotStartFromEditorWorld(world);
     if (!robotStart) {
@@ -155,6 +217,8 @@
       robotThetaInput.value = String(Math.round(robotStart.theta_deg || 0));
     }
     updateRobotStartReadout();
+    prunePresentationLayers();
+    renderLayers();
     drawEditor();
   }
 
@@ -197,12 +261,25 @@
   }
 
   function drawEditor() {
-    window.EV3Canvas.draw(canvas, null, currentWorld, {
+    const visibleWorld = hiddenLayerIds.size
+      ? { ...currentWorld, editor_spec: { ...editorWorld, placements: (editorWorld?.placements || []).filter((p) => !hiddenLayerIds.has(p.id)) } }
+      : currentWorld;
+    window.EV3Canvas.draw(canvas, null, visibleWorld, {
       selectedPlacementId: selectedPlacement?.id || null,
       placementPreview,
       robotStart,
       followRobotStart: false,
     });
+    emptyWorldGuide?.classList.toggle("hidden", Boolean(editorWorld?.placements?.length));
+  }
+
+  function updateWorldSizeHint() {
+    if (!worldSizeHint) return;
+    const width = Number(worldWidthInput?.value || 0);
+    const height = Number(worldHeightInput?.value || 0);
+    worldSizeHint.textContent = Number.isFinite(width) && Number.isFinite(height)
+      ? `Equivale a ${width * 10} × ${height * 10} cm`
+      : "";
   }
 
   function applyMapZoom(action) {
@@ -223,28 +300,77 @@
     selectedPlacement = placement;
     moveMode = false;
     moveAssetBtn.classList.remove("tool-active");
+    const isLocked = Boolean(placement?.id && lockedLayerIds.has(placement.id));
+    for (const id of ["deleteAssetBtn", "rotateAssetBtn", "duplicateAssetBtn", "applyAssetPropertiesBtn"]) {
+      const button = document.getElementById(id);
+      if (button) button.disabled = !placement || isLocked;
+    }
     selectedAssetEl.textContent = placement
-      ? `${placement.id} (${placement.asset_key})`
-      : "Sin seleccion";
+      ? assetLabel({ key: placement.asset_key })
+      : "Selecciona un elemento del lienzo para editarlo.";
     if (!placement) {
       assetPropertiesEl.innerHTML = "";
       assetPropertiesForm.classList.add("hidden");
       drawEditor();
+      renderLayers();
       return;
     }
     assetPropertiesEl.innerHTML = `
-      <dt>ID</dt><dd>${placement.id}</dd>
-      <dt>Asset</dt><dd>${placement.asset_key}</dd>
-      <dt>X</dt><dd>${placement.x ?? placement.x_px ?? 0}</dd>
-      <dt>Y</dt><dd>${placement.y ?? placement.y_px ?? 0}</dd>
-      <dt>Rotacion</dt><dd>${placement.rotation || 0}</dd>
+      <dt>Tipo</dt><dd>${assetLabel({ key: placement.asset_key })}</dd>
+      <dt>X</dt><dd>${(placement.x ?? placement.x_px ?? 0) / Number(editorWorld?.grid_size_px || 32)} celdas</dd>
+      <dt>Y</dt><dd>${(placement.y ?? placement.y_px ?? 0) / Number(editorWorld?.grid_size_px || 32)} celdas</dd>
+      <dt>Rotación</dt><dd>${placement.rotation || 0}°</dd>
     `;
     assetKeyInput.value = placement.asset_key;
-    assetXInput.value = placement.x ?? placement.x_px ?? 0;
-    assetYInput.value = placement.y ?? placement.y_px ?? 0;
+    assetXInput.value = (placement.x ?? placement.x_px ?? 0) / Number(editorWorld?.grid_size_px || 32);
+    assetYInput.value = (placement.y ?? placement.y_px ?? 0) / Number(editorWorld?.grid_size_px || 32);
     assetRotationInput.value = placement.rotation || 0;
     assetPropertiesForm.classList.remove("hidden");
     drawEditor();
+    renderLayers();
+  }
+
+  function prunePresentationLayers() {
+    const valid = new Set((editorWorld?.placements || []).map((placement) => placement.id));
+    for (const id of hiddenLayerIds) if (!valid.has(id)) hiddenLayerIds.delete(id);
+    for (const id of lockedLayerIds) if (!valid.has(id)) lockedLayerIds.delete(id);
+  }
+
+  function renderLayers() {
+    if (!layerList) return;
+    layerList.innerHTML = "";
+    const placements = [...(editorWorld?.placements || [])].reverse();
+    if (!placements.length) {
+      layerList.textContent = "No hay elementos en este mundo.";
+      return;
+    }
+    for (const placement of placements) {
+      const row = document.createElement("div");
+      row.className = "layer-row";
+      if (placement.id === selectedPlacement?.id) row.classList.add("selected");
+      const select = document.createElement("button");
+      select.type = "button";
+      select.textContent = assetLabel({ key: placement.asset_key });
+      select.addEventListener("click", () => updateSelection(placement));
+      const visibility = document.createElement("button");
+      visibility.type = "button";
+      visibility.textContent = hiddenLayerIds.has(placement.id) ? "Mostrar" : "Ocultar";
+      visibility.addEventListener("click", () => {
+        if (hiddenLayerIds.has(placement.id)) hiddenLayerIds.delete(placement.id);
+        else hiddenLayerIds.add(placement.id);
+        drawEditor(); renderLayers();
+      });
+      const lock = document.createElement("button");
+      lock.type = "button";
+      lock.textContent = lockedLayerIds.has(placement.id) ? "Desbloq." : "Bloquear";
+      lock.addEventListener("click", () => {
+        if (lockedLayerIds.has(placement.id)) lockedLayerIds.delete(placement.id);
+        else lockedLayerIds.add(placement.id);
+        updateSelection(selectedPlacement);
+      });
+      row.append(select, visibility, lock);
+      layerList.appendChild(row);
+    }
   }
 
   function setRobotStartMode(enabled) {
@@ -409,30 +535,6 @@
     await upsertRobotPlacementFromPose(robotStart);
   }
 
-  async function ensureRobotVisibleOnEditor() {
-    if (!editorWorld || !currentWorld) return;
-    const existing = robotPlacementFromEditorWorld(editorWorld);
-    if (existing) {
-      if (!robotStart) {
-        robotStart = robotStartFromEditorWorld(editorWorld);
-        if (robotStart && robotThetaInput) {
-          robotThetaInput.value = String(Math.round(robotStart.theta_deg || 0));
-        }
-        updateRobotStartReadout();
-        drawEditor();
-      }
-      return;
-    }
-    const fallbackPose = robotStart || defaultRobotPoseForWorld(editorWorld);
-    robotStart = fallbackPose;
-    await upsertRobotPlacementFromPose(fallbackPose);
-    if (robotThetaInput) {
-      robotThetaInput.value = String(Math.round(fallbackPose.theta_deg || 0));
-    }
-    updateRobotStartReadout();
-    drawEditor();
-  }
-
   function showValidation(validation) {
     if (!validation) return;
     const errors = validation.errors || [];
@@ -461,6 +563,15 @@
     if (!worldNameLabel) return;
     const text = String(name || "").trim();
     worldNameLabel.textContent = text || "sin nombre";
+  }
+
+  function setEditorDirty(dirty) {
+    editorDirty = Boolean(dirty);
+    worldDirtyIndicator?.classList.toggle("hidden", !editorDirty);
+  }
+
+  function canDiscardEditorChanges() {
+    return !editorDirty || window.confirm("Hay cambios sin guardar. ¿Deseas descartarlos?");
   }
 
   function setActiveWorldName(name) {
@@ -523,6 +634,7 @@
     setActiveWorldName(displayName);
     setSavedWorldFileName(savedFileName);
     setSimulateSavedWorldLink(savedFileName);
+    setEditorDirty(false);
     log(`Mundo guardado en servidor: ${savedFileName}`);
   }
 
@@ -573,16 +685,17 @@
   }
 
   document.getElementById("newWorldBtn").addEventListener("click", async () => {
+    if (!canDiscardEditorChanges()) return;
     try {
       const width = Number.parseInt(worldWidthInput.value || String(DEFAULT_WORLD_CELLS), 10);
       const height = Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10);
       const data = await api.createEditorWorld(width || DEFAULT_WORLD_CELLS, height || DEFAULT_WORLD_CELLS);
       setEditorWorld(data.world);
       await hydrateRobotStartFromSnapshotIfMissing();
-      await ensureRobotVisibleOnEditor();
       setActiveWorldName("");
       setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
+      setEditorDirty(false);
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {
@@ -592,24 +705,38 @@
 
   document.getElementById("applyWorldSizeBtn").addEventListener("click", async () => {
     try {
-      const data = await api.createEditorWorld(
-        Number.parseInt(worldWidthInput.value || String(DEFAULT_WORLD_CELLS), 10),
-        Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10),
+      const width = Number.parseInt(worldWidthInput.value || String(DEFAULT_WORLD_CELLS), 10);
+      const height = Number.parseInt(worldHeightInput.value || String(DEFAULT_WORLD_CELLS), 10);
+      const shrinking = editorWorld && (
+        width < Number(editorWorld.world_width_cells) || height < Number(editorWorld.world_height_cells)
       );
+      if (shrinking && editorWorld.placements?.length && !window.confirm(
+        "Se comprobará que ningún elemento quede fuera de los límites. ¿Deseas continuar?",
+      )) return;
+      const data = await api.resizeEditorWorld(width, height);
       setEditorWorld(data.world);
-      await hydrateRobotStartFromSnapshotIfMissing();
-      await ensureRobotVisibleOnEditor();
-      setActiveWorldName("");
-      setSavedWorldFileName("");
-      setSimulateSavedWorldLink("");
-      updateSelection(null);
+      setEditorDirty(true);
       showValidation(data.validation);
     } catch (err) {
       log(err.message);
     }
   });
 
+  for (const preset of document.querySelectorAll("[data-world-size]")) {
+    preset.addEventListener("click", () => {
+      const [width, height] = String(preset.dataset.worldSize || "").split("x").map(Number);
+      if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+      worldWidthInput.value = String(width);
+      worldHeightInput.value = String(height);
+      updateWorldSizeHint();
+      document.getElementById("applyWorldSizeBtn").click();
+    });
+  }
+  worldWidthInput?.addEventListener("input", updateWorldSizeHint);
+  worldHeightInput?.addEventListener("input", updateWorldSizeHint);
+
   document.getElementById("openWorldBtn").addEventListener("click", () => {
+    if (!canDiscardEditorChanges()) return;
     document.getElementById("importWorldInput").click();
   });
 
@@ -627,7 +754,7 @@
     const yCm = point.yMm / 10;
     cursorReadout.textContent =
       `Cursor: (${xCm.toFixed(1)} cm, ${yCm.toFixed(1)} cm) | Snap: ` +
-      `(${editorPoint.x}px, ${editorPoint.y}px) | Tool: ${assetSelect.value || "Select"}`;
+      `(${editorPoint.x}px, ${editorPoint.y}px) | Herramienta: ${assetSelect.value || "Seleccionar"}`;
     const canPreviewPlacement =
       assetSelect.value && !robotStartMode && !moveMode && !dragPlacement;
     if (canPreviewPlacement) {
@@ -697,6 +824,7 @@
       setEditorWorld(data.world);
       const updated = data.world.placements.find((p) => p.id === drag.id);
       updateSelection(updated || null);
+      setEditorDirty(true);
       showValidation(data.validation);
     } catch (err) {
       log(err.message);
@@ -722,6 +850,7 @@
         robotStart = { x_mm: point.xMm, y_mm: point.yMm, theta_deg: theta };
         await upsertRobotPlacementFromPose(robotStart);
         updateRobotStartReadout();
+        setEditorDirty(true);
         setRobotStartMode(false);
         drawEditor();
         log("Pose inicial actualizada.");
@@ -745,6 +874,7 @@
         setEditorWorld(data.world);
         const updated = data.world.placements.find((p) => p.id === selectedPlacement.id);
         updateSelection(updated || null);
+        setEditorDirty(true);
         showValidation(data.validation);
       } catch (err) {
         log(err.message);
@@ -783,6 +913,7 @@
       placementPreview = null;
       setEditorWorld(data.world);
       updateSelection(data.placement);
+      setEditorDirty(true);
       showValidation(data.validation);
     } catch (err) {
       log(err.message);
@@ -798,6 +929,7 @@
     setRobotStartMode(false);
     updateRobotStartReadout();
     drawEditor();
+    setEditorDirty(true);
   });
 
   robotThetaInput.addEventListener("change", async () => {
@@ -808,6 +940,7 @@
       await upsertRobotPlacementFromPose(robotStart);
       updateRobotStartReadout();
       drawEditor();
+      setEditorDirty(true);
     } catch (err) {
       log(err.message);
     }
@@ -829,6 +962,7 @@
       setEditorWorld(data.world);
       const updated = data.world.placements.find((p) => p.id === selectedPlacement.id);
       updateSelection(updated || null);
+      setEditorDirty(true);
       showValidation(data.validation);
     } catch (err) {
       log(err.message);
@@ -842,12 +976,13 @@
       const data = await api.updateAsset({
         id: selectedPlacement.id,
         asset_key: assetKeyInput.value,
-        x: Number.parseInt(assetXInput.value || "0", 10),
-        y: Number.parseInt(assetYInput.value || "0", 10),
+        x: Math.round(Number(assetXInput.value || "0") * Number(editorWorld?.grid_size_px || 32)),
+        y: Math.round(Number(assetYInput.value || "0") * Number(editorWorld?.grid_size_px || 32)),
         rotation: Number.parseInt(assetRotationInput.value || "0", 10),
       });
       setEditorWorld(data.world);
       updateSelection(data.placement);
+      setEditorDirty(true);
       showValidation(data.validation);
     } catch (err) {
       log(err.message);
@@ -860,6 +995,7 @@
       const data = await api.duplicateAsset({ id: selectedPlacement.id });
       setEditorWorld(data.world);
       updateSelection(data.placement);
+      setEditorDirty(true);
       showValidation(data.validation);
     } catch (err) {
       log(err.message);
@@ -872,6 +1008,7 @@
       const data = await api.removeAsset(selectedPlacement.id);
       setEditorWorld(data.world);
       updateSelection(null);
+      setEditorDirty(true);
       showValidation(data.validation);
     } catch (err) {
       log(err.message);
@@ -906,12 +1043,12 @@
       const data = await api.importEditorWorld(importPayload);
       setEditorWorld(data.world);
       await hydrateRobotStartFromSnapshotIfMissing();
-      await ensureRobotVisibleOnEditor();
       // Priorizar el nombre real del archivo abierto por el usuario.
       const inferredName = stripJsonExtension(file.name || world?.name || world?.world_name);
       setActiveWorldName(inferredName);
       setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
+      setEditorDirty(false);
       updateSelection(null);
       showValidation(data.validation);
     } catch (err) {
@@ -954,6 +1091,7 @@
       setActiveWorldName("");
       setSavedWorldFileName("");
       setSimulateSavedWorldLink("");
+      setEditorDirty(false);
       log(`Mundo eliminado: ${payload.name}. Se creó un mundo nuevo.`);
     } catch (err) {
       log(err.message);
@@ -970,6 +1108,50 @@
 
   worldMapZoomResetBtn?.addEventListener("click", () => {
     applyMapZoom("reset");
+  });
+
+  function toggleEditorPanel(kind) {
+    const shell = document.querySelector(".world-editor-shell");
+    const button = kind === "library" ? toggleLibraryPanelBtn : toggleInspectorPanelBtn;
+    if (!shell || !button) return;
+    const className = kind === "library" ? "is-library-collapsed" : "is-inspector-collapsed";
+    shell.classList.toggle(className);
+    button.setAttribute("aria-pressed", String(shell.classList.contains(className)));
+  }
+
+  toggleLibraryPanelBtn?.addEventListener("click", () => toggleEditorPanel("library"));
+  toggleInspectorPanelBtn?.addEventListener("click", () => toggleEditorPanel("inspector"));
+
+  document.addEventListener("keydown", (event) => {
+    const target = event.target;
+    const editingText = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+    const key = event.key.toLowerCase();
+    const click = (id) => document.getElementById(id)?.click();
+    if (event.ctrlKey && key === "n") {
+      event.preventDefault(); click("newWorldBtn"); return;
+    }
+    if (event.ctrlKey && key === "o") {
+      event.preventDefault(); click("openWorldBtn"); return;
+    }
+    if (event.ctrlKey && key === "s") {
+      event.preventDefault(); click(event.shiftKey ? "exportWorldBtn" : "saveWorldBtn"); return;
+    }
+    if (editingText) return;
+    if (event.ctrlKey && key === "d") {
+      event.preventDefault(); click("duplicateAssetBtn"); return;
+    }
+    if (event.key === "Delete") {
+      event.preventDefault(); click("deleteAssetBtn"); return;
+    }
+    if (key === "r") {
+      event.preventDefault(); click("rotateAssetBtn"); return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      placementPreview = null;
+      setRobotStartMode(false);
+      updateSelection(null);
+    }
   });
 
   window.addEventListener("pagehide", () => {

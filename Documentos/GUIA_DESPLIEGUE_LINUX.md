@@ -1,7 +1,34 @@
 # Despliegue Linux para aula o servidor
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Audiencia:
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Audiencia:
 > operacion. Fuente ejecutable: `Dockerfile` y `simulador_ev3/web/config.py`.
+
+## Perfil endurecido de contenedor
+
+Para producción use `docker-compose.production.yml`, con secretos entregados por
+el entorno del servidor y no por Git:
+
+```bash
+export EV3_WEB_SECRET_KEY='secreto-aleatorio-de-al-menos-32-caracteres'
+export EV3_WEB_OPERATIONS_TOKEN='otro-secreto-operativo-de-al-menos-32-caracteres'
+docker compose -f docker-compose.production.yml up -d --build
+```
+
+El perfil ejecuta como usuario no privilegiado, usa raíz de solo lectura, crea
+`/tmp/ev3` como `tmpfs` privado, limita memoria, CPU y PIDs, elimina capacidades
+Linux y activa `no-new-privileges`. El límite predeterminado de **128 PIDs** da
+margen al proceso web y a los canales IPC de hasta 20 workers aislados; no es
+una garantía de que cada script use una cantidad determinada de procesos. Las
+sesiones se cierran al salir de la página o tras su tiempo de inactividad, y un
+reinicio controlado del contenedor libera cualquier worker residual. El worker
+bloquea red dentro de Python; la denegación de egress a
+nivel de red debe configurarse además en el firewall, proxy o política de red
+de Nyquist/Docker.
+
+Los workers usan sólo `/tmp/ev3/workers`; al iniciar, la aplicación limpia
+directorios `ev3-worker-*` vencidos sin borrar archivos ajenos ni terminar
+procesos activos. Ajuste `EV3_WEB_WORKER_TEMP_MAX_AGE_S` si su operación
+necesita otra antigüedad.
 
 ## Requisitos
 
@@ -23,6 +50,22 @@ docker run --rm -p 5050:5050 \
 
 El contenedor se ejecuta como el usuario `ev3` sin privilegios. No introducir
 secretos en Dockerfile, imagenes, argumentos de build ni repositorio.
+
+### Hostinger VPS con Traefik administrado
+
+Cuando el VPS ya tiene el proxy Traefik administrado por Hostinger, aplique
+además `docker-compose.hostinger.yml`. Ese complemento conecta únicamente el
+servicio de simulación a la red externa `red` y publica
+`botlab.famedina.io` por HTTPS; no inicie el servicio Caddy de la composición
+base en ese perfil.
+
+```bash
+docker compose -p botlab-release \
+  --env-file .env.production \
+  -f docker-compose.production.yml \
+  -f docker-compose.hostinger.yml \
+  up -d --no-deps --force-recreate simulador-ev3
+```
 
 ## Verificacion
 
@@ -52,3 +95,10 @@ documentados; revisar `/healthz`, logs y la notificacion de la interfaz.
 - Definir limites de sesiones y simulaciones segun memoria disponible.
 - Conservar `EV3_WEB_ENABLE_SECURITY_HEADERS=true` salvo excepcion justificada.
 - Consultar `SEGURIDAD_Y_USO_EN_AULA.md` y `REFERENCIA_CONFIGURACION.md`.
+
+## Compuerta de liberación
+
+Antes de publicar una imagen, ejecutar la construcción, `/healthz`, métricas y
+una simulación corta; registrar tag, digest y commit. La campaña del 2026-08-05
+aprobó construcción y smoke HTTP 200 como usuario no privilegiado. Ese resultado
+es evidencia histórica del commit evaluado y debe repetirse para una imagen nueva.

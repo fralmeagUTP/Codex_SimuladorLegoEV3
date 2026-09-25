@@ -10,6 +10,7 @@ import os
 import tkinter as tk
 from typing import Any, Callable, Literal, Optional
 
+from simulador_ev3.shared.asset_catalog import asset_candidate_paths
 from simulador_ev3.shared.paths import resolve_image_assets_dir
 
 _BAR_BG = "#ECEFF1"
@@ -17,20 +18,10 @@ _BTN_BG = "#CFD8DC"
 _BTN_ACTIVE = "#90A4AE"
 _ICON_SIZE_PX = 32
 _IMAGES_DIR = os.path.normpath(str(resolve_image_assets_dir()))
-_TOOL_IMAGE_OVERRIDES: dict[str, list[str]] = {
-    "line_64x64_cruz": ["line_64X64_Cruz.png"],
-    "line_64_64_hor": ["line_64_64_Hor.png"],
-    "line_64_64_ver": ["line_64_64_Ver.png"],
-    "line_64_64_infder": ["line_64_64_InfDer.png"],
-    "line_64_64_infizq": ["line_64_64_InfIzq.png"],
-    "line_64_64_supder": ["line_64_64_SupDer.png"],
-    "line_64_64_supizq": ["line_64_64_SupIzq.png"],
-    "floor_tile_256_c": ["floor_tile_256_c.jpg", "floor_tile_256_b.png"],
-}
 
 
 class WorldToolbar(tk.Frame):
-    """Simple toolbar with world-editor tools."""
+    """Cabecera agrupada de acciones y elementos rápidos del editor."""
 
     def __init__(
         self,
@@ -47,72 +38,86 @@ class WorldToolbar(tk.Frame):
         on_delete_world_file: Optional[Callable[[], None]] = None,
         on_simulate_saved: Optional[Callable[[], None]] = None,
     ) -> None:
-        super().__init__(parent, bg=_BAR_BG, padx=6, pady=4)
+        super().__init__(parent, bg=_BAR_BG, padx=8, pady=6)
         self._on_tool_change = on_tool_change
         self._active_tool = "select"
         self._tool_buttons: dict[str, tk.Button] = {}
         self._tool_icons: dict[str, tk.PhotoImage] = {}
         self._image_lookup = self._build_image_lookup()
+        self._selection_buttons: list[tk.Button] = []
 
-        self._add_action_button("Nuevo", on_new)
-        self._add_action_button("Abrir", on_open)
-        self._add_action_button("Guardar", on_save)
-        self._add_action_button("Guardar como", on_save_as)
+        action_row = tk.Frame(self, bg=_BAR_BG)
+        action_row.pack(fill=tk.X, anchor=tk.W)
+        file_group = self._add_group(action_row, "Archivo")
+        edit_group = self._add_group(action_row, "Edición")
+        simulation_group = self._add_group(action_row, "Simulación")
+
+        self._add_action_button("Nuevo", on_new, parent=file_group)
+        self._add_action_button("Abrir", on_open, parent=file_group)
+        self._add_action_button("Guardar", on_save, parent=file_group, primary=True)
+        self._add_action_button("Guardar como", on_save_as, parent=file_group)
         self._delete_world_file_button = self._add_action_button(
             "Eliminar archivo",
             on_delete_world_file or (lambda: None),
+            parent=file_group,
             state=tk.DISABLED,
+            danger=True,
         )
+
         self._simulate_saved_button = self._add_action_button(
-            "Simular mundo guardado",
+            "Probar mundo guardado",
             on_simulate_saved or (lambda: None),
+            parent=simulation_group,
             state=tk.DISABLED,
+            primary=True,
         )
-        self._add_separator()
 
-        self._add_tool_button("select", "Select")
-        self._add_tool_button("delete", "Delete")
-        self._add_separator()
-
-        self._add_tool_button("robot_ev3_32x32", "Robot")
-        self._add_tool_button("wall_64x64_a", "Wall A")
-        self._add_tool_button("wall_64x64_b", "Wall B")
-        self._add_tool_button("wall_64x64_c", "Wall C")
-        self._add_tool_button("floor_tile_256_a", "Fondo A")
-        self._add_tool_button("floor_tile_256_b", "Fondo B")
-        self._add_tool_button("floor_tile_256_c", "Fondo C")
-        self._add_tool_button("zone_white_128", "Zone White")
-        self._add_tool_button("zone_red_128", "Zone Red")
-        self._add_tool_button("zone_green_128", "Zone Green")
-        self._add_tool_button("line_64_64_hor", "Line Hor")
-        self._add_tool_button("line_64_64_ver", "Line Ver")
-        self._add_tool_button("line_64x64_cruz", "Line Cross")
-        self._add_tool_button("line_64_64_infder", "Curve InfDer")
-        self._add_tool_button("line_64_64_infizq", "Curve InfIzq")
-        self._add_tool_button("line_64_64_supder", "Curve SupDer")
-        self._add_tool_button("line_64_64_supizq", "Curve SupIzq")
-        self._add_separator()
-
-        self._add_action_button("Eliminar", on_delete)
-        self._add_action_button("Duplicate", on_duplicate)
-        self._add_action_button("Rotar 90", on_rotate)
-        self._add_action_button("Aplicar propiedades", on_apply_props)
+        self._add_tool_button("select", "Seleccionar", parent=edit_group)
+        self._selection_buttons.extend(
+            [
+                self._add_action_button("Eliminar", on_delete, parent=edit_group, state=tk.DISABLED, danger=True),
+                self._add_action_button("Duplicar", on_duplicate, parent=edit_group, state=tk.DISABLED),
+                self._add_action_button("Rotar 90°", on_rotate, parent=edit_group, state=tk.DISABLED),
+                self._add_action_button("Aplicar propiedades", on_apply_props, parent=edit_group, state=tk.DISABLED),
+            ]
+        )
 
         self._refresh_tool_styles()
+
+    @staticmethod
+    def _add_group(
+        parent: tk.Widget,
+        title: str,
+        *,
+        fill: Literal["none", "x", "y", "both"] | None = None,
+    ) -> tk.LabelFrame:
+        group = tk.LabelFrame(parent, text=title, bg=_BAR_BG, padx=4, pady=3, font=("Segoe UI", 8, "bold"))
+        group.pack(side=tk.LEFT, padx=(0, 8), fill=fill or "none", anchor=tk.W)
+        return group
 
     def _add_action_button(
         self,
         label: str,
         command: Callable[[], None],
         *,
+        parent: tk.Widget,
         state: Literal["normal", "active", "disabled"] = "normal",
+        primary: bool = False,
+        danger: bool = False,
     ) -> tk.Button:
+        bg = "#1565C0" if primary else "#C62828" if danger else _BTN_BG
+        fg = "white" if primary or danger else "#102027"
         btn = tk.Button(
-            self,
+            parent,
             text=label,
             command=command,
-            bg=_BTN_BG,
+            bg=bg,
+            fg=fg,
             activebackground=_BTN_ACTIVE,
+            # Los controles primario y de peligro conservan contraste también
+            # mientras se pulsan o cuando su acción todavía no está disponible.
+            activeforeground=fg,
+            disabledforeground=fg if primary or danger else "#455A64",
             relief=tk.RAISED,
             bd=1,
             padx=6,
@@ -125,14 +130,27 @@ class WorldToolbar(tk.Frame):
     def set_simulate_saved_enabled(self, enabled: bool) -> None:
         """Habilita el retorno explícito a simulación tras un guardado válido."""
 
-        self._simulate_saved_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        self._simulate_saved_button.configure(state="normal" if enabled else "disabled")
 
     def set_delete_world_file_enabled(self, enabled: bool) -> None:
         """Habilita borrar solo cuando existe un archivo de mundo editable."""
 
-        self._delete_world_file_button.configure(state=tk.NORMAL if enabled else tk.DISABLED)
+        self._delete_world_file_button.configure(state="normal" if enabled else "disabled")
 
-    def _add_tool_button(self, tool_id: str, label: str) -> None:
+    def set_selection_actions_enabled(self, enabled: bool) -> None:
+        """Sin selección no se ofrecen acciones que no podrían completarse."""
+
+        state: Literal["normal", "disabled"] = "normal" if enabled else "disabled"
+        for button in self._selection_buttons:
+            button.configure(state=state)
+
+    def set_active_tool(self, tool_id: str) -> None:
+        """Sincroniza la selección de herramienta desde la biblioteca lateral."""
+
+        self._active_tool = tool_id
+        self._refresh_tool_styles()
+
+    def _add_tool_button(self, tool_id: str, label: str, *, parent: tk.Widget) -> None:
         icon = self._get_tool_icon(tool_id)
         kwargs: dict[str, Any] = {
             "command": lambda t=tool_id: self._set_tool(t),
@@ -157,7 +175,7 @@ class WorldToolbar(tk.Frame):
         else:
             kwargs["text"] = label
         btn = tk.Button(
-            self,
+            parent,
             **kwargs,
         )
         btn.pack(side=tk.LEFT, padx=2)
@@ -189,14 +207,20 @@ class WorldToolbar(tk.Frame):
         return lookup
 
     def _resolve_tool_image_paths(self, tool_id: str) -> list[str]:
-        candidates = list(_TOOL_IMAGE_OVERRIDES.get(tool_id, []))
+        try:
+            candidates = [str(path) for path in asset_candidate_paths(tool_id)]
+        except KeyError:
+            candidates = []
         candidates.extend([f"{tool_id}.png", f"{tool_id}.jpg", f"{tool_id}.jpeg"])
         resolved: list[str] = []
         for candidate in candidates:
+            if os.path.isabs(candidate) and os.path.isfile(candidate):
+                resolved.append(candidate)
+                continue
             hit = self._image_lookup.get(candidate.lower())
             if hit:
                 resolved.append(hit)
-        return resolved
+        return list(dict.fromkeys(resolved))
 
     def _get_tool_icon(self, tool_id: str) -> tk.PhotoImage | None:
         cached = self._tool_icons.get(tool_id)

@@ -1,0 +1,14 @@
+{
+	# Caddy solicita y renueva el certificado TLS automáticamente. El correo y el
+	# host se definen en .env.production, que no se versiona.
+	email {$EV3_WEB_TLS_EMAIL}
+}
+
+{$EV3_WEB_PUBLIC_HOST} {
+	encode zstd gzip
+
+	# Caddy genera X-Forwarded-* y transmite los eventos SSE inmediatamente.
+	reverse_proxy simulador-ev3:5050 {
+		flush_interval -1
+	}
+}

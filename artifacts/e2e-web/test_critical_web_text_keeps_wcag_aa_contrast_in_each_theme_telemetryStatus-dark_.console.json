@@ -1,0 +1,18 @@
+[
+  {
+    "type": "error",
+    "text": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-bndW3/dl7UP0szMPhvnz5C8IAwYB/8ShbK7EDLiubyQ='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked."
+  },
+  {
+    "type": "error",
+    "text": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-1vqliOS8Zlh1fKFOUA663FQixg6OhiKEiE3KkBl9mOs='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked."
+  },
+  {
+    "type": "error",
+    "text": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-ATKsTFQF1krnfpXueIZN6bYCJdZklP84eIs2iaNJy88='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked."
+  },
+  {
+    "type": "error",
+    "text": "Executing inline script violates the following Content Security Policy directive 'script-src 'self''. Either the 'unsafe-inline' keyword, a hash ('sha256-I0GXNDLXDx4E/odBKHIGct6W9SQN2LwE9iHhBwGOGCw='), or a nonce ('nonce-...') is required to enable inline execution. The action has been blocked."
+  }
+]

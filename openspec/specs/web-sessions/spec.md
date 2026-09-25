@@ -114,6 +114,140 @@ versión, `session_id` y correlación `command_id`.
 - CUANDO la sesión reanuda una operación idempotente
 - ENTONCES DEBERÁ conservar la correlación y el último snapshot válido.
 
+### Requirement: Consistencia terminal de snapshot
+
+La sesión Web MUST publicar un snapshot completo, con estado de sesión y
+generación, antes de publicar `finished`, `timed_out` o `error`. Canvas, LCD,
+telemetría y estado visible DEBERÁN poder renderizar el mismo snapshot.
+
+#### Scenario: Script terminado con salida LCD
+
+- DADO un script que escribe en LCD y termina
+- CUANDO el runtime publica `finished`
+- ENTONCES la interfaz DEBERÁ recibir el snapshot con el contenido final de LCD
+- Y la telemetría DEBERÁ indicar `finished` para esa misma generación.
+
+### Requirement: Reinicio atómico por generación
+
+La sesión Web MUST crear una nueva generación al reiniciar y publicar un
+único snapshot inicial de esa generación. Eventos o callbacks de una ejecución
+anterior NO DEBERÁN reemplazarlo.
+
+#### Scenario: Cancelación de un bucle y reinicio
+
+- DADO un script en ejecución que genera ticks continuamente
+- CUANDO el usuario solicita Detener y reiniciar
+- ENTONCES estado, tick, tiempo, LCD, canvas y telemetría DEBERÁN representar
+  el inicio del mundo activo
+- Y ningún snapshot posterior de la misión cancelada DEBERÁ aplicarse.
+
+### Requirement: Verificación de aislamiento multiusuario Web
+
+La aplicación Web MUST demostrar mediante pruebas concurrentes que sesiones de
+usuarios distintos no comparten token, script, mundo, snapshot, eventos, LCD,
+telemetría ni estado de ejecución.
+
+#### Scenario: Dos simulaciones concurrentes
+
+- DADO dos sesiones autenticadas con tokens distintos
+- CUANDO cargan mundos y scripts diferentes y se ejecutan en paralelo
+- ENTONCES cada interfaz DEBERÁ mostrar solo su propio snapshot y resultado
+- Y cancelar o reiniciar una sesión NO DEBERÁ afectar la otra.
+
+### Requirement: Recuperación de canal de actualización
+
+La sesión Web MUST mantener coherencia al alternar entre SSE y polling, al
+recargar el navegador y ante eventos tardíos o reinicio recuperable del worker.
+
+#### Scenario: SSE interrumpido durante ejecución
+
+- DADO una simulación activa con SSE
+- CUANDO el canal se interrumpe y el cliente usa polling o se reconecta
+- ENTONCES canvas, LCD, telemetría y estado DEBERÁN converger al mismo snapshot
+- Y no DEBERÁN duplicarse robots, trazas, mensajes ni notificaciones.
+
+### Requirement: Cadencia de snapshots Web configurable
+
+La aplicación Web SHALL publicar snapshots de simulación a una cadencia
+configurable, con valor predeterminado de 30 Hz y un rango válido de 10 a 60 Hz.
+La frecuencia del motor SHALL mantenerse independiente a 50 Hz.
+
+#### Scenario: Configuración predeterminada
+
+- **WHEN** el servidor Web inicia sin una variable de entorno de cadencia
+- **THEN** limita los eventos de snapshot a 30 Hz como máximo
+- **AND** mantiene los ticks del motor a 50 Hz
+
+#### Scenario: Configuración inválida
+
+- **WHEN** EV3_WEB_WEB_SNAPSHOT_MAX_HZ está fuera del rango de 10 a 60 Hz
+- **THEN** el servidor rechaza la configuración con un mensaje accionable
+
+### Requirement: Snapshot final coherente
+
+La sesión SHALL publicar y conservar el último snapshot autoritativo antes de
+comunicar un estado terminal.
+
+#### Scenario: Programa finalizado
+
+- **WHEN** un programa termina correctamente
+- **THEN** canvas, LCD, telemetría y estado reciben el snapshot final
+- **BEFORE** la interfaz muestra finished
+
+### Requirement: Cancelación de depuración recuperable
+
+La sesión Web MUST aplicar a una ejecución iniciada en depuración la misma
+cancelación versionada que a una ejecución normal. Una solicitud de Detener y
+reiniciar DEBERÁ terminar en un snapshot inicial `created`, aun cuando el worker
+de depuración responda tarde o no responda.
+
+#### Scenario: Detener una depuración activa
+
+- DADO un script iniciado con Depurar y estado `running`
+- CUANDO el usuario selecciona Detener y reiniciar
+- ENTONCES la UI DEBERÁ quedar operable y el estado DEBERÁ ser `created` en un
+  máximo de tres segundos
+- Y eventos de la generación cancelada NO DEBERÁN restaurar `running`.
+
+### Requirement: Error terminal coherente
+
+La sesión Web MUST publicar el snapshot final y el estado `error` cuando un
+script falla en tiempo de ejecución. No DEBERÁ conservar `running` ni datos de
+una ejecución anterior como estado terminal.
+
+#### Scenario: Excepción de división por cero
+
+- DADO un script válido que evalúa `1 / 0`
+- CUANDO el runtime produce la excepción
+- ENTONCES la interfaz DEBERÁ mostrar `error`, el mensaje asociado y el snapshot
+  de esa generación
+- Y Ejecutar y los menús permitidos DEBERÁN quedar disponibles.
+
+### Requirement: Recuperación de controles desde sesión
+
+La UI Web MUST derivar los controles de ejecución del estado autoritativo al
+cargar o recuperar una sesión.
+
+#### Scenario: Recarga después de finalizar
+
+- DADA una sesión que terminó correctamente
+- CUANDO el navegador se recarga
+- ENTONCES Detener y reiniciar NO DEBERÁ quedar habilitado si no hay operación
+  cancelable en curso.
+
+### Requirement: Recuperación verificable de la sesión Web
+
+La sesión Web MUST conservar o restaurar un estado documentado ante recarga,
+interrupción recuperable del worker y transición terminal, sin aplicar eventos
+de una generación anterior a la interfaz actual.
+
+#### Scenario: Evento retrasado después de reiniciar
+
+- **DADO** una ejecución cancelada y una nueva generación de sesión iniciada;
+- **CUANDO** llegue un evento terminal retrasado de la generación anterior;
+- **ENTONCES** la interfaz lo ignorará;
+- **Y** no cambiará el estado ni mostrará una notificación de éxito incorrecta.
+
 ## Notas operativas
 
 - La capacidad predeterminada actual es 20 sesiones activas y 8 simulaciones ejecutándose.

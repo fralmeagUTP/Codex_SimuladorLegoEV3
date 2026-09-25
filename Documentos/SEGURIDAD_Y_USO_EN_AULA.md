@@ -1,6 +1,6 @@
 # Seguridad y uso en aula
 
-> Estado: actual al 2026-07-25. Version aplicable: `1.5.0`. Audiencia:
+> Estado: revisado al 2026-08-05. Versión aplicable: `1.5.0`. Audiencia:
 > docentes, operacion y desarrollo.
 
 ## Modelo de seguridad
@@ -46,3 +46,19 @@ accesible y calibracion previa. Consultar `DIFERENCIAS_SIMULADOR_ROBOT.md`.
 3. Si se sospecha exposicion de un secreto, revocarlo en la plataforma de
    despliegue, generar uno nuevo y reiniciar el servicio.
 4. Reportar errores de seguridad sin adjuntar secretos ni scripts privados.
+
+## Aplicacion de escritorio Windows
+
+- El ejecutable no requiere privilegios de administrador para ejecutarse. Use
+  una carpeta de usuario o una carpeta de aula donde el alumno tenga permiso de
+  lectura; el instalador solo puede requerir elevacion si se decide instalar en
+  `Program Files`.
+- El modo aislado es la ruta normal para scripts. Solo
+  `EV3_LOCAL_RUNTIME_ENABLED=true` habilita el modo de compatibilidad local y
+  queda reservado para desarrollo y pruebas controladas.
+- La interfaz admite scripts `.py` de hasta 512 KiB y mundos `.json` de hasta
+  2 MiB. Los guardados se hacen de forma atomica para no dejar archivos a medio
+  escribir. No abra archivos de origen desconocido que excedan esos limites.
+- Los temporales de worker se crean en un directorio privado propio y se
+  eliminan al cerrar. La aplicacion no necesita almacenar credenciales ni datos
+  personales locales.

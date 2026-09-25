@@ -1,5 +1,7 @@
 ﻿# Guia de instalacion en cPanel (Hosting Web)
 
+> Antes de iniciar, consulte también [Requerimientos técnicos y manual de despliegue Web](REQUERIMIENTOS_HOSTING_Y_DESPLIEGUE_WEB.md). Esta guía solo aplica si el proveedor permite procesos hijos de Python, procesos persistentes y directorios temporales privados.
+
 Esta guia explica como publicar la app web del simulador EV3 en cPanel, usando **Setup Python App** (Passenger).
 Esta version ya viene adaptada al panel que mostraste en captura.
 
@@ -17,6 +19,30 @@ Objetivo de despliegue:
   - Ideal: Terminal/SSH en cPanel
 - Dominio/subdominio activo en cPanel.
 - Proyecto disponible en ZIP o por Git.
+
+### Seguridad recomendada para Nyquist
+
+La aplicación no requiere cuentas ni roles de usuario, pero cada navegador recibe
+una sesión de simulación aislada. Antes de activar la app pública, configure HTTPS
+en el dominio y estas variables de entorno en **Setup Python App**:
+
+```text
+EV3_WEB_APP_ENV=production
+EV3_WEB_SECRET_KEY=<secreto-aleatorio-de-al-menos-32-caracteres>
+EV3_WEB_SESSION_COOKIE_SECURE=true
+EV3_WEB_SESSION_COOKIE_PREFIX=__Host-ev3_
+EV3_WEB_ENABLE_HSTS=true
+EV3_WEB_OPERATIONS_ACCESS_POLICY=token
+EV3_WEB_OPERATIONS_TOKEN=<secreto-operativo-de-al-menos-32-caracteres>
+EV3_WEB_RATE_LIMIT_SESSION_CREATE=12
+EV3_WEB_RATE_LIMIT_SESSION_COMMAND=120
+```
+
+`__Host-ev3_` exige HTTPS y evita que las cookies de sesión se compartan con
+subdominios. No publique el token operativo: úselo solamente para consultar
+`/healthz`, `/metrics` u `/operations` desde administración con la cabecera
+`X-EV3-Operations-Token`. HSTS debe habilitarse únicamente cuando el dominio ya
+funciona siempre mediante HTTPS, porque los navegadores recordarán esa decisión.
 
 ## 2. Configuracion detectada en tu cPanel
 
@@ -262,6 +288,23 @@ EV3_WEB_MAX_ACTIVE_SESSIONS=40
 EV3_WEB_MAX_RUNNING_SIMULATIONS=12
 EV3_WEB_SESSION_IDLE_TIMEOUT_MIN=45
 ```
+
+### Validación previa de concurrencia
+
+Antes de subir una versión a Nyquist, ejecuta desde una copia local del
+proyecto la campaña aislada de sesiones:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_web_session_load.py --users 24 --parallelism 8
+```
+
+La campaña no usa el hosting ni el servidor que estés utilizando: inicia un
+servidor temporal, verifica propietarios, aislamiento de scripts, límite `429`,
+métricas y cierre de recursos. Revisa el JSON generado en
+`Documentos/EVIDENCIA_SESIONES_CONCURRENTES/`. Para el servidor real comienza
+con `EV3_WEB_MAX_ACTIVE_SESSIONS=20` y
+`EV3_WEB_MAX_RUNNING_SIMULATIONS=8`; aumenta esos valores solo después de una
+medición en Nyquist con CPU, memoria y cola de workers observables.
 
 ## 10. Permisos de escritura (mundos)
 

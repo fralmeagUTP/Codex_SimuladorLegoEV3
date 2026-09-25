@@ -2,9 +2,12 @@ import json
 import time
 from pathlib import Path
 
+import pytest
+
 from simulador_ev3.application.desktop_session_adapter import DesktopSessionAdapter
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
 from simulador_ev3.core.simulation_engine import SimEngineConfig, SimulationEngine
+from simulador_ev3.shared.local_file_security import LocalFileSecurityError
 
 
 def test_desktop_session_adapter_exposes_local_simulation_use_cases() -> None:
@@ -66,6 +69,23 @@ def test_desktop_session_adapter_recovers_worker_before_mirroring_world(monkeypa
         session.close()
 
 
+def test_desktop_session_adapter_rejects_non_json_or_oversized_world_before_worker(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
+    session = DesktopSessionAdapter(SimEngineConfig())
+    invalid = tmp_path / "world.txt"
+    invalid.write_text("{}", encoding="utf-8")
+    oversized = tmp_path / "world.json"
+    oversized.write_bytes(b"x" * (2 * 1024 * 1024 + 1))
+    try:
+        with pytest.raises(LocalFileSecurityError):
+            session.load_world_file(invalid)
+        with pytest.raises(LocalFileSecurityError):
+            session.load_world_file(oversized)
+        assert session._worker is None
+    finally:
+        session.close()
+
+
 def test_desktop_session_adapter_records_worker_snapshots_in_active_trace(monkeypatch) -> None:
     monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "false")
     session = DesktopSessionAdapter(SimEngineConfig())
@@ -91,5 +111,33 @@ def test_desktop_session_adapter_records_worker_snapshots_in_active_trace(monkey
         session.drain_worker_events()
         assert '"snapshots":[' in session.export_trace("json")
         assert str(snapshot.tick) in session.export_trace("json")
+    finally:
+        session.close()
+
+
+def test_desktop_session_adapter_converts_terminal_worker_error_to_terminal_state(monkeypatch) -> None:
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "false")
+    session = DesktopSessionAdapter(SimEngineConfig())
+
+    class FakeWorker:
+        def drain_events(self):
+            return [{
+                "protocol_version": 1,
+                "session_id": "desktop-shadow",
+                "sequence": 1,
+                "type": "error",
+                "payload": {"error": "invalid syntax"},
+                "command_id": None,
+            }]
+
+        def close(self):
+            pass
+
+    session._worker = FakeWorker()
+    session._worker_status = "running"
+    try:
+        session.drain_worker_events()
+        assert session.is_running is False
+        assert session._worker_status == "error"
     finally:
         session.close()

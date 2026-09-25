@@ -10,9 +10,14 @@ It keeps backward compatibility with legacy folders under Documentos.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# PyInstaller stores bundled, read-only resources below ``sys._MEIPASS`` while
+# editable content must remain beside the executable. Keeping both roots
+# separate makes the installed application independent from the source tree.
+BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+PROJECT_ROOT = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else BUNDLE_ROOT
 
 CANONICAL_DOCS_DIR = PROJECT_ROOT / "docs"
 LEGACY_DOCS_DIR = PROJECT_ROOT / "Documentos"
@@ -23,10 +28,10 @@ LEGACY_EXAMPLES_DIR = LEGACY_DOCS_DIR / "Ejemplos"
 CANONICAL_WORLDS_DIR = PROJECT_ROOT / "worlds"
 LEGACY_WORLDS_DIR = LEGACY_DOCS_DIR / "Mundos"
 
-CANONICAL_IMAGE_ASSETS_DIR = PROJECT_ROOT / "simulador_ev3" / "assets"
+CANONICAL_IMAGE_ASSETS_DIR = BUNDLE_ROOT / "simulador_ev3" / "assets"
 LEGACY_IMAGE_ASSETS_DIRS = (
-    PROJECT_ROOT / "simulador_ev3" / "assets" / "images",
-    PROJECT_ROOT / "simulador_ev3" / "images",
+    BUNDLE_ROOT / "simulador_ev3" / "assets" / "images",
+    BUNDLE_ROOT / "simulador_ev3" / "images",
 )
 
 
@@ -69,3 +74,15 @@ def resolve_manual_path() -> Path:
     if manual_path.exists():
         return manual_path
     return LEGACY_DOCS_DIR / "MANUAL_DE_USO.md"
+
+
+def resolve_documentation_path(filename: str) -> Path:
+    """Localiza un documento canónico sin asumir que ya migró a ``docs/``."""
+
+    canonical = resolve_docs_dir() / filename
+    if canonical.is_file():
+        return canonical
+    legacy = LEGACY_DOCS_DIR / filename
+    if legacy.is_file():
+        return legacy
+    return canonical

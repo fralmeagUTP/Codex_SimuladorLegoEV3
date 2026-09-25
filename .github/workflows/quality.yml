@@ -19,7 +19,28 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
-      - run: python -m pytest --cov=simulador_ev3 --cov-report=term-missing
+      - name: Instalar runtime nativo del worker aislado (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgcc-s1
+      - run: python -m pytest --cov=simulador_ev3 --cov-report=term-missing --cov-report=xml:artifacts/coverage/coverage.xml
+      - name: Compuerta MMI de paridad y recursos
+        run: python -m pytest tests/shared/test_maturity_manifest.py tests/shared/test_asset_catalog.py -q
+      - name: Compuerta del editor de mundos compartido
+        run: >-
+          python -m pytest
+          tests/application/test_world_editor_session.py
+          tests/application/test_world_editor_service.py
+          tests/shared/test_asset_catalog.py
+          tests/shared/test_interface_execution_parity.py
+          tests/web/test_qa_world_crud.py
+          tests/ui/test_world_editor_navigation.py -q
+      - name: Conservar cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-${{ matrix.os }}-py${{ matrix.python }}
+          path: artifacts/coverage/coverage.xml
+          if-no-files-found: warn
 
   static-analysis:
     runs-on: ubuntu-latest
@@ -46,6 +67,36 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest tests/load -q
 
+  docker-smoke:
+    name: contenedor Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen de producción
+        run: docker build --tag simulador-ev3:ci .
+      - name: Iniciar contenedor sin privilegios
+        run: >-
+          docker run --detach --name simulador-ev3-ci --publish 5050:5050
+          --env EV3_WEB_SECRET_KEY=ci-only-secret-key-at-least-32-characters
+          --env EV3_WEB_SESSION_COOKIE_SECURE=true
+          simulador-ev3:ci
+      - name: Verificar disponibilidad HTTP
+        run: |
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error http://127.0.0.1:5050/healthz; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs simulador-ev3-ci
+          exit 1
+      - name: Conservar diagnósticos del contenedor
+        if: always()
+        run: docker logs simulador-ev3-ci || true
+      - name: Detener contenedor de prueba
+        if: always()
+        run: docker rm --force simulador-ev3-ci || true
+
   e2e-web:
     runs-on: ubuntu-latest
     steps:
@@ -57,6 +108,13 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - run: python -m playwright install --with-deps chromium
       - run: python -m pytest tests/e2e/test_web_playwright.py -q
+      - name: Conservar evidencia Web ante fallo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencia-e2e-web
+          path: artifacts/e2e-web
+          if-no-files-found: ignore
 
   desktop-visual:
     name: evidencia visual Tkinter
@@ -71,17 +129,57 @@ jobs:
       - name: Capturar referencia actual de Tkinter
         run: python scripts/capture_desktop_evidence.py --output-dir artifacts/tkinter --theme light
       - name: Comparar contra referencia aprobada
-        run: >-
-          python scripts/compare_visual_evidence.py
-          Documentos/EVIDENCIA_PARIDAD_2026-07-24/tkinter/simulacion_light_1280x800.png
-          artifacts/tkinter/simulacion_light_1280x800.png
-          --threshold 0.08
+        shell: pwsh
+        run: |
+          $actual = Get-ChildItem artifacts/tkinter/simulacion_light_*.png | Select-Object -First 1
+          if ($null -eq $actual) { throw "No se generó evidencia visual de Tkinter." }
+          $reference = Join-Path "Documentos/EVIDENCIA_PARIDAD_2026-07-24/tkinter" $actual.Name
+          if (-not (Test-Path $reference)) { throw "No existe referencia aprobada para $($actual.Name)." }
+          python scripts/compare_visual_evidence.py $reference $actual.FullName --threshold 0.08
       - name: Conservar evidencia visual
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: evidencia-visual-tkinter
           path: artifacts/tkinter
+          if-no-files-found: warn
+
+  windows-release-smoke:
+    name: empaquetado Windows limpio
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Construir ejecutable oficial
+        shell: pwsh
+        run: .\scripts\build_release_windows.ps1 -PythonExe python
+      - name: Verificar recursos y arranque del ejecutable
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path .\dist\SimuladorEV3\SimuladorEV3.exe
+          if (-not (Test-Path .\dist\SimuladorEV3\Documentos\Ejemplos)) { throw "Faltan los ejemplos empaquetados." }
+          if (-not (Test-Path .\dist\SimuladorEV3\Documentos\Mundos)) { throw "Faltan los mundos empaquetados." }
+          $process = $null
+          try {
+            $process = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden
+            Start-Sleep -Seconds 5
+            if ($process.HasExited) { throw "El ejecutable finalizó prematuramente con código $($process.ExitCode)." }
+          }
+          finally {
+            if ($null -ne $process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
+      - name: Conservar artefacto Windows
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulador-ev3-windows
+          path: dist/SimuladorEV3
           if-no-files-found: warn
 
   runtime-resilience:
@@ -93,6 +191,8 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
+      - name: Instalar runtime nativo del worker aislado
+        run: sudo apt-get update && sudo apt-get install -y libgcc-s1
       - run: python -m pytest tests/runtime/test_isolated_worker.py tests/load -q
 
   coverage-core:
@@ -105,3 +205,16 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest tests/core tests/domain --cov=simulador_ev3.core --cov=simulador_ev3.domain --cov-fail-under=90 -q
+
+  mutation-session:
+    name: mutación de sesión Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Ejecutar mutaciones cubiertas del contrato de sesión
+        run: python -m mutmut run

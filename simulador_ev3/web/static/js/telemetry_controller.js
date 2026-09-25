@@ -45,7 +45,11 @@ window.EV3TelemetryController = {
         motorsAB.innerHTML = ["A", "B"].map((port) => renderPort(port, motorsByPort, renderMotor, emptyMotor)).join("");
         motorsCD.innerHTML = ["C", "D"].map((port) => renderPort(port, motorsByPort, renderMotor, emptyMotor)).join("");
         sensors.innerHTML = ["S1", "S2", "S3", "S4"].map((port) => renderPort(port, sensorsByPort, renderSensor, emptySensor)).join("");
-        status.textContent = snapshot.status || "ACTIVO";
+        const technicalStatus = snapshot.status || "ready";
+        status.textContent = technicalStatus;
+        status.dataset.status = technicalStatus;
+        status.dataset.label = window.EV3_STATUS_LABELS?.[technicalStatus] || technicalStatus;
+        status.setAttribute("aria-label", status.dataset.label);
         time.textContent = `${snapshot.sim_time_s}s`;
         tick.textContent = snapshot.tick;
         collision.textContent = snapshot.colliding ? "COLISIÓN" : "OK";

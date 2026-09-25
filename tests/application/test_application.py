@@ -78,6 +78,8 @@ def test_service_emits_single_completed_mission_result_from_recorded_trace():
     assert result["outcome"] == "finished"
     assert result["result"]["passed"] is True
     assert result["result"]["score"] == 10.0
+    assert "criterios observables" in result["feedback"]["summary"]
+    assert "robot EV3 físico" in result["feedback"]["physical_validation_notice"]
     assert service.complete_active_mission("finished") is None
 
 
@@ -93,6 +95,7 @@ def test_service_mission_terminal_outcomes_never_report_success(outcome):
     assert result["outcome"] == outcome
     assert result["result"]["passed"] is False
     assert result["result"]["score"] == 0.0
+    assert result["feedback"]["next_step"]
 
 
 # ===========================================================================
@@ -282,14 +285,20 @@ class TestSimulationServiceScript:
 
     def test_error_callback_on_bad_script(self):
         errors = []
+        statuses = []
         svc = SimulationService()
         svc.set_error_callback(lambda e: errors.append(e))
+        svc.set_status_callback(lambda status: statuses.append(status))
         svc.load_script("raise RuntimeError('intencional')")
         svc.start()
-        time.sleep(0.5)
+        for _ in range(10):
+            if "error" in statuses:
+                break
+            time.sleep(0.1)
         svc.stop()
         assert len(errors) >= 1
         assert "intencional" in errors[0].get("error", "")
+        assert "error" in statuses
 
     def test_status_callback_started(self):
         statuses = []

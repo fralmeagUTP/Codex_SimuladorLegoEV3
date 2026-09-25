@@ -7,6 +7,7 @@ Standalone Tk window for creating and editing simulator worlds.
 from __future__ import annotations
 
 import tkinter as tk
+from functools import partial
 from pathlib import Path
 from tkinter import filedialog, messagebox
 from typing import Any, Callable, Optional
@@ -18,7 +19,11 @@ from simulador_ev3.domain.editor.world_editor_model import (
     MAX_WORLD_CELLS,
     MAX_WORLD_PIXELS,
 )
+from simulador_ev3.shared.local_file_security import safe_desktop_error
 from simulador_ev3.shared.paths import resolve_worlds_dir
+from simulador_ev3.shared.ui_design_tokens import DARK_TOKENS, LIGHT_TOKENS, ThemeTokens, tokens_for_theme
+from simulador_ev3.ui.asset_library_panel import AssetLibraryPanel
+from simulador_ev3.ui.layer_list_panel import LayerListPanel
 from simulador_ev3.ui.object_properties_panel import ObjectPropertiesPanel
 from simulador_ev3.ui.world_canvas_editor import WorldCanvasEditor
 from simulador_ev3.ui.world_toolbar import WorldToolbar
@@ -50,11 +55,13 @@ class WorldEditorWindow(tk.Toplevel):
         parent: Any,
         on_world_saved: Optional[Callable[[str], None]] = None,
         on_simulate_saved: Optional[Callable[[str], None]] = None,
+        theme: str = "light",
     ) -> None:
         super().__init__(parent)
         self.title("Editor de Mundos EV3")
         self.geometry("1320x860")
         self.minsize(980, 620)
+        self._theme_name = theme
         self.configure(bg="#ECEFF1")
 
         self._on_world_saved = on_world_saved
@@ -62,8 +69,12 @@ class WorldEditorWindow(tk.Toplevel):
         self._service = WorldEditorService()
         self._selected_id: Optional[str] = None
         self._current_path: Optional[Path] = None
+        self._hidden_layer_ids: set[str] = set()
+        self._locked_layer_ids: set[str] = set()
 
         self._build()
+        self._bind_shortcuts()
+        self.apply_theme(theme)
         self._sync_world_size_inputs()
         self._refresh_canvas()
 
@@ -88,25 +99,46 @@ class WorldEditorWindow(tk.Toplevel):
         )
         self._toolbar.pack(fill=tk.X, side=tk.TOP)
 
-        world_cfg = tk.Frame(self, bg="#ECEFF1", padx=8, pady=4)
+        world_cfg = tk.LabelFrame(
+            self,
+            text="Tamaño del mundo",
+            bg="#ECEFF1",
+            padx=8,
+            pady=4,
+            font=("Segoe UI", 9, "bold"),
+        )
         world_cfg.pack(fill=tk.X, side=tk.TOP)
-        tk.Label(world_cfg, text="World W (cells):", bg="#ECEFF1").pack(side=tk.LEFT)
+        tk.Label(world_cfg, text="Ancho (celdas):", bg="#ECEFF1").pack(side=tk.LEFT)
         self._world_w_entry = tk.Entry(world_cfg, width=8)
         self._world_w_entry.pack(side=tk.LEFT, padx=(4, 10))
-        tk.Label(world_cfg, text="World H (cells):", bg="#ECEFF1").pack(side=tk.LEFT)
+        tk.Label(world_cfg, text="Alto (celdas):", bg="#ECEFF1").pack(side=tk.LEFT)
         self._world_h_entry = tk.Entry(world_cfg, width=8)
         self._world_h_entry.pack(side=tk.LEFT, padx=(4, 10))
-        tk.Button(world_cfg, text="Aplicar tamano", command=self._cmd_apply_world_size).pack(side=tk.LEFT)
+        tk.Button(world_cfg, text="Aplicar tamaño", command=self._cmd_apply_world_size).pack(side=tk.LEFT)
+        tk.Label(world_cfg, text="Preajustes:", bg="#ECEFF1").pack(side=tk.LEFT, padx=(14, 3))
+        for label, width, height in (("Pequeño", 40, 30), ("Aula", 80, 60), ("Grande", 160, 120)):
+            tk.Button(
+                world_cfg,
+                text=label,
+                command=partial(self._set_world_size_preset, width, height),
+            ).pack(side=tk.LEFT, padx=2)
         tk.Frame(world_cfg, width=12, bg="#ECEFF1").pack(side=tk.LEFT)
         tk.Button(world_cfg, text="+", width=3, command=self._cmd_zoom_in).pack(side=tk.LEFT, padx=2)
         tk.Button(world_cfg, text="-", width=3, command=self._cmd_zoom_out).pack(side=tk.LEFT, padx=2)
         tk.Button(world_cfg, text="[]", width=3, command=self._cmd_zoom_reset).pack(side=tk.LEFT, padx=2)
+        self._world_size_hint_var = tk.StringVar(value="")
+        tk.Label(world_cfg, textvariable=self._world_size_hint_var, bg="#ECEFF1", fg="#455A64").pack(
+            side=tk.RIGHT, padx=4
+        )
 
         content = tk.PanedWindow(self, orient=tk.HORIZONTAL, sashwidth=6, bg="#B0BEC5")
         content.pack(fill=tk.BOTH, expand=True, padx=6, pady=(2, 6))
 
+        self._asset_library = AssetLibraryPanel(content, on_select=self._on_library_asset_selected)
+        content.add(self._asset_library, minsize=160, stretch="never")
+
         canvas_container = tk.Frame(content, bg="#ECEFF1")
-        content.add(canvas_container, minsize=760, stretch="always")
+        content.add(canvas_container, minsize=480, stretch="always")
 
         self._canvas = WorldCanvasEditor(
             canvas_container,
@@ -123,8 +155,17 @@ class WorldEditorWindow(tk.Toplevel):
         x_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        self._props = ObjectPropertiesPanel(content)
-        content.add(self._props, minsize=300, stretch="never")
+        right_panel = tk.Frame(content, bg="#ECEFF1")
+        content.add(right_panel, minsize=250, stretch="never")
+        self._props = ObjectPropertiesPanel(right_panel)
+        self._props.pack(fill=tk.X, padx=2, pady=(0, 6))
+        self._layers = LayerListPanel(
+            right_panel,
+            on_select=self._on_select,
+            on_toggle_visibility=self._toggle_layer_visibility,
+            on_toggle_lock=self._toggle_layer_lock,
+        )
+        self._layers.pack(fill=tk.BOTH, expand=True, padx=2)
 
         status_bar = tk.Frame(self, bg="#CFD8DC", padx=8, pady=3)
         status_bar.pack(fill=tk.X, side=tk.BOTTOM)
@@ -142,18 +183,112 @@ class WorldEditorWindow(tk.Toplevel):
         )
         self._validation_label.pack(side=tk.RIGHT)
 
+    def _bind_shortcuts(self) -> None:
+        """Atajos equivalentes a Web, sin reemplazar la navegación nativa."""
+
+        shortcuts: tuple[tuple[str, Callable[[], None]], ...] = (
+            ("<Control-n>", self._cmd_new),
+            ("<Control-o>", self._cmd_open),
+            ("<Control-s>", self._cmd_save),
+            ("<Control-Shift-S>", self._cmd_save_as),
+            ("<Control-d>", self._cmd_duplicate_selected),
+            ("<Delete>", self._cmd_delete_selected),
+            ("<Key-r>", self._cmd_rotate_selected),
+            ("<Escape>", lambda: self._on_select(None)),
+        )
+        for sequence, command in shortcuts:
+            self.bind(sequence, lambda _event, action=command: (action(), "break")[1])
+
     # ------------------------------------------------------------------
     # Commands
     # ------------------------------------------------------------------
+
+    def apply_theme(self, theme: str) -> None:
+        """Aplica el tema activo a la ventana y todos sus paneles nativos."""
+
+        self._theme_name = theme
+        tokens = tokens_for_theme(theme)
+        palette: dict[str, str] = {}
+        for source in (LIGHT_TOKENS, DARK_TOKENS):
+            for name in ThemeTokens.__dataclass_fields__:
+                palette[str(getattr(source, name)).upper()] = str(getattr(tokens, name))
+        palette.update(
+            {
+                "#ECEFF1": tokens.background,
+                "#FFFFFF": tokens.surface,
+                "#F4F6F8": tokens.surface_muted,
+                "#CFD8DC": tokens.surface_muted,
+                "#455A64": tokens.text_muted,
+                "#1565C0": tokens.primary,
+                "#DCEBFA": tokens.surface_muted,
+                "#B0BEC5": tokens.border,
+            }
+        )
+
+        def visit(widget: Any) -> None:
+            changes: dict[str, str] = {}
+            for option in (
+                "bg",
+                "fg",
+                "activebackground",
+                "activeforeground",
+                "highlightbackground",
+                "insertbackground",
+            ):
+                try:
+                    value = str(widget.cget(option)).upper()
+                    if value in palette:
+                        changes[option] = palette[value]
+                except Exception:  # noqa: BLE001
+                    pass
+            if changes:
+                try:
+                    widget.configure(**changes)
+                except Exception:  # noqa: BLE001
+                    pass
+            if isinstance(widget, tk.LabelFrame):
+                try:
+                    widget.configure(fg=tokens.text)
+                except tk.TclError:
+                    pass
+            elif isinstance(widget, tk.Label):
+                try:
+                    widget.configure(fg=tokens.text)
+                except tk.TclError:
+                    pass
+            elif isinstance(widget, tk.Button):
+                try:
+                    current_fg = str(widget.cget("fg")).upper()
+                    # Las acciones primarias y destructivas emplean fondos
+                    # oscuros o rojos. Su texto debe permanecer blanco en los
+                    # tres estados, incluso después de alternar el tema.
+                    if current_fg in {"WHITE", "#FFFFFF"}:
+                        widget.configure(activeforeground="white", disabledforeground="white")
+                    else:
+                        widget.configure(fg=tokens.text, activeforeground=tokens.text)
+                except tk.TclError:
+                    pass
+            for child in widget.winfo_children():
+                visit(child)
+
+        self.configure(bg=tokens.background)
+        visit(self)
+        self._asset_library.set_theme(theme)
+        self._layers.set_theme(theme)
+        self._refresh_layer_panel()
+        self._canvas.set_theme(theme)
 
     def _cmd_new(self) -> None:
         if not messagebox.askyesno("Editor de mundos", "Crear un mundo nuevo? Se perderan cambios no guardados."):
             return
         self._service.reset_formal_world()
         self._selected_id = None
+        self._hidden_layer_ids = set()
+        self._locked_layer_ids = set()
         self._current_path = None
         self._toolbar.set_delete_world_file_enabled(False)
         self._toolbar.set_simulate_saved_enabled(False)
+        self._toolbar.set_selection_actions_enabled(False)
         self._props.set_object(None)
         self._sync_world_size_inputs()
         self._refresh_canvas()
@@ -172,7 +307,10 @@ class WorldEditorWindow(tk.Toplevel):
             self._current_path = loaded_path
             self._toolbar.set_delete_world_file_enabled(self._is_deletable_world_path(loaded_path))
             self._toolbar.set_simulate_saved_enabled(True)
+            self._toolbar.set_selection_actions_enabled(False)
             self._selected_id = None
+            self._hidden_layer_ids = set()
+            self._locked_layer_ids = set()
             self._props.set_object(None)
             self._sync_world_size_inputs()
             self._refresh_canvas()
@@ -180,8 +318,10 @@ class WorldEditorWindow(tk.Toplevel):
                 self._set_status(note)
             else:
                 self._set_status(f"Mundo cargado: {loaded_path.name}")
-        except Exception as exc:  # noqa: BLE001
-            messagebox.showerror("Editor de mundos", f"No se pudo abrir el archivo:\n{exc}")
+        except Exception:  # noqa: BLE001
+            messagebox.showerror(
+                "Editor de mundos", "No se pudo abrir el mundo seleccionado. Verifique su formato y tamano."
+            )
 
     def _cmd_save(self) -> None:
         if self._current_path is None:
@@ -216,8 +356,8 @@ class WorldEditorWindow(tk.Toplevel):
             # guardado; la ventana principal usa la acción explícita de simular.
             if self._on_world_saved is not None:
                 self._on_world_saved(str(saved))
-        except Exception as exc:  # noqa: BLE001
-            messagebox.showerror("Editor de mundos", f"No se pudo guardar el archivo:\n{exc}")
+        except Exception:  # noqa: BLE001
+            messagebox.showerror("Editor de mundos", "No se pudo guardar el mundo en el destino seleccionado.")
 
     def _cmd_delete_world_file(self) -> None:
         """Elimina exclusivamente el archivo abierto, nunca un mundo incluido."""
@@ -250,17 +390,22 @@ class WorldEditorWindow(tk.Toplevel):
         try:
             resolved.unlink()
         except OSError as exc:
-            messagebox.showerror("Editor de mundos", f"No se pudo eliminar el archivo:\n{exc}")
+            messagebox.showerror(
+                "Editor de mundos", safe_desktop_error(exc, "No se pudo eliminar el mundo seleccionado.")
+            )
             return
 
         self._service.reset_formal_world()
         self._selected_id = None
+        self._hidden_layer_ids = set()
+        self._locked_layer_ids = set()
         self._current_path = None
         self._props.set_object(None)
         self._sync_world_size_inputs()
         self._refresh_canvas()
         self._toolbar.set_delete_world_file_enabled(False)
         self._toolbar.set_simulate_saved_enabled(False)
+        self._toolbar.set_selection_actions_enabled(False)
         self._set_status(f"Mundo eliminado: {resolved.name}. Se creó un mundo nuevo.")
 
     @staticmethod
@@ -301,18 +446,27 @@ class WorldEditorWindow(tk.Toplevel):
             self._on_simulate_saved(str(self._current_path))
             self._set_status(f"Mundo aplicado a simulación: {self._current_path.name}")
         except Exception as exc:  # noqa: BLE001
-            messagebox.showerror("Editor de mundos", f"No se pudo aplicar el mundo a simulación:\n{exc}")
+            messagebox.showerror(
+                "Editor de mundos", safe_desktop_error(exc, "No se pudo aplicar el mundo a la simulacion.")
+            )
 
     def _cmd_delete_selected(self) -> None:
         if not self._selected_id:
             return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para eliminarlo.")
+            return
         if self._service.remove_asset_current(self._selected_id):
             self._selected_id = None
             self._props.set_object(None)
+            self._toolbar.set_selection_actions_enabled(False)
             self._refresh_canvas()
 
     def _cmd_duplicate_selected(self) -> None:
         if not self._selected_id:
+            return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para duplicarlo.")
             return
         duplicated = self._service.duplicate_asset_current(self._selected_id, dx_px=GRID_SIZE_PX, dy_px=GRID_SIZE_PX)
         if duplicated is None:
@@ -325,6 +479,9 @@ class WorldEditorWindow(tk.Toplevel):
     def _cmd_rotate_selected(self) -> None:
         if not self._selected_id:
             return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para rotarlo.")
+            return
         if not self._service.rotate_asset_current(self._selected_id, 90):
             self._set_status("No fue posible rotar: validación fallida")
             return
@@ -334,6 +491,9 @@ class WorldEditorWindow(tk.Toplevel):
 
     def _cmd_apply_properties(self) -> None:
         if not self._selected_id:
+            return
+        if self._is_layer_locked(self._selected_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para editarlo.")
             return
         updates = self._props.collect_updates()
         if updates is None:
@@ -357,13 +517,22 @@ class WorldEditorWindow(tk.Toplevel):
             width_cells = int(self._world_w_entry.get())
             height_cells = int(self._world_h_entry.get())
         except ValueError:
-            messagebox.showerror("Editor de mundos", "Width/Height deben ser enteros (cells).")
+            messagebox.showerror("Editor de mundos", "Ancho y alto deben ser números enteros en celdas.")
             return
         if width_cells > MAX_WORLD_CELLS or height_cells > MAX_WORLD_CELLS:
             messagebox.showerror(
                 "Editor de mundos",
-                f"Tamano maximo: {MAX_WORLD_CELLS} celdas por eje ({MAX_WORLD_PIXELS} px).",
+                f"Tamaño máximo: {MAX_WORLD_CELLS} celdas por eje ({MAX_WORLD_PIXELS} px).",
             )
+            return
+        current = self._service.current_formal_world()
+        is_smaller = width_cells < current.world_width_cells or height_cells < current.world_height_cells
+        if is_smaller and current.placements and not messagebox.askyesno(
+            "Reducir tamaño del mundo",
+            "Reducir el mundo puede dejar elementos fuera de los límites.\n\n"
+            "El cambio solo se aplicará si todos los elementos siguen siendo válidos. ¿Continuar?",
+            icon="warning",
+        ):
             return
         if not self._service.resize_formal_world(width_cells, height_cells):
             messagebox.showerror(
@@ -375,6 +544,16 @@ class WorldEditorWindow(tk.Toplevel):
             )
             return
         self._refresh_canvas()
+        self._sync_world_size_inputs()
+
+    def _set_world_size_preset(self, width_cells: int, height_cells: int) -> None:
+        """Carga un preajuste visible y aplica las mismas validaciones manuales."""
+
+        self._world_w_entry.delete(0, tk.END)
+        self._world_h_entry.delete(0, tk.END)
+        self._world_w_entry.insert(0, str(width_cells))
+        self._world_h_entry.insert(0, str(height_cells))
+        self._cmd_apply_world_size()
 
     def _cmd_zoom_in(self) -> None:
         self._canvas.zoom_in()
@@ -390,8 +569,17 @@ class WorldEditorWindow(tk.Toplevel):
     # ------------------------------------------------------------------
 
     def _on_tool_change(self, tool_id: str) -> None:
+        if tool_id == "select":
+            self._asset_library.set_selected_asset(None)
         self._canvas.set_tool(tool_id)
         self._set_status(f"Herramienta: {tool_id}")
+
+    def _on_library_asset_selected(self, asset_key: str) -> None:
+        """Activa un elemento elegido por nombre en la biblioteca lateral."""
+
+        self._toolbar.set_active_tool(asset_key)
+        self._canvas.set_tool(asset_key)
+        self._set_status(f"Elemento seleccionado: {asset_key}")
 
     def _on_place_asset(self, asset_key: str, x_px: int, y_px: int) -> None:
         try:
@@ -402,15 +590,38 @@ class WorldEditorWindow(tk.Toplevel):
             return
         self._selected_id = placement.id
         self._props.set_object(placement.to_dict())
+        self._toolbar.set_selection_actions_enabled(True)
         self._refresh_canvas()
 
     def _on_select(self, object_id: Optional[str]) -> None:
         self._selected_id = object_id
         placement = self._service.get_placement(object_id) if object_id else None
         self._props.set_object(placement.to_dict() if placement else None)
+        self._toolbar.set_selection_actions_enabled(placement is not None)
         self._canvas.set_selected_id(object_id)
+        self._refresh_layer_panel()
+
+    def _toggle_layer_visibility(self, object_id: str) -> None:
+        if object_id in self._hidden_layer_ids:
+            self._hidden_layer_ids.remove(object_id)
+        else:
+            self._hidden_layer_ids.add(object_id)
+        self._refresh_canvas()
+
+    def _toggle_layer_lock(self, object_id: str) -> None:
+        if object_id in self._locked_layer_ids:
+            self._locked_layer_ids.remove(object_id)
+        else:
+            self._locked_layer_ids.add(object_id)
+        self._refresh_canvas()
+
+    def _is_layer_locked(self, object_id: Optional[str]) -> bool:
+        return bool(object_id and object_id in self._locked_layer_ids)
 
     def _on_move(self, object_id: str, x_px: int, y_px: int) -> None:
+        if self._is_layer_locked(object_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para moverlo.")
+            return
         if self._service.move_asset_current(object_id, x_px, y_px):
             self._refresh_canvas()
             if self._selected_id == object_id:
@@ -418,10 +629,14 @@ class WorldEditorWindow(tk.Toplevel):
                 self._props.set_object(placement.to_dict() if placement else None)
 
     def _on_delete(self, object_id: str) -> None:
+        if self._is_layer_locked(object_id):
+            self._set_status("El elemento está bloqueado. Desbloquéalo desde Capas para eliminarlo.")
+            return
         if self._service.remove_asset_current(object_id):
             if self._selected_id == object_id:
                 self._selected_id = None
                 self._props.set_object(None)
+                self._toolbar.set_selection_actions_enabled(False)
             self._refresh_canvas()
 
     # ------------------------------------------------------------------
@@ -434,6 +649,9 @@ class WorldEditorWindow(tk.Toplevel):
         self._world_h_entry.delete(0, tk.END)
         self._world_w_entry.insert(0, str(world.world_width_cells))
         self._world_h_entry.insert(0, str(world.world_height_cells))
+        self._world_size_hint_var.set(
+            f"Equivale a {world.world_width_cells * 10:g} × {world.world_height_cells * 10:g} cm"
+        )
 
     def _refresh_canvas(self) -> None:
         world = self._service.current_formal_world()
@@ -441,7 +659,25 @@ class WorldEditorWindow(tk.Toplevel):
             world.world_width_cells * CELL_SIZE_MM,
             world.world_height_cells * CELL_SIZE_MM,
         )
-        self._canvas.set_placements([placement.to_dict() for placement in world.placements])
+        placements = [placement.to_dict() for placement in world.placements]
+        valid_ids = {str(placement["id"]) for placement in placements}
+        self._hidden_layer_ids.intersection_update(valid_ids)
+        self._locked_layer_ids.intersection_update(valid_ids)
+        self._canvas.set_presentation_layers(self._hidden_layer_ids, self._locked_layer_ids)
+        self._canvas.set_placements(placements)
+        self._refresh_layer_panel(placements)
+
+    def _refresh_layer_panel(self, placements: list[dict[str, Any]] | None = None) -> None:
+        """Mantiene sincronizada la selección entre lienzo e inventario de capas."""
+
+        if placements is None:
+            placements = [placement.to_dict() for placement in self._service.current_formal_world().placements]
+        self._layers.set_layers(
+            placements,
+            selected_id=self._selected_id,
+            hidden_ids=self._hidden_layer_ids,
+            locked_ids=self._locked_layer_ids,
+        )
         self._canvas.set_selected_id(self._selected_id)
         self._refresh_validation_status()
 

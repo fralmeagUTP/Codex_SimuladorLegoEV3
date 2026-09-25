@@ -13,13 +13,15 @@ from __future__ import annotations
 import tkinter as tk
 
 from simulador_ev3.application.snapshot_dto import SnapshotDTO
+from simulador_ev3.shared.interface_catalog import label_for_status
 from simulador_ev3.shared.ui_design_tokens import LIGHT_TOKENS, ThemeTokens, tokens_for_theme
 
 _BG = LIGHT_TOKENS.surface
-_HDR_BG = LIGHT_TOKENS.surface
+_HDR_BG = LIGHT_TOKENS.surface_muted
 _HDR_FG = LIGHT_TOKENS.text
 _VAL_FG = LIGHT_TOKENS.text
 _COL_FG = LIGHT_TOKENS.danger
+_BORDER = LIGHT_TOKENS.border
 _MONO = ("Segoe UI", 9)
 _LABEL = ("Segoe UI", 9)
 _BOLD = ("Segoe UI", 9, "bold")
@@ -60,7 +62,7 @@ class TelemetryPanel(tk.Frame):
         self._motor_frames: dict[str, tk.Frame] = {}
         self._sensor_frames: dict[str, tk.Frame] = {}
         self._theme = "light"
-        self._compact_layout = False
+        self._layout_mode = ""
         self._summary_cells: list[tuple[tk.Label, tk.Label]] = []
 
         self._scroll_canvas = tk.Canvas(self, bg=_BG, highlightthickness=0)
@@ -101,12 +103,7 @@ class TelemetryPanel(tk.Frame):
         self._update_time(dto)
 
     def set_execution_status(self, status: str) -> None:
-        labels = {
-            "started": "EJECUTANDO", "resumed": "EJECUTANDO", "paused": "PAUSADO",
-            "finished": "FINALIZADO", "timed_out": "TIEMPO AGOTADO", "error": "ERROR",
-            "stopped": "DETENIDO", "reset": "IDLE", "world_loaded": "IDLE",
-        }
-        self._summary_status.set(labels.get(status, str(status).upper()))
+        self._summary_status.set(label_for_status(status).upper())
         tokens = tokens_for_theme(self._theme)
         color = tokens.success if status in {"started", "resumed", "finished", "reset", "world_loaded"} else tokens.text
         if status in {"paused", "timed_out"}:
@@ -182,7 +179,10 @@ class TelemetryPanel(tk.Frame):
         self._var_time = self._summary_time
         self._summary_status_cell: tk.Label | None = None
         self._summary_collision_cell: tk.Label | None = None
-        summary = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
+        summary = tk.Frame(
+            self._content, bg=_BG, relief=tk.FLAT, bd=0,
+            highlightthickness=1, highlightbackground=_BORDER,
+        )
         self._summary = summary
         setattr(summary, "_telemetry_role", "card")  # noqa: B010
         summary.pack(fill=tk.X, padx=8, pady=(0, 4))
@@ -202,25 +202,32 @@ class TelemetryPanel(tk.Frame):
                 self._summary_status_cell = cell
             elif column == 3:
                 self._summary_collision_cell = cell
-        columns = tk.Frame(self._content, bg=_BG, relief=tk.SOLID, bd=1)
+        columns = tk.Frame(
+            self._content, bg=_BG, relief=tk.FLAT, bd=0,
+            highlightthickness=1, highlightbackground=_BORDER,
+        )
         self._columns = columns
         setattr(columns, "_telemetry_role", "card")  # noqa: B010
         columns.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
-        columns.grid_columnconfigure(0, weight=34)
-        columns.grid_columnconfigure(1, weight=34)
-        columns.grid_columnconfigure(2, weight=32)
-        motors_ab_column = tk.Frame(columns, bg=_BG)
-        motors_cd_column = tk.Frame(columns, bg=_BG)
+        # El contenido de telemetría se actualiza en cada tick.  No dejamos que
+        # una lectura larga (por ejemplo ``UltrasonicSensorModel``) cambie el
+        # ancho solicitado de una columna y desplace las otras tablas.
+        columns.grid_columnconfigure(0, weight=58)
+        columns.grid_columnconfigure(1, weight=42)
+        # La fila de contenido debe consumir toda la altura disponible.  Sin
+        # este peso, las tarjetas de S4 se calculaban por su altura mínima y
+        # una lectura larga podía acabar debajo del borde visible del panel.
+        columns.grid_rowconfigure(0, weight=1)
+        motors_column = tk.Frame(columns, bg=_BG)
         sensors_column = tk.Frame(columns, bg=_BG)
-        for column, frame in enumerate((motors_ab_column, motors_cd_column, sensors_column)):
+        for column, frame in enumerate((motors_column, sensors_column)):
             frame.grid(row=0, column=column, sticky="nsew")
-            frame.configure(relief=tk.SOLID, bd=1)
+            frame.configure(relief=tk.FLAT, bd=0, highlightthickness=1, highlightbackground=_BORDER)
             setattr(frame, "_telemetry_role", "card")  # noqa: B010
 
-        self._section_columns = (motors_ab_column, motors_cd_column, sensors_column)
+        self._section_columns = (motors_column, sensors_column)
 
-        self._build_motors_section(motors_ab_column, ("A", "B"), "Motores A-B")
-        self._build_motors_section(motors_cd_column, ("C", "D"), "Motores C-D")
+        self._build_motors_section(motors_column)
         self._build_sensors_section(sensors_column)
 
     def _build_robot_section(self, parent: tk.Widget) -> None:
@@ -236,12 +243,19 @@ class TelemetryPanel(tk.Frame):
         _table_cell(grid, "Colisión:", 3, 0, value=False)
         self._lbl_col = _table_cell(grid, self._var_col, 3, 1, value=True)
 
-    def _build_motors_section(self, parent: tk.Widget, ports: tuple[str, str], title: str) -> None:
-        _table_section_header(parent, title.upper())
+    def _build_motors_section(self, parent: tk.Widget) -> None:
+        """Muestra A-D en una única columna estable y escaneable."""
+        _table_section_header(parent, "MOTORES A-D")
         container = tk.Frame(parent, bg=_BG)
-        container.pack(fill=tk.BOTH, expand=True)
-        for port in ports:
-            grp = _table_motor_block(container, f"MOTOR {port}")
+        container.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4))
+        self._motors_container = container
+        for column in range(2):
+            container.grid_columnconfigure(column, weight=1, uniform="motor")
+        for row in range(2):
+            container.grid_rowconfigure(row, weight=1, uniform="motor-row")
+        for index, port in enumerate(_MOTOR_PORTS):
+            grp = _table_motor_block(container, f"MOTOR {port}", pack=False)
+            grp.grid(row=index // 2, column=index % 2, sticky="nsew", padx=3, pady=3)
             self._motor_frames[port] = grp
             self._motor_vars[port] = {
                 "speed": _table_data_row(grp, "Velocidad:", 1),
@@ -251,14 +265,23 @@ class TelemetryPanel(tk.Frame):
             }
 
     def _build_sensors_section(self, parent: tk.Widget) -> None:
-        _table_section_header(parent, "SENSORES S1–S4 (26%)")
+        # El porcentaje pertenece a la guía de diseño, no al rótulo: en el
+        # panel estrecho recortaba el inicio de "SENSORES" y no aportaba una
+        # lectura útil al docente.
+        _table_section_header(parent, "SENSORES S1–S4")
         self._sensors_container = tk.Frame(parent, bg=_BG)
         self._sensors_container.pack(fill=tk.BOTH, expand=True)
         self._sensors_empty = tk.Label(self._sensors_container, text="", bg=_BG)
-        for port in _SENSOR_PORTS:
+        # Cuatro filas permanentes: la telemetría debe conservar el mismo
+        # tablero aunque un puerto no esté conectado.  Grid permite repartir
+        # la altura sobrante y evita que S4 quede cortado al actualizarse.
+        self._sensors_container.grid_columnconfigure(0, weight=1)
+        for row, port in enumerate(_SENSOR_PORTS):
+            self._sensors_container.grid_rowconfigure(row, weight=1, uniform="sensor-row")
             grp = _table_sensor_block(self._sensors_container, f"SENSOR {port}")
             grp.grid_columnconfigure(0, weight=1)
             grp.grid_columnconfigure(1, weight=2)
+            grp.grid(row=row, column=0, sticky="nsew", padx=4, pady=2)
             self._sensor_frames[port] = grp
             self._sensor_vars[port] = {
                 "type": _table_sensor_row(grp, "Tipo:", 1),
@@ -281,18 +304,20 @@ class TelemetryPanel(tk.Frame):
         self._apply_density(event.width)
 
     def _apply_density(self, width: int) -> None:
-        """Refluye el tablero: tres columnas amplias o una columna legible."""
-        # Tres columnas sólo son legibles desde ~560 px; por debajo se apilan
-        # para preservar contenido en vez de recortar texto.
-        compact = width < 560
-        if compact == self._compact_layout:
+        """Refluye el tablero de dos columnas sin recortar información."""
+        # La telemetría actual agrupa motores y sensores en dos columnas. Por
+        # debajo de 380 px se apilan: forzar dos columnas deja las lecturas de
+        # sensores recortadas, que es peor que usar el scroll propio del panel.
+        layout_mode = "single" if width < 380 else "wide"
+        if layout_mode == self._layout_mode:
             return
-        self._compact_layout = compact
+        self._layout_mode = layout_mode
 
         for frame in self._section_columns:
             frame.grid_forget()
-        if compact:
+        if layout_mode == "single":
             self._columns.grid_columnconfigure(0, weight=1)
+            self._columns.grid_columnconfigure(1, weight=0)
             for row, frame in enumerate(self._section_columns):
                 frame.grid(row=row, column=0, sticky="nsew")
             for index, (label, value) in enumerate(self._summary_cells):
@@ -301,6 +326,8 @@ class TelemetryPanel(tk.Frame):
             self._summary.grid_columnconfigure(0, weight=1)
             self._summary.grid_columnconfigure(1, weight=1)
         else:
+            self._columns.grid_columnconfigure(0, weight=58)
+            self._columns.grid_columnconfigure(1, weight=42)
             for column, frame in enumerate(self._section_columns):
                 frame.grid(row=0, column=column, sticky="nsew")
             for index, (label, value) in enumerate(self._summary_cells):
@@ -378,8 +405,9 @@ class TelemetryPanel(tk.Frame):
 
     def _set_visible_motor_ports(self, ports: set[str]) -> None:
         del ports
-        for frame in self._motor_frames.values():
-            frame.pack(fill=tk.X, padx=4, pady=3)
+        # Las cuatro tarjetas permanecen estables en una cuadrícula 2×2.
+        # Esto evita que los puertos C/D queden debajo del primer viewport.
+        return
 
     def _update_sensors(self, sensors: list[dict]) -> None:
         for sensor_values in self._sensor_vars.values():
@@ -398,11 +426,14 @@ class TelemetryPanel(tk.Frame):
                 parts: list[str] = []
                 dist_mm = val.get("distance_mm")
                 if isinstance(dist_mm, (int, float)):
-                    parts.append(f"distance_cm={_mm_to_cm(dist_mm):.1f}")
+                    parts.append(f"Distancia={_mm_to_cm(dist_mm):.1f} cm")
                 for key, item in val.items():
-                    if key == "distance_mm":
+                    if key in {"distance_mm", "port"}:
                         continue
                     parts.append(f"{key}={item}")
+                vars_by_key["value"].set(", ".join(parts) if parts else _EMPTY)
+            elif isinstance(val, dict):
+                parts = [f"{key}={item}" for key, item in val.items() if key != "port"]
                 vars_by_key["value"].set(", ".join(parts) if parts else _EMPTY)
             else:
                 vars_by_key["value"].set(str(val))
@@ -419,8 +450,10 @@ class TelemetryPanel(tk.Frame):
         forget_empty = getattr(self._sensors_empty, "pack_forget", None)
         if callable(forget_empty):
             forget_empty()
-        for frame in self._sensor_frames.values():
-            frame.pack(fill=tk.X, padx=4, pady=2)
+        # Las tarjetas ya están en una cuadrícula 4×1 desde su creación. No
+        # se vuelven a empaquetar aquí: mezclar ``grid`` y ``pack`` hacía que
+        # la última tarjeta creciera fuera del viewport al llegar una lectura
+        # de sensor extensa.
 
     def _update_time(self, dto: SnapshotDTO) -> None:
         self._var_tick.set(str(dto.tick))
@@ -451,10 +484,10 @@ def _table_cell(
 ) -> tk.Label:
     if isinstance(text, tk.StringVar):
         widget = tk.Label(parent, textvariable=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=10)
+                          relief=tk.SOLID, bd=0, padx=3, pady=3)
     else:
         widget = tk.Label(parent, text=text, bg=_BG, font=_BOLD if value else _LABEL, anchor="center",
-                          relief=tk.SOLID, bd=0, padx=5, pady=10)
+                          relief=tk.SOLID, bd=0, padx=3, pady=3)
     setattr(widget, "_telemetry_role", "value" if value else "label")  # noqa: B010
     widget.grid(row=row, column=column, sticky="nsew")
     return widget
@@ -472,33 +505,59 @@ def _table_data_row(parent: tk.Widget, label: str, row: int, *, suffix: str = ""
     return value
 
 
-def _table_motor_block(parent: tk.Widget, title: str) -> tk.Frame:
-    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
+def _table_motor_block(parent: tk.Widget, title: str, *, pack: bool = True) -> tk.Frame:
+    # Altura y filas explícitas: los cambios de valor no deben hacer que Motor
+    # B/D salte de posición mientras se ejecuta una misión.
+    block = tk.Frame(
+        parent, bg=_BG, relief=tk.FLAT, bd=0,
+        highlightthickness=1, highlightbackground=_BORDER,
+    )
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=16, pady=18)
+    if pack:
+        block.pack(fill=tk.X, padx=8, pady=7)
+    block.grid_columnconfigure(0, weight=3)
+    block.grid_columnconfigure(1, weight=2)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
-    header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=8)
+    header.grid(row=0, column=0, columnspan=3, sticky="nsew", ipady=5)
     return block
 
 
 def _table_sensor_block(parent: tk.Widget, title: str) -> tk.Frame:
-    block = tk.Frame(parent, bg=_BG, relief=tk.SOLID, bd=1)
+    # La tarjeta se coloca por ``grid`` en su contenedor. El valor dispone de
+    # dos líneas y el tooltip conserva el texto completo si aun así excede el
+    # espacio disponible.
+    block = tk.Frame(
+        parent, bg=_BG, relief=tk.FLAT, bd=0,
+        highlightthickness=1, highlightbackground=_BORDER,
+    )
     setattr(block, "_telemetry_role", "card")  # noqa: B010
-    block.pack(fill=tk.BOTH, expand=True, padx=16, pady=6)
+    block.grid_columnconfigure(0, weight=1)
+    block.grid_columnconfigure(1, weight=2)
     header = tk.Label(block, text=title, bg=_HDR_BG, fg=_HDR_FG, font=_BOLD, anchor="center")
     setattr(header, "_telemetry_role", "table_header")  # noqa: B010
-    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=6)
+    header.grid(row=0, column=0, columnspan=2, sticky="nsew", ipady=0)
     return block
 
 
 def _table_sensor_row(parent: tk.Widget, label: str, row: int, *, emphasize: bool = False) -> tk.StringVar:
-    parent.grid_columnconfigure(0, weight=1)
-    parent.grid_columnconfigure(1, weight=2)
     value = tk.StringVar(value=_EMPTY)
-    _table_cell(parent, label, row, 0, value=False)
+    label_widget = _table_cell(parent, label, row, 0, value=False)
     widget = _table_cell(parent, value, row, 1, value=True)
-    widget.configure(anchor=tk.W, justify=tk.LEFT, wraplength=150, font=_BOLD if emphasize else _MONO)
+    # ``width`` y ``height`` hacen que el tamaño solicitado sea independiente
+    # del texto recibido. El tooltip conserva el texto completo si se recorta.
+    widget.configure(
+        anchor=tk.W,
+        justify=tk.LEFT,
+        wraplength=150,
+        width=15,
+        # El valor de ultrasonido y los diccionarios de sensores pueden ocupar
+        # más de una línea; reservarla evita ocultar S4 en el borde inferior.
+        height=2 if emphasize else 1,
+        font=_BOLD if emphasize else _MONO,
+    )
+    label_widget.configure(pady=0)
+    widget.configure(pady=0)
     _attach_value_tooltip(widget, value)
     return value
 

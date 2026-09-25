@@ -3,7 +3,7 @@
 Usar esta lista antes de publicar un build o entregar una version web/escritorio.
 
 Version aplicable: leer `simulador_ev3/_version.py` (actual: 1.5.0)
-Fecha de actualizacion: 2026-07-24
+Fecha de actualización: 2026-08-05
 
 ## 1. Preparacion
 
@@ -13,7 +13,7 @@ Fecha de actualizacion: 2026-07-24
 - Confirmar que `README.md` resume la version publicada y rutas principales.
 - Confirmar evidencia QA en `Documentos\EVIDENCIA_QA_RELEASE_YYYY-MM-DD.md`.
 - Crear entorno limpio con Python 3.11 o superior.
-- Instalar dependencias con `.\.venv\Scripts\python.exe -m pip install -e .[dev]`.
+- Instalar dependencias con `.\.venv\Scripts\python.exe -m pip install -e ".[dev,desktop-e2e,web-prod]"`.
 
 ## 2. Pruebas automatizadas
 
@@ -23,6 +23,9 @@ Fecha de actualizacion: 2026-07-24
 - Ejecutar `py -3.12 -m ruff check simulador_ev3 tests` y `py -3.12 -m mypy`.
 - Ejecutar Bandit y Pip-Audit como se indica en `docs/testing/estrategia_pruebas.md`.
 - Revisar los jobs Windows/Linux, E2E, carga, resiliencia y cobertura en GitHub Actions.
+- Ejecutar `openspec validate --all --strict` y las pruebas documentales.
+- Ejecutar los E2E Tkinter con sesión Windows visible y
+  `EV3_RUN_DESKTOP_E2E=1`; no convertir omisiones en aprobaciones.
 
 ## 3. Smoke web
 
@@ -36,9 +39,9 @@ Fecha de actualizacion: 2026-07-24
 ## 4. Flujo de simulacion
 
 - Usar menu `Archivo` para crear, abrir y guardar script.
-- Cargar un ejemplo desde el menu `Ejemplos`.
+- Cargar un ejemplo desde el menu `Aprender`.
 - Cargar un ejemplo desde el selector.
-- Cargar un escenario desde el menu `Escenarios`.
+- Cargar una práctica desde el menu `Prácticas guiadas` y confirmar objetivo, mundo y programa.
 - Cargar un mundo existente.
 - Ejecutar, pausar, reanudar y detener.
 - Ejecutar un script corto con `wait(100)` y confirmar que el estado final sea `finished`.
@@ -82,7 +85,7 @@ Fecha de actualizacion: 2026-07-24
 - Confirmar paridad de mapa con Tkinter: mundo base `2000 x 2000 mm` debe renderizarse como `640 x 640 px`.
 - Confirmar que celdas, lineas, muros, zonas y pisos no estan estirados.
 - Confirmar que el panel usa scroll si el mapa no cabe completo.
-- Revisar captura de menu de ejemplos.
+- Revisar captura de menu `Aprender` y de `Prácticas guiadas`.
 - Revisar captura de editor con sintaxis y autocompletado.
 - Revisar captura de brick con altavoz.
 - Revisar captura de propiedades del editor de mundos.
@@ -101,9 +104,13 @@ Fecha de actualizacion: 2026-07-24
 
 Ejecutar solo si se va a distribuir un ejecutable:
 
-- Ejecutar `.\scripts\build_release_windows.ps1`.
+- Ejecutar `.\scripts\build_release_windows.ps1 -PythonExe .\.venv\Scripts\python.exe`.
 - Confirmar que el ejecutable inicia.
 - Confirmar que ejemplos y mundos se incluyen.
+- Confirmar que el ZIP contiene `SimuladorEV3.exe`, `_internal` y
+  `Documentos` mediante `tar -tf dist\SimuladorEV3-1.5.0-Windows-x64.zip`.
+- Si Inno Setup 6 está instalado, confirmar que se generó el instalador en
+  `dist\installer`. Si no lo está, documentar el uso de `-SkipInstaller`.
 - Revisar logs si falla audio o carga de assets.
 
 ## 10. Publicacion GitHub

@@ -1,0 +1,11 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\MisProyectos\Codex_SimuladorLegoEV3
+configfile: pyproject.toml
+plugins: cov-7.0.0
+collected 8 items / 7 deselected / 1 selected
+
+tests\e2e\test_desktop_pywinauto.py .                                    [100%]
+
+- generated xml file: D:\MisProyectos\Codex_SimuladorLegoEV3\artifacts\mmi-e2e-2026-08-23\desktop-real-catalog.xml -
+====================== 1 passed, 7 deselected in 31.74s =======================

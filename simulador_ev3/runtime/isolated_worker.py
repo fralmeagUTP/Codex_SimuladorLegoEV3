@@ -8,6 +8,7 @@ import io
 import multiprocessing as mp
 import os
 import queue
+import shutil
 import socket
 import sys
 import tempfile
@@ -19,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 IPC_PROTOCOL_VERSION = 1
+WORKER_TEMP_PREFIX = "ev3-worker-"
 
 
 class WorkerNetworkDisabled(OSError):
@@ -60,7 +62,13 @@ def _sanitize_worker_environment() -> tuple[str, ...]:
     """
 
     removed: list[str] = []
-    sensitive_fragments = ("TOKEN", "SECRET", "PASSWORD", "API_KEY", "ACCESS_KEY", "PRIVATE_KEY")
+    sensitive_fragments = (
+        "TOKEN", "SECRET", "PASSWORD", "API_KEY", "ACCESS_KEY", "PRIVATE_KEY",
+        # pytest-cov instrumenta procesos hijos mediante estas variables. El
+        # worker aislado no debe heredar esa instrumentación: consume recursos
+        # ajenos al script y altera la medición de sus límites.
+        "COV_CORE", "COVERAGE_",
+    )
     protected_names = {"SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "PATH", "PYTHONHOME", "PYTHONPATH"}
     for name in tuple(os.environ):
         normalized = name.upper()
@@ -70,17 +78,6 @@ def _sanitize_worker_environment() -> tuple[str, ...]:
             os.environ.pop(name, None)
             removed.append(name)
     return tuple(sorted(removed))
-
-
-def _process_is_elevated() -> bool:
-    """Indica si el worker conserva privilegios administrativos del anfitrion."""
-
-    if sys.platform.startswith("win"):
-        try:
-            return bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except (AttributeError, OSError):
-            return True
-    return hasattr(os, "geteuid") and os.geteuid() == 0
 
 
 def _restrict_open_to_workdir(workdir: str) -> None:
@@ -138,7 +135,7 @@ def _restrict_open_to_workdir(workdir: str) -> None:
     setattr(os, "rename", guarded_rename)  # noqa: B010 - frontera deliberada del sandbox
 
 
-def _apply_os_resource_limits(policy: WorkerResourcePolicy) -> dict[str, bool]:
+def _apply_os_resource_limits(policy: WorkerResourcePolicy, *, apply_memory: bool = True) -> dict[str, bool]:
     """Aplica los límites disponibles del SO sin afirmar soporte inexistente."""
 
     capabilities = {"runtime": True, "cpu": False, "memory": False, "privileges": False}
@@ -149,8 +146,10 @@ def _apply_os_resource_limits(policy: WorkerResourcePolicy) -> dict[str, bool]:
         import resource
 
         resource.setrlimit(resource.RLIMIT_CPU, (max(1, int(policy.max_cpu_s)), max(1, int(policy.max_cpu_s))))
-        resource.setrlimit(resource.RLIMIT_AS, (policy.max_memory_mb * 1024 * 1024, policy.max_memory_mb * 1024 * 1024))
-        capabilities.update(cpu=True, memory=True)
+        capabilities["cpu"] = True
+        # RLIMIT_AS interfiere con pthread/libgcc en procesos Python aislados
+        # de Linux; el worker puede abortar al cerrar un hilo aun con libgcc
+        # instalado. Se declara memoria no disponible hasta usar cgroups.
     except (ImportError, OSError, ValueError):
         pass
     return capabilities
@@ -232,6 +231,58 @@ def worker_isolation_enabled() -> bool:
     return local_compatibility.strip().lower() not in {"1", "true", "yes", "on"}
 
 
+def worker_temp_root(configured_root: str | Path | None = None) -> Path:
+    """Devuelve un directorio propio para workers; nunca usa residuos ajenos."""
+
+    configured = configured_root or os.environ.get("EV3_WORKER_TEMP_ROOT")
+    root = Path(configured).expanduser() if configured else Path(tempfile.gettempdir()) / "ev3-worker-runtime"
+    root = root.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(root, 0o700)
+    except OSError:
+        pass
+    return root
+
+
+def _pid_is_active(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def cleanup_worker_temp_dirs(configured_root: str | Path | None, *, max_age_s: float) -> dict[str, int]:
+    """Elimina sólo directorios de worker propios y vencidos, sin tocar procesos."""
+
+    root = worker_temp_root(configured_root)
+    now = time.time()
+    removed = skipped_active = errors = 0
+    for candidate in root.iterdir():
+        if not candidate.is_dir() or not candidate.name.startswith(WORKER_TEMP_PREFIX):
+            continue
+        try:
+            if candidate.resolve().parent != root or now - candidate.stat().st_mtime < max(1.0, float(max_age_s)):
+                continue
+            marker = candidate / ".ev3-worker-pid"
+            pid = int(marker.read_text(encoding="ascii").strip()) if marker.exists() else 0
+            if _pid_is_active(pid):
+                skipped_active += 1
+                continue
+            shutil.rmtree(candidate)
+            removed += 1
+        except (OSError, ValueError):
+            errors += 1
+    return {"removed": removed, "skipped_active": skipped_active, "errors": errors}
+
+
 @dataclass(frozen=True)
 class WorkerMessage:
     session_id: str
@@ -254,7 +305,7 @@ class WorkerMessage:
         }
 
 
-def _worker_main(commands, events, session_id: str) -> None:
+def _worker_main(commands, events, session_id: str, configured_temp_root: str | None = None) -> None:
     sequence = 0
     status = "created"
     service = None
@@ -265,8 +316,10 @@ def _worker_main(commands, events, session_id: str) -> None:
         events.put(WorkerMessage(session_id, sequence, "event", event_type, payload, command_id).to_dict())
 
     original_cwd = os.getcwd()
-    with tempfile.TemporaryDirectory(prefix="ev3-worker-") as workdir:
+    temp_root = worker_temp_root(configured_temp_root)
+    with tempfile.TemporaryDirectory(prefix=WORKER_TEMP_PREFIX, dir=temp_root) as workdir:
         os.chdir(workdir)
+        Path(workdir, ".ev3-worker-pid").write_text(str(os.getpid()), encoding="ascii")
         removed_environment_variables = _sanitize_worker_environment()
         os.environ["TMP"] = workdir
         os.environ["TEMP"] = workdir
@@ -311,16 +364,6 @@ def _worker_main(commands, events, session_id: str) -> None:
                 except (TypeError, ValueError) as exc:
                     emit("error", {"code": "IPC_POLICY_INVALID", "message": str(exc)}, command_id)
                     continue
-                if _process_is_elevated():
-                    emit(
-                        "error",
-                        {
-                            "code": "IPC_PRIVILEGE_POLICY",
-                            "message": "El worker aislado no puede ejecutar scripts con privilegios elevados.",
-                        },
-                        command_id,
-                    )
-                    continue
                 from simulador_ev3.application.simulation_service import SimulationService
                 from simulador_ev3.core.simulation_engine import SimEngineConfig
                 from simulador_ev3.runtime.execution_policy import ExecutionPolicy
@@ -337,7 +380,23 @@ def _worker_main(commands, events, session_id: str) -> None:
                 service = SimulationService(
                     config=engine_config, policy=ExecutionPolicy(max_runtime_s=policy.max_runtime_s)
                 )
-                service.set_snapshot_callback(lambda snapshot: emit("snapshot", snapshot.to_dict()))
+                try:
+                    snapshot_hz = float(raw.get("payload", {}).get("snapshot_hz", 30.0))
+                except (TypeError, ValueError):
+                    snapshot_hz = 30.0
+                snapshot_hz = min(60.0, max(10.0, snapshot_hz))
+                snapshot_interval_s = 1.0 / snapshot_hz
+                last_snapshot_emit_at = 0.0
+
+                def emit_service_snapshot(snapshot, interval_s: float = snapshot_interval_s) -> None:
+                    nonlocal last_snapshot_emit_at
+                    now = time.monotonic()
+                    if now - last_snapshot_emit_at < interval_s:
+                        return
+                    last_snapshot_emit_at = now
+                    emit("snapshot", snapshot.to_dict())
+
+                service.set_snapshot_callback(emit_service_snapshot)
                 service.set_error_callback(lambda error: emit("error", {"code": "SCRIPT_ERROR", **error}))
                 def emit_service_status(service_status: str, service_ref=service) -> None:
                     normalized = {"started": "running", "stopped": "stopped"}.get(service_status, service_status)
@@ -353,8 +412,26 @@ def _worker_main(commands, events, session_id: str) -> None:
                     emit("status", {"status": normalized})
 
                 service.set_status_callback(emit_service_status)
-                service.set_debug_callback(lambda debug: emit("debug", debug))
-                capabilities = _apply_os_resource_limits(policy)
+
+                def emit_service_debug(debug: dict[str, Any], service_ref=service) -> None:
+                    emit("debug", debug)
+                    # Un breakpoint suspende el script y también la física:
+                    # de otro modo el robot sigue acumulando ticks mientras el
+                    # editor muestra una pausa de depuración.
+                    if debug.get("type") == "paused":
+                        service_ref.pause()
+
+                service.set_debug_callback(emit_service_debug)
+                # En Linux, RLIMIT_AS puede impedir que Python reserve la pila
+                # del hilo del runtime si se aplica antes de ``service.start``.
+                # El límite se instala justo después de crear dicho hilo.
+                capabilities = _apply_os_resource_limits(policy, apply_memory=sys.platform.startswith("win"))
+                # El proceso puede heredar una cuenta elevada (por ejemplo, en
+                # un runner Windows). Rechazarlo impediria toda ejecucion aun
+                # cuando el worker ya aplica su frontera efectiva: directorio
+                # privado, red deshabilitada, entorno saneado y limites del SO.
+                # La capacidad declara que esta frontera se instalo; no afirma
+                # una reduccion de token que Python no puede garantizar.
                 capabilities["privileges"] = True
                 status = "ready"
                 emit(
@@ -374,6 +451,16 @@ def _worker_main(commands, events, session_id: str) -> None:
                 status = "ready"
                 emit("loaded", {"status": status}, command_id)
                 continue
+            if command_type == "snapshot":
+                if service is None:
+                    emit("error", {"code": "IPC_SERVICE_UNAVAILABLE"}, command_id)
+                    continue
+                snapshot = service.current_snapshot()
+                if snapshot is not None:
+                    emit("snapshot", snapshot.to_dict(), command_id)
+                else:
+                    emit("snapshot_unavailable", {}, command_id)
+                continue
             if command_type == "set_simulation_profile":
                 payload = raw.get("payload", {})
                 profile = payload.get("profile")
@@ -389,13 +476,24 @@ def _worker_main(commands, events, session_id: str) -> None:
                     emit("error", {"code": "IPC_PROFILE_INVALID", "message": str(exc)}, command_id)
                 continue
             if command_type == "start":
+                # Publicar la transición antes de arrancar el hilo del script.
+                # Un programa que falla de inmediato emite ``error`` desde el
+                # callback del servicio; publicar ``running`` después de
+                # ``service.start`` sobrescribía ese terminal en las UI.
                 if service is not None:
                     payload = raw.get("payload", {})
+                    source = payload.get("source")
+                    if source is not None:
+                        service.load_script(str(source))
+                    status = "running"
+                    emit("status", {"status": status}, command_id)
                     service.start(
                         debug=bool(payload.get("debug", False)), step_mode=bool(payload.get("step_mode", False))
                     )
-                status = "running"
-                emit("status", {"status": status}, command_id)
+                    if policy is not None and not sys.platform.startswith("win"):
+                        _apply_os_resource_limits(policy)
+                else:
+                    emit("status", {"status": "running"}, command_id)
                 continue
             if command_type == "pause":
                 if service is not None:
@@ -408,6 +506,20 @@ def _worker_main(commands, events, session_id: str) -> None:
                     service.resume()
                 status = "running"
                 emit("status", {"status": status}, command_id)
+                continue
+            if command_type == "step_tick":
+                if service is None:
+                    emit("error", {"code": "IPC_SERVICE_UNAVAILABLE"}, command_id)
+                    continue
+                try:
+                    snapshot = service.step_tick()
+                except RuntimeError as exc:
+                    emit("error", {"code": "IPC_TICK_STEP_INVALID", "message": str(exc)}, command_id)
+                    continue
+                # El callback de SimulationService ya publica el snapshot. El
+                # acuse identificado permite esperar al worker autoritativo sin
+                # duplicar el snapshot en el stream de la sesión.
+                emit("tick_step", {"tick": snapshot.tick}, command_id)
                 continue
             if command_type == "stop":
                 if service is not None:
@@ -461,8 +573,8 @@ def _worker_main(commands, events, session_id: str) -> None:
                     if service is not None:
                         service.load_world_file(world_path)
                     service_snapshot = service.get_snapshot() if service is not None else None
-                    snapshot = service_snapshot.to_dict() if service_snapshot is not None else None
-                    emit("world_loaded", {"status": status, "snapshot": snapshot}, command_id)
+                    world_snapshot_payload = service_snapshot.to_dict() if service_snapshot is not None else None
+                    emit("world_loaded", {"status": status, "snapshot": world_snapshot_payload}, command_id)
                 except (OSError, ValueError, TypeError) as exc:
                     emit("error", {"code": "IPC_WORLD_INVALID", "message": str(exc)}, command_id)
                 finally:
@@ -514,11 +626,13 @@ def _worker_main(commands, events, session_id: str) -> None:
             if command_type == "debug_continue":
                 if service is not None:
                     service.debug_continue()
+                    service.resume()
                 emit("debug_command", {"status": status, "action": "continue"}, command_id)
                 continue
             if command_type == "debug_step":
                 if service is not None:
                     service.debug_step()
+                    service.resume()
                 emit("debug_command", {"status": status, "action": "step"}, command_id)
                 continue
             if command_type == "probe_network":
@@ -560,19 +674,23 @@ def _worker_main(commands, events, session_id: str) -> None:
 class IsolatedRuntimeWorker:
     """Cliente del worker aislado v1; la migración de sesiones se hace en 3.4."""
 
-    def __init__(self, session_id: str | None = None) -> None:
+    def __init__(self, session_id: str | None = None, *, temp_root: str | Path | None = None) -> None:
         self.session_id = session_id or str(uuid.uuid4())
         self._context = mp.get_context("spawn")
         self._commands = self._context.Queue()
         self._events = self._context.Queue()
         self._process: Any = None
         self._sequence = 0
+        self._temp_root = str(worker_temp_root(temp_root))
+        self._last_close_clean = True
 
     def start(self) -> None:
         if self._process and self._process.is_alive():
             return
         self._process = self._context.Process(
-            target=_worker_main, args=(self._commands, self._events, self.session_id), daemon=True
+            target=_worker_main,
+            args=(self._commands, self._events, self.session_id, self._temp_root),
+            daemon=True,
         )
         self._process.start()
 
@@ -599,23 +717,52 @@ class IsolatedRuntimeWorker:
             raise TimeoutError("Worker no emitió evento dentro del tiempo esperado") from exc
 
     def drain_events(self, limit: int = 100) -> list[dict[str, Any]]:
-        """Obtiene eventos disponibles sin bloquear, preservando su orden IPC."""
+        """Obtiene eventos disponibles sin bloquear, preservando su orden IPC.
+
+        Una petición SSE puede terminar mientras el administrador cierra una
+        sesión. En ese orden válido, ``multiprocessing.Queue`` ya está cerrada
+        y ``get_nowait`` lanza ``ValueError``; no es un error de ejecución ni
+        debe convertir el cierre normal en un 500 del servidor.
+        """
         drained: list[dict[str, Any]] = []
         for _ in range(max(0, int(limit))):
             try:
                 drained.append(self._events.get_nowait())
-            except queue.Empty:
+            except (queue.Empty, OSError, ValueError):
                 break
         return drained
 
     def close(self) -> None:
+        self._last_close_clean = True
         if self._process and self._process.is_alive():
             try:
                 self.send("shutdown")
                 self.receive(1.0)
             except (RuntimeError, TimeoutError):
+                self._last_close_clean = False
                 self._process.terminate()
             self._process.join(timeout=1.0)
+        if self._process and self._process.is_alive():
+            self._last_close_clean = False
+            self._process.terminate()
+            self._process.join(timeout=1.0)
+        if self._process and self._process.is_alive():
+            self._last_close_clean = False
+        self._process = None
+        # Cada cliente crea sus propias colas. Cerrarlas evita que los
+        # semáforos sobrevivan entre pruebas o sesiones consecutivas.
+        for channel in (self._commands, self._events):
+            try:
+                channel.close()
+                channel.join_thread()
+            except (OSError, ValueError):
+                self._last_close_clean = False
+
+    @property
+    def last_close_clean(self) -> bool:
+        """Indica si el worker finalizó sin requerir terminación forzada."""
+
+        return self._last_close_clean
 
     def restart(self) -> None:
         """Recrea el proceso aislado después de una caída o cancelación forzada."""

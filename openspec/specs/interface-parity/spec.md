@@ -45,3 +45,112 @@ interfaces. Una divergencia funcional DEBERÁ bloquear la integración.
 - ENTONCES CI DEBERÁ fallar
 - Y el cambio NO DEBERÁ integrarse hasta restaurar la paridad.
 
+### Requirement: Catálogo verificable de paridad
+
+Las interfaces MUST mantener un catálogo versionado de los casos de uso
+aplicables, con identificador, entrada, resultado de dominio, estado visual y
+resultado observado por plataforma.
+
+#### Scenario: Capacidad disponible en una interfaz
+
+- **DADO** un comando, menú, diálogo o flujo disponible en Web o Tkinter;
+- **CUANDO** se actualice el catálogo de paridad;
+- **ENTONCES** se clasificará como equivalente, adaptación aceptada o brecha;
+- **Y** una brecha impedirá declarar paridad completa hasta corregirla o
+  aprobar explícitamente su no aplicabilidad.
+
+### Requirement: Equivalencia de estados críticos
+
+Para el mismo mundo, programa y perfil, Web y Tkinter MUST reflejar un estado
+equivalente al iniciar, pausar, reanudar, finalizar, fallar y reiniciar.
+
+#### Scenario: Reinicio desde ejecución activa
+
+- **DADO** una simulación activa que cambió pose, telemetría y LCD;
+- **CUANDO** el usuario selecciona detener y reiniciar en cualquiera de las UI;
+- **ENTONCES** canvas, robot, LCD, telemetría y estado se restauran al snapshot
+  inicial del mundo;
+- **Y** no quedan trazas, robots o eventos de la ejecución anterior.
+
+### Requirement: Madurez integral equivalente
+
+Web y Tkinter MUST alcanzar el mismo nivel verificable de arquitectura,
+diseño, funcionalidad, pedagogía, ayuda, calidad y observabilidad para toda
+capacidad aplicable. La matriz MMI DEBERÁ identificar evidencia, estado,
+limitación y alternativa por plataforma.
+
+#### Scenario: Capacidad nueva aplicable
+
+- DADO un caso de uso nuevo que puede realizarse en Web y Tkinter;
+- CUANDO se solicita su cierre;
+- ENTONCES tendrá contrato, implementación, ayuda, telemetría diagnóstica y
+  pruebas equivalentes en ambas UI;
+- Y no podrá declararse terminada mientras una plataforma carezca de evidencia.
+
+### Requirement: Excepción de plataforma explícita
+
+Una capacidad exclusiva de navegador o escritorio MUST clasificarse como
+`N/A` solo si documenta la razón técnica y una alternativa equivalente para el
+objetivo de usuario.
+
+#### Scenario: Función móvil Web
+
+- DADO un requisito de viewport móvil;
+- CUANDO se evalúa Tkinter;
+- ENTONCES Tkinter se clasifica como `N/A` por plataforma;
+- Y la matriz registra la alternativa de escritorio en resoluciones soportadas.
+
+### Requirement: Paridad de assets y geometría del mundo
+
+Para un mismo mundo, `asset_id`, pose inicial y snapshot, Web y Tkinter
+MUST resolver assets equivalentes y dibujarlos con la misma geometría física:
+origen, ancla, tamaño lógico, rotación, capa y relación mm/píxel. El manifiesto
+de assets será la fuente de verdad y las variantes por plataforma deberán estar
+versionadas y verificadas por hash.
+
+#### Scenario: Mundo de seguidor de línea
+
+- DADO un mundo que contiene robot y piezas `line_*`
+- CUANDO se abre en Web y Tkinter
+- ENTONCES ambos muestran el robot sobre la misma coordenada y orientación
+- Y las líneas tienen la misma forma, conectividad, grosor lógico y significado
+  visual, sin transformarse en obstáculos o fondos no definidos.
+
+#### Scenario: Asset desactualizado o faltante
+
+- DADO un asset canónico que no coincide con su hash, dimensiones o variante
+  declarada en una distribución
+- CUANDO se ejecuta la validación de recursos
+- ENTONCES la prueba falla
+- Y la distribución no se considera apta para liberar.
+
+### Requirement: Evidencia de paridad visual por regiones
+
+La integración continua MUST generar capturas comparables de canvas,
+telemetría, Brick/LCD, estado y editor para las resoluciones de referencia.
+Las diferencias fuera de tolerancias nativas documentadas DEBERÁN bloquear la
+liberación.
+
+#### Scenario: Regresión del robot o pista
+
+- DADA una captura de referencia aprobada de un mundo común
+- CUANDO una modificación cambia la escala, forma, capa o posición visible del
+  robot o una línea más allá de la tolerancia
+- ENTONCES CI publica referencia, resultado y diferencia
+- Y marca la comprobación como fallida.
+
+### Requirement: Matriz obligatoria de paridad del Editor de Mundos
+
+La matriz de paridad MUST enumerar y verificar en Web y Tkinter cada comando,
+diálogo, validación, atajo, activo y transición al simulador del Editor de
+Mundos. Una discrepancia sólo podrá clasificarse como N/A si documenta una
+alternativa equivalente y el motivo de plataforma.
+
+#### Scenario: Comando presente sólo en escritorio
+
+- DADO un comando del Editor de Mundos visible en Tkinter;
+- CUANDO se actualiza la matriz de paridad;
+- ENTONCES debe existir en Web, implementarse como alternativa equivalente o
+  quedar bloqueado como brecha;
+- Y no puede declararse cerrada la paridad mientras la brecha no se resuelva.
+

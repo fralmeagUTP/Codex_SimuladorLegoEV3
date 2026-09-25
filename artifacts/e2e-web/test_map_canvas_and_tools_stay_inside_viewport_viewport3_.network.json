@@ -1,0 +1,7 @@
+[
+  {
+    "kind": "request_failed",
+    "url": "http://127.0.0.1:1720/",
+    "failure": "net::ERR_UNSAFE_PORT"
+  }
+]

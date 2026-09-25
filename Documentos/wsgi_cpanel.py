@@ -72,11 +72,10 @@ except Exception as exc:  # pragma: no cover - ruta de diagnostico en produccion
     _write_log("[BOOT][ERROR] " + repr(exc))
     _write_log(tb)
 
-    def app(environ, start_response, _exc=exc):
+    def app(environ, start_response):
         body = (
             "Error al iniciar la app EV3 en cPanel.\\n"
-            "Revisa el log: ~/logs/simuladorlego_bootstrap.log\\n"
-            f"Detalle: {_exc}\\n"
+            "Contacte al administrador del servicio para revisar los registros.\\n"
         ).encode("utf-8")
         status = "500 Internal Server Error"
         headers = [

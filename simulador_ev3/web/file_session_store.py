@@ -19,7 +19,7 @@ class FileSessionStore:
         configured_dir = config.get("FILE_MIRROR_DIR")
         if configured_dir is None:
             configured_dir = Path(tempfile.gettempdir()) / "ev3web_session_mirror"
-        self._base_dir = Path(configured_dir)
+        self._base_dir = Path(configured_dir).expanduser().resolve()
         self._prefix = str(config.get("REDIS_PREFIX", "ev3web")).strip() or "ev3web"
         self._lock = threading.RLock()
         self._stats: dict[str, int] = {
@@ -38,6 +38,7 @@ class FileSessionStore:
         if self._enabled:
             try:
                 self._base_dir.mkdir(parents=True, exist_ok=True)
+                self._restrict_permissions(self._base_dir, 0o700)
                 self._last_error = None
             except Exception as exc:  # noqa: BLE001
                 self._enabled = False
@@ -125,10 +126,13 @@ class FileSessionStore:
         return normalized
 
     def _path_for(self, session_id: str) -> Path:
-        safe = "".join(ch for ch in session_id if ch.isalnum() or ch in {"-", "_"})
-        if not safe:
-            safe = "invalid"
-        return self._base_dir / f"{self._prefix}_session_{safe}.json"
+        safe = str(session_id)
+        if not safe or len(safe) > 128 or any(not (ch.isalnum() or ch in {"-", "_"}) for ch in safe):
+            raise ValueError("Identificador de sesión inválido para el espejo de archivos.")
+        path = (self._base_dir / f"{self._prefix}_session_{safe}.json").resolve()
+        if path.parent != self._base_dir:
+            raise ValueError("Ruta de espejo de sesión inválida.")
+        return path
 
     def _read_payload(self, session_id: str) -> dict[str, Any] | None:
         path = self._path_for(session_id)
@@ -145,22 +149,25 @@ class FileSessionStore:
             return None
 
     def _write_payload(self, session_id: str, payload: dict[str, Any]) -> bool:
-        path = self._path_for(session_id)
-        tmp_path = path.with_suffix(path.suffix + f".{os.getpid()}.tmp")
+        tmp_path: Path | None = None
         try:
+            path = self._path_for(session_id)
+            tmp_path = path.with_suffix(path.suffix + f".{os.getpid()}.tmp")
             with self._lock:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 tmp_path.write_text(
                     json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
                     encoding="utf-8",
                 )
+                self._restrict_permissions(tmp_path, 0o600)
                 tmp_path.replace(path)
+                self._restrict_permissions(path, 0o600)
             self._last_error = None
             return True
         except Exception as exc:  # noqa: BLE001
             self._last_error = type(exc).__name__
             try:
-                if tmp_path.exists():
+                if tmp_path is not None and tmp_path.exists():
                     tmp_path.unlink()
             except Exception:  # noqa: BLE001
                 pass
@@ -171,3 +178,13 @@ class FileSessionStore:
         if value is None:
             return ""
         return str(value)
+
+    @staticmethod
+    def _restrict_permissions(path: Path, mode: int) -> None:
+        """Intenta limitar acceso a propietario; Windows conserva sus ACL propias."""
+
+        try:
+            os.chmod(path, mode)
+        except OSError:
+            # El almacenamiento sigue disponible si la plataforma no expone chmod.
+            pass

@@ -27,8 +27,8 @@ de transporte (REST, SSE o llamadas locales).
 | UC-ROBOT-01 | Permite definir pose inicial en el mapa. | Permite ubicar y orientar el robot en el canvas. | Completa | `web/static/js/simulation_app.js`, `ui/world_canvas.py` | Verificar tolerancia de coordenadas en prueba compartida. |
 | UC-OBSERVE-01 | Mapa, sensores, telemetría y brick mediante snapshot/SSE. | Mapa, sensores, telemetría y brick mediante DTO local. | Completa | `web/static/js/simulation_app.js`, `ui/world_canvas.py`, `ui/telemetry_panel.py`, `ui/brick_panel.py` | Añadir prueba de snapshot renderizado para ambas UI. |
 | UC-EXAMPLE-01 | Menús de ejemplos y escenarios. | Menús de ejemplos y escenarios. | Completa | `web/templates/index.html`, `ui/main_window.py` | Cubrir catálogo idéntico en pruebas. |
-| UC-WORLD-01 | Crear, abrir, guardar, importar y exportar JSON. | Nuevo, abrir y guardar/guardar como JSON. | Completa | `web/static/js/world_editor_app.js`, `ui/world_editor_window.py` | Mantener prueba UI de archivos y continuidad a simulación. |
-| UC-WORLD-02 | Coloca, mueve, rota, duplica y elimina assets. | Coloca, mueve, rota, duplica y elimina assets. | Completa | `web/routes/api_editor.py`, `ui/world_editor_window.py` | Añadir prueba de secuencia de edición equivalente. |
+| UC-WORLD-01 | Crear, abrir, guardar, importar y exportar JSON. | Nuevo, abrir y guardar/guardar como JSON. | Parcial | `web/static/js/world_editor_app.js`, `ui/world_editor_window.py` | Unificar diálogos, estado de cambios y comandos mediante `WorldEditorSession`. |
+| UC-WORLD-02 | Coloca, mueve, rota, duplica y elimina assets. | Coloca, mueve, rota, duplica y elimina assets. | Parcial | `web/routes/api_editor.py`, `ui/world_editor_window.py` | Migrar ambos adaptadores al contrato, categorías, ayudas y capas comunes. |
 | UC-WORLD-03 | Valida y aplica el mundo a la sesión web. | Valida, guarda y aplica mediante `Simular mundo guardado`. | Completa | `web/routes/api_editor.py`, `ui/world_editor_window.py`, `ui/main_window.py` | Mantener la transición explícita y su prueba de error. |
 | UC-HELP-01 | Tutorial web, manual y acerca de. | Manual contextual y acerca de. | Completa | `shared/help_tutorials.py`, `web/templates/help.html`, `ui/main_window.py` | Mantener una única fuente de tutoriales y pruebas de navegación. |
 | UC-TRACE-01 | Inicia/detiene registro, avanza un tick y exporta JSON/CSV. | Inicia/detiene registro, avanza un tick y exporta JSON/CSV. | Completa | `trace_controls.js`, `ui/main_window.py`, prueba de contrato compartida | Mantener contrato de exportación versionado. |
@@ -44,9 +44,22 @@ de transporte (REST, SSE o llamadas locales).
 | Tema claro/oscuro persistente | Web y Tkinter | Web usa `localStorage`; Tkinter guarda la preferencia local en `ui_settings.json`. |
 | Seguimiento automático del robot y conmutador de haces de sensores | Web y Tkinter | Ya están presentes: Web centra el panel en cada snapshot y ofrece el conmutador; Tkinter sigue al robot y permite activar los haces. No requiere migración. |
 
+## Brechas de composición del Editor de Mundos (2026-08-24)
+
+| ID | Diferencia observada | Web | Tkinter | Cierre previsto |
+| --- | --- | --- | --- | --- |
+| WE-01 | Barra de acciones | Barra lineal sin grupos visibles. | Grupos operativos, pero mezcla etiquetas en inglés y español. | Acciones Archivo, Edición y Simulación canónicas. |
+| WE-02 | Biblioteca | Búsqueda, categorías y guía inicial claras. | Búsqueda y categorías, con densidad y nombres diferentes. | Presentación proveniente del mismo manifiesto. |
+| WE-03 | Inspector y capas | Jerarquía compacta con unidades comprensibles. | Inspector y capas presentes, distribución más técnica. | Contrato de selección, capas y propiedades común. |
+| WE-04 | Activos | Reconstruía etiquetas y ayudas en JavaScript. | Catálogo Python de nombres y tooltips. | Metadatos localizados en `editor_asset_manifest`. |
+| WE-05 | Estado de edición | Estado de sesión separado del modelo del editor. | Estado local de ventana. | Snapshot `WorldEditorSession` versionado. |
+
 ## Resultado y siguiente paso
 
-La auditoría confirma trece casos completos y uno planificado.
+La auditoría confirma trece casos funcionales principales y dos casos de
+autoría en convergencia de experiencia. La paridad de dominio se conserva,
+pero la paridad de composición y contrato de UI queda abierta en el cambio
+`unificar-editor-mundos-web-tkinter`.
 El catálogo y las pruebas de contrato compartidas se ejecutan en CI; un caso no
 planificado no puede declararse exclusivo de una interfaz. Esta matriz se verifica
 automáticamente contra todos los identificadores del catálogo para evitar que un

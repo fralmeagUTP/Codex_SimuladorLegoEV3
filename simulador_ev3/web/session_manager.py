@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import secrets
 import threading
 import time
@@ -14,6 +15,8 @@ from typing import Any
 
 from simulador_ev3.web.errors import CapacityExceeded, SessionForbidden, SessionNotFound
 from simulador_ev3.web.services.simulation_session import SimulationSession
+
+logger = logging.getLogger("simulador_ev3.web.session_manager")
 
 
 def _utcnow() -> datetime:
@@ -48,6 +51,7 @@ class SessionManager:
         self._counters: dict[str, int] = {
             "sessions_created": 0,
             "sessions_closed": 0,
+            "sessions_evicted": 0,
             "session_not_found_errors": 0,
             "session_forbidden_errors": 0,
             "session_expired_errors": 0,
@@ -169,6 +173,25 @@ class SessionManager:
             record.session.close()
         return len(expired)
 
+    def close_all(self) -> int:
+        """Cierra cada sesión y su worker durante un apagado ordenado."""
+
+        with self._lock:
+            records = list(self._sessions.values())
+            self._sessions.clear()
+            if records:
+                self._capacity_changed.notify_all()
+        for record in records:
+            self._mirror_delete(record.session_id)
+            try:
+                record.session.close()
+            except (OSError, RuntimeError) as exc:
+                logger.warning(
+                    "session_close_failed",
+                    extra={"event": "session_close_failed", "error_type": type(exc).__name__},
+                )
+        return len(records)
+
     def running_count(self) -> int:
         with self._lock:
             return sum(1 for rec in self._sessions.values() if rec.session.status == "running")
@@ -245,15 +268,17 @@ class SessionManager:
     def _is_expired(self, record: SessionRecord) -> bool:
         return _utcnow() - record.last_seen_at > self._idle_timeout
 
-    def _evict_oldest_inactive_locked(self) -> None:
+    def _evict_oldest_inactive_locked(self) -> bool:
         candidates = [record for record in self._sessions.values() if record.session.status != "running"]
         if not candidates:
-            return
+            return False
         oldest = min(candidates, key=lambda record: record.last_seen_at)
         self._sessions.pop(oldest.session_id, None)
         self._mirror_delete_locked(oldest.session_id)
+        self._bump_counter_locked("sessions_evicted")
         self._capacity_changed.notify_all()
         oldest.session.close()
+        return True
 
     def _bump_counter_locked(self, key: str, amount: int = 1) -> None:
         self._counters[key] = self._counters.get(key, 0) + int(amount)
@@ -336,8 +361,11 @@ class SessionManager:
                 parsed = json.loads(raw_runtime_state)
                 if isinstance(parsed, dict):
                     session.restore_runtime_checkpoint(parsed)
-            except Exception:  # noqa: BLE001
-                pass
+            except (OSError, ValueError, RuntimeError, TimeoutError) as exc:
+                logger.warning(
+                    "session_checkpoint_restore_failed",
+                    extra={"event": "session_checkpoint_restore_failed", "error_type": type(exc).__name__},
+                )
         recovered = SessionRecord(
             session_id=session_id,
             owner_token_hash=stored_hash,

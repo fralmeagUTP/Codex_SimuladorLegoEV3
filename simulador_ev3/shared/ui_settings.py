@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 UI_FIT_PADDING_RATIO = 0.05
@@ -38,9 +39,7 @@ def save_ui_theme(theme: str) -> str:
     normalized = str(theme).strip().lower()
     if normalized not in UI_THEMES:
         raise ValueError(f"Tema no soportado: {theme}")
-    path = ui_settings_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"theme": normalized}), encoding="utf-8")
+    _write_settings_atomically({"theme": normalized})
     return normalized
 
 
@@ -64,5 +63,25 @@ def save_desktop_session(session: dict) -> None:
     except (OSError, ValueError, TypeError):
         payload = {}
     payload["desktop_session"] = dict(session)
+    _write_settings_atomically(payload)
+
+
+def _write_settings_atomically(payload: dict) -> None:
+    """Evita que un cierre durante la escritura deje preferencias corruptas."""
+
+    path = ui_settings_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload), encoding="utf-8")
+    fd, raw_tmp_path = tempfile.mkstemp(prefix=f".{path.stem}-", suffix=".tmp", dir=path.parent)
+    tmp_path = Path(raw_tmp_path)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            pass

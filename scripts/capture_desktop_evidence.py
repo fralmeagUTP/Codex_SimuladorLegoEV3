@@ -41,43 +41,76 @@ def _parse_size(value: str) -> tuple[int, int]:
     return width, height
 
 
+def _capture_window(target, bbox: tuple[int, int, int, int]):
+    """Captura la ventana nativa indicada, sin depender de qué app tiene foco.
+
+    En un escritorio compartido, ``ImageGrab.grab(bbox=...)`` puede registrar
+    VS Code u otra aplicación que se superponga durante el cambio de foco.
+    Pillow moderno permite capturar el HWND directamente en Windows; el bbox
+    queda como respaldo para versiones antiguas de Pillow.
+    """
+
+    try:
+        return ImageGrab.grab(bbox=bbox, all_screens=True)
+    except (OSError, TypeError, ValueError):
+        return ImageGrab.grab(window=int(target.winfo_id()))
+
+
 def capture_theme(
-    theme: ThemeName, output_dir: Path, size: tuple[int, int], *, verify_layout: bool = False
+    theme: ThemeName,
+    output_dir: Path,
+    size: tuple[int, int],
+    *,
+    verify_layout: bool = False,
+    world_editor: bool = False,
 ) -> Path:
     """Abre una ventana temporal, captura su área cliente y la cierra."""
 
     width, height = size
-    target = output_dir / f"simulacion_{theme}_{width}x{height}.png"
     app = EV3SimulatorApp(restore_session=False, persist_session=False)
     app.geometry(f"{width}x{height}+20+20")
     app._theme_name = theme
     app._apply_theme(theme)
+    target = app
+    if world_editor:
+        app._cmd_open_world_editor()
+        target = app._world_editor_window
+        if target is None:
+            raise RuntimeError("No fue posible abrir el Editor de mundos")
     app.update_idletasks()
     app.deiconify()
     # ImageGrab captura el escritorio real: asegurar que la ventana temporal
     # esté delante de VS Code u otra aplicación antes de registrar evidencia.
-    app.attributes("-topmost", True)
-    app.lift()
-    app.focus_force()
+    target.attributes("-topmost", True)
+    target.lift()
+    target.focus_force()
     measurement: dict[str, object] = {}
 
+    captured_target: Path | None = None
+
     def save_and_close() -> None:
+        nonlocal captured_target
         try:
-            app.update_idletasks()
-            left = app.winfo_rootx()
-            top = app.winfo_rooty()
-            width = app.winfo_width()
-            height = app.winfo_height()
+            target.update_idletasks()
+            left = target.winfo_rootx()
+            top = target.winfo_rooty()
+            width = target.winfo_width()
+            height = target.winfo_height()
             measurement.update({
                 "window": f"{width}x{height}",
                 "dpi": round(float(app.winfo_fpixels("1i")), 1),
                 "telemetry": f"{app._telemetry_panel.winfo_width()}x{app._telemetry_panel.winfo_height()}",
                 "brick": f"{app._brick_panel.winfo_width()}x{app._brick_panel.winfo_height()}",
-                "lcd": f"{app._brick_panel._screen_canvas.winfo_width()}x{app._brick_panel._screen_canvas.winfo_height()}",
+                "lcd": (
+                    f"{app._brick_panel._screen_canvas.winfo_width()}x"
+                    f"{app._brick_panel._screen_canvas.winfo_height()}"
+                ),
             })
             if verify_layout:
                 _verify_layout(app, width)
-            ImageGrab.grab(bbox=(left, top, left + width, top + height), all_screens=True).save(target)
+            prefix = "editor_mundos" if world_editor else "simulacion"
+            captured_target = output_dir / f"{prefix}_{theme}_{width}x{height}.png"
+            _capture_window(target, (left, top, left + width, top + height)).save(captured_target)
         finally:
             app._on_close()
 
@@ -88,7 +121,9 @@ def capture_theme(
         f"telemetría={measurement.get('telemetry')} Brick={measurement.get('brick')} "
         f"LCD={measurement.get('lcd')}"
     )
-    return target
+    if captured_target is None:
+        raise RuntimeError("La captura de Tkinter no produjo un archivo de evidencia")
+    return captured_target
 
 
 def _verify_layout(app: EV3SimulatorApp, window_width: int) -> None:
@@ -100,9 +135,9 @@ def _verify_layout(app: EV3SimulatorApp, window_width: int) -> None:
         errors.append("telemetría o Brick no recibió ancho visible")
     if brick._screen_canvas.winfo_width() <= 0 or brick._screen_canvas.winfo_height() <= 0:
         errors.append("la LCD no recibió geometría visible")
-    if telemetry.winfo_width() < 560 and not telemetry._compact_layout:
+    if hasattr(telemetry, "_compact_layout") and telemetry.winfo_width() < 560 and not telemetry._compact_layout:
         errors.append("la telemetría estrecha no activó el modo compacto")
-    if telemetry.winfo_width() >= 560 and telemetry._compact_layout:
+    if hasattr(telemetry, "_compact_layout") and telemetry.winfo_width() >= 560 and telemetry._compact_layout:
         errors.append("la telemetría ancha no restauró sus tres columnas")
     robot_bottom = brick._robot_state_section.winfo_y() + brick._robot_state_section.winfo_height()
     content_bottom = brick._scroll_canvas.canvasy(brick._scroll_canvas.winfo_height())
@@ -124,6 +159,10 @@ def main() -> int:
         "--verify-layout", action="store_true",
         help="Comprueba geometría y alcanzabilidad de Robot/Estado durante cada captura.",
     )
+    parser.add_argument(
+        "--world-editor", action="store_true",
+        help="Captura el Editor de mundos abierto desde la aplicacion principal.",
+    )
     args = parser.parse_args()
     output_dir = args.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -132,7 +171,13 @@ def main() -> int:
     try:
         sizes = args.size or [(WEB_REFERENCE_WIDTH_PX, WEB_REFERENCE_HEIGHT_PX)]
         files = [
-            capture_theme(theme, output_dir, size, verify_layout=args.verify_layout)
+            capture_theme(
+                theme,
+                output_dir,
+                size,
+                verify_layout=args.verify_layout,
+                world_editor=args.world_editor,
+            )
             for size in sizes for theme in themes
         ]
     except OSError as exc:

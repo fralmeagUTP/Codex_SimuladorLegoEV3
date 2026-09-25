@@ -1,7 +1,7 @@
-# Manual de Uso - Simulador EV3 Pybricks
+# Manual de Usuario - Simulador EV3 Pybricks
 
 Version documentada: 1.5.0
-Fecha de actualizacion: 2026-07-24
+Fecha de actualización: 2026-08-05
 
 ## 1. Objetivo
 
@@ -33,8 +33,8 @@ Esta separacion evita ejecutar codigo mientras se esta construyendo un mundo y p
 Desde PowerShell:
 
 ```powershell
-cd C:\Users\fralm\Desktop\Codex_SimuladorLegoEV3
-.\scripts\start_web.ps1
+cd <ruta-del-repositorio>
+.\scripts\start_web.cmd
 ```
 
 Si Windows bloquea la ejecucion de `.ps1`, usar:
@@ -113,11 +113,11 @@ Las dos interfaces permiten configurar puntos de interrupcion, watches, avanzar
 un paso y continuar la ejecucion. El estado de depuracion se recibe mediante el
 contrato de sesion y muestra la linea actual cuando el script se pausa.
 
-El menu **Fidelidad** permite elegir perfiles de simulacion disponibles. Los
+En **Configuración > Precisión de simulación** se eligen los perfiles disponibles. Los
 perfiles no sustituyen la calibracion de un robot fisico; consultar
 `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md` antes de usar una actividad en aula.
 
-El menu **Trazas** inicia o detiene el registro, permite avanzar un tick y
+En **Diagnóstico > Trazas de simulación** se inicia o detiene el registro, permite avanzar un tick y
 exportar la evidencia en JSON/CSV. Las trazas no dependen de la interfaz usada.
 
 ### 2.7 Accesibilidad y teclado
@@ -179,8 +179,8 @@ Las siguientes secciones corresponden a la version de escritorio basada en `tkin
 
 La ventana de escritorio sigue el mismo orden de la pagina de simulacion Web:
 
-- Barra de menus: Archivo, Ejemplos, Mundos, Escenarios, Tema, Fidelidad,
-  Trazas y Ayuda.
+- Barra de menús: Archivo, Aprender, Mundos, Prácticas guiadas, Configuración,
+  Configuración, Diagnóstico y Ayuda.
 - Barra de simulacion: Ejecutar, Pausar, Reanudar y Detener y reiniciar.
 - Mundo a la izquierda y editor/depuracion a la derecha.
 - Telemetria y EV3 Brick debajo del mundo; la telemetria se divide en Robot,
@@ -191,6 +191,18 @@ Los temas Claro y Oscuro, el foco de teclado y los estados deshabilitados usan
 la misma semantica de color que la Web. Las diferencias limitadas a bordes,
 desplegables y barras de desplazamiento son propias de los controles nativos
 de Windows.
+
+### 4.0 Editor de codigo y colores de sintaxis
+
+El editor identifica palabras clave, nombres integrados, numeros, cadenas y
+comentarios. Los comentarios que comienzan con `#`, incluidos los que aparecen
+al final de una instruccion, usan un color propio. Los bloques documentales
+entre triples comillas (`"""..."""` o `'''...'''`) se muestran como una unica
+cadena aunque ocupen varias lineas.
+
+El resaltado se actualiza al escribir y al cambiar entre los temas Claro y
+Oscuro; los colores se ajustan para conservar contraste y legibilidad. Un
+script incompleto mientras se escribe no bloquea el editor.
 
 ### 4.1 Menu Archivo
 
@@ -205,9 +217,10 @@ Atajos:
 - `Ctrl+O`: abrir script.
 - `Ctrl+S`: guardar script.
 
-### 4.2 Menu Ejemplos
+### 4.2 Menú Aprender
 
-Carga scripts de ejemplo desde `examples/`.
+Carga scripts de ejemplo desde `examples/`, agrupados en Empezar, Movimiento,
+Sensores, Control y navegación y Retos avanzados.
 
 ### 4.3 Menu Mundos
 
@@ -215,17 +228,42 @@ Carga scripts de ejemplo desde `examples/`.
 - `Editor de mundos...`: abre el editor visual.
 - Lista de mundos detectados en `worlds/`.
 
-### 4.4 Menu Escenarios
+### 4.4 Menú Prácticas guiadas
 
-Carga combinaciones predefinidas de mundo + script.
+Carga combinaciones predefinidas de objetivo + mundo + script. Antes de confirmar
+se informa qué recursos cambiarán; si hay cambios sin guardar, puede cancelar sin
+perder el programa actual.
 
-### 4.5 Ayuda contextual
+### 4.5 Centro de ayuda contextual
 
-El menú `Ayuda > Manual de uso...` abre los mismos tres tutoriales guiados de
-la Web: crear un mundo, ejecutar una simulación y depurar por pasos. Cada
-tutorial incluye pasos, resultado esperado y recuperación ante fallos. Usa los
-botones `Crear mundos`, `Ir a simulación` y `Preparar depuración` para abrir el
-flujo correspondiente sin tener que buscarlo de nuevo en los menús.
+El menú `Ayuda > Centro de ayuda...` abre el mismo catálogo de guías de la
+Web. Puedes buscar por una tarea o error, filtrar por categoría y abrir el
+flujo correspondiente sin tener que recorrer de nuevo los menús. Cada guía
+indica requisitos, pasos, resultado esperado y una forma de recuperación.
+
+### 4.6 Diagnóstico de sesión y soporte
+
+En ambas interfaces, `Diagnóstico` concentra `Diagnóstico de sesión`, trazas y
+`Exportar diagnóstico JSON`. `Ayuda` contiene `Centro de ayuda`, `Guía rápida:
+primera simulación`, `Libro: Programación en Python para robótica (LEGO EV3)` y
+`Acerca de`.
+
+El diagnóstico muestra datos técnicos seguros de la sesión actual (estado,
+tick, tiempo y worker cuando exista). En la Web añade métricas de renderizado;
+en el escritorio se muestra mediante un diálogo nativo. `Exportar diagnóstico
+JSON` crea un archivo UTF-8 versionado para soporte. El archivo no contiene el
+código del editor, tokens, contraseñas ni credenciales. `Acerca de` queda
+reservado para créditos, versión e información institucional.
+
+El enlace del libro abre en el navegador predeterminado y dirige al repositorio
+institucional de UTP para la obra escrita por los autores del proyecto:
+**Programación en Python para robótica: de la teoría a la práctica con LEGO
+EV3**.
+
+Las instrucciones de instalación, despliegue y operación técnica permanecen
+separadas en `GUIA_WEB_FLASK_WINDOWS.md`, `GUIA_DESPLIEGUE_LINUX.md` y
+`CONTROLES_CALIDAD.md` para no mezclar el aprendizaje del simulador con tareas
+de administración.
 
 Para verificar la navegación nativa con ratón en un equipo Windows con sesión
 gráfica, instala `.[desktop-e2e]` y ejecuta:
@@ -242,7 +280,8 @@ $env:EV3_RUN_DESKTOP_E2E = "1"
 3. Coloca el robot en el mapa (clic y orientacion).
 4. Pulsa `Ejecutar`.
 5. Observa telemetria, trayectoria y pantalla LCD.
-6. Pulsa `Detener` para finalizar.
+6. Usa `Detener y reiniciar` para cancelar y restaurar el estado inicial, o
+   permite que el programa termine y conserva su snapshot final.
 
 ## 6. Colocacion del Robot
 
@@ -315,6 +354,25 @@ Los mundos se guardan en JSON y pueden incluir:
 - Si un script corto no termina: verificar que la sesion alcance `finished`; el estado final permanece visible hasta que el usuario reinicie manualmente.
 - Si el mapa parece cortado: usar scroll dentro del panel; el canvas conserva el tamano real de Tkinter.
 
-## 12. Version
+## 12. Centro de ayuda y recorridos guiados
 
-Manual actualizado para la version `1.5.0`.
+El menú **Ayuda** abre el Centro de ayuda en Web y escritorio. Cada guía ofrece
+prerrequisitos, pasos marcables, resultado esperado, recuperación y acceso al
+destino correcto. El avance se conserva de forma local: no incorpora código,
+credenciales ni identificadores de sesión.
+
+Las rutas cubren primera simulación, mundos, motores, sensores, depuración,
+misiones, trazas, tiempo máximo y diagnóstico. En Web, las capturas incluyen
+texto alternativo y transcripción; en Tkinter se muestran capturas reales de
+escritorio con una explicación textual de respaldo.
+
+Para una clase, active **Modo docente**. Propone una práctica de 25 minutos y
+la evidencia mínima: captura del mundo, código final, resultado de misión y
+explicación de una lectura de sensor. La simulación no reemplaza la validación
+en un EV3 físico: confirme puertos, batería, montaje y sensores antes de una
+demostración real.
+
+## 13. Version
+
+Manual actualizado para la versión `1.5.0` el 2026-08-05. Consulta
+`Documentos/ESTADO_ACTUAL_PROYECTO.md` para la evidencia de liberación vigente.

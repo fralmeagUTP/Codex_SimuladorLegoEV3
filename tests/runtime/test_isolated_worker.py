@@ -1,3 +1,4 @@
+import os
 import time
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from simulador_ev3.runtime.isolated_worker import (
     IsolatedRuntimeWorker,
     WorkerMessage,
     WorkerResourcePolicy,
+    cleanup_worker_temp_dirs,
     worker_isolation_enabled,
 )
 from simulador_ev3.web.services.simulation_session import SimulationSession
@@ -17,6 +19,24 @@ def test_worker_message_has_versioned_serializable_envelope() -> None:
 
     assert message.to_dict()["protocol_version"] == 1
     assert message.to_dict()["command_id"] == "command-1"
+
+
+def test_cleanup_worker_temp_dirs_removes_only_expired_inactive_own_directories(tmp_path) -> None:
+    root = tmp_path / "workers"
+    stale = root / "ev3-worker-stale"
+    unrelated = root / "other-data"
+    stale.mkdir(parents=True)
+    unrelated.mkdir()
+    stale.joinpath("payload.txt").write_text("x", encoding="utf-8")
+    unrelated.joinpath("keep.txt").write_text("x", encoding="utf-8")
+    old = time.time() - 120
+    os.utime(stale, (old, old))
+
+    result = cleanup_worker_temp_dirs(root, max_age_s=60)
+
+    assert result["removed"] == 1
+    assert not stale.exists()
+    assert unrelated.exists()
 
 
 def test_isolated_worker_initializes_and_stops() -> None:
@@ -55,8 +75,11 @@ def test_worker_resource_policy_requires_positive_limits() -> None:
         WorkerResourcePolicy.from_payload({"max_runtime_s": 0, "max_memory_mb": 128, "max_cpu_s": 1})
 
 
-def test_worker_feature_flag_is_opt_in(monkeypatch) -> None:
+def test_worker_isolation_is_default_and_local_compatibility_is_explicit(monkeypatch) -> None:
     monkeypatch.delenv("EV3_WORKER_ISOLATION_ENABLED", raising=False)
+    monkeypatch.delenv("EV3_LOCAL_RUNTIME_ENABLED", raising=False)
+    assert worker_isolation_enabled() is True
+    monkeypatch.setenv("EV3_LOCAL_RUNTIME_ENABLED", "true")
     assert worker_isolation_enabled() is False
     monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
     assert worker_isolation_enabled() is True
@@ -92,6 +115,15 @@ def test_isolated_worker_drains_events_without_blocking() -> None:
         assert events[0]["type"] == "loaded"
     finally:
         worker.close()
+
+
+def test_isolated_worker_ignores_a_queue_closed_during_session_shutdown() -> None:
+    """Un stream SSE tardÃ­o no debe convertir un cierre normal en error 500."""
+
+    worker = IsolatedRuntimeWorker("closed-drain-worker")
+    worker.close()
+
+    assert worker.drain_events() == []
 
 
 def test_isolated_worker_emits_lifecycle_states() -> None:
@@ -196,6 +228,182 @@ def test_isolated_worker_executes_script_and_emits_snapshot() -> None:
         worker.close()
 
 
+def test_isolated_worker_snapshot_and_tick_step_use_the_same_authoritative_state() -> None:
+    """El tick manual debe proceder del worker que suministra los snapshots Web."""
+
+    worker = IsolatedRuntimeWorker("tick-step-worker")
+    worker.start()
+    try:
+        worker.receive()
+        worker.send("initialize", {"execution_policy": {"max_runtime_s": 2, "max_memory_mb": 128, "max_cpu_s": 2}})
+        worker.receive()
+        worker.send("load_script", {"source": "from pybricks.tools import wait\nwait(1)\n"})
+        worker.receive()
+
+        snapshot_command = worker.send("snapshot")
+        initial = worker.receive()
+        assert initial["type"] == "snapshot"
+        assert initial["command_id"] == snapshot_command
+        initial_tick = initial["payload"]["tick"]
+
+        step_command = worker.send("step_tick")
+        events: list[dict[str, object]] = []
+        for _ in range(5):
+            event = worker.receive(0.5)
+            events.append(event)
+            if event["type"] == "tick_step" and event["command_id"] == step_command:
+                break
+
+        acknowledged = next(event for event in events if event["type"] == "tick_step")
+        stepped_snapshots = [event["payload"] for event in events if event["type"] == "snapshot"]
+        assert acknowledged["payload"]["tick"] > initial_tick
+        assert stepped_snapshots
+        assert stepped_snapshots[-1]["tick"] == acknowledged["payload"]["tick"]
+    finally:
+        worker.close()
+
+
+def test_isolated_worker_pauses_on_configured_debug_breakpoint() -> None:
+    """La ruta aislada debe emitir la pausa que consume la interfaz Web."""
+
+    worker = IsolatedRuntimeWorker("debug-breakpoint-worker")
+    worker.start()
+    try:
+        worker.receive()
+        # Esta prueba mide el ritmo de `wait`, no el límite de memoria. En los
+        # runners Linux, un límite bajo puede terminar el proceso durante la carga de
+        # módulos antes de que el script alcance el reloj de referencia.
+        worker.send("initialize", {"execution_policy": {"max_runtime_s": 5, "max_memory_mb": 2048, "max_cpu_s": 5}})
+        worker.receive()
+        worker.send("load_script", {"source": "from pybricks.tools import wait\nx = 1\nwait(1000)\n"})
+        worker.receive()
+        worker.send("set_debug", {"breakpoints": [3], "watches": []})
+        worker.receive()
+        worker.send("start", {"debug": True})
+
+        events: list[dict[str, object]] = []
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            try:
+                event = worker.receive(0.2)
+            except TimeoutError:
+                continue
+            events.append(event)
+            if event["type"] == "debug" and event["payload"].get("type") == "paused":
+                break
+
+        paused = next(
+            event for event in events if event["type"] == "debug" and event["payload"].get("type") == "paused"
+        )
+        assert paused["payload"]["line"] == 3
+        assert paused["payload"]["reason"] == "breakpoint"
+    finally:
+        worker.close()
+
+
+def test_web_session_consumes_isolated_worker_debug_pause(monkeypatch) -> None:
+    """El estado pausado del worker debe alcanzar los controles de la sesión."""
+
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    session = SimulationSession(session_id="web-isolated-debug", config={}, max_runtime_s=5.0)
+    try:
+        session.load_script("from pybricks.tools import wait\nx = 1\nwait(1000)\n")
+        session.set_debug_breakpoints({3})
+        session.start(debug=True)
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline and session.status != "paused":
+            session.snapshot_response()
+            time.sleep(0.03)
+
+        assert session.status == "paused", {
+            "debug": session.summary()["debug"],
+            "events": [
+                (event["type"], event["payload"].get("type"), event["payload"].get("line"))
+                for event in session.events_since()[-12:]
+            ],
+            "worker_sequence": session._worker_shadow_last_sequence,
+        }
+        assert session.summary()["debug"]["debug_state"] == "paused_breakpoint"
+        paused_tick = session.snapshot_response()["snapshot"]["tick"]
+        time.sleep(0.12)
+        assert session.snapshot_response()["snapshot"]["tick"] == paused_tick
+        reset = session.reset()
+        assert reset["status"] == "created"
+        assert session.status == "created"
+    finally:
+        session.close()
+
+
+def test_isolated_worker_resets_a_script_paused_at_a_breakpoint() -> None:
+    """Reset debe cancelar el wait del depurador sin agotar el timeout IPC."""
+
+    worker = IsolatedRuntimeWorker("debug-reset-worker")
+    worker.start()
+    try:
+        worker.receive()
+        worker.send("initialize", {"execution_policy": {"max_runtime_s": 5, "max_memory_mb": 128, "max_cpu_s": 5}})
+        worker.receive()
+        worker.send("load_script", {"source": "from pybricks.tools import wait\nx = 1\nwait(10000)\n"})
+        worker.receive()
+        worker.send("set_debug", {"breakpoints": [3], "watches": []})
+        worker.receive()
+        worker.send("start", {"debug": True})
+
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            event = worker.receive(0.5)
+            if event["type"] == "debug" and event["payload"].get("type") == "paused":
+                break
+        else:
+            pytest.fail("El worker no alcanzó el breakpoint.")
+
+        reset_command = worker.send("reset")
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            event = worker.receive(0.5)
+            if event["command_id"] == reset_command and event["type"] == "status":
+                assert event["payload"]["status"] == "reset"
+                break
+        else:
+            pytest.fail("El worker no confirmó reset tras el breakpoint.")
+    finally:
+        worker.close()
+
+
+def test_isolated_worker_keeps_wait_close_to_wall_clock_time() -> None:
+    """El aislamiento no puede acelerar artificialmente el reloj de la misión."""
+
+    worker = IsolatedRuntimeWorker("worker-wall-clock")
+    worker.start()
+    try:
+        worker.receive()
+        worker.send("initialize", {"execution_policy": {"max_runtime_s": 5, "max_memory_mb": 128, "max_cpu_s": 5}})
+        worker.receive()
+        worker.send("load_script", {"source": "from pybricks.tools import wait\nwait(900)\n"})
+        worker.receive()
+
+        started_at = time.monotonic()
+        worker.send("start")
+        latest_snapshot: dict[str, object] | None = None
+        deadline = started_at + 4.0
+        while time.monotonic() < deadline:
+            event = worker.receive(0.5)
+            if event["type"] == "snapshot":
+                latest_snapshot = event["payload"]
+            if event["type"] == "status" and event["payload"].get("status") == "finished":
+                break
+        else:
+            pytest.fail("El worker no terminó el wait de referencia.")
+
+        elapsed_s = time.monotonic() - started_at
+        assert latest_snapshot is not None
+        assert float(latest_snapshot["sim_time_s"]) >= 0.9
+        assert elapsed_s >= 0.75, elapsed_s
+        assert elapsed_s <= 1.8, elapsed_s
+    finally:
+        worker.close()
+
+
 def test_web_session_starts_shadow_worker_when_enabled(monkeypatch) -> None:
     monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
     session = SimulationSession(session_id="web-shadow-test", config={}, max_runtime_s=1.0)
@@ -229,6 +437,29 @@ def test_web_session_recovers_worker_and_replays_loaded_script(monkeypatch) -> N
         assert summary["status"] == "ready"
         assert session._worker_shadow._process.pid != previous_pid
         assert session._source_code == "x = 1"
+    finally:
+        session.close()
+
+
+def test_web_session_recovery_preserves_its_configured_runtime_limit(monkeypatch) -> None:
+    """Una recuperacion no puede degradar el limite elegido por el usuario."""
+
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    session = SimulationSession(
+        session_id="web-recovery-runtime-limit",
+        config={"SCRIPT_MAX_RUNTIME_S": 30.0},
+        max_runtime_s=30.0,
+    )
+    try:
+        session.set_max_runtime_s(300.0)
+        session.recover_worker()
+
+        assert session._max_runtime_s == 300.0
+        assert session._worker_shadow is not None
+        # El worker confirma su politica por el evento de configuracion; no
+        # basta con conservar el valor solamente en la sesion local.
+        assert session._service.max_runtime_s == 300.0
+        assert session.worker_diagnostics()["max_runtime_s"] == 300.0
     finally:
         session.close()
 
@@ -430,6 +661,30 @@ def test_isolated_worker_loads_blank_world_from_dimensions() -> None:
         assert loaded["payload"]["blank"] is True
     finally:
         worker.close()
+
+
+def test_web_session_applies_editor_world_to_the_isolated_worker(tmp_path, monkeypatch) -> None:
+    """El Editor Web no debe depender del runtime local al aplicar un mundo."""
+
+    monkeypatch.setenv("EV3_WORKER_ISOLATION_ENABLED", "true")
+    session = SimulationSession(
+        session_id="editor-world-worker",
+        config={"WORLDS_DIR": tmp_path, "EXAMPLES_DIR": tmp_path},
+        max_runtime_s=2.0,
+    )
+    try:
+        session.create_editor_world(10, 10)
+        session.place_asset({"asset_key": "robot_ev3_32x32", "x": 64, "y": 64, "rotation": 90})
+        session.place_asset({"asset_key": "wall_64x64_a", "x": 160, "y": 64, "rotation": 0})
+
+        applied = session.apply_editor_world()
+
+        assert applied["status"] == "ready"
+        assert applied["world"]["editor_spec"]["placements"]
+        assert session._worker_shadow is not None
+        assert session._worker_shadow._process.is_alive()
+    finally:
+        session.close()
 
 
 def test_isolated_worker_configures_simulation_profile() -> None:

@@ -1,88 +1,123 @@
-# Indice de documentacion
+# Índice de documentación
 
-> Estado: actual al 2026-07-25. Version distribuible: `1.5.0`, leida desde
-> `simulador_ev3/_version.py`. Responsable: equipo del proyecto.
+> Revisado: 2026-08-05. Versión distribuible: `1.5.0`. Estado del producto:
+> **apta con observaciones**.
 
-## Convenciones
+## Cómo usar este índice
 
-- **Actual**: fuente operativa que debe mantenerse al cambiar el producto.
-- **Historico**: evidencia valida de una fecha concreta; no describe por si sola el estado actual.
-- **En revision**: requiere actualizacion en este cambio OpenSpec.
-- **Especializado**: documento para una plataforma, entorno o migracion concreta.
+- **Canónico:** describe el producto vigente y debe actualizarse con el código.
+- **Especializado:** aplica a una plataforma o despliegue concreto.
+- **Histórico:** evidencia fechada; no representa por sí sola el estado actual.
+- **Normativo:** requisito OpenSpec que gobierna cambios futuros.
 
-## Producto e interfaces
+## Inicio y estado
 
-| Documento | Estado | Audiencia | Proxima accion |
+| Documento | Tipo | Audiencia | Propósito |
 |---|---|---|---|
-| `README.md` | En revision | Todos | Actualizar comandos y resultados de calidad. |
-| `CHANGELOG.md` | Actual | Todos | Mantener por version publicada. |
-| `CONTRIBUTING.md` | Actual | Contribuidores | Checklist de calidad, OpenSpec y documentacion. |
-| `ROADMAP.md` | En revision | Producto y desarrollo | Separar hitos actuales de resultados historicos. |
-| `Documentos/MANUAL_DE_USO.md` | En revision | Estudiante y docente | Alinear fecha, sesiones, paridad y problemas. |
-| `Documentos/GUIA_APRENDIZAJE_EJEMPLOS.md` | En revision | Estudiante y docente | Verificar ejemplos y rutas actuales. |
-| `Documentos/MISIONES_EVALUABLES.md` | Actual | Docente | Mantener con el catalogo de misiones. |
-| `Documentos/Ejemplos_Simulador_Actual/README.md` | En revision | Estudiante | Validar referencias Web y Tkinter. |
-| `worlds/README.md` y `Documentos/Mundos/README.md` | Actual | Estudiante | Mantener formato y rutas de mundos. |
+| `README.md` | Canónico | Todos | Instalación, ejecución y mapa general. |
+| `Documentos/ESTADO_ACTUAL_PROYECTO.md` | Canónico | Todos | Línea base vigente y dictamen de liberación. |
+| `CHANGELOG.md` | Canónico | Todos | Cambios por versión publicada. |
+| `ROADMAP.md` | Canónico | Producto/desarrollo | Capacidades completadas y trabajo futuro. |
+| `CONTRIBUTING.md` | Canónico | Contribuidores | Flujo OpenSpec, pruebas y documentación. |
 
-## Arquitectura, especificaciones y compatibilidad
+## Estudiantes y docentes
 
-| Documento | Estado | Audiencia | Proxima accion |
-|---|---|---|---|
-| `Documentos/ARQUITECTURA_C4.md` | En revision | Desarrollo | Completar contratos, worker y recuperacion. |
-| `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md` | Actual | Docente y estudiante | Revisar al ampliar API Pybricks. |
-| `Documentos/SEGURIDAD_Y_USO_EN_AULA.md` | Actual | Docente y operacion | Mantener con sandbox y politica de secretos. |
-| `Documentos/REFERENCIA_CONFIGURACION.md` | Actual | Operacion y desarrollo | Mantener con `web/config.py`. |
-| `Documentos/MATRIZ_PARIDAD_VISUAL_WEB_TKINTER.md` | Actual | Desarrollo y QA | Mantener con evidencia visual. |
-| `Documentos/SDD_MIGRACION_WEB_FLASK.md` | Historico | Desarrollo | Conservar como migracion. |
-| `Documentos/SDD_DEBUGSTATE_PARIDAD_WEB_TKINTER.md` | Historico | Desarrollo | Conservar como antecedente. |
-| `openspec/project.md` y `openspec/specs/` | Actual | Desarrollo | Fuente normativa base. |
-| `openspec/use-cases/` | En revision | Desarrollo y QA | Cerrar auditoria de mundos y ayuda. |
-| `openspec/changes/` | Actual | Desarrollo | Conservar propuestas, disenos, tareas y deltas. |
-
-## Instalacion, operacion y despliegue
-
-| Documento | Estado | Audiencia | Proxima accion |
-|---|---|---|---|
-| `Documentos/GUIA_WEB_FLASK_WINDOWS.md` | En revision | Operacion local | Validar comandos, variables y health. |
-| `Documentos/GUIA_OPERACION_WINDOWS.md` | Actual | Estudiante y operacion local | Punto de entrada para Web y Tkinter. |
-| `Documentos/GUIA_RELEASE_WINDOWS.md` | En revision | Release Windows | Actualizar version y distinguir Web de ejecutable. |
-| `Documentos/GUIA_DESPLIEGUE_LINUX.md` | En revision | Operacion Linux | Corregir discrepancia de variable en Dockerfile. |
-| `Documentos/GUIA_INSTALACION_CPANEL.md` | Especializado | Operacion cPanel | Revisar version Python y advertencias. |
-| `Documentos/CHECKLIST_POST_DEPLOY_CPANEL.md` | Especializado | Operacion cPanel | Mantener con despliegue cPanel. |
-| `Documentos/PLAYBOOK_*CPANEL*.md` | Historico | Operacion cPanel | Conservar como procedimientos fechados. |
-| `Documentos/PLAN_TECNICO_MIGRACION_REDIS_FASES.md` | Historico | Desarrollo | Marcar resultados como historicos. |
-| `Dockerfile`, `.dockerignore`, `scripts/start_web.*` | Actual | Operacion | Fuente ejecutable para guias. |
-
-## Calidad, pruebas y releases
-
-| Documento | Estado | Audiencia | Proxima accion |
-|---|---|---|---|
-| `Documentos/CONTROLES_CALIDAD.md` | Actual | Desarrollo y QA | Mantener con CI y herramientas. |
-| `Documentos/CHECKLIST_QA_RELEASE.md` | En revision | QA y release | Actualizar version, comandos y gates. |
-| `docs/testing/diagnostico.md` | Historico | QA | Conservar con fecha y enlazar reporte actual. |
-| `docs/testing/inventario_funcional.md` | En revision | QA | Alinear con catalogo OpenSpec. |
-| `docs/testing/estrategia_pruebas.md` | En revision | QA | Incluir worker, E2E y visual. |
-| `docs/testing/casos_prueba.md` | En revision | QA | Mantener casos criticos verificables. |
-| `docs/testing/matriz_trazabilidad.md` | En revision | QA | Relacionar requisitos OpenSpec y pruebas. |
-| `docs/testing/reporte_ejecucion.md` | En revision | QA | Publicar resultado actual fechado. |
-| `docs/testing/informe_prueba_manual_escritorio.md` | Historico | QA | Conservar evidencia manual fechada. |
-| `Documentos/EVIDENCIA_QA_RELEASE_2026-05-20.md` | Historico | QA | No actualizar sus cifras; enlazar reporte actual. |
-| `Documentos/INFORME_*` y `Documentos/REPORTE_*` fechados | Historico | QA | Conservar como evidencia. |
-| `Documentos/RELEASE_NOTES_v*.md` | Historico | Usuarios | Mantener por version. |
-| `.github/workflows/quality.yml`, `tests.yml` | Actual | Desarrollo | Fuente ejecutable de CI. |
-
-## Configuracion y fuente de verdad
-
-| Elemento | Estado | Uso documental |
+| Documento | Tipo | Propósito |
 |---|---|---|
-| `simulador_ev3/_version.py` | Actual | Fuente unica de `APP_VERSION`. |
-| `pyproject.toml` | Actual | Dependencias, herramientas y pruebas. |
-| `requirements.txt` y `requirements-audit.txt` | Actual | Dependencias de ejecucion y auditoria. |
-| `scripts/` | Actual | Comandos automatizados soportados. |
-| `Documentos/EVIDENCIA_PARIDAD_2026-07-24/` | Historico fechado | Capturas de paridad visual. |
+| `Documentos/MANUAL_DE_USO.md` | Canónico | Uso completo de Web y Tkinter. |
+| `Documentos/GUIA_APRENDIZAJE_EJEMPLOS.md` | Canónico | Ruta didáctica por ejemplos. |
+| `Documentos/MISIONES_EVALUABLES.md` | Canónico | Misiones, criterios y resultados. |
+| `Documentos/DIFERENCIAS_SIMULADOR_ROBOT.md` | Canónico | Límites frente a Pybricks/EV3 físico. |
+| `Documentos/SEGURIDAD_Y_USO_EN_AULA.md` | Canónico | Uso responsable y controles de aula. |
+| `Documentos/Ejemplos_Simulador_Actual/README.md` | Especializado | Catálogo didáctico conservado. |
+| `worlds/README.md` y `Documentos/Mundos/README.md` | Canónico | Formato y recursos de mundos. |
 
-## Regla de actualizacion
+## Arquitectura y desarrollo
 
-Todo cambio que modifique un comando, interfaz, contrato, requisito, dependencia,
-flujo de operacion o resultado de calidad debe actualizar este indice y el documento actual afectado.
-Las evidencias historicas no se reescriben: se etiquetan con fecha, entorno y comando.
+| Documento | Tipo | Propósito |
+|---|---|---|
+| `Documentos/ARQUITECTURA_C4.md` | Canónico | Contexto, contenedores, componentes y flujos. |
+| `Documentos/REFERENCIA_CONFIGURACION.md` | Canónico | Variables, seguridad y observabilidad. |
+| `Documentos/GUIA_DIAGNOSTICO_SOPORTE_MMI.md` | Canónico | Diagnóstico para docente, soporte local y servidor. |
+| `Documentos/MATRIZ_PARIDAD_CIERRE_WEB_TKINTER.md` | Canónico | Catálogo funcional cerrado Web/Tkinter. |
+| `Documentos/MATRIZ_PARIDAD_VISUAL_WEB_TKINTER.md` | Canónico | Reglas de diseño y evidencia visual. |
+| `openspec/project.md` | Normativo | Contexto y principios del producto. |
+| `openspec/specs/` | Normativo | Requisitos base vigentes. |
+| `openspec/changes/` | Normativo/histórico | Cambios activos y archivados. |
+| `openspec/use-cases/` | Normativo | Casos de uso compartidos. |
+
+## Instalación, operación y despliegue
+
+| Documento | Tipo | Plataforma |
+|---|---|---|
+| `Documentos/GUIA_OPERACION_WINDOWS.md` | Canónico | Web y Tkinter local. |
+| `Documentos/GUIA_WEB_FLASK_WINDOWS.md` | Especializado | Web Windows/Waitress. |
+| `Documentos/GUIA_RELEASE_WINDOWS.md` | Especializado | Paquete Tkinter Windows. |
+| `Documentos/GUIA_DESPLIEGUE_LINUX.md` | Canónico | Contenedor Linux. |
+| `Documentos/REQUERIMIENTOS_HOSTING_Y_DESPLIEGUE_WEB.md` | Canónico | Requisitos del hosting y despliegue Web en Linux o cPanel. |
+| `Documentos/OPERACION_VPS_WEB.md` | Canónico | Monitoreo, actualización, respaldo y reversión del VPS Web. |
+| `Documentos/GUIA_INSTALACION_CPANEL.md` | Especializado | cPanel. |
+| `Documentos/CHECKLIST_POST_DEPLOY_CPANEL.md` | Especializado | Verificación cPanel. |
+| `Documentos/PLAYBOOK_FILE_MIRROR_CPANEL_SHARED.md` | Especializado | Sesiones por archivos. |
+| `Documentos/PLAYBOOK_REDIS_CPANEL_FASE3.md` | Especializado | Redis. |
+
+## Manuales técnicos y derechos de autor
+
+| Documento | Tipo | Propósito |
+|---|---|---|
+| `Documentos/MANUAL_TECNICO_ESCRITORIO.html` | Canónico | Arquitectura y operación técnica Tkinter. |
+| `Documentos/MANUAL_TECNICO_WEB.html` | Canónico | Arquitectura, sesiones y operación Web. |
+| `Documentos/ANEXO_EXPEDIENTE_DERECHOS_AUTOR.md` | Especializado | Lista de evidencia a completar por el titular. |
+| `Documentos/PLANTILLA_DOCUMENTACION.md` | Especializado | Plantilla para nuevos documentos. |
+
+Los manuales apoyan la preparación técnica, pero no sustituyen asesoría legal ni
+constituyen por sí mismos un registro de derechos de autor.
+
+## Calidad y liberación
+
+| Documento | Tipo | Propósito |
+|---|---|---|
+| `Documentos/CONTROLES_CALIDAD.md` | Canónico | Herramientas y compuertas. |
+| `Documentos/CHECKLIST_QA_RELEASE.md` | Canónico | Lista de liberación reproducible. |
+| `Documentos/PRUEBAS/PROTOCOLO_VALIDACION_MENU_UNIFICADO.md` | Canónico | Validación funcional y visual de la navegación común. |
+| `Documentos/PRUEBAS/FORMULARIO_COMPRENSION_MENU_UNIFICADO.md` | Canónico | Evaluación de comprensión con estudiante o docente. |
+| `Documentos/PRUEBAS/REPORTE_MENU_UNIFICADO_AUTOMATIZADO.md` | Evidencia vigente | Resultados técnicos y capturas de la implementación del menú. |
+| `docs/testing/estrategia_pruebas.md` | Canónico | Estrategia por nivel y ambiente. |
+| `docs/testing/inventario_funcional.md` | Canónico | Capacidades y riesgos. |
+| `docs/testing/casos_prueba.md` | Canónico | Casos críticos. |
+| `docs/testing/matriz_trazabilidad.md` | Canónico | Requisitos, riesgos y pruebas. |
+| `docs/testing/reporte_ejecucion.md` | Canónico + histórico fechado | Registro acumulado de ejecuciones. |
+| `Documentos/INFORME_MMI_2026-08-23.md` | Histórico trazable | Evidencia MMI local y decisión de liberación del commit `cbfd977`. |
+| `Documentos/REGISTRO_DEFECTOS_MMI_2026-08-23.md` | Histórico trazable | Diferencias MMI, severidad, correcciones y regresiones. |
+| `Documentos/PROTOCOLO_ACCESIBILIDAD_MMI.md` | Canónico | Recorrido manual con Narrador/NVDA y evidencia de accesibilidad. |
+| `Documentos/INFORME_PRELIBERACION_PARIDAD_2026-08-04.md` | Histórico final | Dictamen actualizado el 2026-08-05. |
+| `Documentos/LINEA_BASE_PARIDAD_2026-08-04.md` | Histórico final | Evidencia técnica del cierre. |
+| `Documentos/INFORME_LIBERACION_WEB_2026-08-04.md` | Histórico | Liberación Web. |
+| `Documentos/INFORME_ACTUALIZACION_DOCUMENTAL_2026-08-05.md` | Histórico | Evidencia de esta sincronización integral. |
+| `Documentos/RELEASE_NOTES_v*.md` | Histórico | Notas de cada versión. |
+
+Los demás archivos `INFORME_*`, `REPORTE_*`, `EVIDENCIA_*` y documentos de
+`docs/testing/` con fecha explícita son históricos. Se conservan sin reescribir
+sus resultados; el estado vigente siempre se consulta en
+`Documentos/ESTADO_ACTUAL_PROYECTO.md`.
+
+## Fuentes ejecutables
+
+| Elemento | Fuente de verdad |
+|---|---|
+| Versión | `simulador_ev3/_version.py` |
+| Dependencias y calidad | `pyproject.toml` |
+| Inicio Web | `scripts/start_web.ps1` / `scripts/start_web.cmd` |
+| Inicio Tkinter | módulo `simulador_ev3.ui.main_window` |
+| Inicio y cierre local de aplicaciones | [INICIAR_Y_DETENER_APLICACIONES.txt](INICIAR_Y_DETENER_APLICACIONES.txt) |
+| Empaquetado Windows | `scripts/build_release_windows.ps1`, `SimuladorEV3.spec` y `scripts/installer/SimuladorEV3.iss` |
+| Despliegue Linux | `Dockerfile` |
+| CI | `.github/workflows/quality.yml` y `.github/workflows/tests.yml` |
+| Configuración Web | `simulador_ev3/web/config.py` |
+
+## Regla de mantenimiento
+
+Todo cambio que modifique versión, comando, interfaz, contrato, dependencia,
+configuración, despliegue o resultado de calidad debe actualizar el documento
+canónico afectado y este índice. Toda cifra de pruebas debe indicar fecha,
+entorno y comando; nunca se presenta evidencia histórica como resultado actual.

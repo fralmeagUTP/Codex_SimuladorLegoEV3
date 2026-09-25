@@ -260,7 +260,9 @@ class RuntimeSandbox:
             if self._debug_enabled:
                 sys.settrace(self._trace_line_events)
             code = compile(self._source, "<script>", "exec")
-            exec(code, ns)  # noqa: S102
+            # Justificación de seguridad: ejecutar el programa Pybricks es la responsabilidad
+            # de este sandbox; en Web ocurre dentro del worker aislado.
+            exec(code, ns)  # noqa: S102  # nosec B102
 
             if self._state == SandboxState.RUNNING:
                 self._state = SandboxState.FINISHED
@@ -447,7 +449,9 @@ class RuntimeSandbox:
                 results.append(item)
                 continue
             try:
-                value = eval(compile(expr, "<watch>", "eval"), eval_globals, eval_locals)  # noqa: S307
+                # Justificación de seguridad: la expresión fue restringida por AST mediante
+                # _is_safe_watch_expression y no expone atributos ni imports.
+                value = eval(compile(expr, "<watch>", "eval"), eval_globals, eval_locals)  # noqa: S307  # nosec B307
                 item["value"] = self._serialize_debug_value(value, depth=0)
             except Exception as exc:  # noqa: BLE001
                 item["error"] = str(exc)
