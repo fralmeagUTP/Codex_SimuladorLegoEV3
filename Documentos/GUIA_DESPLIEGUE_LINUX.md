@@ -51,6 +51,22 @@ docker run --rm -p 5050:5050 \
 El contenedor se ejecuta como el usuario `ev3` sin privilegios. No introducir
 secretos en Dockerfile, imagenes, argumentos de build ni repositorio.
 
+### Hostinger VPS con Traefik administrado
+
+Cuando el VPS ya tiene el proxy Traefik administrado por Hostinger, aplique
+además `docker-compose.hostinger.yml`. Ese complemento conecta únicamente el
+servicio de simulación a la red externa `red` y publica
+`botlab.famedina.io` por HTTPS; no inicie el servicio Caddy de la composición
+base en ese perfil.
+
+```bash
+docker compose -p botlab-release \
+  --env-file .env.production \
+  -f docker-compose.production.yml \
+  -f docker-compose.hostinger.yml \
+  up -d --no-deps --force-recreate simulador-ev3
+```
+
 ## Verificacion
 
 ```bash

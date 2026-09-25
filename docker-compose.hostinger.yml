@@ -1,0 +1,18 @@
+# Complemento para Hostinger VPS con Traefik ya administrado por el servidor.
+# Se aplica junto a docker-compose.production.yml y sólo inicia simulador-ev3.
+services:
+  simulador-ev3:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: red
+      traefik.http.routers.botlab.entrypoints: websecure
+      traefik.http.routers.botlab.rule: Host(`botlab.famedina.io`)
+      traefik.http.routers.botlab.tls: "true"
+      traefik.http.routers.botlab.tls.certresolver: letsencrypt
+      traefik.http.services.botlab.loadbalancer.server.port: "5050"
+    networks:
+      - red
+
+networks:
+  red:
+    external: true

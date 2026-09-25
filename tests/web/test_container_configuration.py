@@ -66,6 +66,21 @@ def test_caddy_production_reference_preserves_tls_and_sse_contract() -> None:
     assert "flush_interval -1" in caddyfile
 
 
+def test_hostinger_override_routes_botlab_through_the_managed_traefik_proxy() -> None:
+    root = Path(__file__).resolve().parents[2]
+    compose = (root / "docker-compose.hostinger.yml").read_text(encoding="utf-8")
+
+    for expected in (
+        "traefik.enable: \"true\"",
+        "traefik.docker.network: red",
+        "Host(`botlab.famedina.io`)",
+        "traefik.http.services.botlab.loadbalancer.server.port: \"5050\"",
+        "red:",
+        "external: true",
+    ):
+        assert expected in compose
+
+
 def test_vps_operational_scripts_keep_secrets_and_sessions_out_of_backups() -> None:
     root = Path(__file__).resolve().parents[2]
     healthcheck = (root / "scripts" / "vps_healthcheck.sh").read_text(encoding="utf-8")
