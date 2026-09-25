@@ -16,9 +16,12 @@ docker compose -f docker-compose.production.yml up -d --build
 
 El perfil ejecuta como usuario no privilegiado, usa raíz de solo lectura, crea
 `/tmp/ev3` como `tmpfs` privado, limita memoria, CPU y PIDs, elimina capacidades
-Linux y activa `no-new-privileges`. El límite de PIDs es el límite del
-contenedor, no una garantía de que cada script use una cantidad determinada de
-procesos. El worker bloquea red dentro de Python; la denegación de egress a
+Linux y activa `no-new-privileges`. El límite predeterminado de **128 PIDs** da
+margen al proceso web y a los canales IPC de hasta 20 workers aislados; no es
+una garantía de que cada script use una cantidad determinada de procesos. Las
+sesiones se cierran al salir de la página o tras su tiempo de inactividad, y un
+reinicio controlado del contenedor libera cualquier worker residual. El worker
+bloquea red dentro de Python; la denegación de egress a
 nivel de red debe configurarse además en el firewall, proxy o política de red
 de Nyquist/Docker.
 

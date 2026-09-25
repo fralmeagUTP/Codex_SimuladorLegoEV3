@@ -12,7 +12,11 @@ services:
     read_only: true
     tmpfs:
       - /tmp/ev3:rw,noexec,nosuid,size=128m,mode=0700,uid=10001,gid=10001
-    pids_limit: 64
+    # Cada sesión mantiene un worker aislado y sus canales IPC. Con hasta 20
+    # sesiones activas, 64 PIDs no deja margen para el proceso web ni para la
+    # limpieza ordenada; 128 conserva el límite de seguridad sin bloquear la
+    # creación de nuevas simulaciones.
+    pids_limit: 128
     mem_limit: 768m
     cpus: 2.0
     security_opt:

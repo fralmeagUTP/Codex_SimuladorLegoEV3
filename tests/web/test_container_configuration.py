@@ -35,7 +35,7 @@ def test_production_compose_applies_external_worker_boundaries() -> None:
 
     for expected in (
         "read_only: true",
-        "pids_limit: 64",
+        "pids_limit: 128",
         "mem_limit: 768m",
         "no-new-privileges:true",
         "cap_drop:",
