@@ -51,6 +51,7 @@ class SessionManager:
         self._counters: dict[str, int] = {
             "sessions_created": 0,
             "sessions_closed": 0,
+            "sessions_evicted": 0,
             "session_not_found_errors": 0,
             "session_forbidden_errors": 0,
             "session_expired_errors": 0,
@@ -267,15 +268,17 @@ class SessionManager:
     def _is_expired(self, record: SessionRecord) -> bool:
         return _utcnow() - record.last_seen_at > self._idle_timeout
 
-    def _evict_oldest_inactive_locked(self) -> None:
+    def _evict_oldest_inactive_locked(self) -> bool:
         candidates = [record for record in self._sessions.values() if record.session.status != "running"]
         if not candidates:
-            return
+            return False
         oldest = min(candidates, key=lambda record: record.last_seen_at)
         self._sessions.pop(oldest.session_id, None)
         self._mirror_delete_locked(oldest.session_id)
+        self._bump_counter_locked("sessions_evicted")
         self._capacity_changed.notify_all()
         oldest.session.close()
+        return True
 
     def _bump_counter_locked(self, key: str, amount: int = 1) -> None:
         self._counters[key] = self._counters.get(key, 0) + int(amount)

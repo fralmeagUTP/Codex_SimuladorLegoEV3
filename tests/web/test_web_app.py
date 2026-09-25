@@ -1536,7 +1536,7 @@ def test_active_session_limit_is_enforced(tmp_path):
         manager.create_session()
 
 
-def test_api_session_creation_returns_429_at_capacity_without_eviction(tmp_path):
+def test_api_session_creation_evicts_oldest_non_running_session_at_capacity(tmp_path):
     client = make_client_with_config(tmp_path, MAX_ACTIVE_SESSIONS=2)
 
     first = client.post("/api/sessions").get_json()
@@ -1544,21 +1544,27 @@ def test_api_session_creation_returns_429_at_capacity_without_eviction(tmp_path)
     third = client.post("/api/sessions")
     manager = client.application.extensions["session_manager"]
 
-    assert third.status_code == 429
-    assert third.get_json()["error"]["code"] == "CAPACITY_EXCEEDED"
-    assert third.headers.get("Retry-After") == "2"
+    assert third.status_code == 201
     assert manager.stats()["active_sessions"] == 2
+    assert manager.stats()["sessions_evicted"] == 1
     assert (
         client.get(
             f"/api/sessions/{first['session_id']}",
             headers=auth_headers(first),
         ).status_code
-        == 200
+        == 404
     )
     assert (
         client.get(
             f"/api/sessions/{second['session_id']}",
             headers=auth_headers(second),
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            f"/api/sessions/{third.get_json()['session_id']}",
+            headers=auth_headers(third.get_json()),
         ).status_code
         == 200
     )
@@ -1568,6 +1574,9 @@ def test_api_session_creation_wait_ms_can_queue_until_capacity_frees(tmp_path):
     client = make_client_with_config(tmp_path, MAX_ACTIVE_SESSIONS=1)
     first = client.post("/api/sessions").get_json()
     manager = client.application.extensions["session_manager"]
+    # Una simulación en curso no se puede desalojar automáticamente; en ese
+    # caso el cliente sí espera a que se libere la capacidad.
+    manager.get_session(first["session_id"], first["owner_token"])._status = "running"
 
     def delayed_release():
         time.sleep(0.08)

@@ -42,7 +42,10 @@ def create_session():
 
     try:
         session_id, owner_token = manager.create_session(
-            evict_inactive=False,
+            # Si el aula alcanza capacidad, se recupera primero el worker de
+            # la sesión más antigua que no esté ejecutando una simulación.
+            # Así una pestaña abandonada no bloquea a un nuevo estudiante.
+            evict_inactive=True,
             wait_timeout_s=float(wait_ms) / 1000.0,
         )
     except CapacityExceeded as exc:
